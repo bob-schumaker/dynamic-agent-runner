@@ -86,6 +86,38 @@ def _write_portable_manifest(source: Path) -> None:
     )
 
 
+def test_local_host_open_uses_an_injected_controller_mcp_client(
+    tmp_path: Path,
+) -> None:
+    configuration = MCPClientConfiguration(
+        connection_id="v1.controller-connection",
+        authentication_id="v1.controller-authentication",
+        peer_certificate_sha256="a" * 64,
+        timeout_seconds=1,
+        max_response_bytes=1024,
+    )
+    configure_local_host(
+        root=tmp_path / "state",
+        package_root=tmp_path / "packages",
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+        mcp_client_configuration=configuration,
+    )
+    client = object()
+    observed: list[object] = []
+
+    def controller_client(supplied: object) -> object:
+        observed.append(supplied)
+        return client
+
+    host = LocalWorkflowHost.open(
+        tmp_path / "state", mcp_client_factory=controller_client
+    )
+
+    assert observed == [configuration]
+    assert host._mcp_client is client
+
+
 class _Responses:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []

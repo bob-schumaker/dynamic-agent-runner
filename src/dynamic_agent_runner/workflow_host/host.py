@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -605,7 +606,13 @@ class LocalWorkflowHost:
         self._mcp_bindings = mcp_bindings
 
     @classmethod
-    def open(cls, root: Path) -> LocalWorkflowHost:
+    def open(
+        cls,
+        root: Path,
+        *,
+        mcp_client_factory: Callable[[MCPClientConfiguration], MCPConnectionClient]
+        | None = None,
+    ) -> LocalWorkflowHost:
         """Open a configured local host for the current OS user."""
 
         _validate_root(root)
@@ -618,9 +625,14 @@ class LocalWorkflowHost:
         mcp_bindings = MCPWorkflowCapabilityBindingControlPlane(
             store=store, surfaces=surfaces
         )
-        mcp_client = _mcp_client(
-            root=root, configuration=configuration, connections=connections
-        )
+        if mcp_client_factory is None:
+            mcp_client = _mcp_client(
+                root=root, configuration=configuration, connections=connections
+            )
+        elif configuration.mcp_client_configuration is None:
+            raise LocalWorkflowHostError("MCP client is not configured")
+        else:
+            mcp_client = mcp_client_factory(configuration.mcp_client_configuration)
         catalog = PackageCatalog(root / "catalog")
         registrations = WorkflowRegistrationService(
             profiles=profiles,
