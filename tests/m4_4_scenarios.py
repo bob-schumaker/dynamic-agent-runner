@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,26 @@ from dynamic_agent_runner.workflow_host.authoring_evidence import (
 
 class M44ScenarioError(ValueError):
     """Raised when an M4.4 scenario cannot make a safe harness claim."""
+
+
+@dataclass(frozen=True)
+class M44CoverageEntry:
+    """One capability-to-scenario acceptance binding."""
+
+    capability_id: str
+    scenario_id: str
+    expected_status: str
+    configured_fixture_ids: tuple[str, ...]
+    missing_fixture_ids: tuple[str, ...]
+    expected_terminal_phase: str
+    capability_assertions: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class M44Coverage:
+    """Versioned successor acceptance coverage manifest."""
+
+    entries: tuple[M44CoverageEntry, ...]
 
 
 @dataclass(frozen=True)
@@ -104,6 +125,208 @@ def load_m44_scenario(source: Path) -> M44Scenario:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
         raise M44ScenarioError("scenario source is invalid") from error
     return M44Scenario.from_mapping(value)
+
+
+def load_m44_coverage(source: Path) -> M44Coverage:
+    """Load the closed successor coverage manifest."""
+
+    if not isinstance(source, Path) or source.suffix != ".json":
+        raise M44ScenarioError("coverage source is invalid")
+    try:
+        value: Any = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise M44ScenarioError("coverage source is invalid") from error
+    if not isinstance(value, dict) or set(value) != {"format_version", "entries"}:
+        raise M44ScenarioError("coverage fields are invalid")
+    if value["format_version"] != "m4.4-successor-coverage-v1":
+        raise M44ScenarioError("coverage format version is invalid")
+    if not isinstance(value["entries"], list) or not value["entries"]:
+        raise M44ScenarioError("coverage entries are invalid")
+    entries = tuple(_coverage_entry(entry) for entry in value["entries"])
+    if len({(entry.capability_id, entry.scenario_id) for entry in entries}) != len(
+        entries
+    ):
+        raise M44ScenarioError("coverage entries are invalid")
+    return M44Coverage(entries=entries)
+
+
+def validate_m44_coverage(
+    coverage: M44Coverage, *, matrix_source: Path, scenario_roots: tuple[Path, ...]
+) -> None:
+    """Validate complete matrix coverage against immutable scenario contracts."""
+
+    if not isinstance(coverage, M44Coverage):
+        raise M44ScenarioError("coverage is invalid")
+    matrix = _load_capability_matrix(matrix_source)
+    scenarios = _load_scenario_corpus(scenario_roots)
+    capability_ids = {entry.capability_id for entry in coverage.entries}
+    if capability_ids != set(matrix):
+        raise M44ScenarioError("coverage capability IDs are invalid")
+    scenario_ids = {entry.scenario_id for entry in coverage.entries}
+    if scenario_ids != set(scenarios):
+        raise M44ScenarioError("coverage scenarios are invalid")
+    for entry in coverage.entries:
+        _validate_coverage_entry(entry, scenarios)
+    for capability_id, support_status in matrix.items():
+        _validate_capability_coverage(capability_id, support_status, coverage.entries)
+
+
+def _validate_coverage_entry(
+    entry: M44CoverageEntry, scenarios: dict[str, M44Scenario]
+) -> None:
+    scenario = scenarios.get(entry.scenario_id)
+    if scenario is None:
+        raise M44ScenarioError("coverage entry is invalid")
+    if (
+        entry.expected_status != scenario.expected_status
+        or entry.expected_terminal_phase != scenario.expected_terminal_phase
+    ):
+        raise M44ScenarioError("coverage entry does not match scenario")
+    if not _required_gates(entry.capability_id).issubset(scenario.required_gates):
+        raise M44ScenarioError("coverage entry is under-gated")
+    if not entry.capability_assertions:
+        raise M44ScenarioError("coverage assertions are invalid")
+    configured, missing = (
+        set(entry.configured_fixture_ids),
+        set(entry.missing_fixture_ids),
+    )
+    if configured & missing or configured | missing != set(
+        scenario.required_host_fixtures
+    ):
+        raise M44ScenarioError("coverage fixtures are invalid")
+    if entry.expected_status == "pass" and missing:
+        raise M44ScenarioError("positive coverage fixtures are invalid")
+
+
+def _validate_capability_coverage(
+    capability_id: str, support_status: str, entries: tuple[M44CoverageEntry, ...]
+) -> None:
+    capability_entries = tuple(
+        entry for entry in entries if entry.capability_id == capability_id
+    )
+    if support_status == "supported" and not any(
+        entry.expected_status == "pass" for entry in capability_entries
+    ):
+        raise M44ScenarioError("supported coverage is incomplete")
+    if support_status == "conditional":
+        has_positive = any(
+            entry.expected_status == "pass" and not entry.missing_fixture_ids
+            for entry in capability_entries
+        )
+        has_missing_fixture = any(
+            entry.expected_status == "expected_capability_unavailable"
+            and len(entry.missing_fixture_ids) == 1
+            for entry in capability_entries
+        )
+        if not has_positive or not has_missing_fixture:
+            raise M44ScenarioError("conditional coverage is incomplete")
+    if support_status == "deferred" and any(
+        entry.expected_status == "pass" for entry in capability_entries
+    ):
+        raise M44ScenarioError("deferred coverage is invalid")
+
+
+def _coverage_entry(value: object) -> M44CoverageEntry:
+    if not isinstance(value, dict) or set(value) != {
+        "capability_id",
+        "scenario_id",
+        "expected_status",
+        "configured_fixture_ids",
+        "missing_fixture_ids",
+        "expected_terminal_phase",
+        "capability_assertions",
+    }:
+        raise M44ScenarioError("coverage entry fields are invalid")
+    return M44CoverageEntry(
+        capability_id=_text(value["capability_id"], "capability_id"),
+        scenario_id=_text(value["scenario_id"], "scenario_id"),
+        expected_status=_choice(
+            value["expected_status"],
+            "expected_status",
+            {"pass", "expected_capability_unavailable", "expected_refusal"},
+        ),
+        configured_fixture_ids=_text_list(
+            value["configured_fixture_ids"], "configured_fixture_ids", empty=True
+        ),
+        missing_fixture_ids=_text_list(
+            value["missing_fixture_ids"], "missing_fixture_ids", empty=True
+        ),
+        expected_terminal_phase=_choice(
+            value["expected_terminal_phase"],
+            "expected_terminal_phase",
+            {
+                "authoring_validation",
+                "source_selection",
+                "capability_preflight",
+                "registration",
+                "invocation",
+            },
+        ),
+        capability_assertions=_text_list(
+            value["capability_assertions"], "capability_assertions"
+        ),
+    )
+
+
+def _load_capability_matrix(source: Path) -> dict[str, str]:
+    if not isinstance(source, Path):
+        raise M44ScenarioError("capability matrix is invalid")
+    try:
+        rows = re.findall(
+            r"^\| `([a-z0-9-]+)` \| .*? \| (supported|conditional|deferred) \|",
+            source.read_text(encoding="utf-8"),
+            flags=re.MULTILINE,
+        )
+    except (OSError, UnicodeDecodeError) as error:
+        raise M44ScenarioError("capability matrix is invalid") from error
+    matrix = dict(rows)
+    if len(matrix) != len(rows) or not matrix:
+        raise M44ScenarioError("capability matrix is invalid")
+    return matrix
+
+
+def _load_scenario_corpus(roots: tuple[Path, ...]) -> dict[str, M44Scenario]:
+    if (
+        not isinstance(roots, tuple)
+        or not roots
+        or any(not isinstance(root, Path) or not root.is_dir() for root in roots)
+    ):
+        raise M44ScenarioError("scenario corpus is invalid")
+    scenarios = {}
+    sources = tuple(path for root in roots for path in root.glob("*.json"))
+    for path in sources:
+        scenario = load_m44_scenario(path)
+        scenarios[scenario.scenario_id] = scenario
+    if not scenarios or len(scenarios) != len(sources):
+        raise M44ScenarioError("scenario corpus is invalid")
+    return scenarios
+
+
+def _required_gates(capability_id: str) -> set[str]:
+    return {
+        "basic-reasoning": {"G3"},
+        "no-tool-multi-step": {"G3"},
+        "tool-using-graph": {"G2", "G5"},
+        "structured-terminal-output": {"G3"},
+        "package-local-skill": {"G3"},
+        "read-only-mcp-tool": {"G2"},
+        "mcp-mutation": {"G2", "G5"},
+        "file-backed-task": {"G4"},
+        "hybrid-input": {"G3"},
+        "tool-argument-provenance": {"G5"},
+        "react-tool-loop": {"G2", "G5"},
+        "oauth-mcp-connection": {"G2"},
+        "package-portability": {"M8"},
+        "evaluation": {"G3"},
+        "guardrails": {"G3"},
+        "context-pruning-pipeline": {"G3"},
+        "scratch-workspace": {"G3"},
+        "durable-session-continuation": {"G3"},
+        "collaboration-subagents": {"G3"},
+        "retrieval-embedding-rag": {"G3"},
+        "custom-host-tools": {"G3"},
+        "native-approval-resume": {"G5"},
+    }[capability_id]
 
 
 def validate_m44_evidence(

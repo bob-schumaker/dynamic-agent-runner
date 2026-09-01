@@ -1,0 +1,18 @@
+{
+  "expected_status": "pass",
+  "expected_terminal_phase": "invocation",
+  "format_version": "m4.4-v1",
+  "invocation_mode": "mcp_prompt_only",
+  "required_artifact_roles": [],
+  "required_gates": [
+    "G3"
+  ],
+  "required_host_fixtures": [
+    "local-model-profile",
+    "tool-input-guardrail-registry"
+  ],
+  "scenario_id": "guardrail-tool-input-v1",
+  "zero_dispatch_assertions": [
+    "tool-input-guardrail-abort-before-tool-dispatch"
+  ]
+}

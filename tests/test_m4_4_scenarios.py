@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,9 @@ import pytest
 from m4_4_scenarios import (
     M44Scenario,
     M44ScenarioError,
+    load_m44_coverage,
     load_m44_scenario,
+    validate_m44_coverage,
     validate_m44_evidence,
 )
 from dynamic_agent_runner.workflow_host.authoring_evidence import (  # noqa: E402
@@ -73,7 +76,7 @@ def test_checked_in_scenario_corpus_covers_the_m4_4_stratified_cases() -> None:
 
     scenarios = {load_m44_scenario(path).scenario_id for path in root.glob("*.json")}
 
-    assert scenarios == {
+    assert {
         "authoring-boundary-attack-v1",
         "council-request-v1",
         "document-embedding-v1",
@@ -87,7 +90,103 @@ def test_checked_in_scenario_corpus_covers_the_m4_4_stratified_cases() -> None:
         "portable-package-handoff-v1",
         "side-effect-recovery-v1",
         "structured-single-model-review-v1",
+    } <= scenarios
+
+
+def test_successor_coverage_manifest_maps_every_capability_to_contracts() -> None:
+    root = Path(__file__).resolve().parent
+    coverage = load_m44_coverage(root / "fixtures" / "m4-4-successor-coverage.json")
+
+    validate_m44_coverage(
+        coverage,
+        matrix_source=(
+            root.parent
+            / "specs"
+            / "authored-workflow-runtime-v1"
+            / "m4-4-workflow-capability-matrix.md"
+        ),
+        scenario_roots=(
+            root / "fixtures" / "dar-authoring" / "m4-4",
+            root / "fixtures" / "m4-4-successor",
+        ),
+    )
+
+    assert {entry.capability_id for entry in coverage.entries} == {
+        "basic-reasoning",
+        "collaboration-subagents",
+        "context-pruning-pipeline",
+        "custom-host-tools",
+        "durable-session-continuation",
+        "evaluation",
+        "file-backed-task",
+        "guardrails",
+        "hybrid-input",
+        "mcp-mutation",
+        "native-approval-resume",
+        "no-tool-multi-step",
+        "oauth-mcp-connection",
+        "package-local-skill",
+        "package-portability",
+        "react-tool-loop",
+        "read-only-mcp-tool",
+        "retrieval-embedding-rag",
+        "scratch-workspace",
+        "structured-terminal-output",
+        "tool-argument-provenance",
+        "tool-using-graph",
     }
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    (
+        lambda coverage: replace(
+            coverage,
+            entries=(
+                replace(coverage.entries[0], capability_id="unknown-capability"),
+                *coverage.entries[1:],
+            ),
+        ),
+        lambda coverage: replace(
+            coverage,
+            entries=(
+                replace(
+                    coverage.entries[0],
+                    expected_status="expected_capability_unavailable",
+                ),
+                *coverage.entries[1:],
+            ),
+        ),
+        lambda coverage: replace(coverage, entries=coverage.entries[1:]),
+        lambda coverage: replace(
+            coverage,
+            entries=tuple(
+                replace(entry, missing_fixture_ids=())
+                if entry.scenario_id == "mcp-tooling-missing-connection-v1"
+                else entry
+                for entry in coverage.entries
+            ),
+        ),
+    ),
+)
+def test_successor_coverage_rejects_incomplete_or_mismatched_entries(mutate) -> None:
+    root = Path(__file__).resolve().parent
+    coverage = load_m44_coverage(root / "fixtures" / "m4-4-successor-coverage.json")
+
+    with pytest.raises(M44ScenarioError):
+        validate_m44_coverage(
+            mutate(coverage),
+            matrix_source=(
+                root.parent
+                / "specs"
+                / "authored-workflow-runtime-v1"
+                / "m4-4-workflow-capability-matrix.md"
+            ),
+            scenario_roots=(
+                root / "fixtures" / "dar-authoring" / "m4-4",
+                root / "fixtures" / "m4-4-successor",
+            ),
+        )
 
 
 def test_scenario_checker_requires_its_declared_gate_and_fixture() -> None:

@@ -1,0 +1,19 @@
+{
+  "expected_status": "expected_capability_unavailable",
+  "expected_terminal_phase": "capability_preflight",
+  "format_version": "m4.4-v1",
+  "invocation_mode": "mcp_prompt_only",
+  "required_artifact_roles": [],
+  "required_gates": [
+    "G2"
+  ],
+  "required_host_fixtures": [
+    "local-model-profile",
+    "oauth-connection",
+    "fake-oauth-provider"
+  ],
+  "scenario_id": "oauth-missing-connection-v1",
+  "zero_dispatch_assertions": [
+    "no-oauth-or-browser-dispatch"
+  ]
+}
