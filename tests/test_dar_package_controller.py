@@ -63,6 +63,20 @@ def test_controller_proxy_runs_an_invoke_against_its_private_host(
         )
         == 0
     )
+    assert (
+        dar_package_cli.main(
+            [
+                "--controller-proxy",
+                "--socket",
+                str(socket_path),
+                "create-authored-package",
+                "--package-name",
+                "summary",
+            ],
+            stdin=StringIO(),
+        )
+        == 2
+    )
     stopped.set()
     thread.join(timeout=1)
     assert not thread.is_alive()
