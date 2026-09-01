@@ -46,6 +46,7 @@ def _catalog_revision(
     package_skill_bundled_path: str | None = None,
     enable_package_skill_source_resolution: bool = True,
     terminal_output_schema_ref: str | None = None,
+    deferred_capability: str | None = None,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -187,6 +188,16 @@ def _catalog_revision(
         ]
         runtime_value["nodes"][0]["skill_refs"] = [package_skill_id]
         runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
+    if deferred_capability is not None:
+        descriptor = source / "workflow-descriptor.yaml"
+        descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+        runtime = source / "agent-runtime.yaml"
+        runtime_value = yaml.safe_load(runtime.read_text(encoding="utf-8"))
+        _declare_deferred_runtime_capability(
+            deferred_capability, descriptor_value, runtime_value
+        )
+        descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
+        runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
         allowed_root=source.parent, store=store
@@ -195,6 +206,67 @@ def _catalog_revision(
         source_handle, now=NOW
     )
     return PackageCatalog(tmp_path / "catalog").import_staged(staged)
+
+
+def _declare_deferred_runtime_capability(
+    capability: str, descriptor: dict[str, object], runtime: dict[str, object]
+) -> None:
+    execution_policy = runtime["runtime"]["execution_policy"]
+    if capability == "context-pruning-pipeline":
+        execution_policy["prepare_model_input"] = {
+            "context_compaction": {
+                "auto": {
+                    "enabled": True,
+                    "implementation": "basic",
+                    "trigger": "token_threshold",
+                    "scope": "current_run",
+                }
+            }
+        }
+    elif capability == "scratch-workspace":
+        descriptor["workspace"]["scratch_access"] = "ephemeral"
+    elif capability == "durable-session-continuation":
+        execution_policy["async_session"] = {
+            "mode": "create_or_resume",
+            "persist": "external_checkpoint",
+            "history": "summary",
+            "session_id_state_key": "session_id",
+            "session_messages_state_key": "session_messages",
+        }
+    elif capability == "native-approval-resume":
+        execution_policy["approval_interruption"] = {
+            "mode": "pause_on_approval",
+            "persist": "external_checkpoint",
+            "resume_from": "approval_decision",
+            "pending_tool_calls_state_key": "pending_tool_calls",
+            "pending_approvals_state_key": "pending_approvals",
+            "interruption_state_key": "interruption_state",
+            "resume_token_state_key": "resume_token",
+        }
+    elif capability == "collaboration-subagents":
+        runtime.setdefault("metadata", {})["participant_groups"] = [
+            {"id": "review-council"}
+        ]
+    elif capability == "retrieval-embedding-rag":
+        runtime.setdefault("metadata", {}).update(
+            {
+                "patterns_present": ["rag", "embedding_retrieval"],
+                "rag_pipeline": {
+                    "retrieval_mode": "embedding_semantic",
+                    "embedding_capability": "required",
+                    "graph_capability": "not_applicable",
+                    "index_owner": "runtime",
+                    "graph_store_owner": "unknown",
+                    "corpus_boundary": "fixture documents",
+                    "chunking_policy": "runtime default",
+                },
+            }
+        )
+        runtime["nodes"][0]["model_requirements"] = {
+            "required_capabilities": ["embeddings"]
+        }
+    else:
+        raise AssertionError(f"unknown deferred capability: {capability}")
 
 
 def test_policy_compiles_a_cataloged_no_tool_package(tmp_path: Path) -> None:
@@ -238,6 +310,33 @@ def test_capability_resolution_is_eligible_or_nonexecuting(tmp_path: Path) -> No
     assert unavailable.missing_capabilities == ("text_generation",)
     assert eligible.status == "eligible"
     assert eligible.missing_capabilities == ()
+
+
+@pytest.mark.parametrize(
+    "capability",
+    (
+        "context-pruning-pipeline",
+        "scratch-workspace",
+        "durable-session-continuation",
+        "native-approval-resume",
+        "collaboration-subagents",
+        "retrieval-embedding-rag",
+    ),
+)
+def test_deferred_runtime_declarations_require_an_explicit_host_capability(
+    tmp_path: Path, capability: str
+) -> None:
+    policy = compile_workflow_policy(
+        _catalog_revision(tmp_path, deferred_capability=capability)
+    )
+
+    resolution = resolve_capabilities(
+        policy, available_capabilities={"text_generation"}
+    )
+
+    assert capability in policy.required_capabilities
+    assert resolution.status == "capability_unavailable"
+    assert capability in resolution.missing_capabilities
 
 
 def test_read_only_mcp_policy_requires_its_nonexecuting_capability(

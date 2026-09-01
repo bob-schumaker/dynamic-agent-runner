@@ -86,7 +86,10 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         raise PolicyCompilationError("registered terminal output contract is missing")
     descriptor_digest = hashlib.sha256(descriptor_bytes).hexdigest()
     tool_capabilities = _tool_capabilities(descriptor.declared_tools)
-    required_capabilities = frozenset({"text_generation", *tool_capabilities})
+    deferred_capabilities = _deferred_runtime_capabilities(descriptor, workflow)
+    required_capabilities = frozenset(
+        {"text_generation", *tool_capabilities, *deferred_capabilities}
+    )
     policy_digest = _digest(
         {
             "format_version": 1,
@@ -175,6 +178,46 @@ def _tool_capabilities(tools: tuple[DeclaredTool, ...]) -> frozenset[str]:
         )
         if present
     )
+
+
+def _deferred_runtime_capabilities(
+    descriptor: WorkflowDescriptor, workflow: Any
+) -> frozenset[str]:
+    """Name declared runtime needs that this host does not provide by default."""
+
+    manifest = workflow.runtime_manifest
+    capabilities: set[str] = set()
+    execution_policy = manifest.execution_policy
+    prepare_model_input = execution_policy.get("prepare_model_input")
+    if isinstance(prepare_model_input, dict):
+        context_compaction = prepare_model_input.get("context_compaction")
+        if isinstance(context_compaction, dict):
+            auto = context_compaction.get("auto")
+            if isinstance(auto, dict) and auto.get("enabled") is True:
+                capabilities.add("context-pruning-pipeline")
+    if descriptor.workspace.scratch_access == "ephemeral":
+        capabilities.add("scratch-workspace")
+    if (
+        manifest.async_session_policy is not None
+        and manifest.async_session_policy.persist != "none"
+    ):
+        capabilities.add("durable-session-continuation")
+    if (
+        manifest.approval_interruption_policy is not None
+        and manifest.approval_interruption_policy.mode == "pause_on_approval"
+        and manifest.approval_interruption_policy.persist != "none"
+    ):
+        capabilities.add("native-approval-resume")
+    if manifest.participant_groups or any(
+        node.agent_as_tool is not None for node in manifest.nodes
+    ):
+        capabilities.add("collaboration-subagents")
+    if manifest.rag_pipeline and any(
+        "embeddings" in node.model_requirements.get("required_capabilities", ())
+        for node in manifest.nodes
+    ):
+        capabilities.add("retrieval-embedding-rag")
+    return frozenset(capabilities)
 
 
 def _digest(value: dict[str, Any]) -> str:

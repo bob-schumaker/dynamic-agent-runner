@@ -245,7 +245,7 @@ def _parse_workspace_contract(value: object) -> WorkspaceContract:
     if len(set(accepted_input_types)) != len(accepted_input_types):
         raise WorkflowDescriptorError("workspace.accepted_input_types must be unique")
     scratch_access = mapping.get("scratch_access")
-    if scratch_access != "none":
+    if scratch_access not in {"none", "ephemeral"}:
         raise WorkflowDescriptorError("workspace.scratch_access is unavailable")
     return WorkspaceContract(
         accepted_input_types=accepted_input_types,
