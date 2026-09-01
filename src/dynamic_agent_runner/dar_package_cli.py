@@ -31,6 +31,7 @@ def main(
     host_opener: Callable[[Path], LocalWorkflowHost] | None = None,
     approval_broker_factory: Callable[[], object] | None = None,
     guardrail_registry: object | None = None,
+    workspace_artifact_ids: Sequence[str] = (),
 ) -> int:
     """Run the narrow v1 DAR package discovery or saved-workflow command."""
 
@@ -81,6 +82,7 @@ def main(
         host_opener=host_opener,
         approval_broker_factory=approval_broker_factory,
         guardrail_registry=guardrail_registry,
+        workspace_artifact_ids=workspace_artifact_ids,
     )
 
 
@@ -127,28 +129,30 @@ def _invoke(
     host_opener: Callable[[Path], LocalWorkflowHost],
     approval_broker_factory: Callable[[], object],
     guardrail_registry: object | None,
+    workspace_artifact_ids: Sequence[str],
 ) -> int:
     try:
         invocation = _parse_invoke(arguments)
         prompt = stdin.read()
         if not prompt.strip():
             raise ValueError("prompt is required")
-        if invocation.dry_run and invocation.workspace_files:
+        if invocation.workspace_files and workspace_artifact_ids:
+            raise ValueError("workspace files and artifacts cannot be combined")
+        if invocation.dry_run and (
+            invocation.workspace_files or workspace_artifact_ids
+        ):
             raise ValueError("dry run cannot accept workspace files")
     except ValueError:
         _write(stderr, _error("usage"))
         return 2
     try:
-        invoke_kwargs: dict[str, object] = {
-            "package_name": invocation.package_name,
-            "prompt": prompt,
-            "workspace_files": invocation.workspace_files,
-            "dry_run": invocation.dry_run,
-            "approval_broker": approval_broker_factory() if invocation.ask else None,
-            "now": datetime.now(UTC),
-        }
-        if guardrail_registry is not None:
-            invoke_kwargs["guardrail_registry"] = guardrail_registry
+        invoke_kwargs = _invoke_kwargs(
+            invocation=invocation,
+            prompt=prompt,
+            approval_broker_factory=approval_broker_factory,
+            guardrail_registry=guardrail_registry,
+            workspace_artifact_ids=workspace_artifact_ids,
+        )
         result = host_opener(_default_state_root()).invoke_saved(**invoke_kwargs)
     except RunDarWorkflowError:
         _write(stderr, _invoke_error("failed"))
@@ -187,6 +191,29 @@ def _invoke(
         },
     )
     return 0
+
+
+def _invoke_kwargs(
+    *,
+    invocation: _InvokeArguments,
+    prompt: str,
+    approval_broker_factory: Callable[[], object],
+    guardrail_registry: object | None,
+    workspace_artifact_ids: Sequence[str],
+) -> dict[str, object]:
+    result: dict[str, object] = {
+        "package_name": invocation.package_name,
+        "prompt": prompt,
+        "workspace_files": invocation.workspace_files,
+        "dry_run": invocation.dry_run,
+        "approval_broker": approval_broker_factory() if invocation.ask else None,
+        "now": datetime.now(UTC),
+    }
+    if workspace_artifact_ids:
+        result["workspace_artifact_ids"] = tuple(workspace_artifact_ids)
+    if guardrail_registry is not None:
+        result["guardrail_registry"] = guardrail_registry
+    return result
 
 
 _AUTHORING_COMMANDS = frozenset(

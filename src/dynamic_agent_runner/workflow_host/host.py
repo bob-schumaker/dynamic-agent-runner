@@ -1009,6 +1009,7 @@ class LocalWorkflowHost:
         package_name: str,
         prompt: str,
         workspace_files: Sequence[Path],
+        workspace_artifact_ids: Sequence[str] = (),
         dry_run: bool,
         approval_broker: LocalActionApprovalBroker | None,
         guardrail_registry: InMemoryGuardrailRegistry | None = None,
@@ -1016,13 +1017,17 @@ class LocalWorkflowHost:
     ) -> SavedWorkflowDryRunResult | RunDarWorkflowResult:
         """Run one registered saved package without accepting source authority."""
 
-        if dry_run and workspace_files:
+        if workspace_files and workspace_artifact_ids:
+            raise LocalWorkflowHostError(
+                "workspace files and artifacts cannot be combined"
+            )
+        if dry_run and (workspace_files or workspace_artifact_ids):
             raise LocalWorkflowHostError("dry run cannot accept workspace files")
         try:
             registration = self._registrations.resolve(package_name)
         except WorkflowRegistrationError as error:
             raise LocalWorkflowHostError("saved package is unavailable") from error
-        artifact_ids = tuple(
+        artifact_ids = tuple(workspace_artifact_ids) or tuple(
             self.ingress_default_file(
                 workflow_id=registration.workflow_id, path=path, now=now
             ).artifact_id

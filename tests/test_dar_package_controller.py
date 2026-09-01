@@ -19,9 +19,11 @@ def test_controller_proxy_runs_an_invoke_against_its_private_host(
 ) -> None:
     socket_path = Path("/private/tmp") / f"dar-controller-{uuid4().hex}.sock"
     stopped = Event()
+    observed: dict[str, object] = {}
 
     class Host:
-        def invoke_saved(self, **_kwargs: object) -> object:
+        def invoke_saved(self, **kwargs: object) -> object:
+            observed.update(kwargs)
             return type(
                 "Result",
                 (),
@@ -39,6 +41,7 @@ def test_controller_proxy_runs_an_invoke_against_its_private_host(
             "host": Host(),
             "allowed_commands": ("invoke",),
             "stop_event": stopped,
+            "workspace_artifact_ids": ("v1.controller-artifact",),
         },
         daemon=True,
     )
@@ -63,6 +66,8 @@ def test_controller_proxy_runs_an_invoke_against_its_private_host(
         )
         == 0
     )
+    assert observed["workspace_artifact_ids"] == ("v1.controller-artifact",)
+    assert observed["workspace_files"] == ()
     assert (
         dar_package_cli.main(
             [

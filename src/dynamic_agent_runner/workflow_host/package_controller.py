@@ -19,6 +19,7 @@ def serve_package_controller(
     stop_event: Event,
     approval_broker_factory: Callable[[], object] | None = None,
     guardrail_registry: object | None = None,
+    workspace_artifact_ids: Sequence[str] = (),
 ) -> None:
     """Serve allowed package commands against one controller-owned host."""
 
@@ -48,6 +49,7 @@ def serve_package_controller(
                         allowed_commands=frozenset(allowed_commands),
                         approval_broker_factory=approval_broker_factory,
                         guardrail_registry=guardrail_registry,
+                        workspace_artifact_ids=workspace_artifact_ids,
                     )
         finally:
             try:
@@ -86,6 +88,7 @@ def _serve_connection(
     allowed_commands: frozenset[str],
     approval_broker_factory: Callable[[], object] | None,
     guardrail_registry: object | None,
+    workspace_artifact_ids: Sequence[str],
 ) -> None:
     try:
         request: Any = json.loads(_read_line(connection))
@@ -110,6 +113,7 @@ def _serve_connection(
             host_opener=lambda _root: host,
             approval_broker_factory=approval_broker_factory,
             guardrail_registry=guardrail_registry,
+            workspace_artifact_ids=workspace_artifact_ids,
         )
         response = {
             "returncode": returncode,

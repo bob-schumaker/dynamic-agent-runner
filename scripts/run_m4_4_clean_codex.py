@@ -206,6 +206,8 @@ def _controller_fixtures(contract: M44Scenario) -> _ControllerFixtures:
     if contract.expected_status == "pass":
         if "reviewed-mcp-connection" in contract.required_host_fixtures:
             fixture_ids.add("reviewed-mcp-connection")
+        if "trusted-workspace-ingress" in contract.required_host_fixtures:
+            fixture_ids.add("trusted-workspace-ingress")
         if "approval-broker" in contract.required_host_fixtures:
             fixture_ids.add("approval-broker")
             approval_broker_factory = _ApprovedActionBroker
@@ -345,6 +347,7 @@ def _package_controller(
     allowed_commands: tuple[str, ...],
     approval_broker_factory: Callable[[], object] | None = None,
     guardrail_registry: InMemoryGuardrailRegistry | None = None,
+    workspace_artifact_ids: list[str] | None = None,
 ):
     stop_event = Event()
     thread = Thread(
@@ -356,6 +359,9 @@ def _package_controller(
             "stop_event": stop_event,
             "approval_broker_factory": approval_broker_factory,
             "guardrail_registry": guardrail_registry,
+            "workspace_artifact_ids": (
+                workspace_artifact_ids if workspace_artifact_ids is not None else ()
+            ),
         },
         daemon=True,
     )
@@ -480,11 +486,14 @@ def run_scenario(
         author_workspace.mkdir(mode=0o700)
         invocation_workspace.mkdir(mode=0o700)
         package_root.mkdir(mode=0o700)
+        controller_input_root = root / "controller-inputs"
+        controller_input_root.mkdir(mode=0o700)
         configuration = configure_local_host(
             root=state_root,
             package_root=package_root,
             model_id=model_id,
             base_url=base_url,
+            workspace_input_root=controller_input_root,
         )
         mcp_fixture = (
             _configure_controller_mcp(
@@ -502,6 +511,7 @@ def run_scenario(
             mcp_connections=mcp_connections,
         )
         with ExitStack() as controllers:
+            workspace_artifact_ids: list[str] = []
             author_socket = controllers.enter_context(
                 _package_controller(
                     host=host,
@@ -523,6 +533,7 @@ def run_scenario(
                     allowed_commands=("invoke",),
                     approval_broker_factory=fixtures.approval_broker_factory,
                     guardrail_registry=fixtures.guardrail_registry,
+                    workspace_artifact_ids=workspace_artifact_ids,
                 )
             )
             author_dar_bin = stage_dar_package(
@@ -608,6 +619,8 @@ def run_scenario(
                         _digest_file(marketplace),
                         fixtures.fixture_ids,
                         mcp_client,
+                        controller_input_root,
+                        workspace_artifact_ids,
                     )
             finally:
                 if installed:
@@ -638,6 +651,8 @@ def _pass_evidence(
     marketplace_manifest_digest: str,
     available_host_fixtures: tuple[str, ...],
     mcp_client: _ControllerMCPClient | None,
+    controller_input_root: Path,
+    workspace_artifact_ids: list[str],
 ) -> AuthorThenRunEvidence:
     created, finalized = (
         _receipt(author_result.stdout, "created"),
@@ -678,6 +693,16 @@ def _pass_evidence(
             now=datetime.now(UTC),
             mcp_binding_id=binding.binding_id if binding is not None else None,
         )
+        if "trusted-workspace-ingress" in available_host_fixtures:
+            fixture_input = controller_input_root / "fixture-input.txt"
+            fixture_input.write_text("controller fixture input\n", encoding="utf-8")
+            workspace_artifact_ids.append(
+                host.ingress_default_file(
+                    workflow_id=registration.workflow_id,
+                    path=fixture_input,
+                    now=datetime.now(UTC),
+                ).artifact_id
+            )
         if registration.revision_digest != package_digest:
             raise ValueError
     except (LocalWorkflowHostError, ValueError):
