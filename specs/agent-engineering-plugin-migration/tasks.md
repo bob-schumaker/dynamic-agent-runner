@@ -70,7 +70,11 @@ plugin-acceptance framework.
       complete manifest. It owns fake model, MCP/tool, approval, ingress,
       guardrail, and capability collaborators and passes only declared fixture
       inputs to each scenario. Unit tests must prove that this controller makes
-      no OpenAI, MCP, credential, or other network call.
+      no OpenAI, MCP, credential, or other network call. Controller preflight
+      alone is insufficient: the actor-side authoring and invocation commands
+      must use the controller-provisioned collaborators rather than the
+      default `dar-package` state-root path, which has no MCP, approval,
+      ingress, or guardrail collaborator injection.
 - [ ] RED/GREEN: add and pass fixture-backed contract tests for two separately
       launched clean Codex actors: author/finalize, then saved-package invoke.
       The second actor receives only the finalized package name and text request;
