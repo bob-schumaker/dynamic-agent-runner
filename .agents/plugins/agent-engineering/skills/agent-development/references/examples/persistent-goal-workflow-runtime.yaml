@@ -1,0 +1,400 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: persistent-goal-workflow
+name: Persistent Goal Workflow
+entrypoint: plan_goal
+mermaid_diagram: persistent-goal-workflow-graph.mmd
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+runtime:
+  execution_policy:
+    autonomy_level: supervised_agent
+    allowed_execution_modes:
+    - sequential_fallback
+    external_backend_allowed: false
+    max_iterations: 6
+    max_steps: 12
+    timeout: unknown
+    exit_strategy:
+      terminal_conditions:
+      - goal closed
+      - continuation_report emitted
+      - checkpoint budget exhausted
+      - human escalation required
+      on_exhaustion: return_partial
+      ambiguous_completion: continue_until_checkpoint_or_escalate
+    approval_required_for:
+    - changing durable goal state
+    - notifying external owners
+    forbidden_actions:
+    - continue a goal without an explicit next checkpoint
+    - hide stale or blocked state from the run report
+  state:
+    artifacts:
+    - id: user_goal
+      description: User's durable goal or long-running objective
+      source: user
+    - id: goal_plan
+      description: Structured goal plan with checkpoints and completion criteria
+      source: llm
+    - id: checkpoint_summary
+      description: Current durable-state checkpoint summary
+      source: tool
+    - id: next_action
+      description: Routing decision for continue, close, or escalate
+      source: runtime
+    - id: continuation_report
+      description: Report that records the next checkpoint and remaining work
+      source: llm
+    - id: final_status
+      description: Closed-goal status and final evidence
+      source: llm
+    mutable_fields:
+    - checkpoint_summary
+    - next_action
+metadata:
+  patterns_present:
+  - long_running
+  - persistent_goal
+  - routing
+  modes:
+  - id: default
+    description: Supervised durable-goal checkpoint mode
+    enabled_phases:
+    - planning
+    - checkpoint
+    - routing
+    - reporting
+    batching_allowed: false
+  phases:
+  - id: planning
+    label: Goal planning
+    phase_kind: preparation
+    repeatable: false
+    enabled_when: always
+  - id: checkpoint
+    label: Checkpoint read/write
+    phase_kind: verification
+    repeatable: true
+    enabled_when: goal_plan_available
+  - id: routing
+    label: Progress routing
+    phase_kind: decision_gate
+    repeatable: true
+    enabled_when: checkpoint_summary_available
+  - id: reporting
+    label: Status reporting
+    phase_kind: aggregation
+    repeatable: true
+    enabled_when: next_action_available
+  roles:
+  - id: goal_planner
+    actor: planner
+    description: Defines checkpoints, terminal states, and ambiguity handling.
+  - id: goal_reporter
+    actor: reporter
+    description: Produces continuation and closure reports from checkpoint state.
+  goals:
+  - id: durable_goal
+    terminal_statuses:
+    - achieved
+    - blocked
+    - cancelled
+    - escalated
+  completion_contract:
+    mechanism: checkpointed_goal_status
+    ambiguous_completion: continue_until_checkpoint_or_escalate
+  result_surfaces:
+    final_output: true
+    continuation_state: true
+    audit_records: true
+  permission_profile:
+    filesystem: none
+    network: none
+    process: none
+  trace_bundle:
+    payload_capture: redacted
+    layering:
+    - workflow_trace
+    - checkpoint_events
+    - durable_goal_state
+extensions: {}
+skills:
+- id: agent-development
+  label: Agent development skill
+  source_type: repo_skill
+  source_path: corpus/capabilities/agent-development/SKILL.md
+  packaging_mode: bundled_copy
+  bundled_path: skill-bundle/agent-development/SKILL.md
+  support_files:
+  - source_path: corpus/capabilities/agent-development/references/agent-runtime-package.md
+    bundled_path: skill-bundle/agent-development/references/agent-runtime-package.md
+  notes: Provides runtime package design conventions.
+tools:
+- id: update_goal_state
+  label: Update goal state
+  tool_type: structured_data_query
+  description_for_llm: |
+    Read and update the package-owned durable goal checkpoint record. Use only
+    for the declared goal id and return the updated checkpoint summary.
+  adapter: runtime.goal_store
+  input_schema:
+    type: object
+    required:
+    - goal_plan
+    properties:
+      goal_plan:
+        type: string
+  output_schema:
+    type: object
+    properties:
+      checkpoint:
+        type: string
+      status:
+        type: string
+  side_effect: write
+  approval_required: conditional
+  timeout: runtime_default
+  retry_policy: bounded
+  failure_behavior: escalate
+  skill_bindings:
+  - skill_id: agent-development
+    usage: shared_reference
+nodes:
+- id: plan_goal
+  kind: llm_step
+  label: Plan goal
+  actor: planner
+  role: goal_planner
+  phase: planning
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    reasoning_profile:
+      level: medium
+      task_type: planning
+      task_subtype: synthesis
+      uncertainty_handling: ask_clarification
+    context_requirements:
+      expected_input_size: medium
+      context_window: 16000
+      needs_retrieved_context: false
+    output_requirements:
+      format: schema_ref
+      schema_ref: goal_plan
+      evidence_citations: not_needed
+    operational_preferences:
+      latency_sensitivity: medium
+      cost_sensitivity: medium
+      determinism: preferred
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: escalate
+      minimum_acceptable_level: medium
+  prompt:
+    system: |
+      Convert the user's durable goal into checkpoints, terminal states, and
+      explicit ambiguity handling.
+    developer: |
+      Define a next checkpoint and do not leave the run without a terminal or
+      continuation state.
+    user_template: |
+      Goal: {user_goal}
+    input_vars:
+    - user_goal
+    output_schema_ref: goal_plan
+  inputs_from:
+  - user_goal
+  outputs:
+  - goal_plan
+- id: record_checkpoint
+  kind: tool_use_step
+  label: Record checkpoint
+  actor: runtime
+  phase: checkpoint
+  tool_id: update_goal_state
+  inputs_from:
+  - goal_plan
+  outputs:
+  - checkpoint_summary
+  failure_behavior: escalate
+- id: evaluate_progress
+  kind: decision_step
+  decision_subtype: simple_check
+  label: Evaluate progress
+  actor: runtime
+  phase: routing
+  decision_contract:
+    compares:
+    - checkpoint_summary
+    allowed_paths:
+    - id: continue
+      condition: goal remains active and next checkpoint exists
+      target: prepare_continuation
+    - id: close
+      condition: terminal status reached
+      target: close_goal
+    default_path: continue
+  inputs_from:
+  - checkpoint_summary
+  outputs:
+  - next_action
+- id: prepare_continuation
+  kind: llm_step
+  label: Prepare continuation
+  actor: reporter
+  role: goal_reporter
+  phase: reporting
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    reasoning_profile:
+      level: low
+      task_type: generation
+      task_subtype: synthesis
+      uncertainty_handling: answer_with_caveats
+    context_requirements:
+      expected_input_size: medium
+      context_window: 8000
+      needs_retrieved_context: true
+    output_requirements:
+      format: schema_ref
+      schema_ref: continuation_report
+      evidence_citations: preferred
+    operational_preferences:
+      latency_sensitivity: medium
+      cost_sensitivity: medium
+      determinism: preferred
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: use_lower_capability
+      minimum_acceptable_level: low
+  prompt:
+    system: |
+      Produce a continuation report with the next checkpoint and remaining risk.
+    developer: |
+      Make stale or blocked state explicit. Do not imply the goal is complete.
+    user_template: |
+      Goal plan: {goal_plan}
+      Checkpoint: {checkpoint_summary}
+    input_vars:
+    - goal_plan
+    - checkpoint_summary
+    output_schema_ref: continuation_report
+  inputs_from:
+  - goal_plan
+  - checkpoint_summary
+  outputs:
+  - continuation_report
+- id: close_goal
+  kind: llm_step
+  label: Close goal
+  actor: reporter
+  role: goal_reporter
+  phase: reporting
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    reasoning_profile:
+      level: low
+      task_type: generation
+      task_subtype: synthesis
+      uncertainty_handling: answer_with_caveats
+    context_requirements:
+      expected_input_size: medium
+      context_window: 8000
+      needs_retrieved_context: true
+    output_requirements:
+      format: schema_ref
+      schema_ref: final_status
+      evidence_citations: preferred
+    operational_preferences:
+      latency_sensitivity: medium
+      cost_sensitivity: medium
+      determinism: preferred
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: use_lower_capability
+      minimum_acceptable_level: low
+  prompt:
+    system: |
+      Close the durable goal with final status, evidence, and any caveats.
+    developer: |
+      Distinguish achieved, blocked, cancelled, and escalated terminal states.
+    user_template: |
+      Goal plan: {goal_plan}
+      Checkpoint: {checkpoint_summary}
+    input_vars:
+    - goal_plan
+    - checkpoint_summary
+    output_schema_ref: final_status
+  inputs_from:
+  - goal_plan
+  - checkpoint_summary
+  outputs:
+  - final_status
+edges:
+- from: plan_goal
+  to: record_checkpoint
+  edge_kind: sequential
+  condition: goal_plan_available
+  carries:
+  - goal_plan
+- from: record_checkpoint
+  to: evaluate_progress
+  edge_kind: sequential
+  condition: checkpoint_summary_available
+  carries:
+  - checkpoint_summary
+- from: evaluate_progress
+  to: prepare_continuation
+  edge_kind: branch
+  condition: continue
+  carries:
+  - next_action
+- from: prepare_continuation
+  to: record_checkpoint
+  edge_kind: loopback
+  condition: next checkpoint due
+  carries:
+  - continuation_report
+- from: evaluate_progress
+  to: close_goal
+  edge_kind: branch
+  condition: close
+  carries:
+  - next_action
+output_contracts:
+- id: goal_plan
+  required_fields:
+  - checkpoints
+  - terminal_statuses
+  - next_checkpoint
+  validation: manual_review
+- id: continuation_report
+  required_fields:
+  - status
+  - next_checkpoint
+  - remaining_work
+  validation: manual_review
+- id: final_status
+  required_fields:
+  - terminal_status
+  - evidence
+  - caveats
+  validation: manual_review
+validation:
+  package_checks:
+  - Loopback execution has max_iterations and max_steps.
+  - Continuation reports always name a next checkpoint.
+  - Final status distinguishes terminal states.

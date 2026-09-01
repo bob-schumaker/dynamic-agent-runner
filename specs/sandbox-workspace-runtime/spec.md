@@ -8,7 +8,8 @@
 - Status: DAR approval-policy boundary and a host-only descriptor-relative
   no-follow file-copy primitive are implemented; all writable model-facing
   runtime surfaces remain deferred, including the planned host-wrapper
-  temporary-workspace profile and DAR-authoring file-ingress integration
+  temporary-workspace profile and authored-workflow-runtime-v1 file-ingress
+  integration
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `runtime.execution_policy.sandbox_runtime`
@@ -43,7 +44,8 @@ descriptor-relative `O_NOFOLLOW` handles, enforces a byte limit, commits the
 copy atomically, and returns only destination-relative path, SHA-256, and byte
 count. It intentionally does not provide write tools, shell tools, apply-patch
 tools, package installation, workspace persistence, or model-facing sandbox
-enforcement. The primitive is not yet wired into a DAR-authoring input artifact.
+enforcement. The primitive is not yet wired into an authored-workflow-runtime-v1
+input artifact.
 
 ## Scope
 

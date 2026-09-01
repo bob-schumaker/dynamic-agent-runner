@@ -1,11 +1,12 @@
-# DAR Authoring Plugin Implementation Plan
+# Authored Workflow Runtime v1 Implementation Plan
 
 ## Status
 
-Active implementation plan. Completed milestones record their implementation
-evidence below; unscheduled items still require a scoped slice before work
-begins. [`spec.md`](spec.md) and [`tasks.md`](tasks.md) remain the controlling
-contracts.
+Historical implementation plan for the implemented v1 runtime record.
+Completed milestones retain their evidence; the former `dar-authoring` plugin
+is retired, so this plan does not authorize new plugin work. New runtime work
+requires a scoped DAR specification. [`spec.md`](spec.md) and
+[`tasks.md`](tasks.md) preserve the v1 contract and evidence.
 
 ## Control-Plane Direction Change
 
@@ -50,7 +51,7 @@ only path to an end-to-end authoring-plugin publication claim.
 | O | OAuth-advertising HTTPS MCP setup | O1–O7 implement human-only protected-resource/authorization-server discovery, dynamic public-client registration, resource-bound PKCE/refresh, drift handling, the approved Apple-backed Fastmail read-only acceptance, and one separately authorized `create_note` mutation acceptance. It extends M5 rather than changing plugin skills. | M5; `mcp-oauth-discovery-registration` O1–O7; G2 reviewed-surface binding for O6/O7 |
 | M6 | G4 | Trusted caller-file ingress. Implemented. | Focused tested sandbox descriptor-relative no-follow-copy primitive at a recorded prerequisite revision; M2 |
 | M7 | G5 | Model-directed external side effects with audit and local approval support. Reviewed generic MCP bindings, workflow-policy ownership, run-scoped approval, and execution-profile capability matching are implemented through G5.3. | M3; M5 for MCP actions; M6 for file arguments |
-| M8 | Publication acceptance | Portable package exchange and published plugin evidence. | M0, M1, M3, M4 |
+| M8 | Publication acceptance | Not applicable: the former plugin is retired. | M0, M1, M3, M4 |
 
 M1 is the G0 runtime gate; M0 and M4 are the separate authoring release-evidence
 track. M4 may run in parallel with M3, but adapted skills may not be published

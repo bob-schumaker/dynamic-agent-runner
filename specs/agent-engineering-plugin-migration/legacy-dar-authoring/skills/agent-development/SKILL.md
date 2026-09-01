@@ -1,0 +1,139 @@
+---
+name: agent-development
+description: Design a bounded, task-specific Dynamic Agent Runner workflow package from a user's natural-language goal and approved material.
+---
+
+# DAR workflow authoring
+
+Use this entry skill to design a task-specific DAR workflow package with the
+user. Route to `agent-tool-contract-design` only when the package needs an
+optional tool; route to `agent-evaluation` only when formal acceptance or
+regression evidence is requested.
+
+## DAR control plane
+
+The plugin ships skills only. It does not provide an MCP server, start a
+service, manage credentials, or write package files itself. Run DAR's package
+CLI directly through this pinned command:
+
+<!-- rumdl-disable MD013 -->
+
+```sh
+uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package version --json
+```
+
+<!-- rumdl-enable MD013 -->
+
+For a local-wheel development check, replace the `--with` argument with the
+absolute wheel path. Never use a project-relative wrapper, a state directory,
+or an MCP control plane.
+
+Confirm the DAR package is available before promising an authoring operation.
+If a command returns an error, return `authoring_runtime_unavailable` rather
+than creating an unvalidated package or substituting a legacy command.
+
+## Design boundary
+
+Gather the user's goal, examples, documentation, and approved files. Decide
+whether a fixed workflow, one LLM step, or a bounded tool loop is the smallest
+honest design. A workflow is task-specific, not a general interactive assistant.
+Every loop requires a finite call or iteration limit and a terminal output
+contract.
+
+Describe the resulting package as `agent-design.md`, `agent-runtime.yaml`,
+`agent-graph.mmd`, and `workflow-descriptor.yaml`. When tools are needed, the
+tool-contract companion defines a reviewed, host-owned capability. The package
+does not start MCP servers, obtain credentials, or configure connections.
+
+The package input contract must name its accepted user input, workspace
+artifacts, and bounded `additional_context`; model-created text and additional
+context are not authority for destinations, external identities, or capability
+selection. The generated package must validate with DAR before handoff.
+
+## Canonical no-tool starter
+
+For a bounded no-tool workflow, start from the plugin's `templates/` files.
+Keep the runtime shape, graph entrypoint, output contract, descriptor limits,
+and `dar_runtime` block intact; change only the package identity, human-facing
+purpose, and the local-model system prompt needed for the defined task. The
+runtime must retain `format_version: 1`, `package_type:
+dynamic_agent_design`, `entrypoint: answer_request`, a single `llm_step` node
+named `answer_request`, no tools, and the `final_answer` output contract. The
+descriptor must retain `required_version: 0.2.1`, `allowed_tool_ids: []`, and
+`max_total_tool_calls: 0`.
+
+Do not invent an alternative runtime or descriptor schema for a simple
+no-tool workflow. If the template cannot be used, return
+`authoring_runtime_unavailable` rather than emitting a plausible but
+unvalidated package.
+
+## Author a package
+
+A human must first select the material files and issue the host-owned manifest.
+Accept only the resulting opaque `material_set_id`; do not issue material, pass
+a local path, or provide raw material content. The project command is the sole
+command that may return approved material content; use that content transiently
+and do not repeat it in the handoff.
+
+<!-- rumdl-disable MD013 -->
+
+```sh
+uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package project-authoring-materials --material-set-id <opaque-id>
+uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package create-authored-package --package-name <user-requested-name>
+uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package write-authored-package-file --authoring-output-id <opaque-id> --relative-path <package-relative-path> --content-stdin
+uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package finalize-authored-package --authoring-output-id <opaque-id> --material-set-id <opaque-id>
+```
+
+<!-- rumdl-enable MD013 -->
+
+Create the output once, write only `agent-design.md`, `agent-runtime.yaml`,
+`agent-graph.mmd`, `workflow-descriptor.yaml`, and declared package assets, and
+finalize with the same material-set ID. Do not pass paths, credentials, model
+profiles, connection settings, source handles, or registration IDs. Finalizing
+validates the package but does not select or register it; report any required
+human host handoff separately.
+
+## Handoff
+
+Return the finalized package name and redacted finalization receipt, its
+input/output contract, required model profile, and any host-owned capability
+setup. Explain that the human host must select and register the finalized
+package before a later request can invoke its saved name. Do not turn the
+package into a general-purpose interactive tool.
+
+## Invoke a saved package
+
+### Unselected package reference
+
+If the user names a local directory or ZIP, such as `custom-email.zip`, instead
+of an already-selected and registered saved package name, do not run a DAR
+command. Return only this result, substituting the reference's final visible
+name for `<requested-display-name>`:
+
+<!-- rumdl-disable MD013 -->
+
+```json
+{"format_version":1,"status":"source_selection_required","display_name":"<requested-display-name>"}
+```
+
+<!-- rumdl-enable MD013 -->
+
+Do not include a path, source handle, or selection command. The human host must
+select and register the package outside this skill before a later invocation.
+
+For a later request against a package that the human host has already selected
+and registered, use only the saved package name and the request text. With a
+local development wheel, execute this command by piping the request text to
+stdin:
+
+<!-- rumdl-disable MD013 -->
+
+```sh
+printf '%s' '<request text>' | uv run --no-project --python 3.14 --with <absolute-wheel-path> dar-package invoke --package-name <saved-package-name> --prompt-stdin
+```
+
+<!-- rumdl-enable MD013 -->
+
+Do not select a source, register a package, inspect state, change the package,
+or substitute a package path. Return the redacted invocation receipt. Add
+`--dry-run` or `--ask` only when the user explicitly asks for that mode.

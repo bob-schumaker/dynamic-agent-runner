@@ -1,0 +1,31 @@
+flowchart TD
+    %% Agent graph generated from agent-runtime.yaml.
+    %% Use solid edges for execution flow and dashed edges for tool availability.
+    %% For evidence-loop designs, make the sufficiency gate and retrieval loop
+    %% visually explicit rather than hiding them in generic branch labels.
+
+    subgraph phase_1[<Phase label>]
+        A["LLM: <LLM step label>"]
+        B["Tool Use: <Tool use label>"]
+        C{"Decision: <Decision label>"}
+    end
+
+    T1[("Tool: <tool label>")]
+
+    A -. "can call" .-> T1
+    A -->|<condition>| B
+    B -->|<condition>| C
+    C -->|<path condition>| A
+    C -->|<path condition>| D["LLM: <Next step>"]
+
+    %% Example ReAct route-gated shape:
+    %% reason -> route_action -> tool or final; tool returns to reason through
+    %% executable sequential flow plus loopback metadata when required.
+    %% reason --> route_action
+    %% route_action -->|tool| tool_step
+    %% tool_step --> reason
+    %% tool_step -.->|loopback metadata| reason
+    %% route_action -->|final| final_answer
+
+    %% Example evidence-loop shape:
+    %% Initial answer -> evaluator gate -> targeted retrieval -> loopback -> final synthesis

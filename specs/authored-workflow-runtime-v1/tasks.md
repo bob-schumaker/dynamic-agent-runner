@@ -1,18 +1,18 @@
-# DAR Authoring Plugin Implementation Tasks
+# Authored Workflow Runtime v1 Implementation Tasks
 
 ## Status
 
-This task breakdown implements the release gates in `spec.md`; `plan.md` groups
-the known work into milestones and commit-sized slices. Complete each task
-test-first. G3 depends on G0/G1; G2 connection/surface setup and G4 are additive
-G0/G1 extensions, while G2 execution/binding requires G3; G5 depends on
-G0/G1/G3 plus G2 for MCP actions or G4 for file-backed arguments. The separate
-OAuth O extension is owned by
+This historical task breakdown records the release gates implemented for v1;
+it does not authorize new `dar-authoring` plugin work. `plan.md` groups the
+completed work into milestones and commit-sized slices. G3 depends on G0/G1;
+G2 connection/surface setup and G4 are additive G0/G1 extensions, while G2
+execution/binding requires G3; G5 depends on G0/G1/G3 plus G2 for MCP actions
+or G4 for file-backed arguments. The separate OAuth O extension is owned by
 [`mcp-oauth-discovery-registration/tasks.md`](../mcp-oauth-discovery-registration/tasks.md).
 A capability cannot be implemented or advertised as live before its applicable
 gate passes.
 
-## Direction Change: Skills-Only CLI Control Plane
+## Historical Direction Change: Skills-Only CLI Control Plane
 
 The former plugin-provided stdio MCP server, `run_dar_workflow` model-facing
 tool, and broker path are superseded. Generated workflows may still declare and

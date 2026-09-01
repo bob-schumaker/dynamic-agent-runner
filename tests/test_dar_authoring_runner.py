@@ -64,7 +64,13 @@ import dynamic_agent_runner.workflow_host.runner as workflow_runner_module  # no
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
-TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
+TEMPLATE_ROOT = (
+    Path(__file__).resolve().parents[1]
+    / "specs"
+    / "agent-engineering-plugin-migration"
+    / "legacy-dar-authoring"
+    / "templates"
+)
 
 
 class FakeResponses:

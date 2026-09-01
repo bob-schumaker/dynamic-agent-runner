@@ -1,13 +1,12 @@
-# DAR Authoring Plugin Specification
+# Authored Workflow Runtime v1 Specification
 
 ## Metadata
 
-- Status: implemented through M7 and M4.4; publication and post-release
-  acceptance remain pending
+- Status: implemented v1 capability record; the former `dar-authoring` plugin
+  is retired and its successor guidance lives in `agent-engineering`
 - Owner: dynamic-agent-runner
-- Target: a Codex plugin that authors and runs selected DAR-compatible workflow
-  packages. The plugin is installed through the Codex plugin mechanism; it is
-  not a Python distribution published to Artifactory.
+- Target: the implemented DAR host/runtime contract for authored workflow
+  packages, including the historical plugin boundary that exercised it
 - Prerequisite specifications:
   - `specs/sandbox-workspace-runtime/spec.md` for trusted file ingress before
     file-backed workflow inputs
@@ -17,16 +16,24 @@
   - `specs/mcp-oauth-discovery-registration/spec.md` before an OAuth-advertising
     HTTPS MCP server can be configured through standards discovery and dynamic
     public-client registration
-- Task breakdown: `specs/dar-authoring-plugin/tasks.md`
-- Implementation plan: `specs/dar-authoring-plugin/plan.md`
+- Task breakdown: `tasks.md`
+- Implementation plan: `plan.md`
 
 ## Objective
 
-Provide a Codex plugin named `dar-authoring` for designing, validating, and
-executing selected Dynamic Agent Runner (DAR) workflow packages. The plugin
-owns authoring policy, skills, templates, and launch configuration. DAR owns
-the generic workflow-host runtime and the `dar-package` CLI control plane; it
-does not own authoring policy.
+Record the v1 DAR host/runtime contract used to design, validate, and execute
+selected workflow packages. The former `dar-authoring` plugin owned authoring
+policy, skills, templates, and launch configuration; its successor guidance is
+now part of `agent-engineering`. DAR owns the generic workflow-host runtime and
+the `dar-package` CLI control plane; it does not own authoring policy.
+
+## Historical Plugin Context
+
+The detailed `dar-authoring` references below are historical evidence for this
+implemented v1 runtime contract. They do not restore that plugin as a live
+marketplace entry, discoverable skill, or implementation target. New agent
+development guidance belongs to `agent-engineering`; runtime changes require a
+new DAR-scoped specification.
 
 ## References
 
@@ -38,26 +45,26 @@ does not contain Fastmail-specific runtime behavior: its skills declare stable
 connection requirements, while DAR's host control plane discovers and configures
 an approved connection through its reviewed tool-surface snapshot.
 
-## Problem Statement
+## Historical v1 Problem Statement
 
-DAR consumes generated `agent-design.md`, `agent-runtime.yaml`, and
-`agent-graph.mmd` package artifacts, but it intentionally does not own package
+DAR consumed generated `agent-design.md`, `agent-runtime.yaml`, and
+`agent-graph.mmd` package artifacts, but intentionally did not own package
 authoring policy, MCP-server lifecycle, host credentials, local model lifecycle,
-or evaluation infrastructure. A plugin is needed to make those authoring and
-host responsibilities coherent without expanding DAR's runtime boundary.
+or evaluation infrastructure. The former plugin made those authoring and host
+responsibilities coherent without expanding DAR's runtime boundary.
 
-## Scope
+## Historical v1 Scope
 
-The locally installed `dar-authoring` plugin shall include the adapted skills,
-templates, and support assets. It shall not expose an MCP server. Its skills use
-an isolated `uv run ... dar-package <command>` invocation to install or select
-the pinned compatible `dynamic-agent-runner` runtime from the approved
-Artifactory Python index and to operate DAR's local control plane. The plugin
-itself is never resolved from that index. A workflow package is instead a local
-directory or ZIP data artifact consumed by that control plane; it is not
-independently installed or executed by `uv`.
+The former locally installed `dar-authoring` plugin included the adapted skills,
+templates, and support assets. It exposed no MCP server. Its skills used an
+isolated `uv run ... dar-package <command>` invocation to install or select the
+pinned compatible `dynamic-agent-runner` runtime from the approved Artifactory
+Python index and operate DAR's local control plane. The plugin itself was never
+resolved from that index. A workflow package was a local directory or ZIP data
+artifact consumed by that control plane, not an independently installed or
+executed Python distribution.
 
-The plugin shall provide:
+The former plugin provided:
 
 1. three DAR-scoped Codex skills;
 2. templates for canonical DAR package artifacts;
@@ -66,7 +73,7 @@ The plugin shall provide:
 
 | Owner | Responsibility |
 | --- | --- |
-| `dar-authoring` plugin | Skills, templates, fixture prompts, and the pinned CLI invocation instruction. |
+| Former `dar-authoring` plugin | Skills, templates, fixture prompts, and the pinned CLI invocation instruction. |
 | `dynamic-agent-runner` wheel | `dar-package`, package catalog, configured MCP adapter, profiles, credential references, ingress, approval, execution, and trace services. |
 | Human host control plane | Package and material selection, profile/connection setup, OAuth discovery/registration and consent, surface review, and credential rotation. |
 

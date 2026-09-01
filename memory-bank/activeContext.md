@@ -19,7 +19,7 @@
 - Commit `f219dc0` makes the ordinary suite default-deny for outbound IP
   sockets while preserving Unix-domain broker IPC; all provider/MCP unit paths
   use fakes. Commit `bef2d5d` records G0–G5's positive fixture map in
-  `specs/dar-authoring-plugin/validation.md` and tests that each named fixture
+  `specs/authored-workflow-runtime-v1/validation.md` and tests that each named fixture
   remains present. The full suite passed with 1072 tests and 4 explicit live
   skips; the mapped positive fixtures passed with 13 tests.
 - `dar-authoring-plugin` M0 (RA0 reproducible authoring baseline) is complete

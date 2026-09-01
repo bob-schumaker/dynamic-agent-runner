@@ -1,11 +1,13 @@
-# DAR Authoring Plugin Validation Evidence
+# Authored Workflow Runtime v1 Validation Evidence
 
 ## Live Capability Fixture Audit
 
-This record binds every currently advertised DAR-authoring capability to one
-positive deterministic fixture. All named tests use injected fakes; the
-fake-only unit-test policy blocks outbound IP connections. M8 is excluded: it
-remains publication-gated and is not advertised live.
+This record binds each v1 DAR runtime capability to one positive deterministic
+fixture. References to `dar-authoring` identify the retired plugin that
+produced the historical v1 evidence; they do not advertise a live plugin. All
+named tests use injected fakes, and the fake-only unit-test policy blocks
+outbound IP connections. M8 is excluded because the retired plugin has no
+publication path.
 
 <!-- rumdl-disable MD013 -->
 

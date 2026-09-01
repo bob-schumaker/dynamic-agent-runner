@@ -611,7 +611,7 @@ Acceptance criteria:
   `GenerationSchema`, then adapter preparation rejects that tool before session
   generation instead of weakening its validation silently.
 
-### FR-17: Support Apple Foundation Models in the sealed DAR-authoring host
+### FR-17: Support Apple Foundation Models in the sealed authored-workflow runtime host
 
 The human-configured local host must be able to select the Apple adapter for a
 saved workflow without turning it into an HTTP or LiteLLM profile.

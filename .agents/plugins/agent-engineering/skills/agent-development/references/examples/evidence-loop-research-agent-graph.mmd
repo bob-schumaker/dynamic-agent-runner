@@ -1,0 +1,26 @@
+flowchart TD
+    subgraph first_pass[Initial evidence pass]
+        gather_initial_evidence["Tool Use: Gather initial evidence"]
+    end
+
+    subgraph sufficiency_gate[Sufficiency gate]
+        evaluate_evidence["Callable specialist: Evaluate evidence"]
+        route_after_judgment{"Decision: Sufficient, deepen, or stop on budget"}
+    end
+
+    subgraph targeted_retrieval[Targeted retrieval]
+        derive_targeted_queries["LLM: Derive targeted queries"]
+        retrieve_targeted_sources["Tool Use: Retrieve targeted sources"]
+    end
+
+    subgraph final_synthesis[Final synthesis]
+        synthesize_report["Callable specialist: Synthesize report"]
+    end
+
+    gather_initial_evidence --> evaluate_evidence
+    evaluate_evidence --> route_after_judgment
+    route_after_judgment -->|deepen research| derive_targeted_queries
+    derive_targeted_queries --> retrieve_targeted_sources
+    retrieve_targeted_sources --> evaluate_evidence
+    route_after_judgment -->|sufficient| synthesize_report
+    route_after_judgment -->|budget exhausted| synthesize_report

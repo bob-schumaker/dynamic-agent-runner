@@ -285,7 +285,13 @@ def test_author_then_run_evidence_rejects_an_unreviewed_observed_pass() -> None:
 def test_validating_external_harness_projects_only_selected_material_and_redacts_output(
     tmp_path: Path,
 ) -> None:
-    template = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
+    template = (
+        Path(__file__).resolve().parents[1]
+        / "specs"
+        / "agent-engineering-plugin-migration"
+        / "legacy-dar-authoring"
+        / "templates"
+    )
     requests: list[ExternalAuthoringHarnessRequest] = []
 
     class Generator:
@@ -326,7 +332,13 @@ def test_validating_external_harness_projects_only_selected_material_and_redacts
 def test_validating_external_harness_redacts_an_invalid_generated_package(
     tmp_path: Path,
 ) -> None:
-    template = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
+    template = (
+        Path(__file__).resolve().parents[1]
+        / "specs"
+        / "agent-engineering-plugin-migration"
+        / "legacy-dar-authoring"
+        / "templates"
+    )
 
     class Generator:
         def generate(self, request: ExternalAuthoringHarnessRequest) -> Path:

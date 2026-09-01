@@ -1,0 +1,65 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: dar-authoring-read-only-mcp-template
+name: DAR Authoring Read-Only MCP Template
+description: A bounded local workflow with one reviewed read-only MCP tool.
+entrypoint: answer_request
+mermaid_diagram: agent-graph.mmd
+packaging:
+  mode: hybrid_bundle
+runtime:
+  execution_policy:
+    autonomy_level: assistive
+    allowed_execution_modes:
+      - sequential_fallback
+    external_backend_allowed: false
+    max_iterations: 1
+    max_steps: 3
+    model: local-model
+    tool_use_completion:
+      run_again: required
+      stop_on_tool: disabled
+      final_output: default
+metadata:
+  patterns_present:
+    - tool-server-or-mcp-style-agent
+  participant_groups: []
+  modes: []
+  phases: []
+  roles: []
+extensions: {}
+skills: []
+tools:
+  - id: lookup_records
+    label: Lookup records
+    tool_type: external_api
+    description_for_llm: Retrieve records from the reviewed host-owned service.
+    adapter: host.mcp
+    input_schema:
+      type: object
+      properties: {}
+    side_effect: read
+    approval_required: false
+    timeout: runtime_default
+    retry_policy: none
+    failure_behavior: error
+nodes:
+  - id: answer_request
+    kind: llm_step
+    label: Answer request
+    model: local-model
+    prompt:
+      system: Answer the task. Use the lookup only when it is necessary.
+      user_template: "{prompt}"
+      input_vars:
+        - prompt
+    available_tools:
+      - lookup_records
+edges: []
+output_contracts:
+  - id: final_answer
+    required_fields:
+      - message
+validation:
+  package_checks:
+    - Every node id is unique.

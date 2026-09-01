@@ -7,7 +7,9 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PLUGIN_ROOT = REPO_ROOT / "dar-authoring"
+PLUGIN_ROOT = (
+    REPO_ROOT / "specs" / "agent-engineering-plugin-migration" / "legacy-dar-authoring"
+)
 PINNED_COMMAND = (
     "uv run --no-project --python 3.14 --index-url "
     "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple "

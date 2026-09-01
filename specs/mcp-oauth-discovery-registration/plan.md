@@ -59,7 +59,8 @@ before its commit.
 
 ## Dependency and Rollout Rules
 
-- O1–O6 are DAR runtime work. `dar-authoring` changes only after those slices
+- O1–O6 are DAR runtime work. `authored-workflow-runtime-v1` records the
+  prerequisite runtime contract; `agent-engineering` changes only after those slices
   expose a human-only setup path and capability report.
 - Plugin skills never learn a client ID, authorization URL, callback address,
   endpoint, token, or raw tool surface. They may report that human setup is

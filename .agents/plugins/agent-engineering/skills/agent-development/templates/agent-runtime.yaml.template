@@ -1,0 +1,349 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: <agent-package-id>
+# Required top-level fields for format_version 1: format_version, package_type,
+# package_id, entrypoint, packaging, nodes, and edges.
+name: <agent name>
+description: <short purpose>
+entrypoint: <node-id>
+mermaid_diagram: agent-graph.mmd
+
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+  portability_notes:
+    - Use repository-relative source paths for local sources.
+    - Do not bundle secrets, credentials, or high-risk private data.
+
+runtime:
+  execution_policy:
+    autonomy_level: <assistive | supervised_agent | bounded_autonomous | high_autonomy>
+    allowed_execution_modes:
+      - parallel
+      - batched
+      - sequential_fallback
+    external_backend_allowed: <yes | no | conditional>
+    max_iterations: <positive number; required for loopback graphs, otherwise unknown allowed>
+    max_steps: <positive number; required for loopback graphs>
+    timeout: <duration or unknown>
+    exit_strategy:
+      terminal_conditions:
+        - <final output produced | escalation emitted | no useful action remains>
+      on_exhaustion: <finalize_with_caveats | escalate | fail_closed | return_partial>
+      ambiguous_completion: <retry_with_limit | clarify | escalate | fail_closed>
+    # Required for metadata.patterns_present: react_loop. Keep raw tool output
+    # runtime-only when needed; pass model-safe observations back to LLM steps.
+    react_loop:
+      observation_policy: <raw_runtime_only | summarized_for_model | redacted_summary>
+      termination_conditions:
+        - <final answer produced | no useful tool remains | max iterations reached>
+      escalation_conditions:
+        - <unsafe tool request | repeated tool failure | insufficient evidence>
+    # Recommended for metadata.patterns_present: evidence_loop. Use when the
+    # runtime starts with cheap evidence, then expands retrieval only if an
+    # explicit sufficiency gate says more evidence is needed.
+    evidence_loop:
+      sufficiency_gate: <judge | evaluator | decision_step | unknown>
+      retrieval_budget:
+        max_turns: <number or unknown>
+        max_source_expansion: <number or unknown>
+        retry_limit: <number or unknown>
+        escalation_on_exhaustion: <true | false | conditional>
+      grounded_answer_rule: <required | preferred | runtime_default | unknown>
+    approval_required_for:
+      - <side-effecting action>
+    forbidden_actions:
+      - <forbidden action>
+    prompt_cache:
+      enabled: <true | false>
+      strategy: <stable_prefix>
+      min_prefix_tokens: <positive integer; omit when unknown>
+      prefix_parts:
+        - <system | developer | skill_instructions | tool_schemas>
+        - <role_definitions | output_contracts | workflow_structure>
+        - <x-custom-stable-part>
+      variable_parts:
+        - <user_prompt | run_state | retrieved_context | tool_results>
+        - <x-custom-variable-part>
+      cache_key_hint: <package_id | package_id_and_version | none | runtime_default>
+      provider_hints:
+        <provider-id>:
+          cache_key_strategy: <package_id_and_version | runtime_default | none>
+          retention: <auto | short | extended | runtime_default | unknown>
+  state:
+    artifacts:
+      - id: <state-artifact-id>
+        description: <what this state contains>
+        source: <user | llm | tool | memory | runtime>
+      # Recommended state artifacts for metadata.patterns_present: react_loop:
+      - id: prompt
+        description: Runtime-provided original user prompt.
+        source: user
+      - id: reasoning_trace_summary
+        description: Model-safe summary of prior reasoning steps.
+        source: llm
+      - id: selected_action
+        description: Tool or action selected by the reasoning step.
+        source: llm
+      - id: tool_observation
+        description: Model-safe observation derived from tool output.
+        source: tool
+      - id: final_answer
+        description: Final response after loop termination.
+        source: llm
+    mutable_fields:
+      - <field-name>
+
+metadata:
+  patterns_present:
+    - <prompt_chaining | routing | parallelization | scatter_gather>
+    - <orchestration | rag | embedding_retrieval | graph_retrieval>
+    - <graphrag | react_loop | evidence_loop>
+    - <reflect_refine | memory_augmented>
+    - <multi_agent | event_driven | feedback_control>
+  handoffs:
+    - id: <handoff-id>
+      kind: <ownership_transfer>
+      from_role: <role-id>
+      to_role: <role-id>
+      trigger: <condition or runtime event>
+      carries:
+        - <state artifact or continuation payload>
+  delegated_agents:
+    - id: <delegated-agent-id>
+      tool_id: <tool-id>
+      delegation_mode: <bounded_subtask>
+      returns_to: <role-id or node-id>
+      result_contract:
+        type: <structured_report | summary | schema_ref>
+  approval_interactions:
+    - target:
+        tool_id: <tool-id>
+      approval_sensitivity: <low_risk_read | high_risk_write | destructive_write>
+      approval_message: <human-facing approval rationale>
+      interruptible: <true | false>
+      resumability: <expected | best_effort | none | unknown>
+  participant_groups:
+    - id: <group-id>
+      dynamic: <true | false>
+      min_size: <number>
+      max_size: <number>
+      selection_source: <static | registry | user_request | runtime>
+      members:
+        - <actor-id>
+  modes:
+    - id: <mode-id>
+      description: <when this mode applies>
+      enabled_phases:
+        - <phase-id>
+      batching_allowed: <true | false>
+  phases:
+    - id: <phase-id>
+      label: <phase label>
+      phase_kind: <selection | preparation | parallel_fanout | batched_fanout>
+      repeatable: <true | false>
+      participant_group: <group-id or null>
+      peer_visibility: <none | prior_round_outputs | full_panel | not_applicable>
+      enabled_when: <condition or always>
+  roles:
+    - id: <role-id>
+      actor: <actor-id>
+      description: <role responsibility>
+      input_contract:
+        - <state artifact or input>
+      output_contract:
+        - <state artifact or output>
+      prompt_source: <inline | bundled_file | runtime>
+  rag_pipeline:
+    retrieval_mode: <keyword | structured | embedding_semantic | graph | hybrid | unknown>
+    embedding_capability: <required | optional | not_applicable | unknown>
+    graph_capability: <required | optional | not_applicable | unknown>
+    index_owner: <runtime | host | external_service | unknown>
+    graph_store_owner: <runtime | host | external_service | unknown>
+    corpus_boundary: <summary or reference>
+    chunking_policy: <summary or reference>
+    graph_schema: <ontology/schema reference or unknown>
+    entity_extraction_policy: <summary or reference>
+    relationship_extraction_policy: <summary or reference>
+    traversal_policy: <summary or reference>
+    metadata_filters:
+      - <filter name or source metadata field>
+    reranking: <none | model | vector_score | graph_score | hybrid | unknown>
+    freshness_policy: <on_write | scheduled | manual | unknown>
+    provenance_required: <true | false | conditional>
+
+extensions:
+  approvals:
+    required: <true | false>
+    config: {}
+  <extension-id>:
+    required: <true | false>
+    config: {}
+
+skills:
+  - id: <skill-id>
+    label: <skill label>
+    source_type: <repo_skill | generated_skill | external_skill | distilled_reference>
+    source_path: <repo-relative path or external id>
+    packaging_mode: <bundled_copy | distilled | referenced_only | inline_excerpt>
+    bundled_path: skill-bundle/<skill-id>/SKILL.md
+    support_files:
+      - source_path: <repo-relative support file>
+        bundled_path: skill-bundle/<skill-id>/references/<file-name>
+    notes: <why this skill is needed>
+
+tools:
+  - id: <tool-id>
+    label: <tool label>
+    tool_type: <file_read | file_write | code_execution | web_fetch | search | agent_delegate | approval_gate | unknown>
+    description_for_llm: |
+      <Tool description supplied to LLM nodes that may call this tool.>
+    adapter: <runtime adapter id or unknown>
+    input_schema:
+      type: object
+      properties: {}
+    output_schema:
+      type: object
+      properties: {}
+    side_effect: <none | read | write | mutate | destructive>
+    approval_required: <yes | no | conditional>
+    timeout: <duration or unknown>
+    retry_policy: <none | bounded | runtime_default>
+    failure_behavior: <fail | fallback | escalate | retry>
+    skill_bindings:
+      - skill_id: <skill-id>
+        usage: <tool_adapter | policy_context | shared_reference>
+
+nodes:
+  - id: <llm-node-id>
+    kind: llm_step
+    label: <LLM step label>
+    actor: <actor-id>
+    role: <role-id or role-name>
+    phase: <phase-id>
+    mode_scope:
+      - <mode-id or all>
+    model_requirements:
+      required_capabilities:
+        - <supports_structured | supports_functions | embeddings>
+        - <supports_vision | input_modalities | supports_json_mode>
+        - <code_reasoning | math_reasoning>
+      reasoning_profile:
+        level: <minimal | low | medium | high | extended>
+        task_type: <classification | extraction | generation | planning>
+        task_subtype: <critique | synthesis | tool_selection | route_selection>
+        uncertainty_handling: <answer_with_caveats | ask_clarification | escalate>
+      context_requirements:
+        expected_input_size: <small | medium | large | very_large | unknown>
+        context_window: <tokens or unknown>
+        needs_retrieved_context: <true | false | conditional>
+      output_requirements:
+        format: <free_text | structured_json | schema_ref | tool_call>
+        schema_ref: <output-contract-id or null>
+        evidence_citations: <required | preferred | not_needed>
+      operational_preferences:
+        latency_sensitivity: <low | medium | high>
+        cost_sensitivity: <low | medium | high>
+        determinism: <preferred | balanced | creative>
+        data_boundary: <local_only | private_runtime | provider_allowed | unknown>
+      fallback_policy:
+        if_unavailable: <use_lower_capability | use_higher_capability | escalate>
+        minimum_acceptable_level: <minimal | low | medium | high | extended>
+    prompt:
+      system: |
+        <System prompt for this node.>
+      developer: |
+        <Developer/runtime instructions for this node.>
+      user_template: |
+        <User prompt template with {input_vars} placeholders.>
+      input_vars:
+        - <input-var>
+      output_schema_ref: <output-contract-id or null>
+    available_tools:
+      - tool_id: <tool-id>
+        usage: <required | optional | fallback>
+    skill_bindings:
+      - skill_id: <skill-id>
+        usage: <instruction_context | policy_context | output_formatter>
+    inputs_from:
+      - <state-artifact-id>
+    outputs:
+      - <state-artifact-id>
+
+  - id: <tool-node-id>
+    kind: tool_use_step
+    label: <Tool use label>
+    actor: <actor-id or runtime>
+    phase: <phase-id>
+    tool_id: <tool-id>
+    inputs_from:
+      - <state-artifact-id>
+    outputs:
+      - <state-artifact-id>
+    failure_behavior: <fail | fallback | escalate | retry>
+
+  - id: <decision-node-id>
+    kind: decision_step
+    decision_subtype: <tool_response_compare | simple_check | llm_route>
+    label: <Decision label>
+    actor: <actor-id or runtime>
+    phase: <phase-id>
+    prompt:
+      system: |
+        <Only for llm_route decisions.>
+      developer: |
+        <Decision constraints.>
+      user_template: |
+        <Decision prompt template.>
+      input_vars:
+        - <input-var>
+    decision_contract:
+      compares:
+        - <tool output, state field, or condition input>
+      allowed_paths:
+        - id: <path-id>
+          condition: <condition label>
+          target: <node-id>
+      default_path: <path-id or null>
+    inputs_from:
+      - <state-artifact-id>
+    outputs:
+      - <selected_path or decision output>
+
+edges:
+  - from: <node-id>
+    to: <node-id>
+    edge_kind: <sequential | branch | loopback | parallel_fanout>
+    condition: <condition label or always; required for branch edges>
+    carries:
+      - <state-artifact-id>
+
+output_contracts:
+  - id: <output-contract-id>
+    required_fields:
+      - <field>
+    required_sections:
+      - <section>
+    validation: <schema | manual_review | runtime_check | not_specified>
+
+validation:
+  package_checks:
+    - Every node id is unique.
+    - Every edge endpoint references an existing node.
+    - Every tool_use_step references an existing tool.
+    - Every node skill_binding references an existing skill.
+    - Every llm_step has a prompt or a prompt_source.
+    - Mermaid graph matches runtime manifest nodes and edges.
+    - Every generated runtime package includes
+      runtime.execution_policy.exit_strategy with terminal conditions,
+      exhaustion behavior, and ambiguous-completion behavior.
+    - Any graph with a loopback edge includes positive max_iterations and
+      max_steps bounds so the workflow cannot loop forever.
+    - For react_loop, max_iterations is positive and the graph includes a
+      reasoning llm_step with available_tools, an llm_route decision gate before
+      tool use, a tool_use_step, branch paths for tool/final routes, a loopback
+      metadata edge, and model-safe observation state.
+    - For evidence_loop, include a visible sufficiency-gate decision, explicit
+      retrieval-budget policy, and state artifacts or outputs that capture the
+      next-step evidence request, such as `missing_information` or targeted
+      retrieval queries.

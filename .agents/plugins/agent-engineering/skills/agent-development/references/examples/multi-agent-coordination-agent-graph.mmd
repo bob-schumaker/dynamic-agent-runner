@@ -1,0 +1,14 @@
+graph TD
+  triage_request["Triage request"]
+  delegate_research["Delegate research"]
+  delegate_risk_review["Delegate risk review"]
+  coordinate_specialists["Coordinate specialists"]
+  synthesize_response["Synthesize response"]
+  request_escalation["Request escalation"]
+
+  triage_request -->|parallel_fanout: intake_brief_available| delegate_research
+  triage_request -->|parallel_fanout: intake_brief_available| delegate_risk_review
+  delegate_research -->|parallel_join: research_findings_available| coordinate_specialists
+  delegate_risk_review -->|parallel_join: risk_review_available| coordinate_specialists
+  coordinate_specialists -->|synthesize| synthesize_response
+  coordinate_specialists -->|escalate| request_escalation

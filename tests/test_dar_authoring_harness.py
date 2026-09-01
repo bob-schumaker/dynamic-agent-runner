@@ -34,9 +34,27 @@ TOOL_CONTRACT_FIXTURE = (
     / "invocations"
     / "agent-tool-contract-design.json"
 )
-TEMPLATE = REPO_ROOT / "dar-authoring" / "templates"
-EVALUATION_TEMPLATE = REPO_ROOT / "dar-authoring" / "evaluation-templates"
-READ_ONLY_MCP_TEMPLATE = REPO_ROOT / "dar-authoring" / "read-only-mcp-template"
+TEMPLATE = (
+    REPO_ROOT
+    / "specs"
+    / "agent-engineering-plugin-migration"
+    / "legacy-dar-authoring"
+    / "templates"
+)
+EVALUATION_TEMPLATE = (
+    REPO_ROOT
+    / "specs"
+    / "agent-engineering-plugin-migration"
+    / "legacy-dar-authoring"
+    / "evaluation-templates"
+)
+READ_ONLY_MCP_TEMPLATE = (
+    REPO_ROOT
+    / "specs"
+    / "agent-engineering-plugin-migration"
+    / "legacy-dar-authoring"
+    / "read-only-mcp-template"
+)
 
 
 def _materials(tmp_path: Path) -> Path:
