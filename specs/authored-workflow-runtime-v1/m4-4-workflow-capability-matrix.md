@@ -38,30 +38,36 @@ replace the package's model, tool, skill, or connection requirements.
 
 ## Capability Matrix
 
-| Capability | Additional authoring input | Expected status / host prerequisite |
-| --- | --- | --- |
-| Basic reasoning or document summary | Task instructions, examples, declared document artifact role, output shape | Positive with a compatible host execution profile; no tools required. |
-| No-tool multi-step graph | Named `llm_step` and `decision_step` behavior; routes, intermediate outputs, finite step bound | Package graph validation and compatible model profile. |
-| Tool-using graph | A declared tool-use node plus its bounded routes and output rules | The tool's corresponding host binding and gate, in addition to graph validation. |
-| Structured terminal output | JSON schema or representative result | Output contract must match `task_invocation` terminal schema. |
-| Package-local skill | Skill purpose, instructions, distributable supporting files, nodes using its `skill_refs` | Bundle only under `skill-bundle/`; no external skill path. |
-| Read-only MCP tool | Stable connection requirement, reviewed semantic tool identifier, input/output schemas, call cap, result-use rules | G2 human-configured/authenticated connection and reviewed surface snapshot. |
-| MCP mutation | Read-only inputs plus side-effect class, per-invocation approval policy, timeout/failure policy, idempotency expectation, and per-argument provenance sources | G2 plus G5. The package selects its approval policy; `workflow_auto`, `--dry-run`, and `--ask` are host execution modes that enforce it. |
-| File-backed task | Named artifact roles, accepted media types, encoding and size requirements, allowed tool argument uses | G4 trusted ingress from a configured caller input root. |
-| Hybrid input | Structured field schema/mappings, original-prompt precedence, bounded `additional_context` | Wrapper seals all invocation input. `additional_context` cannot supply destination, authorization, capability, or external-identity values. |
-| Tool argument provenance | For each argument: sealed field, original-prompt span, artifact role, package constant, or permitted content transform | G5 verifies `ArgumentProvenanceEnvelope`; raw or unverifiable values fail before dispatch. |
-| ReAct/tool loop | Declared tools, stopping condition, bounded total calls, final-output rule | Every tool must be declared, host-bound, and within the task call limit. |
-| OAuth-backed MCP connection | OAuth requirement and least scope by stable connection requirement | Human-only control-plane setup and G2. For OAuth-advertising servers, standards discovery and dynamic registration require `mcp-oauth-discovery-registration`. The authoring request contains no endpoint, redirect listener, code, token, client ID, or secret. |
-| Package portability | Package name, export request, and explicitly distributable material | M4 records pre-publication unavailability. M8 proves recipient-host manifest verification and any required publisher-signature check; ZIP is delivery data, not an executable bundle. |
-| Evaluation | Acceptance cases, deterministic assertions, rubric, judge or human-review policy, regression threshold | Evaluation runs through tests/external harness, not DAR execution. |
-| Guardrails | Guardrail identifier, phase, tripwire behavior, failure message | Unsupported guardrail phases are capability-unavailable; broader profiles are deferred. |
-| Context pruning/pipeline | Context sources, ordering, byte/token budget, pruning policy | Conceptually package metadata; broader wrapper context profiles are deferred. |
-| Scratch workspace | Needed read/write/delete operations and output-artifact contract | Deferred: current v1 descriptor accepts `scratch_access: none` only. |
-| Durable session or continuation | Session identity, retained state schema, turn/reset/retention policy | Deferred: wrapper does not claim durable sessions or graph-preserving interruption continuation. |
-| Collaboration, subagents, or agent-as-tool | Roles, handoffs, budgets, aggregation schema | Deferred: return capability-unavailable rather than claim a multi-agent council or `ask_llm` behavior. |
-| Retrieval, embedding, or RAG | Embedding-profile requirement, document roles, index/retrieval contract, result schema | Deferred until a host embedding/vector adapter exists; never invent a Hugging Face invocation. |
-| Computer use, coding, shell, web, or other custom host tools | Task-specific schema, allowed operation set, side-effect/provenance/limit policies | Requires a separately implemented and reviewed host binding; no generic tool console. |
-| Native approval interruption/resume | Requested pause point, approval payload, resume semantics | Wrapper currently supports only handler-bound `--ask`; it does not expose DAR continuation/replay. |
+`support_status` determines successor acceptance: `supported` requires a
+positive end-to-end scenario; `conditional` requires a positive scenario with
+the listed host fixture and an unavailable result without it; `deferred`
+requires only its declared unavailable or refusal scenario. A scenario may
+cover one or more capability IDs.
+
+| ID | Capability | Support status | Additional authoring input | Expected status / host prerequisite |
+| --- | --- | --- | --- | --- |
+| `basic-reasoning` | Basic reasoning or document summary | supported | Task instructions, examples, declared document artifact role, output shape | Positive with a compatible host execution profile; no tools required. |
+| `no-tool-multi-step` | No-tool multi-step graph | supported | Named `llm_step` and `decision_step` behavior; routes, intermediate outputs, finite step bound | Package graph validation and compatible model profile. |
+| `tool-using-graph` | Tool-using graph | conditional | A declared tool-use node plus its bounded routes and output rules | Corresponding host binding and gate, in addition to graph validation. |
+| `structured-terminal-output` | Structured terminal output | supported | JSON schema or representative result | Output contract must match `task_invocation` terminal schema. |
+| `package-local-skill` | Package-local skill | supported | Skill purpose, instructions, distributable supporting files, nodes using its `skill_refs` | Bundle only under `skill-bundle/`; no external skill path. |
+| `read-only-mcp-tool` | Read-only MCP tool | conditional | Stable connection requirement, reviewed semantic tool identifier, input/output schemas, call cap, result-use rules | G2 human-configured/authenticated connection and reviewed surface snapshot. |
+| `mcp-mutation` | MCP mutation | conditional | Read-only inputs plus side-effect class, per-invocation approval policy, timeout/failure policy, idempotency expectation, and per-argument provenance sources | G2 plus G5; `workflow_auto`, `--dry-run`, and `--ask` enforce package policy. |
+| `file-backed-task` | File-backed task | conditional | Named artifact roles, accepted media types, encoding and size requirements, allowed tool argument uses | G4 trusted ingress from a configured caller input root. |
+| `hybrid-input` | Hybrid input | supported | Structured field schema/mappings, original-prompt precedence, bounded `additional_context` | Wrapper seals all invocation input. |
+| `tool-argument-provenance` | Tool argument provenance | conditional | For each argument: sealed field, original-prompt span, artifact role, package constant, or permitted content transform | G5 verifies `ArgumentProvenanceEnvelope`; raw or unverifiable values fail before dispatch. |
+| `react-tool-loop` | ReAct/tool loop | conditional | Declared tools, stopping condition, bounded total calls, final-output rule | Every tool must be declared, host-bound, and within the task call limit. |
+| `oauth-mcp-connection` | OAuth-backed MCP connection | conditional | OAuth requirement and least scope by stable connection requirement | Human-only control-plane setup and G2; authoring input has no endpoint, redirect listener, code, token, client ID, or secret. |
+| `package-portability` | Package portability | deferred | Package name, export request, and explicitly distributable material | No successor portability/publication claim: the former M8 publication path is retired. ZIP remains delivery data, not an executable bundle. |
+| `evaluation` | Evaluation | supported | Acceptance cases, deterministic assertions, rubric, judge or human-review policy, regression threshold | The package contains checked-in evaluation fixtures; after invocation the harness runs their deterministic assertions and records the result. No judge-model call is required or implied. |
+| `guardrails` | Guardrails | conditional | Guardrail identifier, phase, tripwire behavior, failure message | Supported phases are exactly caller-registered `input` and validated `tool_input`; each requires its corresponding registry fixture and abort trace. Any other phase is capability-unavailable. |
+| `context-pruning-pipeline` | Context pruning/pipeline | deferred | Context sources, ordering, byte/token budget, pruning policy | Broader wrapper context profiles are deferred. |
+| `scratch-workspace` | Scratch workspace | deferred | Needed read/write/delete operations and output-artifact contract | Current v1 descriptor accepts `scratch_access: none` only. |
+| `durable-session-continuation` | Durable session or continuation | deferred | Session identity, retained state schema, turn/reset/retention policy | No durable sessions or graph-preserving interruption continuation. |
+| `collaboration-subagents` | Collaboration, subagents, or agent-as-tool | deferred | Roles, handoffs, budgets, aggregation schema | Capability-unavailable; do not claim a multi-agent council or `ask_llm` behavior. |
+| `retrieval-embedding-rag` | Retrieval, embedding, or RAG | deferred | Embedding-profile requirement, document roles, index/retrieval contract, result schema | No host embedding/vector adapter; never invent a Hugging Face invocation. |
+| `custom-host-tools` | Computer use, coding, shell, web, or other custom host tools | deferred | Task-specific schema, allowed operation set, side-effect/provenance/limit policies | No generic tool console or separately reviewed binding in this scope. |
+| `native-approval-resume` | Native approval interruption/resume | deferred | Requested pause point, approval payload, resume semantics | Only handler-bound `--ask` is available; no continuation/replay API. |
 
 ## Harness Interpretation
 
