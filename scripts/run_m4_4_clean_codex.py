@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 from typing import Any, Sequence
+from urllib.parse import urlparse
 
 from dynamic_agent_runner.workflow_host.authoring_evidence import (
     AuthorThenRunEvidence,
@@ -165,6 +166,7 @@ def run_manifest(
 ) -> Path:
     """Replay every closed-plan scenario and write its one aggregate evidence set."""
 
+    _validate_deterministic_model(model_id, base_url)
     coverage_contract = load_m44_coverage(coverage)
     plan = load_m44_external_scenario_plan(scenario_plan)
     validate_m44_external_scenario_plan(
@@ -576,6 +578,18 @@ def _scenario_sources(scenario_roots: tuple[Path, ...]) -> dict[str, Path]:
     if not sources:
         raise HarnessError("scenario roots are empty")
     return sources
+
+
+def _validate_deterministic_model(model_id: str, base_url: str) -> None:
+    if model_id != "openai/local-model":
+        raise HarnessError("M4.4 requires the deterministic fake model")
+    parsed = urlparse(base_url)
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname not in {"127.0.0.1", "::1", "localhost"}
+        or parsed.path.rstrip("/") != "/v1"
+    ):
+        raise HarnessError("M4.4 fake model endpoint must be loopback /v1")
 
 
 def _validate_inputs(

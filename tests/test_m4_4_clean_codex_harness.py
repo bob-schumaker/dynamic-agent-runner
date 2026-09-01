@@ -222,7 +222,7 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
         plugin_root=(tmp_path / "plugin").resolve(),
         wheel=(tmp_path / "dar.whl").resolve(),
         materials=(tmp_path / "materials.json").resolve(),
-        model_id="fake-model",
+        model_id="openai/local-model",
         base_url="http://127.0.0.1:8080/v1",
         reviewer_id=None,
         reviewer_decision="pending",
@@ -233,6 +233,23 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
     assert len(calls) == 23
     assert {call["evidence"] for call in calls} == {None}
     assert len(json.loads(aggregate.read_text(encoding="utf-8"))["records"]) == 23
+
+
+@pytest.mark.parametrize(
+    ("model_id", "base_url"),
+    (
+        ("gpt-5", "http://127.0.0.1:8080/v1"),
+        ("openai/local-model", "https://example.invalid/v1"),
+        ("openai/local-model", "http://127.0.0.1:8080/not-v1"),
+    ),
+)
+def test_manifest_runner_rejects_non_deterministic_model_configuration(
+    model_id: str, base_url: str
+) -> None:
+    module = _harness_module()
+
+    with pytest.raises(module.HarnessError):
+        module._validate_deterministic_model(model_id, base_url)
 
 
 def test_marketplace_contains_only_the_copied_plugin(tmp_path: Path) -> None:
