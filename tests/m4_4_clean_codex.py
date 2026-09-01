@@ -16,7 +16,7 @@ class M44CleanCodexError(ValueError):
 def stage_dar_package(
     *,
     wheel: Path,
-    controller_launcher: Path,
+    controller_socket: Path,
     destination: Path,
     allowed_commands: tuple[str, ...],
 ) -> Path:
@@ -24,13 +24,13 @@ def stage_dar_package(
 
     for path, label in (
         (wheel, "wheel"),
-        (controller_launcher, "controller launcher"),
+        (controller_socket, "controller socket"),
         (destination, "DAR launcher destination"),
     ):
         _absolute_not_symlink(path, label)
     if (
         not wheel.is_file()
-        or not controller_launcher.is_file()
+        or not controller_socket.is_socket()
         or destination.exists()
         or destination.is_symlink()
         or not allowed_commands
@@ -43,7 +43,9 @@ def stage_dar_package(
     launcher.write_text(
         "#!/bin/sh\n"
         f'case "$1" in {commands}) ;; *) exit 2 ;; esac\n'
-        f'exec {shlex.quote(str(controller_launcher))} "$@"\n',
+        "exec uv run --no-project --python 3.14 --with "
+        f"{shlex.quote(str(wheel))} dar-package --controller-proxy --socket "
+        f'{shlex.quote(str(controller_socket))} "$@"\n',
         encoding="utf-8",
     )
     launcher.chmod(0o700)

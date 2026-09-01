@@ -9,7 +9,7 @@ opaque material IDs, and declared text inputs.
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime
 import hashlib
 import json
@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from threading import Event, Thread
 from typing import Any, Sequence
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -35,6 +36,9 @@ from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
     LocalWorkflowHostError,
     configure_local_host,
+)
+from dynamic_agent_runner.workflow_host.package_controller import (
+    serve_package_controller,
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
@@ -200,6 +204,39 @@ def _available_loopback_port() -> int:
         return int(listener.getsockname()[1])
 
 
+@contextmanager
+def _package_controller(
+    *, host: LocalWorkflowHost, socket_path: Path, allowed_commands: tuple[str, ...]
+):
+    stop_event = Event()
+    thread = Thread(
+        target=serve_package_controller,
+        kwargs={
+            "socket_path": socket_path,
+            "host": host,
+            "allowed_commands": allowed_commands,
+            "stop_event": stop_event,
+        },
+        daemon=True,
+    )
+    thread.start()
+    for _ in range(20):
+        if socket_path.exists():
+            break
+        time.sleep(0.01)
+    if not socket_path.is_socket():
+        stop_event.set()
+        thread.join(timeout=1)
+        raise HarnessError("package controller did not start")
+    try:
+        yield socket_path
+    finally:
+        stop_event.set()
+        thread.join(timeout=1)
+        if thread.is_alive():
+            raise HarnessError("package controller did not stop")
+
+
 def run_manifest(
     *,
     coverage: Path,
@@ -309,94 +346,111 @@ def run_scenario(
             base_url=base_url,
         )
         host = LocalWorkflowHost.open(state_root)
-        controller_launcher = _stage_controller_dar_package(
-            wheel=wheel,
-            state_root=state_root,
-            destination=root / "controller-bin",
-        )
-        author_dar_bin = stage_dar_package(
-            wheel=wheel,
-            controller_launcher=controller_launcher,
-            destination=root / "author-dar-bin",
-            allowed_commands=(
-                "project-authoring-materials",
-                "create-authored-package",
-                "write-authored-package-file",
-                "finalize-authored-package",
-            ),
-        )
-        invocation_dar_bin = stage_dar_package(
-            wheel=wheel,
-            controller_launcher=controller_launcher,
-            destination=root / "invocation-dar-bin",
-            allowed_commands=("invoke",),
-        )
-        material_receipt = host.issue_authoring_materials(
-            materials=_load_materials(materials), now=datetime.now(UTC)
-        )
-        marketplace = create_marketplace(
-            plugin_root=plugin_root, destination=root / "marketplace"
-        )
-        management_environment = _management_environment(codex_home, author_workspace)
-        installed = False
-        try:
-            _install_plugin(
-                codex_executable, marketplace, management_environment, timeout
-            )
-            installed = True
-            author_result = _run_codex(
-                codex_executable,
-                _author_request(
-                    author_prompt,
-                    material_receipt.material_set_id,
-                    package_name,
-                    contract.expected_status,
-                ),
-                author_workspace,
-                build_clean_codex_environment(
-                    codex_home=codex_home,
-                    working_directory=author_workspace,
-                    wheel=wheel,
-                    state_root=state_root,
-                    template_root=root
-                    / "marketplace"
-                    / "plugins"
-                    / "agent-engineering",
-                    inherited={
-                        **os.environ,
-                        "PATH": f"{author_dar_bin}{os.pathsep}{os.environ.get('PATH', '')}",
-                    },
-                ),
-                timeout,
-            )
-            if contract.expected_status == "expected_capability_unavailable":
-                result = _unavailable_evidence(
-                    contract, author_result, wheel, material_receipt.material_set_id
+        with ExitStack() as controllers:
+            author_socket = controllers.enter_context(
+                _package_controller(
+                    host=host,
+                    socket_path=root / "author-controller.sock",
+                    allowed_commands=(
+                        "project-authoring-materials",
+                        "create-authored-package",
+                        "write-authored-package-file",
+                        "finalize-authored-package",
+                    ),
                 )
-            else:
-                result = _pass_evidence(
-                    contract,
-                    host,
-                    author_result,
-                    package_name,
-                    workflow_id,
-                    run_prompt,
-                    codex_home,
-                    invocation_workspace,
-                    state_root,
-                    invocation_dar_bin,
-                    root / "marketplace" / "plugins" / "agent-engineering",
-                    wheel,
-                    reviewer_id,
-                    reviewer_decision,
+            )
+            invocation_socket = controllers.enter_context(
+                _package_controller(
+                    host=host,
+                    socket_path=root / "invocation-controller.sock",
+                    allowed_commands=("invoke",),
+                )
+            )
+            author_dar_bin = stage_dar_package(
+                wheel=wheel,
+                controller_socket=author_socket,
+                destination=root / "author-dar-bin",
+                allowed_commands=(
+                    "project-authoring-materials",
+                    "create-authored-package",
+                    "write-authored-package-file",
+                    "finalize-authored-package",
+                ),
+            )
+            invocation_dar_bin = stage_dar_package(
+                wheel=wheel,
+                controller_socket=invocation_socket,
+                destination=root / "invocation-dar-bin",
+                allowed_commands=("invoke",),
+            )
+            material_receipt = host.issue_authoring_materials(
+                materials=_load_materials(materials), now=datetime.now(UTC)
+            )
+            marketplace = create_marketplace(
+                plugin_root=plugin_root, destination=root / "marketplace"
+            )
+            management_environment = _management_environment(
+                codex_home, author_workspace
+            )
+            installed = False
+            try:
+                _install_plugin(
+                    codex_executable, marketplace, management_environment, timeout
+                )
+                installed = True
+                author_result = _run_codex(
                     codex_executable,
+                    _author_request(
+                        author_prompt,
+                        material_receipt.material_set_id,
+                        package_name,
+                        contract.expected_status,
+                    ),
+                    author_workspace,
+                    build_clean_codex_environment(
+                        codex_home=codex_home,
+                        working_directory=author_workspace,
+                        wheel=wheel,
+                        state_root=state_root,
+                        template_root=root
+                        / "marketplace"
+                        / "plugins"
+                        / "agent-engineering",
+                        inherited={
+                            **os.environ,
+                            "PATH": f"{author_dar_bin}{os.pathsep}{os.environ.get('PATH', '')}",
+                        },
+                    ),
                     timeout,
-                    material_receipt.material_set_id,
-                    _digest_file(marketplace),
                 )
-        finally:
-            if installed:
-                _remove_plugin(codex_executable, management_environment, timeout)
+                if contract.expected_status == "expected_capability_unavailable":
+                    result = _unavailable_evidence(
+                        contract, author_result, wheel, material_receipt.material_set_id
+                    )
+                else:
+                    result = _pass_evidence(
+                        contract,
+                        host,
+                        author_result,
+                        package_name,
+                        workflow_id,
+                        run_prompt,
+                        codex_home,
+                        invocation_workspace,
+                        state_root,
+                        invocation_dar_bin,
+                        root / "marketplace" / "plugins" / "agent-engineering",
+                        wheel,
+                        reviewer_id,
+                        reviewer_decision,
+                        codex_executable,
+                        timeout,
+                        material_receipt.material_set_id,
+                        _digest_file(marketplace),
+                    )
+            finally:
+                if installed:
+                    _remove_plugin(codex_executable, management_environment, timeout)
     if evidence is not None:
         write_author_then_run_evidence(evidence, result)
     return result
