@@ -33,9 +33,9 @@ plugin-acceptance framework.
       has its declared negative case. Preserve all 13 original M4.4 scenario
       contracts as the minimum regression corpus, including `document-summary-v1`
       and `council-request-v1`. Cover the valid `input` and `tool_input`
-      guardrail phases, their missing-registry-fixture boundaries, and the
-      capability-unavailable unsupported-phase boundary. Keep expansion
-      capability-oriented, not combinatorial across every option combination.
+      guardrail phases and their missing-registry-fixture boundaries. Keep
+      expansion capability-oriented, not combinatorial across every option
+      combination.
 - [x] RED: update the clean-Codex harness unit tests to require a temporary
       marketplace exposing only `agent-engineering`, the visible
       `agent-development` skill and DAR runtime profile, and no plugin MCP or

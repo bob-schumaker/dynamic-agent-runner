@@ -87,8 +87,7 @@ has no positive end-to-end scenario, a conditional row lacks configured positive
 or missing-fixture negative coverage, a deferred row is treated as positive, an
 entry is under-gated or mismatches its terminal phase, or a scenario claims a
 capability absent from the matrix. Guardrails require configured `input` and
-`tool_input` phase coverage, their missing-fixture boundaries, and a
-capability-unavailable result for every other phase.
+`tool_input` phase coverage and their missing-fixture boundaries.
 
 The original 13 M4.4 scenario contracts remain the regression minimum,
 including `document-summary-v1` as a positive case and `council-request-v1` as
