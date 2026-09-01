@@ -607,6 +607,7 @@ def run_scenario(
                         material_receipt.material_set_id,
                         _digest_file(marketplace),
                         fixtures.fixture_ids,
+                        mcp_client,
                     )
             finally:
                 if installed:
@@ -636,6 +637,7 @@ def _pass_evidence(
     material_set_id: str,
     marketplace_manifest_digest: str,
     available_host_fixtures: tuple[str, ...],
+    mcp_client: _ControllerMCPClient | None,
 ) -> AuthorThenRunEvidence:
     created, finalized = (
         _receipt(author_result.stdout, "created"),
@@ -653,10 +655,28 @@ def _pass_evidence(
         source_handle = host.select_authored_package(
             package_name, now=datetime.now(UTC)
         )
+        snapshot = (
+            host.review_mcp_surface(
+                approved_read_only_tool_names=("list_unread",),
+                approved_tool_side_effects={"send_email": "write"},
+            )
+            if mcp_client is not None
+            else None
+        )
+        binding = (
+            host.bind_mcp_package(
+                package_source_handle=source_handle,
+                snapshot_id=snapshot.snapshot_id,
+                now=datetime.now(UTC),
+            )
+            if snapshot is not None
+            else None
+        )
         registration = host.register(
             workflow_id=workflow_id,
             package_source_handle=source_handle,
             now=datetime.now(UTC),
+            mcp_binding_id=binding.binding_id if binding is not None else None,
         )
         if registration.revision_digest != package_digest:
             raise ValueError
@@ -717,6 +737,19 @@ def _pass_evidence(
             {"gates": ["G3"], "fixtures": available_host_fixtures}
         ),
         marketplace_manifest_digest=marketplace_manifest_digest,
+        mcp_snapshot_id=snapshot.snapshot_id if snapshot is not None else None,
+        mcp_binding_id=binding.binding_id if binding is not None else None,
+        mcp_read_tool_names=("list_unread",) if snapshot is not None else (),
+        mcp_read_call_count=(
+            sum(name == "list_unread" for name, _arguments in mcp_client.calls)
+            if mcp_client is not None
+            else 0
+        ),
+        forbidden_send_dispatch_count=(
+            sum(name == "send_email" for name, _arguments in mcp_client.calls)
+            if mcp_client is not None
+            else 0
+        ),
     )
     validate_m44_evidence(
         contract,
