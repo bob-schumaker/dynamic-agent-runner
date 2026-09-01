@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Run the mandatory CLI-first M4.4 clean-Codex acceptance cases.
 
-The controller owns fixture state and package registration. Codex sees the
-installed DAR authoring skill, opaque material IDs, and a local DAR wheel; it
-uses DAR only through ``uv run ... dar-package``.
+The controller owns fixture state, package registration, and the test-owned
+``dar-package`` launcher. Codex sees only the installed successor skill,
+opaque material IDs, and declared text inputs.
 """
 
 from __future__ import annotations
@@ -38,6 +38,7 @@ from m4_4_clean_codex import (  # noqa: E402 - repository test corpus import.
     M44CleanCodexError,
     build_clean_codex_environment,
     create_marketplace,
+    stage_dar_package,
 )
 from m4_4_scenarios import (  # noqa: E402 - repository test corpus import.
     M44Scenario,
@@ -116,6 +117,11 @@ def run_scenario(
             base_url=base_url,
         )
         host = LocalWorkflowHost.open(state_root)
+        dar_bin = stage_dar_package(
+            wheel=wheel,
+            state_root=state_root,
+            destination=root / "dar-bin",
+        )
         material_receipt = host.issue_authoring_materials(
             materials=_load_materials(materials), now=datetime.now(UTC)
         )
@@ -135,8 +141,6 @@ def run_scenario(
                     author_prompt,
                     material_receipt.material_set_id,
                     package_name,
-                    wheel,
-                    model_id,
                     contract.expected_status,
                 ),
                 workspace,
@@ -145,8 +149,14 @@ def run_scenario(
                     working_directory=workspace,
                     wheel=wheel,
                     state_root=state_root,
-                    template_root=root / "marketplace" / "plugins" / "dar-authoring",
-                    inherited=os.environ,
+                    template_root=root
+                    / "marketplace"
+                    / "plugins"
+                    / "agent-engineering",
+                    inherited={
+                        **os.environ,
+                        "PATH": f"{dar_bin}{os.pathsep}{os.environ.get('PATH', '')}",
+                    },
                 ),
                 timeout,
             )
@@ -165,7 +175,8 @@ def run_scenario(
                     codex_home,
                     workspace,
                     state_root,
-                    root / "marketplace" / "plugins" / "dar-authoring",
+                    dar_bin,
+                    root / "marketplace" / "plugins" / "agent-engineering",
                     wheel,
                     reviewer_id,
                     reviewer_decision,
@@ -190,6 +201,7 @@ def _pass_evidence(
     codex_home: Path,
     workspace: Path,
     state_root: Path,
+    dar_bin: Path,
     template_root: Path,
     wheel: Path,
     reviewer_id: str | None,
@@ -225,7 +237,7 @@ def _pass_evidence(
         return _failure(contract, "registration", wheel, material_set_id, output_id)
     run_result = _run_codex(
         codex,
-        _run_request(package_name, run_prompt, wheel),
+        _run_request(package_name, run_prompt),
         workspace,
         build_clean_codex_environment(
             codex_home=codex_home,
@@ -233,7 +245,10 @@ def _pass_evidence(
             wheel=wheel,
             state_root=state_root,
             template_root=template_root,
-            inherited=os.environ,
+            inherited={
+                **os.environ,
+                "PATH": f"{dar_bin}{os.pathsep}{os.environ.get('PATH', '')}",
+            },
         ),
         timeout,
     )
@@ -255,7 +270,7 @@ def _pass_evidence(
         terminal_phase="invocation",
         invocation_mode=contract.invocation_mode,
         plugin_identity=_plugin_identity(),
-        skill_identity="agent-development@dar-authoring",
+        skill_identity="agent-development@agent-engineering",
         wheel_digest=_digest_file(wheel),
         harness_policy_digest=_harness_policy_digest(),
         executable_identity=_codex_identity(codex),
@@ -304,7 +319,7 @@ def _unavailable_evidence(
         terminal_phase="capability_preflight",
         invocation_mode=contract.invocation_mode,
         plugin_identity=_plugin_identity(),
-        skill_identity="agent-development@dar-authoring",
+        skill_identity="agent-development@agent-engineering",
         wheel_digest=_digest_file(wheel),
         harness_policy_digest=_harness_policy_digest(),
         executable_identity="codex@clean",
@@ -349,7 +364,7 @@ def _failure(
         terminal_phase=phase,
         invocation_mode=contract.invocation_mode,
         plugin_identity=_plugin_identity(),
-        skill_identity="agent-development@dar-authoring",
+        skill_identity="agent-development@agent-engineering",
         wheel_digest=_digest_file(wheel),
         harness_policy_digest=_harness_policy_digest(),
         executable_identity="codex@unavailable",
@@ -424,8 +439,6 @@ def _author_request(
     author_prompt: str,
     material_set_id: str,
     package_name: str,
-    wheel: Path,
-    model_id: str,
     expected_status: str,
 ) -> str:
     suffix = (
@@ -433,21 +446,20 @@ def _author_request(
         if expected_status != "pass"
         else "Create, write, and finalize the package, then report the redacted finalization receipt."
     )
-    command = f"uv run --no-project --python 3.14 --with {wheel} dar-package"
-    contract = (
-        "Create a no-tool, single-local-model package with exactly agent-design.md, "
-        "agent-runtime.yaml, agent-graph.mmd, and workflow-descriptor.yaml. "
-        "Read each canonical starter from `$DAR_AUTHORING_TEMPLATE_ROOT/templates/` "
-        "and preserve its schema; adapt only package identity, purpose, and system prompt "
-        f"for a concise five-bullet summary. Set every runtime model field to `{model_id}`. "
-        "Do not ask a question or merely propose files."
+    return (
+        f"{author_prompt}\n\nUse the installed agent-engineering agent-development "
+        f"skill to author a DAR workflow. The declared material_set_id is "
+        f"`{material_set_id}` and the requested package name is `{package_name}`. "
+        f"{suffix}"
     )
-    return f"{author_prompt}\n\nUse the installed dar-authoring agent-development skill. The host-issued material_set_id is `{material_set_id}`. Use package name `{package_name}` and local DAR wheel `{wheel}`. {contract} Execute, rather than merely describe, only `{command}` authoring commands: project-authoring-materials, create-authored-package, write-authored-package-file, and finalize-authored-package. Do not use MCP, a broker, paths, registration, or host configuration. {suffix}"
 
 
-def _run_request(package_name: str, run_prompt: str, wheel: Path) -> str:
-    command = f"uv run --no-project --python 3.14 --with {wheel} dar-package invoke --package-name {package_name} --prompt-stdin"
-    return f"Use the saved workflow `{package_name}` for this request: {run_prompt}\n\nExecute, rather than describe, only `{command}`. Use `printf '%s'` to pipe the request text to stdin, then report the JSON receipt. Do not select, register, or modify the package."
+def _run_request(package_name: str, run_prompt: str) -> str:
+    return (
+        f"Use the saved workflow `{package_name}` for this request: {run_prompt}\n\n"
+        "Use `dar-package invoke`, then report the JSON receipt. Do not select, "
+        "register, or modify the package."
+    )
 
 
 def _receipt(output: str, status: str) -> dict[str, object] | None:
@@ -533,13 +545,15 @@ def _install_plugin(
         timeout,
     )
     _command(
-        [codex, "plugin", "add", "dar-authoring@m44-clean-codex"], environment, timeout
+        [codex, "plugin", "add", "agent-engineering@m44-clean-codex"],
+        environment,
+        timeout,
     )
 
 
 def _remove_plugin(codex: str, environment: dict[str, str], timeout: int) -> None:
     for command in (
-        [codex, "plugin", "remove", "dar-authoring@m44-clean-codex"],
+        [codex, "plugin", "remove", "agent-engineering@m44-clean-codex"],
         [codex, "plugin", "marketplace", "remove", "m44-clean-codex"],
     ):
         try:
@@ -618,7 +632,9 @@ def _plugin_identity() -> str:
     value = json.loads(
         (
             Path(__file__).resolve().parents[1]
-            / "dar-authoring"
+            / ".agents"
+            / "plugins"
+            / "agent-engineering"
             / ".codex-plugin"
             / "plugin.json"
         ).read_text(encoding="utf-8")

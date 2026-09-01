@@ -4,12 +4,37 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+import shlex
 from pathlib import Path
 import shutil
 
 
 class M44CleanCodexError(ValueError):
     """Raised when a clean Codex acceptance actor cannot be prepared."""
+
+
+def stage_dar_package(*, wheel: Path, state_root: Path, destination: Path) -> Path:
+    """Stage a test-owned ``dar-package`` launcher for one clean actor."""
+
+    for path, label in (
+        (wheel, "wheel"),
+        (state_root, "state root"),
+        (destination, "DAR launcher destination"),
+    ):
+        _absolute_not_symlink(path, label)
+    if not wheel.is_file() or destination.exists() or destination.is_symlink():
+        raise M44CleanCodexError("DAR launcher inputs are invalid")
+    destination.mkdir(mode=0o700)
+    launcher = destination / "dar-package"
+    launcher.write_text(
+        "#!/bin/sh\n"
+        f"export DAR_AUTHORING_STATE_ROOT={shlex.quote(str(state_root))}\n"
+        "exec uv run --no-project --python 3.14 --with "
+        f'{shlex.quote(str(wheel))} dar-package "$@"\n',
+        encoding="utf-8",
+    )
+    launcher.chmod(0o700)
+    return destination
 
 
 def build_clean_codex_environment(
@@ -37,7 +62,7 @@ def build_clean_codex_environment(
         wheel=wheel,
         template_root=template_root,
         inherited=inherited,
-        extra={"DAR_AUTHORING_STATE_ROOT": str(state_root)},
+        extra={},
     )
 
 
@@ -55,9 +80,7 @@ def _base_environment(
         raise M44CleanCodexError("clean Codex PATH is invalid")
     return {
         "CODEX_HOME": str(codex_home),
-        "DAR_AUTHORING_DAR_WHEEL": str(wheel),
         "UV_CACHE_DIR": str(working_directory / ".uv-cache"),
-        "DAR_AUTHORING_TEMPLATE_ROOT": str(template_root),
         "HOME": str(working_directory),
         "LANG": "C.UTF-8",
         "PATH": path,
@@ -79,7 +102,12 @@ def create_marketplace(*, plugin_root: Path, destination: Path) -> Path:
         raise M44CleanCodexError("marketplace destination is unavailable")
     if any(path.is_symlink() for path in plugin_root.rglob("*")):
         raise M44CleanCodexError("plugin root contains a symbolic link")
-    plugin_destination = destination / "plugins" / "dar-authoring"
+    if not (
+        (plugin_root / "skills" / "agent-development" / "SKILL.md").is_file()
+        and (plugin_root / "references" / "dar-runtime-profile.md").is_file()
+    ):
+        raise M44CleanCodexError("successor plugin surface is invalid")
+    plugin_destination = destination / "plugins" / "agent-engineering"
     shutil.copytree(plugin_root, plugin_destination)
     manifest = destination / ".agents" / "plugins" / "marketplace.json"
     manifest.parent.mkdir(mode=0o700, parents=True)
@@ -90,13 +118,13 @@ def create_marketplace(*, plugin_root: Path, destination: Path) -> Path:
                 "plugins": [
                     {
                         "category": "Productivity",
-                        "name": "dar-authoring",
+                        "name": "agent-engineering",
                         "policy": {
                             "authentication": "ON_INSTALL",
                             "installation": "AVAILABLE",
                         },
                         "source": {
-                            "path": "./plugins/dar-authoring",
+                            "path": "./plugins/agent-engineering",
                             "source": "local",
                         },
                     }
