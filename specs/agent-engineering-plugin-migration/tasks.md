@@ -58,10 +58,22 @@ plugin-acceptance framework.
       DAR-targeted prompt produces the bounded package/finalization route and
       preserves refusal boundaries. Treat generated package and receipt
       validation as evidence; do not claim insight into model reasoning.
+- [ ] RED/GREEN: make the external command coverage-manifest-first. Add focused
+      tests that load the versioned successor coverage manifest, derive its
+      complete scenario set, reject a scenario-only or partial-manifest request,
+      and retain the checked-in scenario contract and capability assertions for
+      each replayed entry.
+- [ ] RED/GREEN: add a deterministic external-harness controller for the
+      complete manifest. It owns fake model, MCP/tool, approval, ingress,
+      guardrail, and capability collaborators and passes only declared fixture
+      inputs to each scenario. Unit tests must prove that this controller makes
+      no OpenAI, MCP, credential, or other network call.
 - [ ] RED/GREEN: add and pass fixture-backed contract tests for two separately
       launched clean Codex actors: author/finalize, then saved-package invoke.
       The second actor receives only the finalized package name and text request;
-      it cannot select, register, recreate, or configure the package.
+      it has a separate workspace and cannot select, register, recreate, or
+      configure the package, access author state, or receive controller
+      credentials or tool roots.
 - [x] RED/GREEN: add and pass a deterministic, fake-backed scenario runner for
       every successor scenario. It must execute each positive case through
       authoring, finalization, staging/registration, preparation, and invocation;
@@ -70,17 +82,18 @@ plugin-acceptance framework.
       side effect where required. It makes no live Codex, OpenAI, MCP, or other
       network call. `document-summary` and `council-request` remain mandatory
       regression cases.
+- [ ] RED/GREEN: add per-scenario redacted evidence tests and writer support.
+      Each record binds plugin/skill identities, marketplace digest,
+      scenario/prompt/harness versions, package/catalog/registration/preparation
+      linkage, terminal status, and dispatch count; it rejects prompt bodies,
+      material content, credentials, tool roots, and physical paths.
 - [ ] RED/GREEN: add the separately authorized external clean-Codex acceptance
-      command that replays the same versioned coverage manifest with two clean
-      actors and deterministic fake host collaborators. It must reject a partial
-      manifest run, preserve the deterministic runner's assertions, and record
-      only redacted evidence. This command is the live-Codex successor-acceptance
-      gate; ordinary tests do not invoke it.
-- [ ] Record redacted successor evidence that binds plugin/skill identities,
-      marketplace manifest digest, scenario/prompt/harness versions,
-      package/catalog/registration/preparation linkage, terminal status, and
-      dispatch count. Retain no prompt bodies, material content, credentials,
-      or physical paths.
+      command that composes the manifest admission, deterministic controller,
+      two isolated actors, ordinary-runner assertions, and redacted evidence.
+      This command is the live-Codex successor-acceptance gate; ordinary tests
+      do not invoke it.
+- [ ] Record reviewed redacted successor evidence from one complete external
+      manifest replay. Do not mark acceptance until that review is approved.
 - [ ] Update this record, `specs/README.md`, and the historical v1 acceptance
       wording only after the external successor run is reviewed and accepted.
 
