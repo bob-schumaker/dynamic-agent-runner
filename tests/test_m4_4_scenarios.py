@@ -11,8 +11,10 @@ import pytest
 from m4_4_scenarios import (
     M44Scenario,
     M44ScenarioError,
+    load_m44_external_scenario_plan,
     load_m44_coverage,
     load_m44_scenario,
+    validate_m44_external_scenario_plan,
     validate_m44_coverage,
     validate_m44_evidence,
 )
@@ -135,6 +137,77 @@ def test_successor_coverage_manifest_maps_every_capability_to_contracts() -> Non
         "tool-argument-provenance",
         "tool-using-graph",
     }
+
+
+def test_external_scenario_plan_must_exactly_bind_coverage_and_fixtures(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parent
+    coverage = load_m44_coverage(root / "fixtures" / "m4-4-successor-coverage.json")
+    plan_source = tmp_path / "external-scenario-plan.json"
+    scenario_ids = sorted({entry.scenario_id for entry in coverage.entries})
+    plan_source.write_text(
+        json.dumps(
+            {
+                "format_version": "m4.4-external-scenario-plan-v1",
+                "scenarios": [
+                    {
+                        "scenario_id": scenario_id,
+                        "package_name": f"package-{index}",
+                        "workflow_id": f"workflow-{index}",
+                        "author_request": "Author the declared DAR workflow.",
+                        "run_request": "Run the saved workflow.",
+                        "fixture_ids": list(
+                            next(
+                                scenario.required_host_fixtures
+                                for path in (
+                                    root / "fixtures" / "dar-authoring" / "m4-4",
+                                    root / "fixtures" / "m4-4-successor",
+                                )
+                                for candidate in path.glob("*.json")
+                                if (
+                                    scenario := load_m44_scenario(candidate)
+                                ).scenario_id
+                                == scenario_id
+                            )
+                        ),
+                    }
+                    for index, scenario_id in enumerate(scenario_ids, start=1)
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    plan = load_m44_external_scenario_plan(plan_source)
+
+    validate_m44_external_scenario_plan(
+        plan,
+        coverage=coverage,
+        scenario_roots=(
+            root / "fixtures" / "dar-authoring" / "m4-4",
+            root / "fixtures" / "m4-4-successor",
+        ),
+    )
+
+
+def test_checked_in_external_scenario_plan_covers_the_complete_successor_manifest() -> (
+    None
+):
+    root = Path(__file__).resolve().parent
+    plan = load_m44_external_scenario_plan(
+        root / "fixtures" / "m4-4-external-scenario-plan.json"
+    )
+    coverage = load_m44_coverage(root / "fixtures" / "m4-4-successor-coverage.json")
+
+    validate_m44_external_scenario_plan(
+        plan,
+        coverage=coverage,
+        scenario_roots=(
+            root / "fixtures" / "dar-authoring" / "m4-4",
+            root / "fixtures" / "m4-4-successor",
+        ),
+    )
 
 
 @pytest.mark.parametrize(

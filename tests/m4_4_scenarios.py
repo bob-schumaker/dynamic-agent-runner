@@ -38,6 +38,25 @@ class M44Coverage:
 
 
 @dataclass(frozen=True)
+class M44ExternalScenarioPlanEntry:
+    """One model-visible request pair bound to an immutable scenario."""
+
+    scenario_id: str
+    package_name: str
+    workflow_id: str
+    author_request: str
+    run_request: str
+    fixture_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class M44ExternalScenarioPlan:
+    """Versioned actor inputs for a complete external acceptance replay."""
+
+    entries: tuple[M44ExternalScenarioPlanEntry, ...]
+
+
+@dataclass(frozen=True)
 class M44Scenario:
     """The checker-relevant contract for one author-then-run case."""
 
@@ -148,6 +167,56 @@ def load_m44_coverage(source: Path) -> M44Coverage:
     ):
         raise M44ScenarioError("coverage entries are invalid")
     return M44Coverage(entries=entries)
+
+
+def load_m44_external_scenario_plan(source: Path) -> M44ExternalScenarioPlan:
+    """Load closed model-visible inputs for the external acceptance command."""
+
+    if not isinstance(source, Path) or source.suffix != ".json":
+        raise M44ScenarioError("external scenario plan source is invalid")
+    try:
+        value: Any = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise M44ScenarioError("external scenario plan source is invalid") from error
+    if not isinstance(value, dict) or set(value) != {"format_version", "scenarios"}:
+        raise M44ScenarioError("external scenario plan fields are invalid")
+    if value["format_version"] != "m4.4-external-scenario-plan-v1":
+        raise M44ScenarioError("external scenario plan format version is invalid")
+    if not isinstance(value["scenarios"], list) or not value["scenarios"]:
+        raise M44ScenarioError("external scenario plan entries are invalid")
+    entries = tuple(
+        _external_scenario_plan_entry(entry) for entry in value["scenarios"]
+    )
+    if len({entry.scenario_id for entry in entries}) != len(entries):
+        raise M44ScenarioError("external scenario plan entries are invalid")
+    if len({entry.package_name for entry in entries}) != len(entries):
+        raise M44ScenarioError("external scenario plan package names are invalid")
+    if len({entry.workflow_id for entry in entries}) != len(entries):
+        raise M44ScenarioError("external scenario plan workflow IDs are invalid")
+    return M44ExternalScenarioPlan(entries=entries)
+
+
+def validate_m44_external_scenario_plan(
+    plan: M44ExternalScenarioPlan,
+    *,
+    coverage: M44Coverage,
+    scenario_roots: tuple[Path, ...],
+) -> None:
+    """Require plan inputs to exactly match the complete immutable corpus."""
+
+    if not isinstance(plan, M44ExternalScenarioPlan) or not isinstance(
+        coverage, M44Coverage
+    ):
+        raise M44ScenarioError("external scenario plan is invalid")
+    scenarios = _load_scenario_corpus(scenario_roots)
+    covered_ids = {entry.scenario_id for entry in coverage.entries}
+    planned_ids = {entry.scenario_id for entry in plan.entries}
+    if planned_ids != covered_ids or planned_ids != set(scenarios):
+        raise M44ScenarioError("external scenario plan scenarios are invalid")
+    for entry in plan.entries:
+        scenario = scenarios[entry.scenario_id]
+        if set(entry.fixture_ids) != set(scenario.required_host_fixtures):
+            raise M44ScenarioError("external scenario plan fixtures are invalid")
 
 
 def validate_m44_coverage(
@@ -265,6 +334,26 @@ def _coverage_entry(value: object) -> M44CoverageEntry:
         capability_assertions=_text_list(
             value["capability_assertions"], "capability_assertions"
         ),
+    )
+
+
+def _external_scenario_plan_entry(value: object) -> M44ExternalScenarioPlanEntry:
+    if not isinstance(value, dict) or set(value) != {
+        "scenario_id",
+        "package_name",
+        "workflow_id",
+        "author_request",
+        "run_request",
+        "fixture_ids",
+    }:
+        raise M44ScenarioError("external scenario plan entry fields are invalid")
+    return M44ExternalScenarioPlanEntry(
+        scenario_id=_text(value["scenario_id"], "scenario_id"),
+        package_name=_text(value["package_name"], "package_name"),
+        workflow_id=_text(value["workflow_id"], "workflow_id"),
+        author_request=_text(value["author_request"], "author_request"),
+        run_request=_text(value["run_request"], "run_request"),
+        fixture_ids=_text_list(value["fixture_ids"], "fixture_ids", empty=True),
     )
 
 
