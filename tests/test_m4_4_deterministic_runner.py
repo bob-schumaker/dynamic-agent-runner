@@ -9,6 +9,9 @@ import pytest
 from m4_4_deterministic import (
     run_authoring_boundary_attack,
     run_document_summary,
+    run_document_embedding,
+    run_council_request,
+    run_deferred_runtime_boundaries,
     run_email_file_body,
     run_file_provenance_missing_ingress,
     run_generic_email_send,
@@ -92,6 +95,51 @@ def test_file_provenance_missing_ingress_stops_before_preparation_or_dispatch() 
     assert result == {
         "terminal_phase": "capability_preflight",
         "prepared": False,
+        "model_calls": 0,
+        "tool_dispatches": 0,
+    }
+
+
+def test_deferred_runtime_boundaries_finalize_then_stop_at_host_preflight() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "m4-4-successor" / "deferred-runtime-boundaries.json"
+    )
+
+    result = run_deferred_runtime_boundaries(scenario)
+
+    assert result == {
+        "terminal_phase": "capability_preflight",
+        "registered": False,
+        "model_calls": 0,
+        "tool_dispatches": 0,
+    }
+
+
+def test_council_request_stops_before_subagent_dispatch() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "dar-authoring" / "m4-4" / "council-request.json"
+    )
+
+    result = run_council_request(scenario)
+
+    assert result == {
+        "terminal_phase": "capability_preflight",
+        "registered": False,
+        "model_calls": 0,
+        "tool_dispatches": 0,
+    }
+
+
+def test_document_embedding_stops_before_embedding_dispatch() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "dar-authoring" / "m4-4" / "document-embedding.json"
+    )
+
+    result = run_document_embedding(scenario)
+
+    assert result == {
+        "terminal_phase": "capability_preflight",
+        "registered": False,
         "model_calls": 0,
         "tool_dispatches": 0,
     }

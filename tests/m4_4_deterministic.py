@@ -46,6 +46,7 @@ from dynamic_agent_runner.workflow_host.runner import (
     RunDarWorkflowError,
     RunDarWorkflowRequest,
 )
+from dynamic_agent_runner.workflow_host.registration import WorkflowRegistrationError
 
 
 _SUPPORTED_SCENARIO_ADAPTER_IDS = frozenset(
@@ -534,6 +535,95 @@ def run_document_summary(scenario) -> dict[str, object]:
     return {
         "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
         "model_calls": len(client.responses.calls),
+        "tool_dispatches": 0,
+    }
+
+
+def run_deferred_runtime_boundaries(scenario) -> dict[str, object]:
+    """Prove all declared deferred runtime needs stop at host preflight."""
+
+    if scenario.scenario_id != "deferred-runtime-boundaries-v1":
+        raise ValueError("deferred-runtime adapter received the wrong scenario")
+    return _run_unavailable_capability(
+        scenario,
+        rewrite=lambda name, content: _deferred_runtime_package(
+            name,
+            content,
+            capabilities=(
+                "context-pruning-pipeline",
+                "scratch-workspace",
+                "durable-session-continuation",
+                "native-approval-resume",
+            ),
+        ),
+    )
+
+
+def run_council_request(scenario) -> dict[str, object]:
+    """Prove a council declaration stops before any subagent dispatch."""
+
+    if scenario.scenario_id != "council-request-v1":
+        raise ValueError("council-request adapter received the wrong scenario")
+    return _run_unavailable_capability(
+        scenario,
+        rewrite=lambda name, content: _deferred_runtime_package(
+            name, content, capabilities=("collaboration-subagents",)
+        ),
+    )
+
+
+def run_document_embedding(scenario) -> dict[str, object]:
+    """Prove an embedding/RAG declaration stops before provider dispatch."""
+
+    if scenario.scenario_id != "document-embedding-v1":
+        raise ValueError("document-embedding adapter received the wrong scenario")
+    return _run_unavailable_capability(
+        scenario,
+        rewrite=lambda name, content: _deferred_runtime_package(
+            name, content, capabilities=("retrieval-embedding-rag",)
+        ),
+    )
+
+
+def _run_unavailable_capability(
+    scenario, *, rewrite: Callable[[str, str], str]
+) -> dict[str, object]:
+    """Finalize one declared unavailable capability and reject registration."""
+
+    with tempfile.TemporaryDirectory(
+        dir="/private/tmp", prefix="m44-acceptance-"
+    ) as temporary:
+        root = Path(temporary)
+        package_root = root / "packages"
+        state_root = root / "state"
+        package_root.mkdir(mode=0o700)
+        configure_local_host(
+            root=state_root,
+            package_root=package_root,
+            model_id="local-model",
+            base_url="http://127.0.0.1:11434/v1",
+        )
+        host = LocalWorkflowHost.open(state_root)
+        now = datetime.now(UTC)
+        source_handle = _author_package(
+            host, scenario.scenario_id, now, rewrite=rewrite
+        )
+        try:
+            host.register(
+                workflow_id=scenario.scenario_id,
+                package_source_handle=source_handle,
+                now=now,
+            )
+        except (LocalWorkflowHostError, WorkflowRegistrationError):
+            pass
+        else:
+            raise ValueError("unavailable capability package was registered")
+        if host.run_traces():
+            raise ValueError("unavailable capability reached workflow execution")
+    return {
+        "terminal_phase": "capability_preflight",
+        "registered": False,
+        "model_calls": 0,
         "tool_dispatches": 0,
     }
 
@@ -1740,6 +1830,72 @@ def _author_package(
         now=now,
     )
     return source_handle
+
+
+def _deferred_runtime_package(
+    name: str, content: str, *, capabilities: tuple[str, ...]
+) -> str:
+    if name == "workflow-descriptor.yaml":
+        descriptor = yaml.safe_load(content)
+        if "scratch-workspace" in capabilities:
+            descriptor["workspace"]["scratch_access"] = "ephemeral"
+        return yaml.safe_dump(descriptor)
+    if name != "agent-runtime.yaml":
+        return content
+    runtime = yaml.safe_load(content)
+    policy = runtime["runtime"]["execution_policy"]
+    if "context-pruning-pipeline" in capabilities:
+        policy["prepare_model_input"] = {
+            "context_compaction": {
+                "auto": {
+                    "enabled": True,
+                    "implementation": "basic",
+                    "trigger": "token_threshold",
+                    "scope": "current_run",
+                }
+            }
+        }
+    if "durable-session-continuation" in capabilities:
+        policy["async_session"] = {
+            "mode": "create_or_resume",
+            "persist": "external_checkpoint",
+            "history": "summary",
+            "session_id_state_key": "session_id",
+            "session_messages_state_key": "session_messages",
+        }
+    if "native-approval-resume" in capabilities:
+        policy["approval_interruption"] = {
+            "mode": "pause_on_approval",
+            "persist": "external_checkpoint",
+            "resume_from": "approval_decision",
+            "pending_tool_calls_state_key": "pending_tool_calls",
+            "pending_approvals_state_key": "pending_approvals",
+            "interruption_state_key": "interruption_state",
+            "resume_token_state_key": "resume_token",
+        }
+    if "collaboration-subagents" in capabilities:
+        runtime.setdefault("metadata", {})["participant_groups"] = [
+            {"id": "review-council"}
+        ]
+    if "retrieval-embedding-rag" in capabilities:
+        runtime.setdefault("metadata", {}).update(
+            {
+                "patterns_present": ["rag", "embedding_retrieval"],
+                "rag_pipeline": {
+                    "retrieval_mode": "embedding_semantic",
+                    "embedding_capability": "required",
+                    "graph_capability": "not_applicable",
+                    "index_owner": "runtime",
+                    "graph_store_owner": "unknown",
+                    "corpus_boundary": "fixture documents",
+                    "chunking_policy": "runtime default",
+                },
+            }
+        )
+        runtime["nodes"][0]["model_requirements"] = {
+            "required_capabilities": ["embeddings"]
+        }
+    return yaml.safe_dump(runtime)
 
 
 def _read_only_package(name: str, content: str) -> str:
