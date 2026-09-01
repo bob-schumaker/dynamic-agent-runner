@@ -12,6 +12,7 @@ from m4_4_deterministic import (
     run_email_file_body,
     run_generic_email_send,
     run_guardrail_input,
+    run_guardrail_missing_registry,
     run_guardrail_tool_input,
     run_hybrid_brief,
     run_mailbox_triage,
@@ -75,6 +76,21 @@ def test_mcp_missing_connection_stops_before_registration_or_dispatch(
         "registered": False,
         "model_calls": 0,
         "tool_dispatches": 0,
+    }
+
+
+def test_input_guardrail_missing_registry_stops_before_model_dispatch() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "m4-4-successor" / "guardrail-input-missing.json"
+    )
+
+    result = run_guardrail_missing_registry(scenario)
+
+    assert result == {
+        "terminal_phase": "capability_preflight",
+        "model_calls": 0,
+        "tool_dispatches": 0,
+        "retry_model_calls": 1,
     }
 
 

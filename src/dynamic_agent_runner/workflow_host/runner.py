@@ -169,6 +169,7 @@ class WorkflowRunner:
                 terminal_output_contract,
             ) = self._preflight(request.workflow_id)
             self._validate_adapter(registration)
+            self._validate_guardrail_registry(package_root, guardrail_registry)
             sealed = self._preparation.load(
                 request.prepared_input_id, registration=registration, now=now
             )
@@ -281,6 +282,25 @@ class WorkflowRunner:
             policy,
             terminal_output_contract,
         )
+
+    def _validate_guardrail_registry(
+        self,
+        package_root: Any,
+        guardrail_registry: InMemoryGuardrailRegistry | None,
+    ) -> None:
+        """Require every declared guardrail before consuming a sealed input."""
+
+        workflow = load_agent_package_workflow(str(package_root))
+        for declaration in workflow.runtime_manifest.guardrails:
+            guardrail_id = declaration.id
+            if (
+                not isinstance(guardrail_id, str)
+                or guardrail_registry is None
+                or not guardrail_registry.has_guardrail(guardrail_id)
+            ):
+                raise RunDarWorkflowError(
+                    "registered workflow guardrail is unavailable"
+                )
 
     def _tool_registry(
         self,

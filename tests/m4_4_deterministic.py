@@ -39,6 +39,7 @@ from dynamic_agent_runner.workflow_host.mcp_client import (
 )
 from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool
 from dynamic_agent_runner.workflow_host.oauth import OAuthTokenBundle
+from dynamic_agent_runner.workflow_host.runner import RunDarWorkflowError
 
 
 _SUPPORTED_SCENARIO_ADAPTER_IDS = frozenset(
@@ -906,6 +907,79 @@ def run_guardrail_input(scenario) -> dict[str, object]:
         "model_calls": len(client.responses.calls),
         "tool_dispatches": 0,
         "guardrail_calls": guardrail.calls,
+    }
+
+
+def run_guardrail_missing_registry(scenario) -> dict[str, object]:
+    """Reject a declared input guardrail before consuming its prepared input."""
+
+    if scenario.scenario_id != "guardrail-input-missing-v1":
+        raise ValueError("missing input guardrail adapter received the wrong scenario")
+    with tempfile.TemporaryDirectory(
+        dir="/private/tmp", prefix="m44-acceptance-"
+    ) as temporary:
+        root = Path(temporary)
+        package_root = root / "packages"
+        state_root = root / "state"
+        package_root.mkdir(mode=0o700)
+        client = _StructuredClient()
+        guardrail = _Guardrail()
+        configure_local_host(
+            root=state_root,
+            package_root=package_root,
+            model_id="local-model",
+            base_url="http://127.0.0.1:11434/v1",
+        )
+        with patch(
+            "dynamic_agent_runner.workflow_host.host.create_local_adapter",
+            lambda profile: OpenAIClientAdapter(
+                client,
+                models=[profile.execution_model_id],
+                is_local=True,
+                model_id_mapping={profile.execution_model_id: profile.model_id},
+                execution_profile_adapter_id=profile.adapter_id,
+            ),
+        ):
+            host = LocalWorkflowHost.open(state_root)
+            now = datetime.now(UTC)
+            source_handle = _author_package(
+                host, scenario.scenario_id, now, rewrite=_input_guardrail_package
+            )
+            registration = host.register(
+                workflow_id=scenario.scenario_id,
+                package_source_handle=source_handle,
+                now=now,
+            )
+            prepared = host.prepare(
+                workflow_id=registration.workflow_id,
+                prompt="Review the submitted answer.",
+                now=now,
+            )
+            try:
+                host.run(
+                    workflow_id=registration.workflow_id,
+                    prepared_input_id=prepared.prepared_input_id,
+                    now=now,
+                )
+            except RunDarWorkflowError:
+                pass
+            else:
+                raise ValueError("missing input guardrail reached workflow execution")
+            if client.responses.calls:
+                raise ValueError("missing input guardrail reached model execution")
+            host.run(
+                workflow_id=registration.workflow_id,
+                prepared_input_id=prepared.prepared_input_id,
+                now=now,
+                guardrail_registry=InMemoryGuardrailRegistry(
+                    {"require_input": guardrail.check_input}
+                ),
+            )
+    return {
+        "terminal_phase": "capability_preflight",
+        "model_calls": 0,
+        "tool_dispatches": 0,
+        "retry_model_calls": len(client.responses.calls),
     }
 
 
