@@ -18,6 +18,7 @@ from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
     LocalWorkflowHostError,
 )
+from dynamic_agent_runner.workflow_host.package_controller import proxy_package_command
 from dynamic_agent_runner.workflow_host.runner import RunDarWorkflowError
 
 
@@ -39,6 +40,19 @@ def main(
     stderr = stderr or sys.stderr
     host_opener = host_opener or LocalWorkflowHost.open
     approval_broker_factory = approval_broker_factory or TerminalApprovalBroker
+    if len(arguments) >= 4 and arguments[:2] == ["--controller-proxy", "--socket"]:
+        try:
+            returncode, proxy_stdout, proxy_stderr = proxy_package_command(
+                socket_path=Path(arguments[2]),
+                arguments=arguments[3:],
+                stdin=stdin.read(),
+            )
+        except (OSError, ValueError, json.JSONDecodeError):
+            _write(stderr, _error("controller_unavailable"))
+            return 1
+        stdout.write(proxy_stdout)
+        stderr.write(proxy_stderr)
+        return returncode
     if arguments == ["version", "--json"]:
         return _version(stdout=stdout, stderr=stderr)
     if not arguments:
