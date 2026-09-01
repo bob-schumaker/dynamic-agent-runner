@@ -194,6 +194,47 @@ def test_manifest_evidence_requires_complete_fresh_redacted_record_set(
         )
 
 
+def test_manifest_runner_replays_every_plan_entry_before_aggregating(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _harness_module()
+    records = {record.scenario_id: record for record in _manifest_records(module)}
+    calls: list[dict[str, object]] = []
+
+    def run_case(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return records[module.load_m44_scenario(kwargs["scenario"]).scenario_id]
+
+    monkeypatch.setattr(module, "run_scenario", run_case)
+
+    aggregate = module.run_manifest(
+        coverage=REPO_ROOT / "tests" / "fixtures" / "m4-4-successor-coverage.json",
+        scenario_plan=REPO_ROOT
+        / "tests"
+        / "fixtures"
+        / "m4-4-external-scenario-plan.json",
+        scenario_roots=(
+            REPO_ROOT / "tests" / "fixtures" / "dar-authoring" / "m4-4",
+            REPO_ROOT / "tests" / "fixtures" / "m4-4-successor",
+        ),
+        evidence_directory=(tmp_path / "evidence").resolve(),
+        codex_home=(tmp_path / "codex-home").resolve(),
+        plugin_root=(tmp_path / "plugin").resolve(),
+        wheel=(tmp_path / "dar.whl").resolve(),
+        materials=(tmp_path / "materials.json").resolve(),
+        model_id="fake-model",
+        base_url="http://127.0.0.1:8080/v1",
+        reviewer_id=None,
+        reviewer_decision="pending",
+        codex_executable="codex",
+        timeout=1,
+    )
+
+    assert len(calls) == 23
+    assert {call["evidence"] for call in calls} == {None}
+    assert len(json.loads(aggregate.read_text(encoding="utf-8"))["records"]) == 23
+
+
 def test_marketplace_contains_only_the_copied_plugin(tmp_path: Path) -> None:
     plugin = tmp_path / "plugin"
     (plugin / ".codex-plugin").mkdir(parents=True)

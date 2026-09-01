@@ -129,11 +129,11 @@ def write_manifest_evidence(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run one mandatory clean-Codex M4.4 scenario."""
+    """Run the complete manifest-defined clean-Codex M4.4 acceptance replay."""
 
     arguments = _arguments(argv)
     try:
-        evidence = run_scenario(**vars(arguments))
+        aggregate = run_manifest(**vars(arguments))
     except (
         HarnessError,
         LocalWorkflowHostError,
@@ -142,8 +142,63 @@ def main(argv: Sequence[str] | None = None) -> int:
     ) as error:
         print(f"M4.4 clean-Codex harness failed: {error}")
         return 2
-    print(json.dumps(evidence.to_mapping(), sort_keys=True, separators=(",", ":")))
+    print(aggregate.read_text(encoding="utf-8"))
     return 0
+
+
+def run_manifest(
+    *,
+    coverage: Path,
+    scenario_plan: Path,
+    scenario_roots: tuple[Path, ...],
+    evidence_directory: Path,
+    codex_home: Path,
+    plugin_root: Path,
+    wheel: Path,
+    materials: Path,
+    model_id: str,
+    base_url: str,
+    reviewer_id: str | None,
+    reviewer_decision: str,
+    codex_executable: str,
+    timeout: int,
+) -> Path:
+    """Replay every closed-plan scenario and write its one aggregate evidence set."""
+
+    coverage_contract = load_m44_coverage(coverage)
+    plan = load_m44_external_scenario_plan(scenario_plan)
+    validate_m44_external_scenario_plan(
+        plan, coverage=coverage_contract, scenario_roots=scenario_roots
+    )
+    sources = _scenario_sources(scenario_roots)
+    records = tuple(
+        run_scenario(
+            scenario=sources[entry.scenario_id],
+            codex_home=codex_home,
+            plugin_root=plugin_root,
+            wheel=wheel,
+            package_name=entry.package_name,
+            workflow_id=entry.workflow_id,
+            author_prompt=entry.author_request,
+            run_prompt=entry.run_request,
+            materials=materials,
+            model_id=model_id,
+            base_url=base_url,
+            evidence=None,
+            reviewer_id=reviewer_id,
+            reviewer_decision=reviewer_decision,
+            codex_executable=codex_executable,
+            timeout=timeout,
+        )
+        for entry in plan.entries
+    )
+    return write_manifest_evidence(
+        evidence_directory=evidence_directory,
+        coverage_source=coverage,
+        scenario_plan_source=scenario_plan,
+        scenario_roots=scenario_roots,
+        records=records,
+    )
 
 
 def run_scenario(
@@ -159,7 +214,7 @@ def run_scenario(
     materials: Path,
     model_id: str,
     base_url: str,
-    evidence: Path,
+    evidence: Path | None,
     reviewer_id: str | None,
     reviewer_decision: str,
     codex_executable: str,
@@ -285,7 +340,8 @@ def run_scenario(
         finally:
             if installed:
                 _remove_plugin(codex_executable, management_environment, timeout)
-    write_author_then_run_evidence(evidence, result)
+    if evidence is not None:
+        write_author_then_run_evidence(evidence, result)
     return result
 
 
@@ -507,21 +563,36 @@ def _validate_manifest_records(
         raise HarnessError("external evidence records are invalid")
 
 
+def _scenario_sources(scenario_roots: tuple[Path, ...]) -> dict[str, Path]:
+    sources: dict[str, Path] = {}
+    for root in scenario_roots:
+        if not isinstance(root, Path) or not root.is_absolute() or not root.is_dir():
+            raise HarnessError("scenario root is invalid")
+        for source in root.glob("*.json"):
+            scenario_id = load_m44_scenario(source).scenario_id
+            if scenario_id in sources:
+                raise HarnessError("scenario sources are duplicated")
+            sources[scenario_id] = source
+    if not sources:
+        raise HarnessError("scenario roots are empty")
+    return sources
+
+
 def _validate_inputs(
     contract: M44Scenario,
     codex_home: Path,
     plugin_root: Path,
     wheel: Path,
     materials: Path,
-    evidence: Path,
+    evidence: Path | None,
     reviewer_decision: str,
     timeout: int,
 ) -> None:
-    if contract.scenario_id not in {"document-summary-v1", "council-request-v1"}:
-        raise HarnessError("scenario is not an M4.4 mandatory case")
-    for path in (codex_home, plugin_root, wheel, materials, evidence):
+    for path in (codex_home, plugin_root, wheel, materials):
         if not path.is_absolute() or path.is_symlink():
             raise HarnessError("harness path is invalid")
+    if evidence is not None and (not evidence.is_absolute() or evidence.is_symlink()):
+        raise HarnessError("harness path is invalid")
     if not codex_home.is_dir() or not (codex_home / "auth.json").is_file():
         raise HarnessError("codex_home must be a pre-authenticated test profile")
     if (
@@ -622,22 +693,17 @@ def _collect(value: Any, destination: list[dict[str, object]]) -> None:
 def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     for name in (
-        "scenario",
+        "coverage",
+        "scenario_plan",
         "codex_home",
         "plugin_root",
         "wheel",
         "materials",
-        "evidence",
+        "evidence_directory",
     ):
         parser.add_argument(f"--{name.replace('_', '-')}", type=Path, required=True)
-    for name in (
-        "package_name",
-        "workflow_id",
-        "author_prompt",
-        "run_prompt",
-        "model_id",
-        "base_url",
-    ):
+    parser.add_argument("--scenario-root", type=Path, action="append", required=True)
+    for name in ("model_id", "base_url"):
         parser.add_argument(f"--{name.replace('_', '-')}", required=True)
     parser.add_argument("--reviewer-id")
     parser.add_argument(
@@ -645,7 +711,10 @@ def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     )
     parser.add_argument("--codex-executable", default="codex")
     parser.add_argument("--timeout", type=int, default=300)
-    return parser.parse_args(argv)
+    arguments = parser.parse_args(argv)
+    arguments.scenario_roots = tuple(arguments.scenario_root)
+    del arguments.scenario_root
+    return arguments
 
 
 def _management_environment(codex_home: Path, workspace: Path) -> dict[str, str]:
