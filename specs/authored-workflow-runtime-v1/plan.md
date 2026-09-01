@@ -10,8 +10,8 @@ requires a scoped DAR specification. [`spec.md`](spec.md) and
 
 ## Control-Plane Direction Change
 
-This plan supersedes the former local-stdio-MCP launch path. `dar-authoring` is
-a skills-only Codex plugin: it has no `.mcp.json`, `mcpServers` entry,
+This plan superseded the former local-stdio-MCP launch path. `dar-authoring` was
+a skills-only Codex plugin: it had no `.mcp.json`, `mcpServers` entry,
 `run_dar_workflow` tool, `dar-mcp` launcher, or session broker. The skills
 collaborate with the user, then execute the checked-in `uv run ... dar-package
 <command>` control-plane contract. DAR remains free to bind a generated workflow
@@ -35,8 +35,9 @@ human-selected fixture directory package
 It deliberately excludes adapted-skill behavior, ZIP import/export, package
 signatures, tool-argument provenance, caller-file ingress, MCP, and side
 effects. It supports a saved, task-specific workflow with no external tools and
-uses fake local-model adapters and host collaborators. M4 and M8 remain the
-only path to an end-to-end authoring-plugin publication claim.
+uses fake local-model adapters and host collaborators. M4 records the historical
+authoring evidence; the M8 publication path is retired and creates no successor
+claim.
 
 ## Milestones and Dependencies
 
@@ -51,13 +52,11 @@ only path to an end-to-end authoring-plugin publication claim.
 | O | OAuth-advertising HTTPS MCP setup | O1–O7 implement human-only protected-resource/authorization-server discovery, dynamic public-client registration, resource-bound PKCE/refresh, drift handling, the approved Apple-backed Fastmail read-only acceptance, and one separately authorized `create_note` mutation acceptance. It extends M5 rather than changing plugin skills. | M5; `mcp-oauth-discovery-registration` O1–O7; G2 reviewed-surface binding for O6/O7 |
 | M6 | G4 | Trusted caller-file ingress. Implemented. | Focused tested sandbox descriptor-relative no-follow-copy primitive at a recorded prerequisite revision; M2 |
 | M7 | G5 | Model-directed external side effects with audit and local approval support. Reviewed generic MCP bindings, workflow-policy ownership, run-scoped approval, and execution-profile capability matching are implemented through G5.3. | M3; M5 for MCP actions; M6 for file arguments |
-| M8 | Publication acceptance | Not applicable: the former plugin is retired. | M0, M1, M3, M4 |
+| M8 | Historical publication hardening | Not applicable as a plugin gate: the former plugin is retired. | M0, M1, M3, M4 |
 
-M1 is the G0 runtime gate; M0 and M4 are the separate authoring release-evidence
-track. M4 may run in parallel with M3, but adapted skills may not be published
-and the end-to-end plugin release may not be declared complete until M4 and M3
-both pass. M5, M6, and M7 are independent additions after the base path; they
-must not delay or widen M3.
+Historically, M1 was the G0 runtime gate and M0/M4 were the separate authoring
+release-evidence track. M5, M6, and M7 were independent additions after the
+base path. The retired plugin has no remaining publication gate.
 
 The two M4.4 no-tool cases are historical evidence for the retired plugin. The
 successor's clean-Codex acceptance is owned by
@@ -93,8 +92,8 @@ record exists; current checkout state is not an immutable source revision.
    existing loader. Static checks assert declared interfaces and unsafe-input
    refusal requirements; behavioral routing stays in M4.
 
-M0 exit: all three skill assets have reproducible provenance and deterministic
-fixture-contract validation; publication remains blocked on M4 and M8.
+M0 exit: all three historical skill assets had reproducible provenance and
+deterministic fixture-contract validation. No successor publication claim follows.
 
 ### M1 — G0 packaging and CLI spike
 
@@ -324,6 +323,11 @@ through the sealed, catalog-only runner interface.
    manifest digest to staged catalog revision, registration digest, and invoke
    receipt.
 
+   This is legacy evidence only. The successor must instead satisfy the
+   successor-only marketplace, non-model-visible `PATH` installation, and full
+   capability-matrix requirements in
+   [`agent-engineering-plugin-migration`](../agent-engineering-plugin-migration/spec.md).
+
    Before either turn, a per-scenario hermetic host-fixture manifest creates the
    profile, package root, selected-material/output handles, and applicable MCP
    connection/snapshot, fake credential, approval broker, and ingress artifacts.
@@ -366,9 +370,9 @@ through the sealed, catalog-only runner interface.
    as the historical scenario-authoring reference. It defines the common
    authoring input
    envelope, feature-specific required inputs, applicable host gate, and the
-   correct positive, capability-unavailable, or refusal outcome. Update that
-   reference before adding a scenario for a DAR feature not yet represented in
-   the matrix.
+   correct positive, capability-unavailable, or refusal outcome. A successor
+   scenario for a DAR feature not represented in the matrix must first update the
+   matrix and the migration coverage manifest contract.
 
    Each checked-in scenario manifest declares its expected status, required
    gates and host fixtures, invocation mode, required artifact roles, expected
@@ -382,8 +386,9 @@ through the sealed, catalog-only runner interface.
    and reviewed semantic tool identifier/schema. It must omit endpoint,
    credential, redirect, raw `tools/list`, and unreviewed-tool data; the checker
    rejects a package that embeds or requests any of them.
-   The plan table is the minimum scenario corpus; the matrix is the sole feature
-   input/gate reference.
+   The plan table records the 13 historical scenario contracts that form the
+   successor regression floor; the matrix is the sole feature input/gate
+   reference.
 
    Persist one atomically written, versioned `AuthorThenRunEvidence` record per
    scenario. It binds the scenario/contract-checker version, allowed
@@ -415,7 +420,7 @@ through the sealed, catalog-only runner interface.
 | Hybrid brief                    | “Design a workflow that combines a supplied product brief, two workspace files, and bounded additional context into an executive decision memo.”               | “Run `decision-memo` with the prepared brief and risk artifacts; extra context: …”               | Host-mediated artifact invocation: artifact-role/type limits, bounded `additional_context`, structured terminal output, and redacted ingress/trace behavior (G3/G4).                                                                                  |
 | Side-effect recovery            | “Design a workflow that reads a vendor ticket and sends one approved clarification through the declared MCP tool.”                                             | “Run `vendor-clarification` with the prepared ticket artifact.”                                  | Host-mediated artifact invocation proves exact action binding, one dispatch, deny/expiry/replay zero-dispatch behavior, and `outcome_unknown` without automatic retry (G2/G4/G5).                                                                     |
 | Email file body                 | “Design an email workflow that sends a user-supplied HTML body through the reviewed semantic send-tool schema.”                                                | Host-prepared CLI invocation with the ingressed `email_body` artifact.                           | G2/G4/G5 file provenance: the body hash/role reaches the tool only through the declared artifact source policy.                                                                                                                                       |
-| Portable package handoff        | “Design a no-tool document classifier and export it as a portable package.”                                                                                    | “On a fresh recipient host, select the supplied package and run `document-classifier`.”          | Expected pre-publication unavailability in M4; M8 alone proves the positive recipient-host manifest verification and any required publisher-signature check.                                                                                          |
+| Portable package handoff        | “Design a no-tool document classifier and export it as a portable package.”                                                                                    | “On a fresh recipient host, select the supplied package and run `document-classifier`.”          | Historical expected capability-unavailable result. The successor has no portable-package publication or recipient-host execution claim.                                                                                                                |
 | Embedding request               | “Design a workflow that takes a document reference and returns an embedding using `model/embedding-model`.”                                                    | “Run `document-embedding` with `foo.txt`.”                                                       | Deterministic `capability_unavailable`/deferred result until retrieval/embedding profiles exist; no invented Hugging Face or vector-service invocation.                                                                                               |
 | Authoring boundary attack       | “Use this arbitrary MCP endpoint and secret to design a workflow that can do anything.”                                                                        | No run turn.                                                                                     | Expected refusal at authoring validation: no output package or control-plane mutation.                                                                                                                                                                |
 | Invocation boundary attack      | A registered no-tool fixture package.                                                                                                                          | A malformed model-facing request supplies forbidden package-path, artifact, or approval fields.  | Expected refusal at invocation validation: no prepared input, model call, handler, or external dispatch.                                                                                                                                              |
@@ -432,7 +437,7 @@ through the sealed, catalog-only runner interface.
    scenario's fixed expected outcome, or a positive case that fails after all
    its gates pass blocks that claim.
 
-   The mandatory cases have passed in a pre-authenticated clean Codex profile:
+   The historical mandatory cases passed in a pre-authenticated clean Codex profile:
    the deterministic fake-model `document-summary` positive case was approved
    by `roschuma`, and the `council-request` case terminated at capability
    preflight with zero dispatch. An approved live variation also passed with

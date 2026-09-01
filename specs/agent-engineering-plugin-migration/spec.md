@@ -77,12 +77,18 @@ checked-in `tests/fixtures/m4-4-successor-coverage.json` manifest has a version
 and, for every matrix ID, one or more entries containing the scenario ID,
 `expected_status` (`pass`, `expected_capability_unavailable`, or
 `expected_refusal`), configured fixture IDs, missing-fixture IDs, and expected
-terminal status. Configured fixture IDs must equal the referenced scenario's
-`required_host_fixtures`; a missing-fixture entry must omit one of those IDs.
-The scenario checker must fail when a supported row has no positive end-to-end
-scenario, a conditional row lacks configured positive or missing-fixture negative
-coverage, a deferred row is treated as positive, or a scenario claims a
-capability absent from the matrix.
+terminal status. A configured positive entry's fixture IDs must equal the
+referenced scenario's `required_host_fixtures`; a missing-fixture negative entry
+must point to a distinct immutable scenario contract and omit exactly one
+prerequisite. Each entry binds the capability to its scenario's required gates,
+fixture set, terminal phase, and capability-specific assertions; a capability
+label alone is not evidence. The scenario checker must fail when a supported row
+has no positive end-to-end scenario, a conditional row lacks configured positive
+or missing-fixture negative coverage, a deferred row is treated as positive, an
+entry is under-gated or mismatches its terminal phase, or a scenario claims a
+capability absent from the matrix. Guardrails require configured `input` and
+`tool_input` phase coverage, their missing-fixture boundaries, and a
+capability-unavailable result for every other phase.
 
 The original 13 M4.4 scenario contracts remain the regression minimum,
 including `document-summary-v1` as a positive case and `council-request-v1` as
@@ -105,6 +111,13 @@ credentials, or physical paths.
 This proves the externally observable contract of a clean successor-only Codex
 environment; it does not claim access to unobservable model reasoning or a
 private “skill loaded” event.
+
+Ordinary tests run the full scenario lifecycle through deterministic fake model,
+tool, connection, approval, and host collaborators for every manifest entry;
+they make no network or live-Codex call. A separately authorized external
+clean-Codex command replays the complete versioned manifest with the same fake
+host collaborators and two clean actors. It rejects partial-manifest runs and
+records only the redacted acceptance evidence described above.
 
 Until this gate passes, `agent-engineering` is the only marketplace successor,
 but the migration record must not claim successor clean-Codex author-then-run
