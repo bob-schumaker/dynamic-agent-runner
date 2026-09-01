@@ -106,9 +106,14 @@ def run_scenario(
         dir="/private/tmp", prefix="m44-clean-codex-"
     ) as temporary:
         root = Path(temporary)
-        workspace = root / "workspace"
-        package_root, state_root = workspace / ".packages", workspace / ".state"
-        workspace.mkdir(mode=0o700)
+        author_workspace = root / "author-workspace"
+        invocation_workspace = root / "invocation-workspace"
+        package_root, state_root = (
+            author_workspace / ".packages",
+            author_workspace / ".state",
+        )
+        author_workspace.mkdir(mode=0o700)
+        invocation_workspace.mkdir(mode=0o700)
         package_root.mkdir(mode=0o700)
         configure_local_host(
             root=state_root,
@@ -128,7 +133,7 @@ def run_scenario(
         marketplace = create_marketplace(
             plugin_root=plugin_root, destination=root / "marketplace"
         )
-        management_environment = _management_environment(codex_home, workspace)
+        management_environment = _management_environment(codex_home, author_workspace)
         installed = False
         try:
             _install_plugin(
@@ -143,10 +148,10 @@ def run_scenario(
                     package_name,
                     contract.expected_status,
                 ),
-                workspace,
+                author_workspace,
                 build_clean_codex_environment(
                     codex_home=codex_home,
-                    working_directory=workspace,
+                    working_directory=author_workspace,
                     wheel=wheel,
                     state_root=state_root,
                     template_root=root
@@ -173,7 +178,7 @@ def run_scenario(
                     workflow_id,
                     run_prompt,
                     codex_home,
-                    workspace,
+                    invocation_workspace,
                     state_root,
                     dar_bin,
                     root / "marketplace" / "plugins" / "agent-engineering",
@@ -199,7 +204,7 @@ def _pass_evidence(
     workflow_id: str,
     run_prompt: str,
     codex_home: Path,
-    workspace: Path,
+    invocation_workspace: Path,
     state_root: Path,
     dar_bin: Path,
     template_root: Path,
@@ -238,10 +243,10 @@ def _pass_evidence(
     run_result = _run_codex(
         codex,
         _run_request(package_name, run_prompt),
-        workspace,
+        invocation_workspace,
         build_clean_codex_environment(
             codex_home=codex_home,
-            working_directory=workspace,
+            working_directory=invocation_workspace,
             wheel=wheel,
             state_root=state_root,
             template_root=template_root,
