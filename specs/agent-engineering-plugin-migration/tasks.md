@@ -62,7 +62,7 @@ plugin-acceptance framework.
       launched clean Codex actors: author/finalize, then saved-package invoke.
       The second actor receives only the finalized package name and text request;
       it cannot select, register, recreate, or configure the package.
-- [ ] RED/GREEN: add and pass a deterministic, fake-backed scenario runner for
+- [x] RED/GREEN: add and pass a deterministic, fake-backed scenario runner for
       every successor scenario. It must execute each positive case through
       authoring, finalization, staging/registration, preparation, and invocation;
       each negative case must prove its declared terminal boundary and zero

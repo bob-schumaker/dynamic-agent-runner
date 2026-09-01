@@ -12,7 +12,10 @@
 
 This record is the DAR-side evidence for the single cross-repository transfer
 and its remaining successor-acceptance gate. It does not authorize a generic
-plugin-acceptance framework or DAR runtime changes.
+plugin-acceptance framework. Scoped DAR capability-model changes are authorized
+only to compile declared deferred runtime needs into explicit host requirements;
+they do not add scratch, session, subagent, retrieval, embedding, or resume
+execution behavior.
 
 - Source corpus revision: `6d43f44568dd82b778668f9392148083283d5676`
 - DAR baseline revision: `1212667975af529a57b19604af13ed57ec0a0c9a`
@@ -117,6 +120,12 @@ they make no network or live-Codex call. A separately authorized external
 clean-Codex command replays the complete versioned manifest with the same fake
 host collaborators and two clean actors. It rejects partial-manifest runs and
 records only the redacted acceptance evidence described above.
+
+The deterministic corpus now exercises the original deferred-runtime,
+`council-request`, and `document-embedding` contracts through authoring and
+finalization before registration rejects their declared missing host
+capability. This is boundary evidence only, not support for those deferred
+features.
 
 Until this gate passes, `agent-engineering` is the only marketplace successor,
 but the migration record must not claim successor clean-Codex author-then-run
