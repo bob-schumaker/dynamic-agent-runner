@@ -9,6 +9,7 @@ from m4_4_deterministic import (
     run_email_file_body,
     run_generic_email_send,
     run_guardrail_input,
+    run_guardrail_tool_input,
     run_hybrid_brief,
     run_mailbox_triage,
     run_no_tool_graph_and_skill,
@@ -163,5 +164,20 @@ def test_input_guardrail_runs_in_the_saved_package_host_lifecycle() -> None:
         "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
         "model_calls": 1,
         "tool_dispatches": 0,
+        "guardrail_calls": 1,
+    }
+
+
+def test_tool_input_guardrail_runs_before_the_reviewed_mcp_read_dispatch() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "m4-4-successor" / "guardrail-tool-input.json"
+    )
+
+    result = run_guardrail_tool_input(scenario)
+
+    assert result == {
+        "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
+        "model_calls": 2,
+        "tool_dispatches": 1,
         "guardrail_calls": 1,
     }

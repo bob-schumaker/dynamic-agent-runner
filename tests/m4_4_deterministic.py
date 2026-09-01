@@ -40,6 +40,7 @@ _SUPPORTED_SCENARIO_ADAPTER_IDS = frozenset(
         "email-file-body-v1",
         "generic-email-send-v1",
         "guardrail-input-v1",
+        "guardrail-tool-input-v1",
         "hybrid-brief-v1",
         "mailbox-triage-v1",
         "no-tool-graph-and-skill-v1",
@@ -102,6 +103,19 @@ class _Guardrail:
             raise ValueError("input guardrail received an unexpected subject")
         self.calls += 1
         return GuardrailResult(guardrail_id="require_input")
+
+    def check_tool_input(self, subject: object) -> GuardrailResult:
+        expected = {
+            "phase": "tool_input",
+            "tool_id": "mail_list_unread",
+            "node_id": "answer_request",
+            "arguments": {},
+            "tool_call_id": "call-1",
+        }
+        if subject != expected:
+            raise ValueError("tool-input guardrail received an unexpected subject")
+        self.calls += 1
+        return GuardrailResult(guardrail_id="require_tool_input", phase="tool_input")
 
 
 class _GraphSkillResponses:
@@ -597,6 +611,109 @@ def run_guardrail_input(scenario) -> dict[str, object]:
     }
 
 
+def run_guardrail_tool_input(scenario) -> dict[str, object]:
+    """Run a tool-input guardrail before one reviewed MCP read dispatch."""
+
+    if scenario.scenario_id != "guardrail-tool-input-v1":
+        raise ValueError("tool-input guardrail adapter received the wrong scenario")
+    with tempfile.TemporaryDirectory(
+        dir="/private/tmp", prefix="m44-acceptance-"
+    ) as temporary:
+        root = Path(temporary)
+        package_root = root / "packages"
+        state_root = root / "state"
+        package_root.mkdir(mode=0o700)
+        _Secrets.values.clear()
+        _ReadOnlyMCP.calls.clear()
+        client = _ToolClient()
+        guardrail = _Guardrail()
+        with (
+            patch(
+                "dynamic_agent_runner.workflow_host.connections.KeyringSecretStore",
+                _Secrets,
+            ),
+            patch(
+                "dynamic_agent_runner.workflow_host.host.MCPConnectionClient",
+                _ReadOnlyMCP,
+            ),
+            patch(
+                "dynamic_agent_runner.workflow_host.host.create_local_adapter",
+                lambda profile: OpenAIClientAdapter(
+                    client,
+                    models=[profile.execution_model_id],
+                    is_local=True,
+                    model_id_mapping={profile.execution_model_id: profile.model_id},
+                    execution_profile_adapter_id=profile.adapter_id,
+                ),
+            ),
+        ):
+            configure_local_host(
+                root=state_root,
+                package_root=package_root,
+                model_id="local-model",
+                base_url="http://127.0.0.1:11434/v1",
+            )
+            connection = create_mcp_connection(
+                root=state_root,
+                endpoint="https://mcp.example.test/v1",
+                scopes={"mail.read"},
+                authentication_method="api_token",
+            )
+            authentication = configure_mcp_api_token(
+                root=state_root,
+                connection_id=connection.connection_id,
+                token="secret-token",
+            )
+            attach_mcp_client(
+                root=state_root,
+                connection_id=connection.connection_id,
+                authentication_id=authentication.authentication_id,
+                peer_certificate_sha256="a" * 64,
+                timeout_seconds=10,
+                max_response_bytes=32768,
+            )
+            host = LocalWorkflowHost.open(state_root)
+            now = datetime.now(UTC)
+            source_handle = _author_package(
+                host, scenario.scenario_id, now, rewrite=_tool_input_guardrail_package
+            )
+            snapshot = host.review_mcp_surface(
+                approved_read_only_tool_names={"list_unread"}
+            )
+            binding = host.bind_mcp_package(
+                package_source_handle=source_handle,
+                snapshot_id=snapshot.snapshot_id,
+                now=now,
+            )
+            registration = host.register(
+                workflow_id=scenario.scenario_id,
+                package_source_handle=source_handle,
+                mcp_binding_id=binding.binding_id,
+                now=now,
+            )
+            prepared = host.prepare(
+                workflow_id=registration.workflow_id,
+                prompt="List unread email.",
+                now=now,
+            )
+            host.run(
+                workflow_id=registration.workflow_id,
+                prepared_input_id=prepared.prepared_input_id,
+                now=now,
+                guardrail_registry=InMemoryGuardrailRegistry(
+                    {"require_tool_input": guardrail.check_tool_input}
+                ),
+            )
+    if _ReadOnlyMCP.calls != [("list_unread", {})]:
+        raise ValueError("tool-input guardrail did not permit the reviewed dispatch")
+    return {
+        "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
+        "model_calls": len(client.responses.calls),
+        "tool_dispatches": len(_ReadOnlyMCP.calls),
+        "guardrail_calls": guardrail.calls,
+    }
+
+
 def run_mailbox_triage(scenario) -> dict[str, object]:
     """Execute the reviewed read-only MCP contract through the local host."""
 
@@ -1081,6 +1198,25 @@ def _input_guardrail_package(name: str, content: str) -> str:
         }
         return yaml.safe_dump(runtime)
     return content
+
+
+def _tool_input_guardrail_package(name: str, content: str) -> str:
+    content = _read_only_package(name, content)
+    if name != "agent-runtime.yaml":
+        return content
+    runtime = yaml.safe_load(content)
+    runtime["extensions"] = {
+        "guardrails": {
+            "declarations": [
+                {
+                    "id": "require_tool_input",
+                    "phase": "tool_input",
+                    "behavior_on_tripwire": "abort",
+                }
+            ]
+        }
+    }
+    return yaml.safe_dump(runtime)
 
 
 def _write_package(name: str, content: str, *, artifact_role: str | None) -> str:
