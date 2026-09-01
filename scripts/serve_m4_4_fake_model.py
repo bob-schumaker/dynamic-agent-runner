@@ -34,7 +34,7 @@ class _Handler(BaseHTTPRequestHandler):
         if self.live_model_id is not None:
             response = _live_response(request_body, self.live_model_id)
         else:
-            response = _fake_response()
+            response = _fake_response(request_body)
         streamed = bool(json.loads(request_body).get("stream"))
         body = _stream_response(response) if streamed else _json_response(response)
         self.send_response(200)
@@ -49,8 +49,15 @@ class _Handler(BaseHTTPRequestHandler):
         return
 
 
-def _fake_response() -> dict[str, object]:
-    return {
+def _fake_response(request_body: bytes) -> dict[str, object]:
+    """Return text unless the request declares one no-argument tool."""
+
+    try:
+        request = json.loads(request_body)
+    except (TypeError, json.JSONDecodeError):
+        request = {}
+    tool_name = _zero_argument_tool_name(request.get("tools"))
+    response: dict[str, object] = {
         "id": "m44-fake-response",
         "model": "openai/local-model",
         "object": "response",
@@ -69,6 +76,48 @@ def _fake_response() -> dict[str, object]:
             }
         ],
     }
+    if tool_name is not None:
+        response["choices"] = [
+            {
+                "message": {
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "m44-tool-call",
+                            "type": "function",
+                            "function": {"name": tool_name, "arguments": "{}"},
+                        }
+                    ],
+                }
+            }
+        ]
+        response["output"] = [
+            {
+                "type": "function_call",
+                "call_id": "m44-tool-call",
+                "name": tool_name,
+                "arguments": "{}",
+            }
+        ]
+    return response
+
+
+def _zero_argument_tool_name(value: object) -> str | None:
+    if not isinstance(value, list):
+        return None
+    for tool in value:
+        if not isinstance(tool, dict):
+            continue
+        function = tool.get("function")
+        candidate = function if isinstance(function, dict) else tool
+        name, parameters = candidate.get("name"), candidate.get("parameters")
+        if (
+            isinstance(name, str)
+            and isinstance(parameters, dict)
+            and parameters.get("required", []) == []
+        ):
+            return name
+    return None
 
 
 def _live_response(request_body: bytes, model_id: str) -> dict[str, object]:
