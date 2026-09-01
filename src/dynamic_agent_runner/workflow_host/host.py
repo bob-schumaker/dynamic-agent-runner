@@ -612,6 +612,7 @@ class LocalWorkflowHost:
         *,
         mcp_client_factory: Callable[[MCPClientConfiguration], MCPConnectionClient]
         | None = None,
+        mcp_connections: MCPConnectionControlPlane | None = None,
     ) -> LocalWorkflowHost:
         """Open a configured local host for the current OS user."""
 
@@ -620,7 +621,9 @@ class LocalWorkflowHost:
         store = PrivateStateStore(root)
         profiles = LocalModelProfileControlPlane(store=store)
         profile = profiles.load(configuration.profile_id)
-        connections = MCPConnectionControlPlane(store=store, profiles=profiles)
+        connections = mcp_connections or MCPConnectionControlPlane(
+            store=store, profiles=profiles
+        )
         surfaces = MCPSurfaceSnapshotControlPlane(store=store, connections=connections)
         mcp_bindings = MCPWorkflowCapabilityBindingControlPlane(
             store=store, surfaces=surfaces

@@ -34,12 +34,18 @@ from dynamic_agent_runner.workflow_host.authoring_materials import (
 from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
     LocalWorkflowHostError,
+    attach_mcp_client,
     configure_local_host,
 )
+from dynamic_agent_runner.workflow_host.connections import MCPConnectionControlPlane
+from dynamic_agent_runner.workflow_host.mcp_client import MCPClientConfiguration
+from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool
 from dynamic_agent_runner.workflow_host.authorized_tools import LocalApprovalDecision
 from dynamic_agent_runner.workflow_host.package_controller import (
     serve_package_controller,
 )
+from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControlPlane
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 from dynamic_agent_runner.guardrails import (
     GuardrailResult,
     InMemoryGuardrailRegistry,
@@ -78,6 +84,69 @@ class _ApprovedActionBroker:
         return LocalApprovalDecision.APPROVED
 
 
+class _ControllerSecretStore:
+    """Ephemeral controller credential storage for deterministic MCP setup."""
+
+    def __init__(self) -> None:
+        self._values: dict[str, str] = {}
+
+    def store(self, secret: str) -> str:
+        reference = f"m44-fixture-{len(self._values) + 1}"
+        self._values[reference] = secret
+        return reference
+
+    def load(self, reference: str) -> str:
+        return self._values[reference]
+
+    def delete(self, reference: str) -> None:
+        del self._values[reference]
+
+    def replace(self, reference: str, secret: str) -> None:
+        self._values[reference] = secret
+
+
+class _ControllerMCPClient:
+    """Fixed reviewed MCP surface with no transport or credential access."""
+
+    def __init__(self, configuration: MCPClientConfiguration) -> None:
+        self.connection_id = configuration.connection_id
+        self.authentication_id = configuration.authentication_id
+        self._generation = 0
+        self.calls: list[tuple[str, dict[str, object]]] = []
+
+    @property
+    def current_generation(self) -> int:
+        if self._generation == 0:
+            raise ValueError("controller MCP client is not initialized")
+        return self._generation
+
+    def initialize(self) -> None:
+        self._generation = 1
+
+    def list_tools(self) -> tuple[MCPDiscoveredTool, ...]:
+        return (
+            MCPDiscoveredTool(
+                name="list_unread",
+                input_schema={"type": "object", "properties": {}},
+            ),
+            MCPDiscoveredTool(
+                name="send_email",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "recipient": {"type": "string"},
+                        "body": {"type": "string"},
+                    },
+                    "required": ["recipient", "body"],
+                },
+            ),
+        )
+
+    def call_tool(self, name: str, arguments: dict[str, object]) -> dict[str, object]:
+        self.calls.append((name, arguments))
+        return {"content": [{"type": "text", "text": "fixture result"}]}
+
+
 class _ControllerFixtures:
     """The concrete collaborators available to one controller-run scenario."""
 
@@ -93,6 +162,41 @@ class _ControllerFixtures:
         self.guardrail_registry = guardrail_registry
 
 
+def _configure_controller_mcp(
+    *, state_root: Path, profile_id: str
+) -> tuple[_ControllerMCPClient, MCPConnectionControlPlane]:
+    """Persist a fixture-only reviewed connection without touching a network."""
+
+    store = PrivateStateStore(state_root)
+    connections = MCPConnectionControlPlane(
+        store=store,
+        profiles=LocalModelProfileControlPlane(store=store),
+        secret_store=_ControllerSecretStore(),
+    )
+    connection = connections.create(
+        profile_id=profile_id,
+        endpoint="https://m44-controller.invalid/mcp",
+        scopes=("mail.read",),
+        authentication_method="api_token",
+    )
+    authentication = connections.configure_api_token(
+        connection.connection_id, "fixture-token"
+    )
+    attached = attach_mcp_client(
+        root=state_root,
+        connection_id=connection.connection_id,
+        authentication_id=authentication.authentication_id,
+        peer_certificate_sha256="a" * 64,
+        timeout_seconds=1,
+        max_response_bytes=32768,
+    )
+    if attached.mcp_client_configuration is None:
+        raise HarnessError("controller MCP fixture is unavailable")
+    client = _ControllerMCPClient(attached.mcp_client_configuration)
+    client.initialize()
+    return client, connections
+
+
 def _controller_fixtures(contract: M44Scenario) -> _ControllerFixtures:
     """Provision only the collaborators this controller really owns."""
 
@@ -100,6 +204,8 @@ def _controller_fixtures(contract: M44Scenario) -> _ControllerFixtures:
     approval_broker_factory: Callable[[], object] | None = None
     handlers = {}
     if contract.expected_status == "pass":
+        if "reviewed-mcp-connection" in contract.required_host_fixtures:
+            fixture_ids.add("reviewed-mcp-connection")
         if "approval-broker" in contract.required_host_fixtures:
             fixture_ids.add("approval-broker")
             approval_broker_factory = _ApprovedActionBroker
@@ -374,13 +480,27 @@ def run_scenario(
         author_workspace.mkdir(mode=0o700)
         invocation_workspace.mkdir(mode=0o700)
         package_root.mkdir(mode=0o700)
-        configure_local_host(
+        configuration = configure_local_host(
             root=state_root,
             package_root=package_root,
             model_id=model_id,
             base_url=base_url,
         )
-        host = LocalWorkflowHost.open(state_root)
+        mcp_fixture = (
+            _configure_controller_mcp(
+                state_root=state_root, profile_id=configuration.profile_id
+            )
+            if "reviewed-mcp-connection" in fixtures.fixture_ids
+            else None
+        )
+        mcp_client, mcp_connections = mcp_fixture or (None, None)
+        host = LocalWorkflowHost.open(
+            state_root,
+            mcp_client_factory=(lambda _configuration: mcp_client)
+            if mcp_client is not None
+            else None,
+            mcp_connections=mcp_connections,
+        )
         with ExitStack() as controllers:
             author_socket = controllers.enter_context(
                 _package_controller(
