@@ -341,6 +341,30 @@ def test_controller_waits_for_fake_model_before_actor_launch(
     assert observed == ["http://127.0.0.1:18080/v1/models"]
 
 
+def test_controller_provisions_only_declared_positive_collaborators() -> None:
+    module = _harness_module()
+    input_guardrail = module.load_m44_scenario(
+        REPO_ROOT / "tests" / "fixtures" / "m4-4-successor" / "guardrail-input.json"
+    )
+    missing_guardrail = module.load_m44_scenario(
+        REPO_ROOT
+        / "tests"
+        / "fixtures"
+        / "m4-4-successor"
+        / "guardrail-input-missing.json"
+    )
+
+    provisioned = module._controller_fixtures(input_guardrail)
+    unavailable = module._controller_fixtures(missing_guardrail)
+
+    assert "input-guardrail-registry" in provisioned.fixture_ids
+    assert provisioned.guardrail_registry is not None
+    assert provisioned.guardrail_registry.has_guardrail("require_input")
+    assert unavailable.approval_broker_factory is None
+    assert unavailable.guardrail_registry is None
+    assert "input-guardrail-registry" not in unavailable.fixture_ids
+
+
 @pytest.mark.parametrize(
     ("model_id", "base_url"),
     (

@@ -15,13 +15,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import shlex
 import subprocess
 import sys
 import tempfile
 import time
 from threading import Event, Thread
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
@@ -37,8 +36,13 @@ from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHostError,
     configure_local_host,
 )
+from dynamic_agent_runner.workflow_host.authorized_tools import LocalApprovalDecision
 from dynamic_agent_runner.workflow_host.package_controller import (
     serve_package_controller,
+)
+from dynamic_agent_runner.guardrails import (
+    GuardrailResult,
+    InMemoryGuardrailRegistry,
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
@@ -67,30 +71,53 @@ class HarnessError(ValueError):
     """Raised when M4.4 cannot produce a valid redacted acceptance record."""
 
 
-def _stage_controller_dar_package(
-    *, wheel: Path, state_root: Path, destination: Path
-) -> Path:
-    """Stage the private controller command that retains the host state location."""
+class _ApprovedActionBroker:
+    """Deterministic controller-only approval for declared positive fixtures."""
 
-    if (
-        not wheel.is_absolute()
-        or not state_root.is_absolute()
-        or not destination.is_absolute()
-        or not wheel.is_file()
-        or destination.exists()
-    ):
-        raise HarnessError("controller DAR launcher inputs are invalid")
-    destination.mkdir(mode=0o700)
-    launcher = destination / "dar-package"
-    launcher.write_text(
-        "#!/bin/sh\n"
-        f"export DAR_AUTHORING_STATE_ROOT={shlex.quote(str(state_root))}\n"
-        "exec uv run --no-project --python 3.14 --with "
-        f'{shlex.quote(str(wheel))} dar-package "$@"\n',
-        encoding="utf-8",
+    def decide(self, **_kwargs: object) -> LocalApprovalDecision:
+        return LocalApprovalDecision.APPROVED
+
+
+class _ControllerFixtures:
+    """The concrete collaborators available to one controller-run scenario."""
+
+    def __init__(
+        self,
+        *,
+        fixture_ids: tuple[str, ...],
+        approval_broker_factory: Callable[[], object] | None = None,
+        guardrail_registry: InMemoryGuardrailRegistry | None = None,
+    ) -> None:
+        self.fixture_ids = fixture_ids
+        self.approval_broker_factory = approval_broker_factory
+        self.guardrail_registry = guardrail_registry
+
+
+def _controller_fixtures(contract: M44Scenario) -> _ControllerFixtures:
+    """Provision only the collaborators this controller really owns."""
+
+    fixture_ids = {"local-model-profile", "authoring-broker", "workflow-registration"}
+    approval_broker_factory: Callable[[], object] | None = None
+    handlers = {}
+    if contract.expected_status == "pass":
+        if "approval-broker" in contract.required_host_fixtures:
+            fixture_ids.add("approval-broker")
+            approval_broker_factory = _ApprovedActionBroker
+        if "input-guardrail-registry" in contract.required_host_fixtures:
+            fixture_ids.add("input-guardrail-registry")
+            handlers["require_input"] = lambda _subject: GuardrailResult(
+                guardrail_id="require_input"
+            )
+        if "tool-input-guardrail-registry" in contract.required_host_fixtures:
+            fixture_ids.add("tool-input-guardrail-registry")
+            handlers["require_tool_input"] = lambda _subject: GuardrailResult(
+                guardrail_id="require_tool_input", phase="tool_input"
+            )
+    return _ControllerFixtures(
+        fixture_ids=tuple(sorted(fixture_ids)),
+        approval_broker_factory=approval_broker_factory,
+        guardrail_registry=InMemoryGuardrailRegistry(handlers) if handlers else None,
     )
-    launcher.chmod(0o700)
-    return launcher
 
 
 def write_manifest_evidence(
@@ -206,7 +233,12 @@ def _available_loopback_port() -> int:
 
 @contextmanager
 def _package_controller(
-    *, host: LocalWorkflowHost, socket_path: Path, allowed_commands: tuple[str, ...]
+    *,
+    host: LocalWorkflowHost,
+    socket_path: Path,
+    allowed_commands: tuple[str, ...],
+    approval_broker_factory: Callable[[], object] | None = None,
+    guardrail_registry: InMemoryGuardrailRegistry | None = None,
 ):
     stop_event = Event()
     thread = Thread(
@@ -216,6 +248,8 @@ def _package_controller(
             "host": host,
             "allowed_commands": allowed_commands,
             "stop_event": stop_event,
+            "approval_broker_factory": approval_broker_factory,
+            "guardrail_registry": guardrail_registry,
         },
         daemon=True,
     )
@@ -316,6 +350,7 @@ def run_scenario(
     """Run one author turn and, for the positive case, one independent run turn."""
 
     contract = load_m44_scenario(scenario)
+    fixtures = _controller_fixtures(contract)
     _validate_inputs(
         contract,
         codex_home,
@@ -357,6 +392,8 @@ def run_scenario(
                         "write-authored-package-file",
                         "finalize-authored-package",
                     ),
+                    approval_broker_factory=fixtures.approval_broker_factory,
+                    guardrail_registry=fixtures.guardrail_registry,
                 )
             )
             invocation_socket = controllers.enter_context(
@@ -364,6 +401,8 @@ def run_scenario(
                     host=host,
                     socket_path=root / "invocation-controller.sock",
                     allowed_commands=("invoke",),
+                    approval_broker_factory=fixtures.approval_broker_factory,
+                    guardrail_registry=fixtures.guardrail_registry,
                 )
             )
             author_dar_bin = stage_dar_package(
@@ -447,6 +486,7 @@ def run_scenario(
                         timeout,
                         material_receipt.material_set_id,
                         _digest_file(marketplace),
+                        fixtures.fixture_ids,
                     )
             finally:
                 if installed:
@@ -475,6 +515,7 @@ def _pass_evidence(
     timeout: int,
     material_set_id: str,
     marketplace_manifest_digest: str,
+    available_host_fixtures: tuple[str, ...],
 ) -> AuthorThenRunEvidence:
     created, finalized = (
         _receipt(author_result.stdout, "created"),
@@ -553,7 +594,7 @@ def _pass_evidence(
         reviewer_id=reviewer_id,
         reviewer_decision=reviewer_decision,
         controller_fixture_digest=_digest_json(
-            {"gates": ["G3"], "fixture": "local-model-profile"}
+            {"gates": ["G3"], "fixtures": available_host_fixtures}
         ),
         marketplace_manifest_digest=marketplace_manifest_digest,
     )
@@ -561,7 +602,7 @@ def _pass_evidence(
         contract,
         result,
         available_gates=("G3",),
-        available_host_fixtures=("local-model-profile",),
+        available_host_fixtures=available_host_fixtures,
     )
     return result
 
