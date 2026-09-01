@@ -46,7 +46,7 @@ only path to an end-to-end authoring-plugin publication claim.
 | M1 | G0 — package/CLI spike | Minimal skills-to-CLI proof from an installed wheel. | None |
 | M2 | G1 runtime core | Human-selected directory staging, policy compilation, and package-only preflight. Implemented. | M1 |
 | M3 | G3 | Local no-tool workflow execution through the one sealed runner interface. Implemented. | M2 |
-| M4 | RA1 — authoring acceptance | M4.0 material projection, M4.1 redacted behavioral evidence, M4.3's three reviewed package runs, and M4.4's two clean-Codex author-then-run cases are implemented. | M0, M2, M3 |
+| M4 | RA1 — authoring acceptance | M4.0 material projection, M4.1 redacted behavioral evidence, M4.3's three reviewed package runs, and M4.4's two legacy clean-Codex author-then-run cases are implemented. The successor's full-matrix acceptance remains pending in [`agent-engineering-plugin-migration`](../agent-engineering-plugin-migration/spec.md). | M0, M2, M3 |
 | M5 | G2 | Configured HTTPS MCP control plane and reviewed binding. Implemented through one configured client per host; M5.5 execution evidence is `93159e9`. | M2; M3 for M5.5 execution integration |
 | O | OAuth-advertising HTTPS MCP setup | O1–O7 implement human-only protected-resource/authorization-server discovery, dynamic public-client registration, resource-bound PKCE/refresh, drift handling, the approved Apple-backed Fastmail read-only acceptance, and one separately authorized `create_note` mutation acceptance. It extends M5 rather than changing plugin skills. | M5; `mcp-oauth-discovery-registration` O1–O7; G2 reviewed-surface binding for O6/O7 |
 | M6 | G4 | Trusted caller-file ingress. Implemented. | Focused tested sandbox descriptor-relative no-follow-copy primitive at a recorded prerequisite revision; M2 |
@@ -59,9 +59,11 @@ and the end-to-end plugin release may not be declared complete until M4 and M3
 both pass. M5, M6, and M7 are independent additions after the base path; they
 must not delay or widen M3.
 
-M4.4's two no-tool cases may run after M3. Its MCP, artifact, side-effect, and
-portability scenario references belong to M5, M6, M7, and M8 respectively; they
-do not block M4.4's CLI-first author-then-invoke result.
+The two M4.4 no-tool cases are historical evidence for the retired plugin. The
+successor's clean-Codex acceptance is owned by
+[`agent-engineering-plugin-migration`](../agent-engineering-plugin-migration/spec.md)
+and requires the full capability-matrix corpus; its MCP, artifact, side-effect,
+and deferred scenarios are not optional successor coverage.
 
 ## Commit-Sized Slices
 
@@ -300,7 +302,8 @@ through the sealed, catalog-only runner interface.
    and evaluation packages completed with zero dispatches; the reviewed fake
    read-only tool surface completed with one dispatch. This completes M4.3.
 
-5. **M4.4: Run clean-Codex author-then-run acceptance.** Implemented as a checked-in,
+5. **M4.4: Historical clean-Codex author-then-run acceptance.** Implemented
+   as a checked-in,
    external acceptance harness around a temporary Herdr workspace. Every case
    creates one clean Codex authoring invocation, which receives only a text
    authoring request plus the explicitly supplied de-identified material,
@@ -360,7 +363,8 @@ through the sealed, catalog-only runner interface.
    before it can be claimed.
 
    Use [`m4-4-workflow-capability-matrix.md`](m4-4-workflow-capability-matrix.md)
-   as the scenario-authoring reference. It defines the common authoring input
+   as the historical scenario-authoring reference. It defines the common
+   authoring input
    envelope, feature-specific required inputs, applicable host gate, and the
    correct positive, capability-unavailable, or refusal outcome. Update that
    reference before adding a scenario for a DAR feature not yet represented in
@@ -392,11 +396,13 @@ through the sealed, catalog-only runner interface.
    absent. It records no fixture body, physical path, credential, OAuth
    code/token, raw prompt, or external tool content. Until a named reviewer
    records intent fidelity, its outcome is `pending_human_review`, never `pass`.
-   A deterministic checker decides package shape and refusal claims. M4.4's
-   release gate has exactly two mandatory clean-Codex cases: `Simple document
-   summary` and `Council/multi-agent request`. The remaining cases are retained
-   as coverage references for their owning G2, G4, G5, or M8 gate; they do not
-   block the CLI-first author-then-invoke claim.
+   A deterministic checker decides package shape and refusal claims. The
+   historical M4.4 release gate had exactly two mandatory clean-Codex cases:
+   `Simple document summary` and `Council/multi-agent request`. The 13 retained
+   scenario contracts are the regression floor for the successor acceptance
+   corpus, which is specified and tasked by
+   [`agent-engineering-plugin-migration`](../agent-engineering-plugin-migration/spec.md).
+   The successor does not inherit the two-case exception.
 
 | Case                            | First text-only request                                                                                                                                        | Run request or host invocation                                                                   | Required result / exercised boundary                                                                                                                                                                                                                  |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -435,11 +441,16 @@ through the sealed, catalog-only runner interface.
    recorded as an atomically written redacted `AuthorThenRunEvidence` record;
    no prompt, material body, credential, or filesystem path was retained.
 
-M4 exit: the adapted skills have behavioral evidence and the mandatory
-CLI-first clean-Codex author-then-run cases have passed, without making model
-calls part of ordinary test execution.
+M4 exit: the retired plugin's adapted skills have historical behavioral evidence
+and its two mandatory CLI-first clean-Codex author-then-run cases passed,
+without making model calls part of ordinary test execution. This does not satisfy
+the successor acceptance gate.
 
-### M8 — Publication acceptance
+### M8 — Historical package-publication hardening
+
+These completed DAR host hardening slices remain historical v1 evidence. They
+do not make successor package portability a supported capability or create a
+successor publication gate; that capability remains deferred in the M4.4 matrix.
 
 1. **M8.1a: Accept bounded ZIP package intake.** Implemented: a human-selected
    `.zip` from the same allowlisted root as a directory package is opened
@@ -469,10 +480,9 @@ calls part of ordinary test execution.
    reading base64 key material from stdin, emits a detached Ed25519 signature,
    and does not retain private signing material. Publisher trust remains a
    prerequisite for interchange outside the local host.
-5. **M8.2: Run the first publication gate.** Require M3's no-tool runner
-   evidence and M4's external authoring-skill evidence, then verify the released
-   wheel from a clean consumer-install directory. No adapted skill or execution
-   capability is published until this gate passes.
+5. **M8.2: Historical publication gate.** This gate is not applicable after the
+   plugin retirement. The successor's clean-Codex acceptance must not claim a
+   portable-package publication or recipient-host execution result.
 
 ## Later Milestones
 

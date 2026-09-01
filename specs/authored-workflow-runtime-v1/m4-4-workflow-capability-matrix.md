@@ -71,6 +71,9 @@ cover one or more capability IDs.
 
 ## Harness Interpretation
 
-M4.4 in [`plan.md`](plan.md) is the sole contract for scenario manifests,
-fixture isolation, status classification, evidence, review, and fake-provider
-policy. This matrix defines only feature inputs and gates.
+M4.4 in [`plan.md`](plan.md) records the retired plugin's historical scenario
+and evidence contract. The successor-only acceptance contract, task list, and
+full-matrix coverage requirement are owned by
+[`agent-engineering-plugin-migration`](../agent-engineering-plugin-migration/spec.md).
+This matrix defines feature inputs, gates, IDs, and support statuses for both
+records.

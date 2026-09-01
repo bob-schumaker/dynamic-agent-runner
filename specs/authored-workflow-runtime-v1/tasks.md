@@ -12,6 +12,11 @@ or G4 for file-backed arguments. The separate OAuth O extension is owned by
 A capability cannot be implemented or advertised as live before its applicable
 gate passes.
 
+The successor's full clean-Codex acceptance is pending work owned by
+[`agent-engineering-plugin-migration/spec.md`](../agent-engineering-plugin-migration/spec.md)
+and its `tasks.md`; it supersedes neither the implemented v1 runtime contract
+nor this record's historical evidence.
+
 ## Historical Direction Change: Skills-Only CLI Control Plane
 
 The former plugin-provided stdio MCP server, `run_dar_workflow` model-facing
@@ -44,7 +49,8 @@ make the Codex plugin an MCP server.
       tests only after CLI acceptance coverage replaces them. This does not remove
       the local `--ask` approval broker. Verify a clean plugin install exposes
       skills and no plugin-provided MCP server.
-- [x] RED/GREEN: replace the M4.4 run actor with a clean Codex skill invocation
+- [x] RED/GREEN: provide the historical M4.4 run actor with a clean Codex
+      skill invocation
       that issues the defined `uv run ... dar-package` commands. It must prove
       finalization and later saved-package invocation from text-only prompts;
       the harness controller may provide only declared fixture inputs and fake
@@ -237,13 +243,14 @@ make the Codex plugin an MCP server.
       fixtures inside an `agent-development` session with host-issued
       material/output handles; do not treat companion output as a standalone
       finalized package.
-- [x] RED/GREEN: build the M4.4 clean-Codex author-then-run acceptance harness.
-      Implement it per plan.md M4.4 and
-      `m4-4-workflow-capability-matrix.md`. The mandatory v1 cases are one
-      no-tool document-summary author→finalize→saved-package-invoke success and
-      one subagent/council capability-unavailable refusal; use hermetic fixtures,
-      redacted evidence, and deterministic fakes. G2/G4/G5/M8 own the remaining
-      feature cases.
+- [x] RED/GREEN: build the historical M4.4 clean-Codex author-then-run acceptance
+      harness. It records the retired plugin's no-tool document-summary
+      author→finalize→saved-package-invoke success and subagent/council
+      capability-unavailable refusal using hermetic fixtures, redacted evidence,
+      and deterministic fakes. The 13 historical contracts remain the successor
+      regression floor; full supported, conditional, and deferred capability
+      coverage is pending only in
+      `agent-engineering-plugin-migration/tasks.md`.
 
 ## G2: Optional MCP Connection Control Plane and Surface Binding
 
@@ -524,7 +531,11 @@ invoke` request.
   - G5.3 depends on G5.1 and G5.2. Do not add provider-specific policy branches
     or an `all access` grant.
 
-## M8: Publication Hardening
+## M8: Historical Package-Publication Hardening
+
+These completed DAR host hardening tasks are historical v1 evidence. They do
+not make successor package portability supported; the successor matrix keeps it
+deferred and its acceptance work must not claim a publication result.
 
 - [x] RED/GREEN: ZIP intake accepts only a human-selected archive from the
       configured root, opens it no-follow, rejects traversal, duplicate,
@@ -572,9 +583,8 @@ invoke` request.
 - [x] RED/GREEN: deterministic local ZIP export rechecks the private staged
       manifest and payload digests without executing package content, and a
       ZIP round trip preserves the content digest.
-- [ ] RED/GREEN: a clean consumer installation verifies the locally installed
-      plugin, the published DAR wheel, bundled plugin assets, and a trusted
-      portable package exchange.
+- [ ] Historical non-goal: no clean-consumer plugin or portable-package exchange
+      acceptance is required after plugin retirement.
 
 ## Deferred After the First Release
 
@@ -595,7 +605,8 @@ invoke` request.
 - [x] All unit tests use fake model adapters, MCP handlers, approval stores,
       and filesystem primitives; no live Fastmail, Hugging Face, or model call.
 - [x] A positive fixture is required before a gate's capability is reported live.
-      `validation.md` records the G0–G5 fixture map; M8 remains publication-gated.
+      `validation.md` records the G0–G5 fixture map; successor portability
+      remains deferred.
 O remains unavailable until the authoritative O1–O7 checklist is complete.
 Its O7 live-provider run is never a unit test.
 - [ ] G5 may run after G0, G1, and G3; it additionally requires G2 for MCP
