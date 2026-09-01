@@ -235,6 +235,39 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
     assert len(json.loads(aggregate.read_text(encoding="utf-8"))["records"]) == 23
 
 
+def test_external_command_rejects_a_scenario_only_override(tmp_path: Path) -> None:
+    module = _harness_module()
+    root = tmp_path.resolve()
+
+    with pytest.raises(SystemExit):
+        module._arguments(
+            (
+                "--coverage",
+                str(root / "coverage.json"),
+                "--scenario-plan",
+                str(root / "plan.json"),
+                "--scenario-root",
+                str(root / "scenarios"),
+                "--evidence-directory",
+                str(root / "evidence"),
+                "--codex-home",
+                str(root / "codex"),
+                "--plugin-root",
+                str(root / "plugin"),
+                "--wheel",
+                str(root / "dar.whl"),
+                "--materials",
+                str(root / "materials.json"),
+                "--model-id",
+                "openai/local-model",
+                "--base-url",
+                "http://127.0.0.1:8080/v1",
+                "--scenario",
+                str(root / "selected.json"),
+            )
+        )
+
+
 @pytest.mark.parametrize(
     ("model_id", "base_url"),
     (

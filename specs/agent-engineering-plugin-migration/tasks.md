@@ -58,7 +58,7 @@ plugin-acceptance framework.
       DAR-targeted prompt produces the bounded package/finalization route and
       preserves refusal boundaries. Treat generated package and receipt
       validation as evidence; do not claim insight into model reasoning.
-- [ ] RED/GREEN: make the external command coverage-manifest-first. Add focused
+- [x] RED/GREEN: make the external command coverage-manifest-first. Add focused
       tests that load the versioned successor coverage manifest, derive its
       complete scenario set, reject a scenario-only or partial-manifest request,
       and retain the checked-in scenario contract and capability assertions for
