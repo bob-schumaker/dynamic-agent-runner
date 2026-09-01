@@ -147,6 +147,19 @@ def validate_no_tool_runtime_nodes(
             )
 
 
+def validate_runtime_tool_contract(
+    descriptor: WorkflowDescriptor, runtime_tools: Sequence[Any]
+) -> None:
+    """Require runtime tool definitions to exactly match the descriptor."""
+
+    if tuple(tool.id for tool in runtime_tools) != tuple(
+        tool.tool_id for tool in descriptor.declared_tools
+    ):
+        raise WorkflowDescriptorError(
+            "runtime tools must exactly match descriptor tools"
+        )
+
+
 def validate_package_skill_contract(
     descriptor: WorkflowDescriptor,
     *,

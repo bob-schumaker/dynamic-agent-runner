@@ -20,6 +20,7 @@ from dynamic_agent_runner.workflow_host.descriptor import (
     WorkspaceContract,
     validate_package_skill_contract,
     validate_no_tool_runtime_nodes,
+    validate_runtime_tool_contract,
 )
 
 
@@ -67,6 +68,7 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         descriptor = WorkflowDescriptor.from_mapping(yaml.safe_load(descriptor_bytes))
         workflow = load_agent_package_workflow(str(revision.package_root))
         validate_no_tool_runtime_nodes(descriptor, workflow.runtime_manifest.nodes)
+        validate_runtime_tool_contract(descriptor, workflow.runtime_manifest.tools)
         validate_package_skill_contract(
             descriptor,
             runtime_skills=workflow.runtime_manifest.skills,

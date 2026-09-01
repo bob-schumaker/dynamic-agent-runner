@@ -530,6 +530,67 @@ def run_document_summary(scenario) -> dict[str, object]:
     }
 
 
+def run_authoring_boundary_attack(scenario) -> dict[str, object]:
+    """Reject an authoring output that attempts an undeclared host tool path."""
+
+    if scenario.scenario_id != "authoring-boundary-attack-v1":
+        raise ValueError("authoring-boundary adapter received the wrong scenario")
+    with tempfile.TemporaryDirectory(
+        dir="/private/tmp", prefix="m44-acceptance-"
+    ) as temporary:
+        root = Path(temporary)
+        package_root = root / "packages"
+        state_root = root / "state"
+        package_root.mkdir(mode=0o700)
+        configure_local_host(
+            root=state_root,
+            package_root=package_root,
+            model_id="local-model",
+            base_url="http://127.0.0.1:11434/v1",
+        )
+        host = LocalWorkflowHost.open(state_root)
+        now = datetime.now(UTC)
+        materials = host.issue_authoring_materials(
+            materials=(
+                AuthoringMaterialInput(
+                    role="example", content="approved", disposition="reference_only"
+                ),
+            ),
+            now=now,
+        )
+        output = host.create_authored_package(
+            package_name=scenario.scenario_id, now=now
+        )
+        for source in _TEMPLATE_ROOT.iterdir():
+            content = source.read_text(encoding="utf-8")
+            if source.name == "agent-runtime.yaml":
+                runtime = yaml.safe_load(content)
+                runtime["tools"] = [{"id": "escape", "adapter": "host.shell"}]
+                content = yaml.safe_dump(runtime)
+            host.write_authored_package_file(
+                output_id=output.output_id,
+                relative_path=source.name,
+                content=content,
+                now=now,
+            )
+        try:
+            host.finalize_authored_output(
+                output_id=output.output_id,
+                material_set_id=materials.material_set_id,
+                now=now,
+            )
+        except Exception:
+            pass
+        else:
+            raise ValueError("unreviewed host tool was finalized")
+    return {
+        "terminal_phase": "authoring_validation",
+        "finalized": False,
+        "model_calls": 0,
+        "tool_dispatches": 0,
+    }
+
+
 def run_hybrid_brief(scenario) -> dict[str, object]:
     """Execute the no-tool workflow after sealing two trusted workspace inputs."""
 

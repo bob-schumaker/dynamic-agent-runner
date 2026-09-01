@@ -17,7 +17,12 @@ from dynamic_agent_runner.validation import validate_agent_workflow
 from dynamic_agent_runner.workflow_host.authoring_materials import (
     AuthoringMaterialSetProjection,
 )
-from dynamic_agent_runner.workflow_host.descriptor import WorkflowDescriptor
+from dynamic_agent_runner.workflow_host.descriptor import (
+    WorkflowDescriptor,
+    validate_no_tool_runtime_nodes,
+    validate_package_skill_contract,
+    validate_runtime_tool_contract,
+)
 
 
 class AuthoringOutputError(ValueError):
@@ -181,6 +186,15 @@ def _load_package_contract(package_root: Path) -> tuple[Any, bytes, dict[str, ob
         descriptor = WorkflowDescriptor.from_mapping(descriptor_value)
         if descriptor.package_id != workflow.runtime_manifest.package_id:
             raise ValueError
+        validate_no_tool_runtime_nodes(descriptor, workflow.runtime_manifest.nodes)
+        validate_runtime_tool_contract(descriptor, workflow.runtime_manifest.tools)
+        validate_package_skill_contract(
+            descriptor,
+            runtime_skills=workflow.runtime_manifest.skills,
+            nodes=workflow.runtime_manifest.nodes,
+            packaging=workflow.runtime_manifest.packaging,
+            skill_source_resolution=workflow.runtime_manifest.skill_source_resolution_policy,
+        )
     except Exception as error:  # DAR/YAML parser errors are deliberately redacted.
         raise AuthoringOutputError("authoring package structure is invalid") from error
     return workflow, descriptor_bytes, descriptor_value

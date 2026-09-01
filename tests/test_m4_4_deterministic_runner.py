@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from m4_4_deterministic import (
+    run_authoring_boundary_attack,
     run_document_summary,
     run_email_file_body,
     run_generic_email_send,
@@ -32,6 +33,21 @@ def test_each_positive_successor_scenario_has_a_feature_specific_adapter() -> No
         entry.scenario_id
         for entry in coverage.entries
         if entry.expected_status == "pass"
+    }
+
+
+def test_authoring_boundary_attack_refuses_before_finalization_or_dispatch() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "dar-authoring" / "m4-4" / "authoring-boundary-attack.json"
+    )
+
+    result = run_authoring_boundary_attack(scenario)
+
+    assert result == {
+        "terminal_phase": "authoring_validation",
+        "finalized": False,
+        "model_calls": 0,
+        "tool_dispatches": 0,
     }
 
 
