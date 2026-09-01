@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from m4_4_deterministic import (
     run_authoring_boundary_attack,
     run_document_summary,
@@ -13,6 +15,7 @@ from m4_4_deterministic import (
     run_guardrail_tool_input,
     run_hybrid_brief,
     run_mailbox_triage,
+    run_mcp_missing_connection,
     run_no_tool_graph_and_skill,
     run_oauth_reconnect,
     run_side_effect_recovery,
@@ -46,6 +49,30 @@ def test_authoring_boundary_attack_refuses_before_finalization_or_dispatch() -> 
     assert result == {
         "terminal_phase": "authoring_validation",
         "finalized": False,
+        "model_calls": 0,
+        "tool_dispatches": 0,
+    }
+
+
+@pytest.mark.parametrize(
+    ("filename", "rewrite"),
+    (
+        ("mcp-tooling-missing-connection.json", "write"),
+        ("read-only-mcp-missing-connection.json", "read"),
+        ("file-provenance-missing-ingress.json", "file"),
+        ("oauth-missing-connection.json", "read"),
+    ),
+)
+def test_mcp_missing_connection_stops_before_registration_or_dispatch(
+    filename: str, rewrite: str
+) -> None:
+    scenario = load_m44_scenario(FIXTURE_ROOT / "m4-4-successor" / filename)
+
+    result = run_mcp_missing_connection(scenario, rewrite=rewrite)
+
+    assert result == {
+        "terminal_phase": "capability_preflight",
+        "registered": False,
         "model_calls": 0,
         "tool_dispatches": 0,
     }

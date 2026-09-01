@@ -25,6 +25,7 @@ from dynamic_agent_runner.workflow_host.authorized_tools import (
 )
 from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
+    LocalWorkflowHostError,
     attach_mcp_client,
     configure_local_host,
     configure_mcp_api_token,
@@ -586,6 +587,61 @@ def run_authoring_boundary_attack(scenario) -> dict[str, object]:
     return {
         "terminal_phase": "authoring_validation",
         "finalized": False,
+        "model_calls": 0,
+        "tool_dispatches": 0,
+    }
+
+
+def run_mcp_missing_connection(scenario, *, rewrite: str) -> dict[str, object]:
+    """Stop a tool-bearing package before registration without an MCP client."""
+
+    expected = {
+        "mcp-tooling-missing-connection-v1": lambda name, content: _write_package(
+            name, content, artifact_role=None
+        ),
+        "read-only-mcp-missing-connection-v1": _read_only_package,
+        "file-provenance-missing-ingress-v1": lambda name, content: _write_package(
+            name, content, artifact_role="vendor-ticket"
+        ),
+        "oauth-missing-connection-v1": _read_only_package,
+    }
+    if expected.get(scenario.scenario_id) is None:
+        raise ValueError("missing-connection adapter received the wrong scenario")
+    if rewrite not in {"file", "read", "write"}:
+        raise ValueError("missing-connection rewrite is invalid")
+    with tempfile.TemporaryDirectory(
+        dir="/private/tmp", prefix="m44-acceptance-"
+    ) as temporary:
+        root = Path(temporary)
+        package_root = root / "packages"
+        state_root = root / "state"
+        package_root.mkdir(mode=0o700)
+        configure_local_host(
+            root=state_root,
+            package_root=package_root,
+            model_id="local-model",
+            base_url="http://127.0.0.1:11434/v1",
+        )
+        host = LocalWorkflowHost.open(state_root)
+        now = datetime.now(UTC)
+        source_handle = _author_package(
+            host, scenario.scenario_id, now, rewrite=expected[scenario.scenario_id]
+        )
+        try:
+            host.register(
+                workflow_id=scenario.scenario_id,
+                package_source_handle=source_handle,
+                now=now,
+            )
+        except LocalWorkflowHostError:
+            pass
+        else:
+            raise ValueError("tool-bearing package registered without an MCP client")
+        if host.run_traces():
+            raise ValueError("missing MCP connection reached workflow execution")
+    return {
+        "terminal_phase": "capability_preflight",
+        "registered": False,
         "model_calls": 0,
         "tool_dispatches": 0,
     }
