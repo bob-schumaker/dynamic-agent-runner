@@ -10,7 +10,7 @@ plugin-acceptance framework.
 
 ## Successor Clean-Codex Acceptance
 
-- [ ] RED: add `tests/fixtures/m4-4-successor-coverage.json` and scenario-
+- [x] RED: add `tests/fixtures/m4-4-successor-coverage.json` and scenario-
       contract tests. Its versioned entries map every matrix capability ID to
       one or more scenario IDs, `expected_status` (`pass`,
       `expected_capability_unavailable`, or `expected_refusal`), configured
@@ -36,20 +36,20 @@ plugin-acceptance framework.
       guardrail phases, their missing-registry-fixture boundaries, and the
       capability-unavailable unsupported-phase boundary. Keep expansion
       capability-oriented, not combinatorial across every option combination.
-- [ ] RED: update the clean-Codex harness unit tests to require a temporary
+- [x] RED: update the clean-Codex harness unit tests to require a temporary
       marketplace exposing only `agent-engineering`, the visible
       `agent-development` skill and DAR runtime profile, and no plugin MCP or
       broker configuration. Verify that legacy plugin/skill identities are
       rejected, and that a copied marketplace plugin declaring an MCP surface or
       broker artifact is rejected rather than silently omitted.
-- [ ] GREEN: migrate the harness's copied-plugin, skill-path, and prompt
+- [x] GREEN: migrate the harness's copied-plugin, skill-path, and prompt
       construction logic from `dar-authoring` to `agent-engineering`. Preserve
       the clean process, scrubbed environment, declared fixture inputs, and
       redacted receipt parsing. Stage the DAR wheel only in the test-owned
       environment and expose `dar-package` on `PATH`; neither its wheel nor its
       physical path may appear in a model-visible prompt. Do not widen DAR's CLI
       or runtime surface.
-- [ ] RED: add deterministic tests for the successor author prompt. It must
+- [x] RED: add deterministic tests for the successor author prompt. It must
       explicitly target DAR and provide only the declared fixture inputs. It
       must not name `dar-authoring`, copy the DAR runtime profile's command
       recipe, or supply a package path, broker, MCP configuration, or source
