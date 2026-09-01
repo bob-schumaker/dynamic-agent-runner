@@ -74,7 +74,12 @@ plugin-acceptance framework.
       alone is insufficient: the actor-side authoring and invocation commands
       must use the controller-provisioned collaborators rather than the
       default `dar-package` state-root path, which has no MCP, approval,
-      ingress, or guardrail collaborator injection.
+      ingress, or guardrail collaborator injection. Construct the reviewed MCP
+      client through a narrow controller-only host-construction seam with a
+      deterministic local transport; do not monkeypatch the external command
+      or expose transport configuration to either actor. Configure trusted
+      ingress from a controller-private input root and pass only the resulting
+      opaque artifact IDs through invocation.
 - [ ] RED/GREEN: add and pass fixture-backed contract tests for two separately
       launched clean Codex actors: author/finalize, then saved-package invoke.
       The second actor receives only the finalized package name and text request;
