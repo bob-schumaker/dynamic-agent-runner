@@ -217,7 +217,13 @@ def _controller_fixtures(contract: M44Scenario) -> _ControllerFixtures:
         if "reviewed-mcp-connection" in contract.required_host_fixtures:
             fixture_ids.add("reviewed-mcp-connection")
         if "oauth-connection" in contract.required_host_fixtures:
-            fixture_ids.update({"fake-oauth-provider", "oauth-connection"})
+            fixture_ids.update(
+                {
+                    "fake-oauth-provider",
+                    "oauth-connection",
+                    "reviewed-mcp-connection",
+                }
+            )
         if "trusted-workspace-ingress" in contract.required_host_fixtures:
             fixture_ids.add("trusted-workspace-ingress")
         if "approval-broker" in contract.required_host_fixtures:
