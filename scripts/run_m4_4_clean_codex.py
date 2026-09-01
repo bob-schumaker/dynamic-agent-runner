@@ -19,8 +19,10 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import time
 from typing import Any, Sequence
 from urllib.parse import urlparse
+from urllib.request import urlopen
 
 from dynamic_agent_runner.workflow_host.authoring_evidence import (
     AuthorThenRunEvidence,
@@ -165,7 +167,9 @@ def _fake_model_server():
         text=True,
     )
     try:
-        yield f"http://127.0.0.1:{port}/v1"
+        base_url = f"http://127.0.0.1:{port}/v1"
+        _wait_for_fake_model(base_url, process)
+        yield base_url
     finally:
         process.terminate()
         try:
@@ -173,6 +177,19 @@ def _fake_model_server():
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=5)
+
+
+def _wait_for_fake_model(base_url: str, process: subprocess.Popen[str]) -> None:
+    for _ in range(20):
+        if process.poll() is not None:
+            raise HarnessError("deterministic fake model did not start")
+        try:
+            with urlopen(f"{base_url}/models", timeout=0.1) as response:  # noqa: S310
+                if response.status == 200:
+                    return
+        except OSError:
+            time.sleep(0.05)
+    raise HarnessError("deterministic fake model did not start")
 
 
 def _available_loopback_port() -> int:

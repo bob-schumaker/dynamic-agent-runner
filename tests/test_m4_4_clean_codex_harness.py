@@ -321,6 +321,38 @@ def test_external_command_owns_its_deterministic_fake_model(
     assert observed["base_url"] == "http://127.0.0.1:18080/v1"
 
 
+def test_controller_waits_for_fake_model_before_actor_launch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _harness_module()
+
+    class Process:
+        def poll(self) -> None:
+            return None
+
+    class Response:
+        status = 200
+
+        def __enter__(self) -> "Response":
+            return self
+
+        def __exit__(self, *_arguments: object) -> None:
+            return None
+
+    observed: list[str] = []
+
+    def open_url(url: str, *, timeout: float) -> Response:
+        observed.append(url)
+        assert timeout == 0.1
+        return Response()
+
+    monkeypatch.setattr(module, "urlopen", open_url)
+
+    module._wait_for_fake_model("http://127.0.0.1:18080/v1", Process())
+
+    assert observed == ["http://127.0.0.1:18080/v1/models"]
+
+
 @pytest.mark.parametrize(
     ("model_id", "base_url"),
     (
