@@ -406,6 +406,34 @@ def test_controller_mcp_fixture_reviews_without_a_network_transport(
     assert client.calls == []
 
 
+def test_controller_oauth_fixture_reviews_without_a_network_transport(
+    tmp_path: Path,
+) -> None:
+    module = _harness_module()
+    state_root = (tmp_path / "state").resolve()
+    package_root = (tmp_path / "packages").resolve()
+    package_root.mkdir()
+    configuration = module.configure_local_host(
+        root=state_root,
+        package_root=package_root,
+        model_id="openai/local-model",
+        base_url="http://127.0.0.1:8080/v1",
+    )
+    client, connections = module._configure_controller_mcp(
+        state_root=state_root, profile_id=configuration.profile_id, use_oauth=True
+    )
+    host = module.LocalWorkflowHost.open(
+        state_root,
+        mcp_client_factory=lambda _configuration: client,
+        mcp_connections=connections,
+    )
+
+    reviewed = host.review_mcp_surface(approved_read_only_tool_names=("list_unread",))
+
+    assert reviewed.read_only_tool_names == frozenset({"list_unread"})
+    assert client.calls == []
+
+
 @pytest.mark.parametrize(
     ("model_id", "base_url"),
     (

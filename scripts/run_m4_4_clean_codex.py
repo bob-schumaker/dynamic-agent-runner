@@ -40,6 +40,7 @@ from dynamic_agent_runner.workflow_host.host import (
 from dynamic_agent_runner.workflow_host.connections import MCPConnectionControlPlane
 from dynamic_agent_runner.workflow_host.mcp_client import MCPClientConfiguration
 from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool
+from dynamic_agent_runner.workflow_host.oauth import OAuthTokenBundle
 from dynamic_agent_runner.workflow_host.authorized_tools import LocalApprovalDecision
 from dynamic_agent_runner.workflow_host.package_controller import (
     serve_package_controller,
@@ -163,7 +164,7 @@ class _ControllerFixtures:
 
 
 def _configure_controller_mcp(
-    *, state_root: Path, profile_id: str
+    *, state_root: Path, profile_id: str, use_oauth: bool = False
 ) -> tuple[_ControllerMCPClient, MCPConnectionControlPlane]:
     """Persist a fixture-only reviewed connection without touching a network."""
 
@@ -177,10 +178,19 @@ def _configure_controller_mcp(
         profile_id=profile_id,
         endpoint="https://m44-controller.invalid/mcp",
         scopes=("mail.read",),
-        authentication_method="api_token",
+        authentication_method=(
+            "oauth_authorization_code_pkce_loopback" if use_oauth else "api_token"
+        ),
     )
-    authentication = connections.configure_api_token(
-        connection.connection_id, "fixture-token"
+    authentication = (
+        connections.configure_oauth_token(
+            connection.connection_id,
+            OAuthTokenBundle(access_token="fixture-access").secret_value(),
+            token_endpoint="https://m44-controller.invalid/token",
+            client_id="m44-controller",
+        )
+        if use_oauth
+        else connections.configure_api_token(connection.connection_id, "fixture-token")
     )
     attached = attach_mcp_client(
         root=state_root,
@@ -206,6 +216,8 @@ def _controller_fixtures(contract: M44Scenario) -> _ControllerFixtures:
     if contract.expected_status == "pass":
         if "reviewed-mcp-connection" in contract.required_host_fixtures:
             fixture_ids.add("reviewed-mcp-connection")
+        if "oauth-connection" in contract.required_host_fixtures:
+            fixture_ids.update({"fake-oauth-provider", "oauth-connection"})
         if "trusted-workspace-ingress" in contract.required_host_fixtures:
             fixture_ids.add("trusted-workspace-ingress")
         if "approval-broker" in contract.required_host_fixtures:
@@ -497,7 +509,9 @@ def run_scenario(
         )
         mcp_fixture = (
             _configure_controller_mcp(
-                state_root=state_root, profile_id=configuration.profile_id
+                state_root=state_root,
+                profile_id=configuration.profile_id,
+                use_oauth="oauth-connection" in fixtures.fixture_ids,
             )
             if "reviewed-mcp-connection" in fixtures.fixture_ids
             else None
