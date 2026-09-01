@@ -215,6 +215,7 @@ class AuthorThenRunEvidence:
     mcp_read_tool_names: tuple[str, ...] = ()
     mcp_read_call_count: int = 0
     forbidden_send_dispatch_count: int = 0
+    marketplace_manifest_digest: str | None = None
 
     def __post_init__(self) -> None:
         _validate_author_then_run_text(self)
@@ -260,6 +261,7 @@ class AuthorThenRunEvidence:
             "mcp_read_tool_names": list(self.mcp_read_tool_names),
             "mcp_read_call_count": self.mcp_read_call_count,
             "forbidden_send_dispatch_count": self.forbidden_send_dispatch_count,
+            "marketplace_manifest_digest": self.marketplace_manifest_digest,
         }
 
 
@@ -353,6 +355,7 @@ def _validate_optional_digests(evidence: AuthorThenRunEvidence) -> None:
         ),
         (evidence.action_trace_digest, "action_trace_digest"),
         (evidence.authoring_receipt_digest, "authoring_receipt_digest"),
+        (evidence.marketplace_manifest_digest, "marketplace_manifest_digest"),
     ):
         if value is not None:
             _digest(value, label)
@@ -388,6 +391,7 @@ def _validate_author_then_run_terminal_phase(evidence: AuthorThenRunEvidence) ->
             evidence.catalog_revision_digest,
             evidence.registration_digest,
             evidence.prepared_input_registration_digest,
+            evidence.marketplace_manifest_digest,
         )
         if any(value is None for value in required):
             raise AuthoringEvidenceError("positive evidence requires handoff digests")

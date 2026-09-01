@@ -290,6 +290,7 @@ def test_scenario_checker_requires_its_declared_gate_and_fixture() -> None:
         reviewer_id=None,
         reviewer_decision="pending",
         controller_fixture_digest="1" * 64,
+        marketplace_manifest_digest="2" * 64,
     )
 
     validate_m44_evidence(

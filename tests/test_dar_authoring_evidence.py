@@ -177,6 +177,7 @@ def test_author_then_run_evidence_binds_a_positive_handoff_without_raw_content(
         dispatch_count=0,
         reviewer_id=None,
         reviewer_decision="pending",
+        marketplace_manifest_digest="f" * 64,
     )
 
     write_author_then_run_evidence(destination, evidence)

@@ -338,6 +338,7 @@ def run_scenario(
                     codex_executable,
                     timeout,
                     material_receipt.material_set_id,
+                    _digest_file(marketplace),
                 )
         finally:
             if installed:
@@ -365,6 +366,7 @@ def _pass_evidence(
     codex: str,
     timeout: int,
     material_set_id: str,
+    marketplace_manifest_digest: str,
 ) -> AuthorThenRunEvidence:
     created, finalized = (
         _receipt(author_result.stdout, "created"),
@@ -445,6 +447,7 @@ def _pass_evidence(
         controller_fixture_digest=_digest_json(
             {"gates": ["G3"], "fixture": "local-model-profile"}
         ),
+        marketplace_manifest_digest=marketplace_manifest_digest,
     )
     validate_m44_evidence(
         contract,

@@ -70,6 +70,7 @@ def _manifest_records(module: object) -> tuple[object, ...]:
                 dispatch_count=0,
                 reviewer_id=None,
                 reviewer_decision="pending",
+                marketplace_manifest_digest=digest if positive else None,
             )
         )
     return tuple(records)
