@@ -13,6 +13,7 @@ from m4_4_deterministic import (
     run_hybrid_brief,
     run_mailbox_triage,
     run_no_tool_graph_and_skill,
+    run_oauth_reconnect,
     run_side_effect_recovery,
     run_structured_single_model_review,
     supported_scenario_adapter_ids,
@@ -180,4 +181,20 @@ def test_tool_input_guardrail_runs_before_the_reviewed_mcp_read_dispatch() -> No
         "model_calls": 2,
         "tool_dispatches": 1,
         "guardrail_calls": 1,
+    }
+
+
+def test_oauth_reconnect_re_reviews_generation_before_saved_invocation() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "dar-authoring" / "m4-4" / "oauth-reconnect.json"
+    )
+
+    result = run_oauth_reconnect(scenario)
+
+    assert result == {
+        "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
+        "model_calls": 2,
+        "tool_dispatches": 1,
+        "oauth_refreshes": 1,
+        "review_generations": (1, 2),
     }

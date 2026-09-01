@@ -30,8 +30,14 @@ from dynamic_agent_runner.workflow_host.host import (
     configure_mcp_api_token,
     create_mcp_connection,
 )
-from dynamic_agent_runner.workflow_host.mcp_client import MCPClientConfiguration
+from dynamic_agent_runner.workflow_host import host as host_module
+from dynamic_agent_runner.workflow_host.mcp_client import (
+    MCPClientConfiguration,
+    MCPConnectionClient,
+    MCPTransportResponse,
+)
 from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool
+from dynamic_agent_runner.workflow_host.oauth import OAuthTokenBundle
 
 
 _SUPPORTED_SCENARIO_ADAPTER_IDS = frozenset(
@@ -44,6 +50,7 @@ _SUPPORTED_SCENARIO_ADAPTER_IDS = frozenset(
         "hybrid-brief-v1",
         "mailbox-triage-v1",
         "no-tool-graph-and-skill-v1",
+        "oauth-reconnect-v1",
         "side-effect-recovery-v1",
         "structured-single-model-review-v1",
     }
@@ -251,6 +258,9 @@ class _Secrets:
     def delete(self, reference: str) -> None:
         self.values.pop(reference, None)
 
+    def replace(self, reference: str, secret: str) -> None:
+        self.values[reference] = secret
+
 
 class _ReadOnlyMCP:
     calls: list[tuple[str, dict[str, object]]] = []
@@ -293,6 +303,177 @@ class _ReadOnlyMCP:
     def call_tool(self, name: str, arguments: dict[str, object]) -> dict[str, object]:
         self.calls.append((name, arguments))
         return {"content": [{"type": "text", "text": "three unread messages"}]}
+
+
+class _OAuthSession:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def initialize(self, **_kwargs: object) -> MCPTransportResponse:
+        return MCPTransportResponse("a" * 64, 1, "2025-06-18", "mail")
+
+    def close(self) -> None:
+        self.closed = True
+
+    def list_tools(self, **_kwargs: object) -> tuple[MCPDiscoveredTool, ...]:
+        return (
+            MCPDiscoveredTool(
+                name="list_unread",
+                input_schema={"type": "object", "properties": {}},
+            ),
+        )
+
+    def call_tool(self, **kwargs: object) -> dict[str, object]:
+        name = kwargs["name"]
+        arguments = kwargs["arguments"]
+        assert isinstance(name, str) and isinstance(arguments, dict)
+        _ReadOnlyMCP.calls.append((name, arguments))
+        return {"content": [{"type": "text", "text": "three unread messages"}]}
+
+
+class _OAuthFactory:
+    def __init__(self) -> None:
+        self.sessions: list[_OAuthSession] = []
+
+    def open(self, **_kwargs: object) -> _OAuthSession:
+        session = _OAuthSession()
+        self.sessions.append(session)
+        return session
+
+
+class _OAuthRefresher:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def refresh(self, **_kwargs: object) -> OAuthTokenBundle:
+        self.calls += 1
+        return OAuthTokenBundle(access_token="refreshed-access")
+
+
+def run_oauth_reconnect(scenario) -> dict[str, object]:
+    """Refresh OAuth, re-review the new generation, then invoke its binding."""
+
+    if scenario.scenario_id != "oauth-reconnect-v1":
+        raise ValueError("OAuth reconnect adapter received the wrong scenario")
+    with tempfile.TemporaryDirectory(
+        dir="/private/tmp", prefix="m44-acceptance-"
+    ) as temporary:
+        root = Path(temporary)
+        state_root = root / "state"
+        package_root = root / "packages"
+        package_root.mkdir(mode=0o700)
+        _Secrets.values.clear()
+        _ReadOnlyMCP.calls.clear()
+        client = _ToolClient()
+        factory = _OAuthFactory()
+        refresher = _OAuthRefresher()
+        with (
+            patch(
+                "dynamic_agent_runner.workflow_host.connections.KeyringSecretStore",
+                _Secrets,
+            ),
+            patch(
+                "dynamic_agent_runner.workflow_host.host.create_local_adapter",
+                lambda profile: OpenAIClientAdapter(
+                    client,
+                    models=[profile.execution_model_id],
+                    is_local=True,
+                    model_id_mapping={profile.execution_model_id: profile.model_id},
+                    execution_profile_adapter_id=profile.adapter_id,
+                ),
+            ),
+        ):
+            configure_local_host(
+                root=state_root,
+                package_root=package_root,
+                model_id="local-model",
+                base_url="http://127.0.0.1:11434/v1",
+            )
+            connection = create_mcp_connection(
+                root=state_root,
+                endpoint="https://mcp.example.test/v1",
+                scopes={"mail.read"},
+                authentication_method="oauth_authorization_code_pkce_loopback",
+            )
+            configuration, connections = host_module._connection_control(state_root)
+            authentication = connections.configure_oauth_token(
+                connection.connection_id,
+                OAuthTokenBundle(
+                    access_token="initial-access",
+                    refresh_token="refresh-token",
+                    expires_at=datetime(2026, 8, 24, 13, tzinfo=UTC),
+                ).secret_value(),
+                token_endpoint="https://login.example.test/token",
+                client_id="public-client-id",
+            )
+            attached = attach_mcp_client(
+                root=state_root,
+                connection_id=connection.connection_id,
+                authentication_id=authentication.authentication_id,
+                peer_certificate_sha256="a" * 64,
+                timeout_seconds=10,
+                max_response_bytes=32768,
+            )
+            mcp = MCPConnectionClient(
+                connections=connections,
+                configuration=attached.mcp_client_configuration,
+                transport_factory=factory,
+                oauth_refresher=refresher,
+                now=lambda: datetime(2026, 8, 24, 12, 30, tzinfo=UTC),
+            )
+            host = LocalWorkflowHost.open(state_root)
+            host._mcp_client = mcp
+            host._registrations._mcp_client = mcp
+            host._runner._mcp_client = mcp
+            mcp.initialize()
+            first = host.review_mcp_surface(
+                approved_read_only_tool_names={"list_unread"}
+            )
+            reference = next(iter(_Secrets.values))
+            _Secrets.values[reference] = OAuthTokenBundle(
+                access_token="expired-access",
+                refresh_token="refresh-token",
+                expires_at=datetime(2026, 8, 24, 12, tzinfo=UTC),
+            ).secret_value()
+            mcp.reconnect()
+            second = host.review_mcp_surface(
+                approved_read_only_tool_names={"list_unread"}
+            )
+            now = datetime.now(UTC)
+            source_handle = _author_package(
+                host, scenario.scenario_id, now, rewrite=_read_only_package
+            )
+            binding = host.bind_mcp_package(
+                package_source_handle=source_handle,
+                snapshot_id=second.snapshot_id,
+                now=now,
+            )
+            registration = host.register(
+                workflow_id=scenario.scenario_id,
+                package_source_handle=source_handle,
+                mcp_binding_id=binding.binding_id,
+                now=now,
+            )
+            prepared = host.prepare(
+                workflow_id=registration.workflow_id,
+                prompt="List unread email.",
+                now=now,
+            )
+            host.run(
+                workflow_id=registration.workflow_id,
+                prepared_input_id=prepared.prepared_input_id,
+                now=now,
+            )
+    return {
+        "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
+        "model_calls": len(client.responses.calls),
+        "tool_dispatches": len(_ReadOnlyMCP.calls),
+        "oauth_refreshes": refresher.calls,
+        "review_generations": (
+            first.connection_generation,
+            second.connection_generation,
+        ),
+    }
 
 
 def run_document_summary(scenario) -> dict[str, object]:
