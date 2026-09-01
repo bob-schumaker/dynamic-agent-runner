@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import socket
 
 import pytest
 
@@ -66,6 +67,27 @@ def test_fixture_contract_dispatches_every_external_manifest_scenario() -> None:
 
     assert set(results) == set(sources)
     assert all(result["model_calls"] >= 0 for result in results.values())
+
+
+def test_fixture_contracts_do_not_open_network_connections(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def refuse_network(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("fixture contracts must not open a network connection")
+
+    monkeypatch.setattr(socket, "create_connection", refuse_network)
+    coverage = load_m44_coverage(FIXTURE_ROOT / "m4-4-successor-coverage.json")
+    sources = {
+        load_m44_scenario(source).scenario_id: source
+        for root in (
+            FIXTURE_ROOT / "dar-authoring" / "m4-4",
+            FIXTURE_ROOT / "m4-4-successor",
+        )
+        for source in root.glob("*.json")
+    }
+
+    for scenario_id in {entry.scenario_id for entry in coverage.entries}:
+        run_fixture_contract(load_m44_scenario(sources[scenario_id]))
 
 
 def test_authoring_boundary_attack_refuses_before_finalization_or_dispatch() -> None:
