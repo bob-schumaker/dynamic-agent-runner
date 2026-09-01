@@ -56,7 +56,11 @@ def _fake_response(request_body: bytes) -> dict[str, object]:
         request = json.loads(request_body)
     except (TypeError, json.JSONDecodeError):
         request = {}
-    tool_name = _zero_argument_tool_name(request.get("tools"))
+    tool_name = (
+        None
+        if _has_tool_result(request)
+        else _zero_argument_tool_name(request.get("tools"))
+    )
     response: dict[str, object] = {
         "id": "m44-fake-response",
         "model": "openai/local-model",
@@ -118,6 +122,16 @@ def _zero_argument_tool_name(value: object) -> str | None:
         ):
             return name
     return None
+
+
+def _has_tool_result(value: object) -> bool:
+    if isinstance(value, dict):
+        if value.get("type") == "function_call_output":
+            return True
+        return any(_has_tool_result(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_has_tool_result(item) for item in value)
+    return False
 
 
 def _live_response(request_body: bytes, model_id: str) -> dict[str, object]:

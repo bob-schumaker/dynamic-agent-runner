@@ -57,3 +57,30 @@ def test_fake_model_calls_the_first_declared_zero_argument_tool() -> None:
         "arguments": "{}",
     }
     assert response["output"][0]["type"] == "function_call"
+
+
+def test_fake_model_finishes_after_a_tool_result() -> None:
+    module = _fixture_module()
+
+    response = module._fake_response(
+        json.dumps(
+            {
+                "tools": [
+                    {
+                        "type": "function",
+                        "name": "list_unread",
+                        "parameters": {"type": "object", "required": []},
+                    }
+                ],
+                "input": [
+                    {
+                        "type": "function_call_output",
+                        "call_id": "m44-tool-call",
+                        "output": "fixture result",
+                    }
+                ],
+            }
+        ).encode()
+    )
+
+    assert response["choices"][0]["message"]["content"] == "summary"
