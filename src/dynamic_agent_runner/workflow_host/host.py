@@ -996,6 +996,7 @@ class LocalWorkflowHost:
         workspace_files: Sequence[Path],
         dry_run: bool,
         approval_broker: LocalActionApprovalBroker | None,
+        guardrail_registry: InMemoryGuardrailRegistry | None = None,
         now: datetime,
     ) -> SavedWorkflowDryRunResult | RunDarWorkflowResult:
         """Run one registered saved package without accepting source authority."""
@@ -1037,6 +1038,7 @@ class LocalWorkflowHost:
             prepared_input_id=prepared.prepared_input_id,
             now=now,
             approval_broker=approval_broker,
+            guardrail_registry=guardrail_registry,
         )
 
     def ingress_file(

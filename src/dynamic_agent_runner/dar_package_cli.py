@@ -29,6 +29,7 @@ def main(
     stderr: TextIO | None = None,
     host_opener: Callable[[Path], LocalWorkflowHost] | None = None,
     approval_broker_factory: Callable[[], object] | None = None,
+    guardrail_registry: object | None = None,
 ) -> int:
     """Run the narrow v1 DAR package discovery or saved-workflow command."""
 
@@ -65,6 +66,7 @@ def main(
         stderr=stderr,
         host_opener=host_opener,
         approval_broker_factory=approval_broker_factory,
+        guardrail_registry=guardrail_registry,
     )
 
 
@@ -110,6 +112,7 @@ def _invoke(
     stderr: TextIO,
     host_opener: Callable[[Path], LocalWorkflowHost],
     approval_broker_factory: Callable[[], object],
+    guardrail_registry: object | None,
 ) -> int:
     try:
         invocation = _parse_invoke(arguments)
@@ -122,14 +125,17 @@ def _invoke(
         _write(stderr, _error("usage"))
         return 2
     try:
-        result = host_opener(_default_state_root()).invoke_saved(
-            package_name=invocation.package_name,
-            prompt=prompt,
-            workspace_files=invocation.workspace_files,
-            dry_run=invocation.dry_run,
-            approval_broker=approval_broker_factory() if invocation.ask else None,
-            now=datetime.now(UTC),
-        )
+        invoke_kwargs: dict[str, object] = {
+            "package_name": invocation.package_name,
+            "prompt": prompt,
+            "workspace_files": invocation.workspace_files,
+            "dry_run": invocation.dry_run,
+            "approval_broker": approval_broker_factory() if invocation.ask else None,
+            "now": datetime.now(UTC),
+        }
+        if guardrail_registry is not None:
+            invoke_kwargs["guardrail_registry"] = guardrail_registry
+        result = host_opener(_default_state_root()).invoke_saved(**invoke_kwargs)
     except RunDarWorkflowError:
         _write(stderr, _invoke_error("failed"))
         return 1

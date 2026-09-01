@@ -913,6 +913,37 @@ def test_invoke_can_use_a_controller_owned_approval_broker() -> None:
     )
 
 
+def test_invoke_can_use_a_controller_owned_guardrail_registry() -> None:
+    registry = object()
+
+    class Host:
+        def invoke_saved(
+            self, *, guardrail_registry: object | None, **_kwargs: object
+        ) -> object:
+            assert guardrail_registry is registry
+            return type(
+                "Result",
+                (),
+                {
+                    "status": "completed",
+                    "run_id": "run-1",
+                    "output": {"summary": "done"},
+                },
+            )()
+
+    assert (
+        dar_package_cli.main(
+            ["invoke", "--package-name", "document-summary", "--prompt-stdin"],
+            stdin=StringIO("Summarize this document."),
+            stdout=StringIO(),
+            stderr=StringIO(),
+            host_opener=lambda _root: Host(),
+            guardrail_registry=registry,
+        )
+        == 0
+    )
+
+
 def test_invoke_redacts_a_saved_package_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
