@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -55,6 +56,32 @@ from m4_4_scenarios import (  # noqa: E402 - repository test corpus import.
 
 class HarnessError(ValueError):
     """Raised when M4.4 cannot produce a valid redacted acceptance record."""
+
+
+def _stage_controller_dar_package(
+    *, wheel: Path, state_root: Path, destination: Path
+) -> Path:
+    """Stage the private controller command that retains the host state location."""
+
+    if (
+        not wheel.is_absolute()
+        or not state_root.is_absolute()
+        or not destination.is_absolute()
+        or not wheel.is_file()
+        or destination.exists()
+    ):
+        raise HarnessError("controller DAR launcher inputs are invalid")
+    destination.mkdir(mode=0o700)
+    launcher = destination / "dar-package"
+    launcher.write_text(
+        "#!/bin/sh\n"
+        f"export DAR_AUTHORING_STATE_ROOT={shlex.quote(str(state_root))}\n"
+        "exec uv run --no-project --python 3.14 --with "
+        f'{shlex.quote(str(wheel))} dar-package "$@"\n',
+        encoding="utf-8",
+    )
+    launcher.chmod(0o700)
+    return launcher
 
 
 def write_manifest_evidence(
@@ -171,10 +198,27 @@ def run_scenario(
             base_url=base_url,
         )
         host = LocalWorkflowHost.open(state_root)
-        dar_bin = stage_dar_package(
+        controller_launcher = _stage_controller_dar_package(
             wheel=wheel,
             state_root=state_root,
-            destination=root / "dar-bin",
+            destination=root / "controller-bin",
+        )
+        author_dar_bin = stage_dar_package(
+            wheel=wheel,
+            controller_launcher=controller_launcher,
+            destination=root / "author-dar-bin",
+            allowed_commands=(
+                "project-authoring-materials",
+                "create-authored-package",
+                "write-authored-package-file",
+                "finalize-authored-package",
+            ),
+        )
+        invocation_dar_bin = stage_dar_package(
+            wheel=wheel,
+            controller_launcher=controller_launcher,
+            destination=root / "invocation-dar-bin",
+            allowed_commands=("invoke",),
         )
         material_receipt = host.issue_authoring_materials(
             materials=_load_materials(materials), now=datetime.now(UTC)
@@ -209,7 +253,7 @@ def run_scenario(
                     / "agent-engineering",
                     inherited={
                         **os.environ,
-                        "PATH": f"{dar_bin}{os.pathsep}{os.environ.get('PATH', '')}",
+                        "PATH": f"{author_dar_bin}{os.pathsep}{os.environ.get('PATH', '')}",
                     },
                 ),
                 timeout,
@@ -229,7 +273,7 @@ def run_scenario(
                     codex_home,
                     invocation_workspace,
                     state_root,
-                    dar_bin,
+                    invocation_dar_bin,
                     root / "marketplace" / "plugins" / "agent-engineering",
                     wheel,
                     reviewer_id,

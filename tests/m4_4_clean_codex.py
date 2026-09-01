@@ -13,28 +13,52 @@ class M44CleanCodexError(ValueError):
     """Raised when a clean Codex acceptance actor cannot be prepared."""
 
 
-def stage_dar_package(*, wheel: Path, state_root: Path, destination: Path) -> Path:
-    """Stage a test-owned ``dar-package`` launcher for one clean actor."""
+def stage_dar_package(
+    *,
+    wheel: Path,
+    controller_launcher: Path,
+    destination: Path,
+    allowed_commands: tuple[str, ...],
+) -> Path:
+    """Stage a command-limited actor launcher without controller state."""
 
     for path, label in (
         (wheel, "wheel"),
-        (state_root, "state root"),
+        (controller_launcher, "controller launcher"),
         (destination, "DAR launcher destination"),
     ):
         _absolute_not_symlink(path, label)
-    if not wheel.is_file() or destination.exists() or destination.is_symlink():
+    if (
+        not wheel.is_file()
+        or not controller_launcher.is_file()
+        or destination.exists()
+        or destination.is_symlink()
+        or not allowed_commands
+        or set(allowed_commands) - _DAR_PACKAGE_COMMANDS
+    ):
         raise M44CleanCodexError("DAR launcher inputs are invalid")
     destination.mkdir(mode=0o700)
     launcher = destination / "dar-package"
+    commands = "|".join(allowed_commands)
     launcher.write_text(
         "#!/bin/sh\n"
-        f"export DAR_AUTHORING_STATE_ROOT={shlex.quote(str(state_root))}\n"
-        "exec uv run --no-project --python 3.14 --with "
-        f'{shlex.quote(str(wheel))} dar-package "$@"\n',
+        f'case "$1" in {commands}) ;; *) exit 2 ;; esac\n'
+        f'exec {shlex.quote(str(controller_launcher))} "$@"\n',
         encoding="utf-8",
     )
     launcher.chmod(0o700)
     return destination
+
+
+_DAR_PACKAGE_COMMANDS = frozenset(
+    {
+        "project-authoring-materials",
+        "create-authored-package",
+        "write-authored-package-file",
+        "finalize-authored-package",
+        "invoke",
+    }
+)
 
 
 def build_clean_codex_environment(

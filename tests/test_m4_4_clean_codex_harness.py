@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 import pytest
@@ -106,9 +107,45 @@ def test_stage_dar_package_rejects_non_absolute_state_root(
     with pytest.raises(M44CleanCodexError):
         stage_dar_package(
             wheel=tmp_path / "dynamic_agent_runner.whl",
-            state_root=Path("state"),
+            controller_launcher=Path("controller"),
             destination=tmp_path / "dar-bin",
+            allowed_commands=("invoke",),
         )
+
+
+def test_actor_launcher_hides_state_and_limits_its_dar_commands(tmp_path: Path) -> None:
+    wheel = (tmp_path / "dynamic_agent_runner.whl").resolve()
+    wheel.write_bytes(b"wheel")
+    state_root = (tmp_path / "controller-state").resolve()
+    controller = (tmp_path / "controller-dar-package").resolve()
+    controller.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    controller.chmod(0o700)
+
+    launcher_directory = stage_dar_package(
+        wheel=wheel,
+        controller_launcher=controller,
+        destination=(tmp_path / "actor-bin").resolve(),
+        allowed_commands=("invoke",),
+    )
+
+    launcher = (launcher_directory / "dar-package").read_text(encoding="utf-8")
+    assert str(state_root) not in launcher
+    assert "DAR_AUTHORING_STATE_ROOT" not in launcher
+    assert "invoke" in launcher
+    assert "create-authored-package" not in launcher
+    assert (
+        subprocess.run(
+            [str(launcher_directory / "dar-package"), "invoke"], check=False
+        ).returncode
+        == 0
+    )
+    assert (
+        subprocess.run(
+            [str(launcher_directory / "dar-package"), "create-authored-package"],
+            check=False,
+        ).returncode
+        == 2
+    )
 
 
 def test_manifest_evidence_requires_complete_fresh_redacted_record_set(
