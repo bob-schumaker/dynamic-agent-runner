@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+from contextlib import contextmanager
 
 import pytest
 
@@ -268,14 +269,56 @@ def test_external_command_rejects_a_scenario_only_override(tmp_path: Path) -> No
                 str(root / "dar.whl"),
                 "--materials",
                 str(root / "materials.json"),
-                "--model-id",
-                "openai/local-model",
-                "--base-url",
-                "http://127.0.0.1:8080/v1",
                 "--scenario",
                 str(root / "selected.json"),
             )
         )
+
+
+def test_external_command_owns_its_deterministic_fake_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _harness_module()
+    aggregate = tmp_path / "aggregate.json"
+    aggregate.write_text("{}", encoding="utf-8")
+    observed: dict[str, object] = {}
+
+    @contextmanager
+    def fake_server():
+        yield "http://127.0.0.1:18080/v1"
+
+    def run_manifest(**kwargs: object) -> Path:
+        observed.update(kwargs)
+        return aggregate
+
+    monkeypatch.setattr(module, "_fake_model_server", fake_server)
+    monkeypatch.setattr(module, "run_manifest", run_manifest)
+
+    assert (
+        module.main(
+            (
+                "--coverage",
+                str(tmp_path / "coverage.json"),
+                "--scenario-plan",
+                str(tmp_path / "plan.json"),
+                "--scenario-root",
+                str(tmp_path / "scenarios"),
+                "--evidence-directory",
+                str(tmp_path / "evidence"),
+                "--codex-home",
+                str(tmp_path / "codex"),
+                "--plugin-root",
+                str(tmp_path / "plugin"),
+                "--wheel",
+                str(tmp_path / "dar.whl"),
+                "--materials",
+                str(tmp_path / "materials.json"),
+            )
+        )
+        == 0
+    )
+    assert observed["model_id"] == "openai/local-model"
+    assert observed["base_url"] == "http://127.0.0.1:18080/v1"
 
 
 @pytest.mark.parametrize(

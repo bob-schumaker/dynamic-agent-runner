@@ -9,6 +9,7 @@ opaque material IDs, and declared text inputs.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 from datetime import UTC, datetime
 import hashlib
 import json
@@ -135,7 +136,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     arguments = _arguments(argv)
     try:
-        aggregate = run_manifest(**vars(arguments))
+        with _fake_model_server() as base_url:
+            aggregate = run_manifest(
+                **vars(arguments), model_id="openai/local-model", base_url=base_url
+            )
     except (
         HarnessError,
         LocalWorkflowHostError,
@@ -146,6 +150,37 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     print(aggregate.read_text(encoding="utf-8"))
     return 0
+
+
+@contextmanager
+def _fake_model_server():
+    """Run the controller-owned deterministic model fixture for one replay."""
+
+    port = _available_loopback_port()
+    fixture = Path(__file__).with_name("serve_m4_4_fake_model.py")
+    process = subprocess.Popen(
+        [sys.executable, str(fixture), "--port", str(port)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    try:
+        yield f"http://127.0.0.1:{port}/v1"
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+
+
+def _available_loopback_port() -> int:
+    import socket
+
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        return int(listener.getsockname()[1])
 
 
 def run_manifest(
@@ -734,8 +769,6 @@ def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     ):
         parser.add_argument(f"--{name.replace('_', '-')}", type=Path, required=True)
     parser.add_argument("--scenario-root", type=Path, action="append", required=True)
-    for name in ("model_id", "base_url"):
-        parser.add_argument(f"--{name.replace('_', '-')}", required=True)
     parser.add_argument("--reviewer-id")
     parser.add_argument(
         "--reviewer-decision", choices=("pending", "approved"), default="pending"
