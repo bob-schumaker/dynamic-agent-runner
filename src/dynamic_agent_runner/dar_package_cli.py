@@ -6,7 +6,7 @@ import argparse
 import json
 import os
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib.metadata import version
@@ -27,6 +27,7 @@ def main(
     stdin: TextIO | None = None,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
+    host_opener: Callable[[Path], LocalWorkflowHost] | None = None,
 ) -> int:
     """Run the narrow v1 DAR package discovery or saved-workflow command."""
 
@@ -34,22 +35,43 @@ def main(
     stdin = stdin or sys.stdin
     stdout = stdout or sys.stdout
     stderr = stderr or sys.stderr
+    host_opener = host_opener or LocalWorkflowHost.open
     if arguments == ["version", "--json"]:
         return _version(stdout=stdout, stderr=stderr)
     if not arguments:
         _write(stderr, _error("usage"))
         return 2
     if arguments[0] == "select-package":
-        return _select_package(arguments[1:], stdout=stdout, stderr=stderr)
+        return _select_package(
+            arguments[1:], stdout=stdout, stderr=stderr, host_opener=host_opener
+        )
     if arguments[0] in _AUTHORING_COMMANDS:
-        return _authoring(arguments, stdin=stdin, stdout=stdout, stderr=stderr)
+        return _authoring(
+            arguments,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            host_opener=host_opener,
+        )
     if arguments[0] != "invoke":
         _write(stderr, _error("usage"))
         return 2
-    return _invoke(arguments[1:], stdin=stdin, stdout=stdout, stderr=stderr)
+    return _invoke(
+        arguments[1:],
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+        host_opener=host_opener,
+    )
 
 
-def _select_package(arguments: Sequence[str], *, stdout: TextIO, stderr: TextIO) -> int:
+def _select_package(
+    arguments: Sequence[str],
+    *,
+    stdout: TextIO,
+    stderr: TextIO,
+    host_opener: Callable[[Path], LocalWorkflowHost],
+) -> int:
     try:
         parser = _ArgumentParser(add_help=False)
         parser.add_argument("--path", required=True, type=Path)
@@ -57,9 +79,9 @@ def _select_package(arguments: Sequence[str], *, stdout: TextIO, stderr: TextIO)
         args = parser.parse_args(arguments)
         if not args.json:
             raise ValueError("select-package requires --json")
-        package_source_handle = LocalWorkflowHost.open(
-            _default_state_root()
-        ).select_package(args.path, now=datetime.now(UTC))
+        package_source_handle = host_opener(_default_state_root()).select_package(
+            args.path, now=datetime.now(UTC)
+        )
     except (LocalWorkflowHostError, ValueError):
         _write(stderr, _error("usage"))
         return 2
@@ -78,7 +100,12 @@ def _select_package(arguments: Sequence[str], *, stdout: TextIO, stderr: TextIO)
 
 
 def _invoke(
-    arguments: Sequence[str], *, stdin: TextIO, stdout: TextIO, stderr: TextIO
+    arguments: Sequence[str],
+    *,
+    stdin: TextIO,
+    stdout: TextIO,
+    stderr: TextIO,
+    host_opener: Callable[[Path], LocalWorkflowHost],
 ) -> int:
     try:
         invocation = _parse_invoke(arguments)
@@ -91,7 +118,7 @@ def _invoke(
         _write(stderr, _error("usage"))
         return 2
     try:
-        result = LocalWorkflowHost.open(_default_state_root()).invoke_saved(
+        result = host_opener(_default_state_root()).invoke_saved(
             package_name=invocation.package_name,
             prompt=prompt,
             workspace_files=invocation.workspace_files,
@@ -149,11 +176,16 @@ _AUTHORING_COMMANDS = frozenset(
 
 
 def _authoring(
-    arguments: Sequence[str], *, stdin: TextIO, stdout: TextIO, stderr: TextIO
+    arguments: Sequence[str],
+    *,
+    stdin: TextIO,
+    stdout: TextIO,
+    stderr: TextIO,
+    host_opener: Callable[[Path], LocalWorkflowHost],
 ) -> int:
     try:
         args = _parse_authoring(arguments)
-        host = LocalWorkflowHost.open(_default_state_root())
+        host = host_opener(_default_state_root())
         result = _authoring_result(host, args, stdin=stdin)
     except (LocalWorkflowHostError, ValueError):
         _write(stderr, _error("usage"))

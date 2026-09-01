@@ -844,6 +844,38 @@ def test_invoke_passes_ask_as_a_local_host_broker(
     )
 
 
+def test_invoke_can_use_a_controller_owned_host_opener() -> None:
+    opened: list[Path] = []
+
+    class Host:
+        def invoke_saved(self, **_kwargs: object) -> object:
+            return type(
+                "Result",
+                (),
+                {
+                    "status": "completed",
+                    "run_id": "run-1",
+                    "output": {"summary": "done"},
+                },
+            )()
+
+    def open_host(root: Path) -> Host:
+        opened.append(root)
+        return Host()
+
+    assert (
+        dar_package_cli.main(
+            ["invoke", "--package-name", "document-summary", "--prompt-stdin"],
+            stdin=StringIO("Summarize this document."),
+            stdout=StringIO(),
+            stderr=StringIO(),
+            host_opener=open_host,
+        )
+        == 0
+    )
+    assert len(opened) == 1
+
+
 def test_invoke_redacts_a_saved_package_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
