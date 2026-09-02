@@ -8,6 +8,15 @@ The full moved skill remains the design authority. This profile supplies the
 DAR-specific authoring and invocation boundary from the retired
 `dar-authoring` plugin; it is not a separately discoverable skill.
 
+## Host-provided DAR command
+
+In a managed or clean acceptance environment, the host may expose a
+command-limited `dar-package` on `PATH`. When it resolves, invoke
+`dar-package` directly for the permitted package operation. Do not prefix it
+with `uv run`. Do not search for a wheel, package cache, source checkout, or
+another executable. The host owns that command's implementation and command
+allowlist; the plugin still provides no launcher or control plane.
+
 - [Agent-development DAR guidance](dar-runtime-profile/agent-development.md)
 - [Tool-contract DAR guidance](dar-runtime-profile/agent-tool-contract-design.md)
 - [Evaluation DAR guidance](dar-runtime-profile/agent-evaluation.md)

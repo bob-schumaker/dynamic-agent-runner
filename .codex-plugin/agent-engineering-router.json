@@ -1,0 +1,22 @@
+{
+  "format_version": 2,
+  "generated": {
+    "name": "agent-engineering-routed",
+    "surface_id": "agent-engineering-routed"
+  },
+  "output_root": "generated/agent-engineering-routed",
+  "repository_root": ".",
+  "router_authority": {
+    "routers": [
+      {
+        "description": "Route bounded DAR workflow authoring to focused private guidance.",
+        "members": [
+          "plugins/agent-engineering/skills/agent-development"
+        ],
+        "name": "agent-development"
+      }
+    ]
+  },
+  "source_manifest": "plugins/agent-engineering/.codex-plugin/plugin.json",
+  "surface_mode": "native_routed"
+}

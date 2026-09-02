@@ -9,9 +9,7 @@
     ],
     "category": "Productivity",
     "composerIcon": "./assets/agent-engineering.png",
-    "defaultPrompt": [
-      "Design a bounded workflow and, when DAR is the explicit target, prepare it for DAR execution."
-    ],
+    "defaultPrompt": "Design a bounded workflow and, when DAR is the explicit target, prepare it for DAR execution.",
     "developerName": "Bob Schumaker",
     "displayName": "Agent Engineering",
     "logo": "./assets/agent-engineering.png",

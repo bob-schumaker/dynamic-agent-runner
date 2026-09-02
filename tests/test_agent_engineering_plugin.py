@@ -7,8 +7,8 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PLUGIN_ROOT = REPO_ROOT / ".agents" / "plugins" / "agent-engineering"
-MARKETPLACE_PATH = REPO_ROOT / ".agents" / "plugins" / "marketplace.json"
+PLUGIN_ROOT = REPO_ROOT / "plugins" / "agent-engineering"
+MARKETPLACE_PATH = REPO_ROOT / "marketplace.json"
 
 
 def test_agent_engineering_plugin_is_a_plain_single_visible_skill_plugin() -> None:
@@ -55,6 +55,8 @@ def test_plugin_contains_the_complete_cohort_and_dar_runtime_profile() -> None:
     )
     assert "source_selection_required" in profile
     assert "explicitly asks" in profile
+    assert "command-limited `dar-package` on `PATH`" in profile
+    assert "Do not search for a wheel" in profile
     assert "corpus/" not in root_skill
 
 

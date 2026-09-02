@@ -24,6 +24,11 @@ uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp
 
 <!-- rumdl-enable MD013 -->
 
+When the host provides `dar-package` on `PATH`, use that command directly for
+every package operation. Do not prefix it with `uv run` or search for a wheel;
+the host command is the only permitted interface in that environment. Use the
+pinned command above only when no host-provided `dar-package` is available.
+
 For a local-wheel development check, replace the `--with` argument with the
 absolute wheel path. Never use a project-relative wrapper, a state directory,
 or an MCP control plane.
