@@ -36,28 +36,61 @@ plugin-acceptance framework.
       guardrail phases and their missing-registry-fixture boundaries. Keep
       expansion capability-oriented, not combinatorial across every option
       combination.
-- [x] RED: update the clean-Codex harness unit tests to require a temporary
-      marketplace exposing only `agent-engineering`, the visible
-      `agent-development` skill and DAR runtime profile, and no plugin MCP or
-      broker configuration. Verify that legacy plugin/skill identities are
-      rejected, and that a copied marketplace plugin declaring an MCP surface or
-      broker artifact is rejected rather than silently omitted.
+- [x] RED: establish the direct-skill baseline harness: a temporary marketplace
+      exposes only `agent-engineering`, the visible `agent-development` skill,
+      and its DAR runtime profile, with no plugin MCP or broker configuration.
+      Verify that legacy plugin/skill identities are rejected, and that a copied
+      marketplace plugin declaring an MCP surface or broker artifact is rejected
+      rather than silently omitted. This is baseline-only evidence, not routed
+      successor acceptance.
 - [x] GREEN: migrate the harness's copied-plugin, skill-path, and prompt
       construction logic from `dar-authoring` to `agent-engineering`. Preserve
       the clean process, scrubbed environment, declared fixture inputs, and
       redacted receipt parsing. Stage the DAR wheel only in the test-owned
       environment and expose `dar-package` on `PATH`; neither its wheel nor its
       physical path may appear in a model-visible prompt. Do not widen DAR's CLI
-      or runtime surface.
+      or runtime surface. This is direct-skill baseline harness work; routed
+      successor staging is specified below.
 - [x] RED: add deterministic tests for the successor author prompt. It must
       explicitly target DAR and provide only the declared fixture inputs. It
       must not name `dar-authoring`, copy the DAR runtime profile's command
       recipe, or supply a package path, broker, MCP configuration, or source
       handle. A bare DAR mention must remain outside the DAR-profile path.
+- [ ] RED/GREEN: make manifest admission fail when any member of the checked-in
+      original 13-scenario ID set is missing or replaced; require that invariant
+      for both the direct timing baseline and generated-root replay.
+- [ ] Capture and freeze the complete-manifest direct-skill timing baseline and
+      its plugin-tree digest before router-source restructuring. Retain it only
+      as test-owned comparison collateral, never as a successor marketplace
+      source.
+- [ ] RED/GREEN: define the canonical router-packaging source layout. Keep the
+      manifest and icon collateral source-owned; make the `agent-development`
+      router member instruction-only; move general agent-development and DAR
+      workflow-authoring guidance into named private modules; and classify every
+      remaining canonical artifact as a declared payload or explicit exclusion.
+      Test that no support subtree is visible beneath the router member.
+- [ ] RED/GREEN: add a native-routed packager invocation and focused
+      generated-tree contract tests. It must retain the canonical public plugin
+      identity, version, author, description, interface metadata, branding paths,
+      marketplace selector, and `agent-development` identifier; only internal
+      routing topology may differ. Assert exactly one visible router `SKILL.md`,
+      private module instructions below `references/modules/`, complete
+      source-map coverage, declared payload ownership, and deterministic payload,
+      release-metadata, and source-map proof artifacts.
+- [ ] RED/GREEN: plan then apply the router packaging into a disposable
+      generated root without rewriting, publishing, installing, or cleaning the
+      canonical source tree. Test plan/apply receipt agreement, public-manifest
+      and icon preservation, and rejection of undeclared support-file ownership.
+- [ ] RED/GREEN: extend the clean-Codex harness to stage only the generated
+      routed root. Statically prove that the router is the sole initial visible
+      skill surface, then prove DAR-targeted bounded author/finalize/invoke
+      behavior through packages, receipts, and traces without claiming a private
+      module-load event.
 - [ ] GREEN: prove that the successor-only marketplace plus the minimal
-      DAR-targeted prompt produces the bounded package/finalization route and
-      preserves refusal boundaries. Treat generated package and receipt
-      validation as evidence; do not claim insight into model reasoning.
+      DAR-targeted prompt, using the generated routed root, produces the bounded
+      package/finalization route and preserves refusal boundaries. Treat
+      generated package and receipt validation as evidence; do not claim insight
+      into model reasoning.
 - [x] RED/GREEN: make the external command coverage-manifest-first. Add focused
       tests that load the versioned successor coverage manifest, derive its
       complete scenario set, reject a scenario-only or partial-manifest request,
@@ -84,7 +117,8 @@ plugin-acceptance framework.
       scenario-bound tool/continuation sequence needed to drive each supported
       fixture through the controller, not one generic text or tool response.
 - [ ] RED/GREEN: add and pass fixture-backed contract tests for two separately
-      launched clean Codex actors: author/finalize, then saved-package invoke.
+      launched clean Codex actors against the generated routed root:
+      author/finalize, then saved-package invoke.
       The second actor receives only the finalized package name and text request;
       it has a separate workspace and cannot select, register, recreate, or
       configure the package, access author state, or receive controller
@@ -103,21 +137,35 @@ plugin-acceptance framework.
       network call. `document-summary` and `council-request` remain mandatory
       regression cases.
 - [ ] RED/GREEN: add per-scenario redacted evidence tests and writer support.
-      Each record binds plugin/skill identities, marketplace digest,
-      scenario/prompt/harness versions, package/catalog/registration/preparation
-      linkage, terminal status, and dispatch count; it rejects prompt bodies,
-      material content, credentials, tool roots, and physical paths. Write one
-      record per unique scenario ID into a fresh evidence directory and a
-      versioned aggregate manifest that binds coverage/scenario-plan digests
-      plus every record digest and status; reject missing, duplicate, or unknown
-      records.
+      Each record binds canonical/generated plugin identities, generated-manifest
+      and marketplace digests, router/payload/source-map/release receipt digests,
+      scenario/prompt/harness/controller versions,
+      package/catalog/registration/preparation linkage, terminal status, and
+      dispatch count; it rejects prompt bodies, material content, credentials,
+      tool roots, and physical paths. Write one record per unique scenario ID
+      into a fresh evidence directory and a versioned aggregate manifest that
+      binds coverage/scenario-plan digests plus every record digest and status;
+      reject missing, duplicate, or unknown records.
 - [ ] RED/GREEN: add the separately authorized external clean-Codex acceptance
-      command that composes the manifest admission, deterministic controller,
-      two isolated actors, ordinary-runner assertions, and redacted evidence.
-      This command is the live-Codex successor-acceptance gate; ordinary tests
-      do not invoke it.
+      command that stages only the generated root and composes manifest
+      admission, deterministic controller, two isolated actors, ordinary-runner
+      assertions, and redacted evidence. This command is the live-Codex
+      successor-acceptance gate; ordinary tests do not invoke it.
+- [ ] RED/GREEN: preserve complete-manifest progress when an individual live
+      Codex actor fails or times out. Record its actual failure phase and allow
+      that terminal record through scenario validation; retain exact planned
+      terminal-phase matching for passing and expected-unavailable records.
+- [ ] Replay the complete manifest against the generated routed root and compare
+      it with the frozen direct-skill baseline. Use identical coverage/scenario-
+      plan digests, prompts, fixtures, controller, actor/Codex/model
+      configuration, and timeout; bind the frozen input digest; record redacted
+      aggregate actor durations and comparison provenance, excluding generation
+      and marketplace staging. Do not use the router result to authorize source
+      cleanup or plugin publication.
 - [ ] Record reviewed redacted successor evidence from one complete external
-      manifest replay. Do not mark acceptance until that review is approved.
+      generated-root manifest replay. Review aggregate completeness, public
+      interface parity, and router/payload/source-map/release proof receipts;
+      do not mark acceptance until that review is approved.
 - [ ] Update this record, `specs/README.md`, and the historical v1 acceptance
       wording only after the external successor run is reviewed and accepted.
 

@@ -5,7 +5,7 @@
 - Status: Transfer complete; successor clean-Codex acceptance pending
 - Owner: dynamic-agent-runner
 - Governing transfer plan: `../ai-environment-roschuma/work-items/plans/dar-plugin-skill-ownership-migration-plan.md`
-- Successor plugin: `.agents/plugins/agent-engineering`
+- Successor plugin: `plugins/agent-engineering`
 - Task breakdown: `tasks.md`
 
 ## Delivery Record
@@ -33,7 +33,7 @@ execution behavior.
 - Delivered plugin: `agent-engineering` `0.1.0`
 - Successor validation:
   - `poetry run python <plugin-creator>/scripts/validate_plugin.py
-    .agents/plugins/agent-engineering` — passed
+    plugins/agent-engineering` — passed
   - `poetry run pytest -q` — 1637 passed, 1 skipped, 7 deselected; seven
     existing unknown-mark warnings
   - `poetry run ruff check tests/test_agent_engineering_plugin.py
@@ -61,9 +61,10 @@ Each scenario is a full end-to-end chain:
 
 1. A clean Codex authoring process receives only a text request that explicitly
    targets DAR and the declared fixture inputs. Its temporary marketplace exposes
-   only `agent-engineering`, which supplies `agent-development` and its DAR
-   runtime profile; the prompt must not name the retired plugin or embed the
-   profile's CLI recipe. The harness may stage DAR's wheel in a test-scoped
+   only `agent-engineering`, whose only initial model-visible entry is the
+   `agent-development` router. DAR runtime guidance is private routed content;
+   the prompt must not name the retired plugin or embed the profile's CLI recipe.
+   The harness may stage DAR's wheel in a test-scoped
    environment and expose its `dar-package` console script on `PATH`, but that
    wheel, path, and installation mechanism are not model-visible inputs.
 2. A separate clean Codex invocation receives only the finalized saved package
@@ -113,11 +114,61 @@ state, credential, or tool roots. It may use a test-scoped clean Codex
 authentication source outside model-visible inputs, but live model calls remain
 outside ordinary unit tests.
 
-The acceptance record must bind the successor plugin and skill-bundle identities,
-marketplace manifest digest, scenario/prompt/harness versions, final package
-digest, staged catalog revision, registration/preparation linkage, terminal
-result, and dispatch count without persisting prompt bodies, material content,
-credentials, or physical paths.
+The successor acceptance surface is a generated native-routed plugin, not the
+canonical direct-skill source tree. The canonical plugin manifest, icon assets,
+and authored guidance remain source-owned inputs. Its generated tree exposes
+only a small `agent-development` router `SKILL.md`; general agent-development
+and DAR workflow-authoring guidance are private router modules. The router
+member source contains only router instructions. Every other canonical artifact
+is either named private-module content, a declared payload asset, or an explicit
+exclusion; templates, schemas, validation scripts, and examples may not remain
+under the visible router member. The generated `skills/` tree contains only the
+router `SKILL.md` and no support subtree.
+
+Routing changes delivery topology, not the public interface. The generated
+plugin retains the canonical public plugin identity (`agent-engineering`),
+version, author, description, complete interface metadata and branding-asset
+paths, marketplace selector, and the host-visible `agent-development` skill
+identifier and supported bounded DAR behavior. A concise router frontmatter may
+replace the direct skill body only when it is semantically equivalent for host
+selection. Generated source maps, payload receipts, and private-module layout
+are the only allowed interface differences.
+
+Before router-source restructuring, capture and freeze the complete direct-skill
+timing baseline input and its plugin-tree digest. Retain that input only as
+test-owned comparison collateral, never as a successor marketplace source. The
+timing comparison binds the frozen direct input digest as well as the generated
+root receipts.
+
+The packager must plan before applying into a disposable generated root. The
+plan and apply receipts must bind the router-authority and payload-asset
+declarations, generated manifest, complete source map, payload manifest, and
+release metadata. It must preserve the public manifest and branding assets, and
+must reject any undeclared support-file ownership rather than making source
+support files implicitly model-visible.
+
+The external clean-Codex acceptance command stages that generated root in its
+temporary marketplace. Static generated-tree and marketplace inspection proves
+that the router is the sole initial visible skill surface. A DAR-targeted request
+is proved only by its bounded package, receipt, and trace contract; acceptance
+does not infer a private-module load or model reasoning event. Every successor
+external replay uses the generated root. A direct-source run is permitted only
+as a separately labeled timing baseline.
+
+Timing comparison uses the same coverage and scenario-plan digests, prompts,
+fixtures, controller version, actor configuration, Codex/model configuration,
+and timeout for the direct baseline and generated-root replay. It records
+redacted aggregate actor durations and excludes generation and temporary
+marketplace staging. Generation, staging, and live-Codex replay are separate
+phases; a successful routed replay does not authorize source cleanup,
+publication, or installation.
+
+The acceptance record must bind the canonical and generated plugin identities,
+generated-manifest and marketplace digests, router-authority/payload/source-map/
+release-metadata receipt digests, scenario/prompt/harness/controller versions,
+final package digest, staged catalog revision, registration/preparation linkage,
+terminal result, dispatch count, and timing-comparison provenance without
+persisting prompt bodies, material content, credentials, or physical paths.
 
 One fresh evidence directory contains one redacted record per unique scenario
 ID plus a versioned aggregate manifest. The aggregate binds the coverage and
