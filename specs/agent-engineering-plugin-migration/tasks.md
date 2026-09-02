@@ -63,14 +63,14 @@ plugin-acceptance framework.
       its plugin-tree digest before router-source restructuring. Retain it only
       as test-owned comparison collateral, never as a successor marketplace
       source.
-- [ ] RED/GREEN: define the canonical router-packaging source layout. Keep the
+- [x] RED/GREEN: define the canonical router-packaging source layout. Keep the
       private `agent-engineering-direct` build-input manifest and icon collateral
       source-owned; make the `agent-development`
       router member instruction-only; move general agent-development and DAR
       workflow-authoring guidance into named private modules; and classify every
       remaining canonical artifact as a declared payload or explicit exclusion.
       Test that no support subtree is visible beneath the router member.
-- [ ] RED/GREEN: add a native-routed packager invocation and focused
+- [x] RED/GREEN: add a native-routed packager invocation and focused
       generated-tree contract tests. It must retain the canonical public plugin
       identity, version, author, description, interface metadata, branding paths,
       marketplace selector, and `agent-development` identifier; only internal
@@ -80,11 +80,11 @@ plugin-acceptance framework.
       release-metadata, and source-map proof artifacts. The source manifest is
       an internal `agent-engineering-direct` packager input; only the generated
       manifest is the public `agent-engineering` marketplace contract.
-- [ ] RED/GREEN: plan then apply the router packaging into a disposable
+- [x] RED/GREEN: plan then apply the router packaging into a disposable
       generated root without rewriting, publishing, installing, or cleaning the
       canonical source tree. Test plan/apply receipt agreement, public-manifest
       and icon preservation, and rejection of undeclared support-file ownership.
-- [ ] RED/GREEN: extend the clean-Codex harness to stage only the generated
+- [x] RED/GREEN: extend the clean-Codex harness to stage only the generated
       routed root. Statically prove that the router is the sole initial visible
       skill surface, then prove DAR-targeted bounded author/finalize/invoke
       behavior through packages, receipts, and traces without claiming a private
