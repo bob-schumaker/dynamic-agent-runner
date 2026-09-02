@@ -435,26 +435,34 @@ def validate_m44_evidence(
         evidence.scenario_id != scenario.scenario_id
         or evidence.scenario_contract_version != "m4.4-v1"
         or evidence.expected_status != scenario.expected_status
-        or evidence.terminal_phase != scenario.expected_terminal_phase
+        or (
+            evidence.observed_status != "harness_failure"
+            and evidence.terminal_phase != scenario.expected_terminal_phase
+        )
         or evidence.invocation_mode != scenario.invocation_mode
     ):
         raise M44ScenarioError("scenario evidence does not match the manifest")
     gates = _text_tuple(available_gates, "available_gates")
     fixtures = _text_tuple(available_host_fixtures, "available_host_fixtures")
-    if scenario.expected_status == "pass" and not set(scenario.required_gates).issubset(
-        gates
+    if (
+        evidence.observed_status != "harness_failure"
+        and scenario.expected_status == "pass"
+        and not set(scenario.required_gates).issubset(gates)
     ):
         raise M44ScenarioError("required gates are unavailable")
-    if scenario.expected_status == "pass" and not set(
-        scenario.required_host_fixtures
-    ).issubset(fixtures):
+    if (
+        evidence.observed_status != "harness_failure"
+        and scenario.expected_status == "pass"
+        and not set(scenario.required_host_fixtures).issubset(fixtures)
+    ):
         raise M44ScenarioError("required host fixtures are unavailable")
     if (
-        scenario.expected_status == "pass"
+        evidence.observed_status != "harness_failure"
+        and scenario.expected_status == "pass"
         and evidence.controller_fixture_digest is None
     ):
         raise M44ScenarioError("controller fixture evidence is unavailable")
-    if "G2" in scenario.required_gates:
+    if scenario.expected_status == "pass" and "G2" in scenario.required_gates:
         if (
             evidence.mcp_snapshot_id is None
             or evidence.mcp_binding_id is None

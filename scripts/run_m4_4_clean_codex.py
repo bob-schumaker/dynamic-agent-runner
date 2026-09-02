@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -497,6 +498,7 @@ def run_scenario(
         root = Path(temporary)
         author_workspace = root / "author-workspace"
         invocation_workspace = root / "invocation-workspace"
+        scenario_codex_home = root / "codex-home"
         package_root, state_root = (
             author_workspace / ".packages",
             author_workspace / ".state",
@@ -580,7 +582,7 @@ def run_scenario(
                 plugin_root=plugin_root, destination=root / "marketplace"
             )
             management_environment = _management_environment(
-                codex_home, author_workspace
+                _scenario_codex_home(codex_home, scenario_codex_home), author_workspace
             )
             installed = False
             try:
@@ -598,7 +600,7 @@ def run_scenario(
                     ),
                     author_workspace,
                     build_clean_codex_environment(
-                        codex_home=codex_home,
+                        codex_home=scenario_codex_home,
                         working_directory=author_workspace,
                         wheel=wheel,
                         state_root=state_root,
@@ -625,7 +627,7 @@ def run_scenario(
                         package_name,
                         workflow_id,
                         run_prompt,
-                        codex_home,
+                        scenario_codex_home,
                         invocation_workspace,
                         state_root,
                         invocation_dar_bin,
@@ -1103,6 +1105,15 @@ def _management_environment(codex_home: Path, workspace: Path) -> dict[str, str]
     }
 
 
+def _scenario_codex_home(source: Path, destination: Path) -> Path:
+    """Seed one scenario-local Codex profile with only test authentication."""
+
+    destination.mkdir(mode=0o700)
+    shutil.copy2(source / "auth.json", destination / "auth.json")
+    os.chmod(destination / "auth.json", 0o600)
+    return destination
+
+
 def _install_plugin(
     codex: str, marketplace: Path, environment: dict[str, str], timeout: int
 ) -> None:
@@ -1132,23 +1143,22 @@ def _remove_plugin(codex: str, environment: dict[str, str], timeout: int) -> Non
 def _run_codex(
     codex: str, prompt: str, workspace: Path, environment: dict[str, str], timeout: int
 ) -> subprocess.CompletedProcess[str]:
-    return _command(
-        [
-            codex,
-            "exec",
-            "--ephemeral",
-            "--ignore-rules",
-            "--skip-git-repo-check",
-            "--approve-for-me",
-            "--json",
-            "--cd",
-            str(workspace),
-            prompt,
-        ],
-        environment,
-        timeout,
-        check=False,
-    )
+    command = [
+        codex,
+        "exec",
+        "--ephemeral",
+        "--ignore-rules",
+        "--skip-git-repo-check",
+        "--approve-for-me",
+        "--json",
+        "--cd",
+        str(workspace),
+        prompt,
+    ]
+    try:
+        return _command(command, environment, timeout, check=False)
+    except HarnessError:
+        return subprocess.CompletedProcess(command, 124, "", "")
 
 
 def _command(
@@ -1199,7 +1209,6 @@ def _plugin_identity() -> str:
     value = json.loads(
         (
             Path(__file__).resolve().parents[1]
-            / ".agents"
             / "plugins"
             / "agent-engineering"
             / ".codex-plugin"

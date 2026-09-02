@@ -309,6 +309,83 @@ def test_scenario_checker_requires_its_declared_gate_and_fixture() -> None:
         )
 
 
+def test_capability_unavailable_g2_scenario_does_not_require_a_live_mcp_read() -> None:
+    scenario = M44Scenario.from_mapping(
+        _scenario(
+            expected_status="expected_capability_unavailable",
+            expected_terminal_phase="capability_preflight",
+            required_gates=["G2", "G3"],
+        )
+    )
+    evidence = AuthorThenRunEvidence(
+        scenario_id="document-summary-v1",
+        scenario_contract_version="m4.4-v1",
+        checker_version="m4.4-checker-v1",
+        expected_status="expected_capability_unavailable",
+        observed_status="expected_capability_unavailable",
+        terminal_phase="capability_preflight",
+        invocation_mode="mcp_prompt_only",
+        plugin_identity="agent-engineering@local-test",
+        skill_identity="agent-development@local-test",
+        wheel_digest="a" * 64,
+        harness_policy_digest="f" * 64,
+        executable_identity="codex@0.149.1",
+        module_identity="dynamic-agent-runner@0.2.1",
+        authoring_material_set_id="v1.material-set.signature",
+        authoring_output_id=None,
+        authoring_receipt_digest=None,
+        final_package_digest=None,
+        catalog_revision_digest=None,
+        registration_digest=None,
+        prepared_input_registration_digest=None,
+        action_trace_digest=None,
+        dispatch_count=0,
+        reviewer_id=None,
+        reviewer_decision="pending",
+        controller_fixture_digest="1" * 64,
+    )
+
+    validate_m44_evidence(
+        scenario,
+        evidence,
+        available_gates=("G3",),
+        available_host_fixtures=("local-model-profile",),
+    )
+
+
+def test_scenario_checker_accepts_the_actual_phase_of_a_harness_failure() -> None:
+    scenario = M44Scenario.from_mapping(_scenario())
+    evidence = AuthorThenRunEvidence(
+        scenario_id="document-summary-v1",
+        scenario_contract_version="m4.4-v1",
+        checker_version="m4.4-checker-v1",
+        expected_status="pass",
+        observed_status="harness_failure",
+        terminal_phase="authoring_validation",
+        invocation_mode="mcp_prompt_only",
+        plugin_identity="agent-engineering@test",
+        skill_identity="agent-development@test",
+        wheel_digest="a" * 64,
+        harness_policy_digest="b" * 64,
+        executable_identity="codex@test",
+        module_identity="dynamic-agent-runner@test",
+        authoring_material_set_id="material",
+        authoring_output_id=None,
+        authoring_receipt_digest=None,
+        final_package_digest=None,
+        catalog_revision_digest=None,
+        registration_digest=None,
+        prepared_input_registration_digest=None,
+        action_trace_digest=None,
+        dispatch_count=0,
+        reviewer_id=None,
+        reviewer_decision="pending",
+    )
+    validate_m44_evidence(
+        scenario, evidence, available_gates=(), available_host_fixtures=()
+    )
+
+
 @pytest.mark.parametrize(
     "overrides",
     (

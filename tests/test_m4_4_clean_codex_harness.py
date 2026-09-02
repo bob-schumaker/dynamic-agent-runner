@@ -104,6 +104,43 @@ def test_clean_codex_environment_exposes_successor_path_not_legacy_state(
     }
 
 
+def test_scenario_codex_home_copies_only_test_authentication(tmp_path: Path) -> None:
+    module = _harness_module()
+    source = tmp_path / "source"
+    destination = tmp_path / "destination"
+    source.mkdir()
+    (source / "auth.json").write_text("test-auth", encoding="utf-8")
+    (source / "config.toml").write_text("ignored", encoding="utf-8")
+
+    module._scenario_codex_home(source, destination)
+
+    assert (destination / "auth.json").read_text(encoding="utf-8") == "test-auth"
+    assert not (destination / "config.toml").exists()
+
+
+def test_actor_timeout_becomes_a_terminal_failure_record(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    module = _harness_module()
+
+    def timed_out(*_args: object, **_kwargs: object) -> object:
+        raise module.HarnessError("Codex command could not be run")
+
+    monkeypatch.setattr(module, "_command", timed_out)
+
+    result = module._run_codex(
+        "codex",
+        "author the workflow",
+        tmp_path,
+        {"PATH": "/usr/bin:/bin"},
+        300,
+    )
+
+    assert result.returncode == 124
+    assert result.stdout == ""
+    assert result.stderr == ""
+
+
 def test_stage_dar_package_rejects_non_absolute_state_root(
     tmp_path: Path,
 ) -> None:
