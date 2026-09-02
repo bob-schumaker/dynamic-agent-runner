@@ -16,7 +16,7 @@
     "longDescription": "Moves the complete agent-engineering skill cohort into DAR, with a bounded DAR runtime profile for authored workflows.",
     "shortDescription": "Design agents and implement DAR workflows."
   },
-  "name": "agent-engineering",
+  "name": "agent-engineering-direct",
   "skills": "./skills/",
   "version": "0.1.0"
 }

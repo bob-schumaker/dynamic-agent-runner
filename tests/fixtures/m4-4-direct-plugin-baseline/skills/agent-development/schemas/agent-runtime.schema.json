@@ -1,0 +1,786 @@
+{
+  "$id": "https://example.invalid/agent-runtime.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "action_policy": false,
+    "approval_channels": false,
+    "completion_contract": false,
+    "context_pipeline": false,
+    "description": {
+      "type": "string"
+    },
+    "edges": {
+      "items": {
+        "properties": {
+          "edge_kind": {
+            "enum": [
+              "sequential",
+              "branch",
+              "loopback",
+              "parallel_fanout",
+              "parallel_join",
+              "event",
+              "capability"
+            ]
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "edge_kind"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "entrypoint": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "event_contracts": false,
+    "evidence_model": false,
+    "execution_policy": false,
+    "experimental_capabilities": false,
+    "extensions": {
+      "additionalProperties": {
+        "properties": {
+          "config": {
+            "type": "object"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "required",
+          "config"
+        ],
+        "type": "object"
+      },
+      "type": "object"
+    },
+    "format_version": {
+      "const": 1
+    },
+    "goals": false,
+    "instruction_authority": false,
+    "mermaid_diagram": {
+      "type": "string"
+    },
+    "metadata": {
+      "properties": {
+        "approval_interactions": {
+          "items": {
+            "properties": {
+              "approval_message": {
+                "type": "string"
+              },
+              "approval_sensitivity": {
+                "enum": [
+                  "low_risk_read",
+                  "medium_risk_write",
+                  "high_risk_write",
+                  "destructive_action",
+                  "human_review_required"
+                ]
+              },
+              "interruptible": {
+                "type": "boolean"
+              },
+              "resumability": {
+                "enum": [
+                  "expected",
+                  "optional",
+                  "not_supported",
+                  "unknown"
+                ]
+              },
+              "target": {
+                "properties": {
+                  "tool_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "tool_id"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "target"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "delegated_agents": {
+          "items": {
+            "properties": {
+              "delegation_mode": {
+                "enum": [
+                  "bounded_subtask"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "result_contract": {
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "type": "object"
+              },
+              "returns_to": {
+                "type": "string"
+              },
+              "tool_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "tool_id",
+              "delegation_mode",
+              "returns_to"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "handoffs": {
+          "items": {
+            "properties": {
+              "carries": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "from_role": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "ownership_transfer"
+                ]
+              },
+              "to_role": {
+                "type": "string"
+              },
+              "trigger": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "from_role",
+              "to_role"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "modes": {
+          "type": "array"
+        },
+        "participant_groups": {
+          "type": "array"
+        },
+        "patterns_present": {
+          "items": {
+            "enum": [
+              "prompt_chaining",
+              "routing",
+              "parallelization",
+              "scatter_gather",
+              "orchestration",
+              "react_loop",
+              "rag",
+              "embedding_retrieval",
+              "graph_retrieval",
+              "graphrag",
+              "reflect_refine",
+              "memory_augmented",
+              "multi_agent",
+              "event_driven",
+              "feedback_control"
+            ]
+          },
+          "type": "array"
+        },
+        "phases": {
+          "type": "array"
+        },
+        "roles": {
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "modes": false,
+    "mutation_safety": false,
+    "name": {
+      "type": "string"
+    },
+    "network_policy": false,
+    "nodes": {
+      "items": {
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "model_requirements"
+              ]
+            },
+            "then": {
+              "properties": {
+                "kind": {
+                  "const": "llm_step"
+                }
+              }
+            }
+          }
+        ],
+        "properties": {
+          "available_tools": {
+            "type": "array"
+          },
+          "decision_subtype": {
+            "enum": [
+              "tool_response_compare",
+              "simple_check",
+              "llm_route"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "llm_step",
+              "tool_use_step",
+              "decision_step"
+            ]
+          },
+          "model_requirements": {
+            "properties": {
+              "context_requirements": {
+                "properties": {
+                  "context_window": {
+                    "anyOf": [
+                      {
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      {
+                        "const": "unknown"
+                      }
+                    ]
+                  },
+                  "expected_input_size": {
+                    "enum": [
+                      "small",
+                      "medium",
+                      "large",
+                      "very_large",
+                      "unknown"
+                    ]
+                  },
+                  "needs_retrieved_context": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "const": "conditional"
+                      }
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "fallback_policy": {
+                "properties": {
+                  "if_unavailable": {
+                    "enum": [
+                      "use_lower_capability",
+                      "use_higher_capability",
+                      "escalate"
+                    ]
+                  },
+                  "minimum_acceptable_level": {
+                    "enum": [
+                      "minimal",
+                      "low",
+                      "medium",
+                      "high",
+                      "extended"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "operational_preferences": {
+                "properties": {
+                  "cost_sensitivity": {
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "data_boundary": {
+                    "enum": [
+                      "local_only",
+                      "private_runtime",
+                      "provider_allowed",
+                      "unknown"
+                    ]
+                  },
+                  "determinism": {
+                    "enum": [
+                      "preferred",
+                      "balanced",
+                      "creative"
+                    ]
+                  },
+                  "latency_sensitivity": {
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "output_requirements": {
+                "properties": {
+                  "evidence_citations": {
+                    "enum": [
+                      "required",
+                      "preferred",
+                      "not_needed"
+                    ]
+                  },
+                  "format": {
+                    "enum": [
+                      "free_text",
+                      "structured_json",
+                      "schema_ref",
+                      "tool_call"
+                    ]
+                  },
+                  "schema_ref": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "reasoning_profile": {
+                "properties": {
+                  "level": {
+                    "enum": [
+                      "minimal",
+                      "low",
+                      "medium",
+                      "high",
+                      "extended"
+                    ]
+                  },
+                  "task_subtype": {
+                    "enum": [
+                      "critique",
+                      "synthesis",
+                      "tool_selection",
+                      "route_selection"
+                    ]
+                  },
+                  "task_type": {
+                    "enum": [
+                      "classification",
+                      "extraction",
+                      "generation",
+                      "planning"
+                    ]
+                  },
+                  "uncertainty_handling": {
+                    "enum": [
+                      "answer_with_caveats",
+                      "ask_clarification",
+                      "escalate"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "required_capabilities": {
+                "items": {
+                  "enum": [
+                    "supports_structured",
+                    "supports_functions",
+                    "embeddings",
+                    "supports_vision",
+                    "input_modalities",
+                    "supports_json_mode",
+                    "code_reasoning",
+                    "math_reasoning"
+                  ]
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "prompt": {
+            "type": "object"
+          },
+          "skill_bindings": {
+            "type": "array"
+          },
+          "tool_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "label"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "output_contracts": {
+      "items": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "package_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "package_type": {
+      "const": "dynamic_agent_design"
+    },
+    "packaging": {
+      "properties": {
+        "mode": {
+          "enum": [
+            "hybrid_bundle",
+            "inline_only",
+            "bundled_only"
+          ]
+        },
+        "portability_notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "skill_bundle_dir": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "type": "object"
+    },
+    "participant_groups": false,
+    "patterns_present": false,
+    "permission_profile": false,
+    "phases": false,
+    "result_surfaces": false,
+    "roles": false,
+    "runtime": {
+      "properties": {
+        "execution_policy": {
+          "properties": {
+            "exit_strategy": {
+              "properties": {
+                "ambiguous_completion": {
+                  "type": "string"
+                },
+                "on_exhaustion": {
+                  "enum": [
+                    "finalize_with_caveats",
+                    "escalate",
+                    "fail_closed",
+                    "return_partial"
+                  ]
+                },
+                "terminal_conditions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "type": "array"
+                }
+              },
+              "type": "object"
+            },
+            "max_iterations": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "const": "unknown"
+                }
+              ]
+            },
+            "max_steps": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "const": "unknown"
+                }
+              ]
+            },
+            "prompt_cache": {
+              "properties": {
+                "cache_key_hint": {
+                  "enum": [
+                    "package_id",
+                    "package_id_and_version",
+                    "none",
+                    "runtime_default"
+                  ]
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "min_prefix_tokens": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "prefix_parts": {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "system",
+                          "developer",
+                          "skill_instructions",
+                          "tool_schemas",
+                          "role_definitions",
+                          "output_contracts",
+                          "workflow_structure"
+                        ]
+                      },
+                      {
+                        "pattern": "^x-[A-Za-z0-9_-]+$",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                },
+                "provider_hints": {
+                  "type": "object"
+                },
+                "strategy": {
+                  "enum": [
+                    "stable_prefix"
+                  ]
+                },
+                "variable_parts": {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "user_prompt",
+                          "run_state",
+                          "retrieved_context",
+                          "tool_results"
+                        ]
+                      },
+                      {
+                        "pattern": "^x-[A-Za-z0-9_-]+$",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                }
+              },
+              "type": "object"
+            },
+            "react_loop": {
+              "properties": {
+                "escalation_conditions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "observation_policy": {
+                  "enum": [
+                    "raw_runtime_only",
+                    "summarized_for_model",
+                    "redacted_summary",
+                    "unknown"
+                  ]
+                },
+                "termination_conditions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "type": "object"
+            },
+            "timeout": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "state": {
+          "properties": {
+            "artifacts": {
+              "type": "array"
+            },
+            "mutable_fields": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "runtime_surface": false,
+    "sandbox_enforcement": false,
+    "skills": {
+      "items": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "packaging_mode": {
+            "enum": [
+              "bundled_copy",
+              "distilled",
+              "referenced_only",
+              "inline_excerpt"
+            ]
+          },
+          "source_type": {
+            "enum": [
+              "repo_skill",
+              "generated_skill",
+              "external_skill",
+              "distilled_reference"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "source_type",
+          "packaging_mode"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "state": false,
+    "tool_exposure": false,
+    "tools": {
+      "items": {
+        "properties": {
+          "description_for_llm": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "side_effect": {
+            "enum": [
+              "none",
+              "read",
+              "write",
+              "mutate",
+              "destructive"
+            ]
+          },
+          "tool_type": {
+            "enum": [
+              "file_read",
+              "file_write",
+              "web_search",
+              "web_fetch",
+              "shell_command",
+              "code_execution",
+              "structured_data_query",
+              "external_api",
+              "agent_tool",
+              "human_approval"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "description_for_llm",
+          "side_effect"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "trace_bundle": false,
+    "workspace_boundary": false
+  },
+  "required": [
+    "format_version",
+    "package_type",
+    "package_id",
+    "entrypoint",
+    "packaging",
+    "nodes",
+    "edges"
+  ],
+  "title": "Agent Runtime Manifest",
+  "type": "object"
+}

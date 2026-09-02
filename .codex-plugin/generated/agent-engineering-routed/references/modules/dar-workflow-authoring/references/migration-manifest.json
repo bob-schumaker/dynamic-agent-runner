@@ -1,0 +1,31 @@
+{
+  "assets": {
+    "agent-engineering.png": {
+      "sha256": "f439620de9548f892fd4cb0e9ff22a9a854d2edbc1aa2c8b0303ea458e6fabc3",
+      "source": "runtimes/codex/assets/cohort-icons/agent-engineering.png"
+    }
+  },
+  "format_version": 1,
+  "legacy": {
+    "disposition": "retired-after-successor-validation",
+    "plugin": "dar-authoring",
+    "revision": "1212667975af529a57b19604af13ed57ec0a0c9a"
+  },
+  "source": {
+    "cohort": [
+      "agent-action-review",
+      "agent-development",
+      "agent-environment-health",
+      "agent-evaluation",
+      "agent-tool-contract-design"
+    ],
+    "repository": "../ai-environment-roschuma",
+    "revision": "6d43f44568dd82b778668f9392148083283d5676"
+  },
+  "successor": {
+    "dar_runtime_profile": "references/dar-runtime-profile.md",
+    "plugin": "agent-engineering",
+    "version": "0.1.0",
+    "visible_skill": "agent-development"
+  }
+}

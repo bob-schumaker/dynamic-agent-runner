@@ -31,4 +31,6 @@ repos:
   rev: v0.1.62
   hooks:
     - id: rumdl
+      exclude: ^\.codex-plugin/generated/
     - id: rumdl-fmt
+      exclude: ^\.codex-plugin/generated/

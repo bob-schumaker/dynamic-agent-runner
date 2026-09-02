@@ -56,6 +56,27 @@ class M44ExternalScenarioPlan:
     entries: tuple[M44ExternalScenarioPlanEntry, ...]
 
 
+def load_m44_original_scenario_ids(source: Path) -> tuple[str, ...]:
+    """Load the immutable original M4.4 scenario admission set."""
+
+    if not isinstance(source, Path) or source.suffix != ".json":
+        raise M44ScenarioError("original scenario IDs are invalid")
+    try:
+        value: Any = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise M44ScenarioError("original scenario IDs are invalid") from error
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"format_version", "scenario_ids"}
+        or value["format_version"] != "m4.4-original-scenario-ids-v1"
+    ):
+        raise M44ScenarioError("original scenario IDs are invalid")
+    scenario_ids = _text_list(value["scenario_ids"], "original scenario IDs")
+    if len(scenario_ids) != 13 or len(set(scenario_ids)) != len(scenario_ids):
+        raise M44ScenarioError("original scenario IDs are invalid")
+    return scenario_ids
+
+
 @dataclass(frozen=True)
 class M44Scenario:
     """The checker-relevant contract for one author-then-run case."""
@@ -217,6 +238,36 @@ def validate_m44_external_scenario_plan(
         scenario = scenarios[entry.scenario_id]
         if set(entry.fixture_ids) != set(scenario.required_host_fixtures):
             raise M44ScenarioError("external scenario plan fixtures are invalid")
+
+
+def validate_m44_original_scenario_admission(
+    original_scenario_ids: tuple[str, ...],
+    *,
+    plan: M44ExternalScenarioPlan,
+    coverage: M44Coverage,
+    scenario_roots: tuple[Path, ...],
+) -> None:
+    """Require every original M4.4 scenario to remain in the complete replay."""
+
+    if (
+        not isinstance(original_scenario_ids, tuple)
+        or len(original_scenario_ids) != 13
+        or any(not isinstance(item, str) or not item for item in original_scenario_ids)
+        or len(set(original_scenario_ids)) != len(original_scenario_ids)
+        or not isinstance(plan, M44ExternalScenarioPlan)
+        or not isinstance(coverage, M44Coverage)
+    ):
+        raise M44ScenarioError("original scenario admission is invalid")
+    original_ids = set(original_scenario_ids)
+    scenario_ids = set(_load_scenario_corpus(scenario_roots))
+    covered_ids = {entry.scenario_id for entry in coverage.entries}
+    planned_ids = {entry.scenario_id for entry in plan.entries}
+    if not (
+        original_ids.issubset(scenario_ids)
+        and original_ids.issubset(covered_ids)
+        and original_ids.issubset(planned_ids)
+    ):
+        raise M44ScenarioError("original scenario admission is invalid")
 
 
 def validate_m44_coverage(

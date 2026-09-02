@@ -114,7 +114,12 @@ def _base_environment(
     }
 
 
-def create_marketplace(*, plugin_root: Path, destination: Path) -> Path:
+def create_marketplace(
+    *,
+    plugin_root: Path,
+    destination: Path,
+    plugin_surface: str = "generated-root",
+) -> Path:
     """Copy one plugin into an isolated marketplace and return its manifest."""
 
     _absolute_not_symlink(plugin_root, "plugin root")
@@ -128,12 +133,27 @@ def create_marketplace(*, plugin_root: Path, destination: Path) -> Path:
         raise M44CleanCodexError("marketplace destination is unavailable")
     if any(path.is_symlink() for path in plugin_root.rglob("*")):
         raise M44CleanCodexError("plugin root contains a symbolic link")
-    _validate_successor_plugin_surface(plugin_root)
-    if not (
-        (plugin_root / "skills" / "agent-development" / "SKILL.md").is_file()
-        and (plugin_root / "references" / "dar-runtime-profile.md").is_file()
-    ):
-        raise M44CleanCodexError("successor plugin surface is invalid")
+    if plugin_surface == "generated-root":
+        _validate_successor_plugin_surface(plugin_root)
+        if not (plugin_root / "skills" / "agent-development" / "SKILL.md").is_file():
+            raise M44CleanCodexError("successor plugin surface is invalid")
+        if list((plugin_root / "skills").glob("*/SKILL.md")) != [
+            plugin_root / "skills" / "agent-development" / "SKILL.md"
+        ]:
+            raise M44CleanCodexError("successor plugin surface is invalid")
+        if not (
+            plugin_root
+            / "references"
+            / "modules"
+            / "dar-workflow-authoring"
+            / "references"
+            / "dar-runtime-profile.md"
+        ).is_file():
+            raise M44CleanCodexError("successor plugin surface is invalid")
+    elif plugin_surface == "direct-baseline":
+        _validate_direct_baseline_plugin_surface(plugin_root)
+    else:
+        raise M44CleanCodexError("plugin surface is invalid")
     plugin_destination = destination / "plugins" / "agent-engineering"
     shutil.copytree(plugin_root, plugin_destination)
     manifest = destination / ".agents" / "plugins" / "marketplace.json"
@@ -182,6 +202,25 @@ def _validate_successor_plugin_surface(plugin_root: Path) -> None:
             raise M44CleanCodexError("plugin legacy surface is invalid")
         if path.name in {".mcp.json", "mcp.json", "session-broker", "dar-mcp"}:
             raise M44CleanCodexError("plugin control-plane surface is invalid")
+
+
+def _validate_direct_baseline_plugin_surface(plugin_root: Path) -> None:
+    """Allow the frozen direct tree only for a separately labeled timing run."""
+
+    try:
+        manifest = json.loads(
+            (plugin_root / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise M44CleanCodexError("direct baseline plugin surface is invalid") from error
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("name") != "agent-engineering"
+        or _contains_control_plane_key(manifest)
+        or not (plugin_root / "skills" / "agent-development" / "SKILL.md").is_file()
+        or not (plugin_root / "references" / "dar-runtime-profile.md").is_file()
+    ):
+        raise M44CleanCodexError("direct baseline plugin surface is invalid")
 
 
 def _contains_control_plane_key(value: object) -> bool:

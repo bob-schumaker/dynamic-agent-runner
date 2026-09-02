@@ -12,8 +12,10 @@ from m4_4_scenarios import (
     M44Scenario,
     M44ScenarioError,
     load_m44_external_scenario_plan,
+    load_m44_original_scenario_ids,
     load_m44_coverage,
     load_m44_scenario,
+    validate_m44_original_scenario_admission,
     validate_m44_external_scenario_plan,
     validate_m44_coverage,
     validate_m44_evidence,
@@ -208,6 +210,36 @@ def test_checked_in_external_scenario_plan_covers_the_complete_successor_manifes
             root / "fixtures" / "m4-4-successor",
         ),
     )
+
+
+def test_original_13_scenario_ids_are_required_by_the_external_replay() -> None:
+    root = Path(__file__).resolve().parent
+    original_ids = load_m44_original_scenario_ids(
+        root / "fixtures" / "m4-4-original-scenario-ids.json"
+    )
+    plan = load_m44_external_scenario_plan(
+        root / "fixtures" / "m4-4-external-scenario-plan.json"
+    )
+    coverage = load_m44_coverage(root / "fixtures" / "m4-4-successor-coverage.json")
+    scenario_roots = (
+        root / "fixtures" / "dar-authoring" / "m4-4",
+        root / "fixtures" / "m4-4-successor",
+    )
+
+    validate_m44_original_scenario_admission(
+        original_ids,
+        plan=plan,
+        coverage=coverage,
+        scenario_roots=scenario_roots,
+    )
+
+    with pytest.raises(M44ScenarioError, match="original scenario admission"):
+        validate_m44_original_scenario_admission(
+            original_ids,
+            plan=replace(plan, entries=plan.entries[1:]),
+            coverage=coverage,
+            scenario_roots=scenario_roots,
+        )
 
 
 @pytest.mark.parametrize(

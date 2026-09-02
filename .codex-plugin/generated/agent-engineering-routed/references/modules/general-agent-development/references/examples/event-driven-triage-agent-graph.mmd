@@ -1,0 +1,12 @@
+graph TD
+  normalize_event["Normalize event"]
+  enrich_event["Enrich event"]
+  classify_event["Classify event"]
+  notify_owner["Notify owner"]
+  create_audit_summary["Create audit summary"]
+
+  normalize_event -->|event: service_signal_received| enrich_event
+  enrich_event -->|service_context_available| classify_event
+  classify_event -->|notify| notify_owner
+  classify_event -->|ignore_or_escalate| create_audit_summary
+  notify_owner -->|event: owner_notification_ready| create_audit_summary

@@ -1,0 +1,22 @@
+flowchart TD
+    subgraph request_analysis[Request analysis]
+        analyze_request["LLM: Analyze request"]
+    end
+
+    subgraph evidence_gathering[Evidence gathering]
+        gather_repo_context["Tool Use: Gather repository context"]
+    end
+
+    subgraph routing[Routing decision]
+        choose_next_step{"Decision: Choose next step"}
+        draft_design["LLM: Draft design"]
+        ask_clarification["LLM: Ask clarification"]
+    end
+
+    search_repo[("Tool: Search repository")]
+
+    analyze_request -. "can call" .-> search_repo
+    analyze_request -->|request_summary_available| gather_repo_context
+    gather_repo_context -->|repo_context_available| choose_next_step
+    choose_next_step -->|proceed| draft_design
+    choose_next_step -->|clarify| ask_clarification

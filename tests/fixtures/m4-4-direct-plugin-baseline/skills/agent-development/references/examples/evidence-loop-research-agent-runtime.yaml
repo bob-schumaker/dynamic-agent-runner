@@ -1,0 +1,473 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: evidence-loop-research-agent
+name: Evidence Loop Research Agent
+entrypoint: gather_initial_evidence
+mermaid_diagram: evidence-loop-research-agent-graph.mmd
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+runtime:
+  execution_policy:
+    autonomy_level: supervised_agent
+    allowed_execution_modes:
+      - sequential_fallback
+    external_backend_allowed: false
+    max_iterations: 8
+    max_steps: 12
+    timeout: unknown
+    exit_strategy:
+      terminal_conditions:
+        - evidence sufficiency gate passes
+        - retrieval budget exhausted
+        - max_iterations reached
+        - max_steps reached
+        - escalation required for missing or unsafe evidence
+      on_exhaustion: finalize_with_caveats
+      ambiguous_completion: continue_until_budget_or_escalate
+    approval_required_for:
+      - live write or mutation
+      - retrieval beyond defined source budget
+    forbidden_actions:
+      - answer from model memory alone when grounded evidence is required
+      - store secrets in prompts or logs
+  state:
+    artifacts:
+      - id: user_question
+        description: Original research question
+        source: user
+      - id: initial_answer
+        description: Cheapest adequate first-pass answer
+        source: tool
+      - id: evidence_bundle
+        description: Aggregated retrieved evidence used for evaluation and synthesis
+        source: runtime
+      - id: judgment
+        description: Structured evaluator output with stop or continue guidance
+        source: llm
+      - id: targeted_queries
+        description: Follow-up retrieval queries derived from missing information
+        source: llm
+      - id: final_report
+        description: Final grounded synthesis output
+        source: llm
+    mutable_fields:
+      - evidence_bundle
+      - judgment
+      - targeted_queries
+  metadata:
+    patterns_present:
+      - evidence_loop
+      - routing
+      - callable_specialist
+    participant_groups:
+      - id: specialists
+        label: Callable specialists
+        roles:
+          - evaluator
+          - synthesizer
+    phases:
+      - id: first_pass
+        label: Initial evidence pass
+        phase_kind: preparation
+        repeatable: false
+        enabled_when: always
+      - id: sufficiency_gate
+        label: Sufficiency gate
+        phase_kind: decision_gate
+        repeatable: true
+        enabled_when: evidence_bundle_available
+      - id: targeted_retrieval
+        label: Targeted retrieval
+        phase_kind: preparation
+        repeatable: true
+        enabled_when: missing_information_available
+      - id: final_synthesis
+        label: Final synthesis
+        phase_kind: aggregation
+        repeatable: false
+        enabled_when: evidence_cleared_or_budget_spent
+    roles:
+      - id: orchestrator
+        actor: orchestrator
+        description: Controls evidence collection and decides when to stop.
+      - id: evaluator
+        actor: callable_specialist
+        description: Returns a structured sufficiency judgment for the current evidence.
+      - id: synthesizer
+        actor: callable_specialist
+        description: Produces the final grounded report from approved evidence.
+    handoffs:
+      - id: evaluator_to_synthesizer
+        kind: ownership_transfer
+        from_role: evaluator
+        to_role: synthesizer
+        trigger: evidence cleared or retrieval budget exhausted
+        carries:
+          - evidence_bundle
+          - judgment
+    runtime_surface:
+      type: stateful_session_runtime
+      owner: host_runtime
+    workspace_boundary:
+      type: occasional_tool_execution
+      snapshot_strategy: none
+    completion_contract:
+      mechanism: final_structured_report
+      ambiguous_completion: continue_until_budget_or_escalate
+    result_surfaces:
+      final_output: true
+      continuation_state: true
+      audit_records: true
+    permission_profile:
+      filesystem: none
+      network: read
+      process: none
+    tool_exposure:
+      strategy: deferred_search_mediated
+    context_pipeline:
+      model_visible_inputs: normalized evidence excerpts, judgment summaries, query history
+      runtime_only: raw payloads, oversized scrape content, trace internals
+    evidence_model:
+      model_visible: normalized excerpts with provenance and truncation markers
+      runtime_only: full backend payloads
+    trace_bundle:
+      payload_capture: redacted
+      layering:
+        - workflow_trace
+        - orchestrator_decision_checkpoints
+        - callable_specialist_spans
+        - external_tool_spans
+    goals:
+      - id: answer_question_with_grounded_evidence
+        terminal_statuses:
+          - sufficient
+          - budget_exhausted
+          - escalated
+extensions: {}
+tools:
+  - id: answer_question
+    label: Quick answer
+    tool_type: web_fetch
+    description_for_llm: |
+      Get the cheapest adequate first-pass answer before deeper retrieval.
+    adapter: runtime.answer_query
+    input_schema:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+    output_schema:
+      type: object
+      properties:
+        answer:
+          type: string
+    side_effect: read
+    approval_required: false
+    timeout: runtime_default
+    retry_policy: bounded
+    failure_behavior: fallback
+  - id: search_sources
+    label: Search sources
+    tool_type: web_search
+    description_for_llm: |
+      Search for additional sources when the evaluator identifies missing information.
+    adapter: runtime.search_web
+    input_schema:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+    output_schema:
+      type: object
+      properties:
+        results:
+          type: array
+    side_effect: read
+    approval_required: false
+    timeout: runtime_default
+    retry_policy: bounded
+    failure_behavior: fallback
+  - id: read_source
+    label: Read source
+    tool_type: web_fetch
+    description_for_llm: |
+      Retrieve detailed content for a selected source URL or document.
+    adapter: runtime.scrape_or_read_source
+    input_schema:
+      type: object
+      required:
+        - source_id
+      properties:
+        source_id:
+          type: string
+    output_schema:
+      type: object
+      properties:
+        excerpt:
+          type: string
+        provenance:
+          type: string
+    side_effect: read
+    approval_required: false
+    timeout: runtime_default
+    retry_policy: bounded
+    failure_behavior: fallback
+nodes:
+  - id: gather_initial_evidence
+    kind: tool_use_step
+    label: Gather initial evidence
+    actor: orchestrator
+    phase: first_pass
+    tool_id: answer_question
+    inputs_from:
+      - user_question
+    outputs:
+      - initial_answer
+      - evidence_bundle
+  - id: evaluate_evidence
+    kind: llm_step
+    label: Evaluate evidence
+    actor: evaluator
+    role: evaluator
+    phase: sufficiency_gate
+    model_requirements:
+      required_capabilities:
+        - supports_structured
+        - supports_json_mode
+      reasoning_profile:
+        level: medium
+        task_type: classification
+        task_subtype: critique
+        uncertainty_handling: answer_with_caveats
+      context_requirements:
+        expected_input_size: large
+        context_window: 32000
+        needs_retrieved_context: true
+      output_requirements:
+        format: structured_json
+        evidence_citations: preferred
+      operational_preferences:
+        latency_sensitivity: medium
+        cost_sensitivity: medium
+        determinism: preferred
+        data_boundary: provider_allowed
+      fallback_policy:
+        if_unavailable: escalate
+        minimum_acceptable_level: medium
+    prompt:
+      system: |
+        Judge whether the current evidence is sufficient to answer the question.
+        Return only structured output.
+      developer: |
+        Prefer concrete missing-information items over vague critique.
+      user_template: |
+        Question: {user_question}
+        Evidence bundle: {evidence_bundle}
+    input_vars:
+      - user_question
+      - evidence_bundle
+    output_schema:
+      type: object
+      required:
+        - is_good_enough
+        - score
+        - reason
+        - missing_information
+      properties:
+        is_good_enough:
+          type: boolean
+        score:
+          type: number
+        reason:
+          type: string
+        missing_information:
+          type: array
+          items:
+            type: string
+    outputs:
+      - judgment
+  - id: route_after_judgment
+    kind: decision_step
+    decision_subtype: llm_route
+    label: Route after judgment
+    actor: orchestrator
+    phase: sufficiency_gate
+    prompt:
+      system: |
+        Choose the next path from the allowed paths using the current judgment and
+        remaining retrieval budget.
+      developer: |
+        Prefer deeper retrieval only when the missing information is still
+        material and the remaining budget supports another pass.
+      user_template: |
+        Question: {user_question}
+        Judgment: {judgment}
+        Current evidence bundle: {evidence_bundle}
+      input_vars:
+        - user_question
+        - judgment
+        - evidence_bundle
+    decision_contract:
+      compares:
+        - judgment
+      allowed_paths:
+        - id: sufficient
+          condition: judgment.is_good_enough is true
+          target: synthesize_report
+        - id: deepen_research
+          condition: critical missing information remains and retrieval budget remains
+          target: derive_targeted_queries
+        - id: stop_on_budget
+          condition: retrieval budget exhausted
+          target: synthesize_report
+      default_path: deepen_research
+    inputs_from:
+      - judgment
+  - id: derive_targeted_queries
+    kind: llm_step
+    label: Derive targeted queries
+    actor: orchestrator
+    phase: targeted_retrieval
+    model_requirements:
+      required_capabilities:
+        - supports_structured
+        - supports_json_mode
+      reasoning_profile:
+        level: low
+        task_type: planning
+        task_subtype: synthesis
+        uncertainty_handling: ask_clarification
+      context_requirements:
+        expected_input_size: medium
+        context_window: 16000
+        needs_retrieved_context: true
+      output_requirements:
+        format: structured_json
+        evidence_citations: not_needed
+      operational_preferences:
+        latency_sensitivity: medium
+        cost_sensitivity: medium
+        determinism: preferred
+        data_boundary: provider_allowed
+      fallback_policy:
+        if_unavailable: use_lower_capability
+        minimum_acceptable_level: low
+    prompt:
+      system: |
+        Turn missing information into the smallest useful next retrieval queries.
+      developer: |
+        Prefer narrow, evidence-seeking queries over repeating the broad original question.
+      user_template: |
+        Question: {user_question}
+        Missing information: {judgment.missing_information}
+    input_vars:
+      - user_question
+      - judgment
+    outputs:
+      - targeted_queries
+  - id: retrieve_targeted_sources
+    kind: tool_use_step
+    label: Retrieve targeted sources
+    actor: orchestrator
+    phase: targeted_retrieval
+    tool_id: search_sources
+    inputs_from:
+      - targeted_queries
+    outputs:
+      - evidence_bundle
+    failure_behavior: fallback
+  - id: synthesize_report
+    kind: llm_step
+    label: Synthesize report
+    actor: synthesizer
+    role: synthesizer
+    phase: final_synthesis
+    model_requirements:
+      required_capabilities:
+        - supports_structured
+      reasoning_profile:
+        level: high
+        task_type: generation
+        task_subtype: synthesis
+        uncertainty_handling: answer_with_caveats
+      context_requirements:
+        expected_input_size: large
+        context_window: 32000
+        needs_retrieved_context: true
+      output_requirements:
+        format: free_text
+        evidence_citations: required
+      operational_preferences:
+        latency_sensitivity: low
+        cost_sensitivity: medium
+        determinism: balanced
+        data_boundary: provider_allowed
+      fallback_policy:
+        if_unavailable: use_higher_capability
+        minimum_acceptable_level: medium
+    prompt:
+      system: |
+        Produce the final grounded answer from the approved evidence bundle.
+      developer: |
+        Use only the provided evidence bundle and preserve provenance in the final answer.
+      user_template: |
+        Question: {user_question}
+        Evidence bundle: {evidence_bundle}
+        Judgment: {judgment}
+    input_vars:
+      - user_question
+      - evidence_bundle
+      - judgment
+    outputs:
+      - final_report
+edges:
+  - from: gather_initial_evidence
+    to: evaluate_evidence
+    edge_kind: sequential
+    condition: evidence_bundle_available
+    carries:
+      - initial_answer
+      - evidence_bundle
+  - from: evaluate_evidence
+    to: route_after_judgment
+    edge_kind: sequential
+    condition: judgment_available
+    carries:
+      - judgment
+  - from: route_after_judgment
+    to: derive_targeted_queries
+    edge_kind: branch
+    condition: deepen_research
+    carries:
+      - judgment
+  - from: derive_targeted_queries
+    to: retrieve_targeted_sources
+    edge_kind: sequential
+    condition: targeted_queries_available
+    carries:
+      - targeted_queries
+  - from: retrieve_targeted_sources
+    to: evaluate_evidence
+    edge_kind: loopback
+    condition: evidence_bundle_updated
+    carries:
+      - evidence_bundle
+  - from: route_after_judgment
+    to: synthesize_report
+    edge_kind: branch
+    condition: sufficient
+    carries:
+      - judgment
+      - evidence_bundle
+  - from: route_after_judgment
+    to: synthesize_report
+    edge_kind: branch
+    condition: stop_on_budget
+    carries:
+      - judgment
+      - evidence_bundle

@@ -1,0 +1,425 @@
+# Agent Design: <agent name or feature>
+
+## 1. Purpose and Scope
+
+- Goal: <what the agent is meant to accomplish>
+- Users or callers: <humans, services, other agents, batch jobs, etc.>
+- In scope:
+  - <capability>
+- Out of scope:
+  - <excluded behavior or integration>
+- Success criteria:
+  - <observable result>
+  - <quality, latency, or safety target>
+
+## 2. Governing Context
+
+- Top-level SDD or project spec: `<path or none>`
+- Related feature spec: `<path or none>`
+- Repository constraints:
+  - <security, privacy, architecture, compliance, offline, local-only, etc.>
+- Existing workflows or rules that apply:
+  - <SDD, MCP, Obsidian memory, verification, etc.>
+
+## 3. Agent Necessity Decision
+
+- Is an agent warranted? `<yes | no | uncertain>`
+- Simpler alternatives considered:
+  - deterministic workflow: <why enough or not enough>
+  - single LLM call: <why enough or not enough>
+  - RAG or retrieval-only system: <why enough or not enough>
+  - scripted tool pipeline: <why enough or not enough>
+- Reason agentic behavior is needed:
+  - <open-ended decisions, dynamic tools, planning, iteration, or action loop>
+
+## 4. Autonomy Level
+
+- Autonomy mode:
+  `<assistive | supervised agent | bounded autonomous | high-autonomy>`
+- Permission profile:
+  - filesystem: `<none | read | write | restricted roots | not applicable>`
+  - network: `<none | allowlist | proxied | unrestricted | not applicable>`
+  - process or shell: `<none | restricted | approved | not applicable>`
+  - external systems: `<none | read | mutate with approval | not applicable>`
+- Approval policy:
+  - approval channels: <shell, network, workspace mutation, external tool, etc.>
+  - approval persistence: `<per call | sticky | serialized interruption | none>`
+  - rejection policy: <model-visible message, fail closed, fallback, etc.>
+- Human approval required before:
+  - <external, destructive, costly, or security-sensitive operation>
+- The agent may do without approval:
+  - <read-only action, local analysis, low-risk tool call>
+- The agent must never do:
+  - <forbidden action or data access>
+
+## 5. Runtime and Model Constraints
+
+- Runtime target:
+  `<local | in-process | cloud API | embedded | hybrid | offline | undecided>`
+- Runtime surface:
+  `<stateless loop | stateful session runtime | local host | shared hub |
+  remote runtime | external sandbox | undecided>`
+- Workspace boundary:
+  `<none | occasional tool execution | isolated workspace | resumable workspace |
+  per-agent isolated workspace | not applicable>`
+- Workspace or snapshot strategy:
+  - <fresh inputs, resumable state, snapshots, cleanup, or not applicable>
+- Ownership boundaries:
+  - loop execution: <owner>
+  - persistence: <owner>
+  - provider routing: <owner>
+  - tool assembly: <owner>
+  - approval routing: <owner>
+  - telemetry and UI/client lifecycle: <owner>
+- Model constraints:
+  - provider or model: `<if known, otherwise undecided>`
+  - context window assumptions: `<known or unknown>`
+  - tool or function calling: `<required | optional | not available>`
+  - structured output: `<required | optional>`
+  - embeddings: `<required | optional | not applicable | unknown>`
+- Configuration layering:
+  - agent defaults: <source>
+  - run-level overrides: <source>
+  - environment/provider defaults: <source>
+  - user/session state: <source>
+  - precedence rule: <which layer wins>
+- Deployment constraints:
+  - offline or air-gapped: `<yes | no | unknown>`
+  - data residency or privacy: `<constraints>`
+  - latency target: `<target>`
+  - cost budget: `<budget or unknown>`
+
+## 6. Selected Agent Pattern
+
+- Primary agent pattern:
+  `<basic reasoning | tool-based function calling | tool server/MCP-style |
+  computer-use | coding | speech/voice | workflow orchestration |
+  memory-augmented | simulation/test-bed | observer/monitoring |
+  multi-agent collaboration>`
+- Why this pattern fits:
+  - <reason>
+- Why more complex patterns are not used:
+  - <reason>
+- Escalation triggers:
+  - <when to move from single-agent to orchestration or multi-agent>
+
+## 7. Selected LLM Workflow Pattern
+
+- Primary LLM workflow:
+  `<prompt chaining | routing | parallelization | retrieval-augmented
+  generation (RAG) | GraphRAG/knowledge graph | orchestration |
+  evaluator/reflect-refine | evidence loop | ReAct | custom>`
+- Reasoning flow:
+  - <how the model decides next steps>
+- Exit strategy:
+  - terminal conditions:
+    - <final output produced, escalation emitted, no useful action remains>
+  - hard loop bounds:
+    - max iterations: <number or not applicable>
+    - max steps: <number or not applicable>
+  - exhaustion behavior:
+    <finalize with caveats, escalate, fail closed, or return partial>
+  - ambiguous completion behavior:
+    <clarify, retry with limit, escalate, or fail closed>
+- Completion contract:
+  - <completion mechanism, ambiguous-completion behavior, or not applicable>
+- Fallback behavior:
+  - <what happens when model, tool, or confidence fails>
+
+When `evidence loop` is selected, also record:
+
+- evaluator or judge stop/continue contract: <how sufficiency is decided>
+- structured evaluator output: <for example `is_good_enough`, `score`, `reason`,
+  `missing_information`>
+- follow-up retrieval policy: <how missing information becomes the next queries>
+- retrieval budget: <max turns, retries, source expansion, or escalation point>
+
+## 8. Agentic Workflow or Coordination Pattern
+
+Use this section only if production coordination is needed.
+
+- Coordination pattern:
+  `<none | saga/choreography | dynamic dispatch | scatter-gather |
+  orchestration/supervisor | feedback control loop>`
+- Delegation mode:
+  `<none | callable specialist | specialist takeover | one-off sub-agent |
+  persistent team | peer coordination>`
+- Control owners:
+  - final answer owner: <agent/component>
+  - active-agent takeover policy: <when control transfers, or not applicable>
+  - approval owner: <agent/component/human>
+  - state owner: <session, team store, task board, mailbox, etc.>
+- Durable automation:
+  - trigger source: <event, schedule, user request, webhook, or not applicable>
+  - run report policy: <what report is generated and where it is stored>
+- Event or state transitions:
+  - `<event/state> -> <agent/tool/action>`
+- Event contracts:
+  - producer and consumer: <component or agent names>
+  - payload shape: <schema or reference>
+  - ordering and idempotency: <requirements>
+- Compensation or rollback behavior:
+  - <how failed steps are undone or contained>
+- Concurrency model:
+  - <sequential, parallel, bounded parallelism, async queue, etc.>
+
+## 9. Tool Contracts
+
+- Tool exposure strategy:
+  `<direct | deferred/search-mediated | namespace/grouped | connector-filtered |
+  hidden runtime-only | threshold-switched | not applicable>`
+- Tool policy profile: <default, read-only, approval-gated, sandboxed, etc.>
+
+For each tool, record:
+
+### Tool: <tool name>
+
+- Purpose: <why the agent uses this tool>
+- `description_for_llm`: <model-facing description and selection guidance>
+- Inputs: <schema or reference>
+- Outputs: <schema or reference>
+- Schema shape: <strict schema, loose JSON, text, binary, etc.>
+- Structured errors: <error schema or failure shape>
+- Side effects: `<none | read | write | mutate | destructive>`
+- Approval required: `<yes | no | conditional>`
+- Timeout, retry, and abort behavior: <limits and cancellation behavior>
+- Streaming updates: `<yes | no | conditional>`
+- Guardrail placement: <input, output, mutation boundary, or not applicable>
+- Completes run: `<yes | no | conditional>`
+- Failure behavior: `<retry | fail | fallback | escalate>`
+- Audit or logging requirements: <what to log or redact>
+
+### Extension and Hook Architecture
+
+- Extension sources:
+  - <skills, plugins, connectors, MCP servers, or not applicable>
+- Capability declarations and validation:
+  - <what must be checked before setup>
+- Hook stages:
+  - <workflow input, model input, tool input/output, final output, etc.>
+- Hook authority:
+  - <advisory, schema validation, policy engine, approval gate, enforcement>
+- Contribution lifecycle:
+  `<one-shot | dynamic | frozen for session | not applicable>`
+
+## 10. Structured Output Contracts
+
+For each model-generated structure, record:
+
+- Output name: <name>
+- Schema: <schema or reference>
+- Validation behavior: <strict parse, repair, reject, fallback, etc.>
+- Failure behavior: <retry, ask for clarification, escalate, fail closed, etc.>
+
+Tool and output design notes:
+
+- Tool descriptions must be clear enough for model selection.
+- Inputs should be schema-validated.
+- Outputs should be structured where practical.
+- Side-effecting tools require explicit safety policy.
+
+## 11. State, Memory, and Context
+
+- Short-term state:
+  - <conversation history, task state, scratchpad, active plan, etc.>
+- Long-term memory:
+  - <none, vector store, database, files, Obsidian, memory-bank, etc.>
+- Memory modes:
+  - `<replay transcript | session store | server-managed continuation |
+    durable semantic memory | workspace memory | compaction layer |
+    not applicable>`
+- Memory authority:
+  - <which source is canonical>
+- Context construction:
+  - <what gets loaded into the prompt and why>
+- RAG or retrieval pipeline:
+  - retrieval mode: <keyword, structured lookup, embedding-backed semantic,
+    GraphRAG/knowledge graph, hybrid, none, or undecided>
+  - embedding requirements: <model capability, vector dimensions if known, data
+    boundary, and fallback policy>
+  - graph requirements: <entity/relation extraction, ontology/schema, graph
+    store, traversal policy, selected subgraph shape, and fallback policy>
+  - corpus and chunking boundary: <sources, chunk size/strategy, excluded data>
+  - index or graph owner and freshness: <runtime, host, external service;
+    rebuild policy>
+  - ranking and provenance: <filters, reranking, graph paths, citations, source
+    metadata>
+- Context pipeline:
+  - stable prompts: <source>
+  - retrieved context: <source>
+  - redaction: <policy>
+  - compaction: <policy>
+  - tool schemas: <included or hidden>
+  - provider-bound messages: <final assembly owner>
+- State mutation model:
+  - persisted session/thread state: <source or not applicable>
+  - per-turn overrides: <allowed or forbidden>
+  - previewed vs committed settings: <policy>
+- Context visibility:
+  - model-visible context: <what the model sees>
+  - runtime-only evidence: <what only tools/traces/reducers see>
+- Context limits or compression:
+  - <summarization, pruning, retrieval, semantic compression>
+- Memory write policy:
+  - <when writes are allowed, proposed, confirmed, or forbidden>
+
+For fact-sensitive or evidence-heavy agents, also record:
+
+- grounded-answer rule: <when model-memory-only answers are forbidden,
+  discouraged, or allowed>
+- evidence visibility split: <what evidence is normalized for the model vs kept as
+  runtime-only payloads>
+
+## 12. Prompt and Instruction Architecture
+
+- System instruction responsibilities:
+  - <role, boundaries, safety rules>
+- Developer or tool instruction responsibilities:
+  - <tool usage, schemas, hidden constraints>
+- User-provided context:
+  - <what is accepted from the user>
+- Prompt modules or skills consumed:
+  - `<path or none>`
+- Instruction authority:
+  - source precedence: <system, repo, SDD, user, memory, runtime, tool, etc.>
+  - source scope: <global, repository, feature, run, tool, or turn>
+  - conflict resolution: <which source wins and how conflicts are surfaced>
+  - mutable instruction sources: <which may change during a run>
+- Prompt injection defenses:
+  - <untrusted content handling>
+
+## 13. Safety, Security, and Guardrails
+
+- Data the agent may access:
+  - <allowed data>
+- Data the agent must not access or store:
+  - <secrets, credentials, PII, regulated data, etc.>
+- External actions requiring confirmation:
+  - <actions>
+- Sandbox matrix:
+  - platform: <macOS, Linux, container, provider sandbox, not applicable>
+  - readable roots: <paths or resources>
+  - writable roots: <paths or resources>
+  - protected roots: <paths or resources>
+  - degraded behavior: <fail open, fail closed, ask, or not applicable>
+- Network mediation:
+  - `<forbidden | direct | proxied | allowlist-first | deny-wins |
+    local/private protected | read-only | not applicable>`
+- Mutation safety:
+  - target normalization: <policy>
+  - safety assessment: <policy>
+  - approval or sandbox check: <policy>
+  - result capture: <policy>
+  - changed-state provenance: `<patch diff | VCS diff | filesystem rescan |
+    runtime tool diff | unknown | not applicable>`
+- Guardrail placement:
+  - <workflow input, model input, tool input/output, delegated boundary, final
+    output, event ingress, mutation boundary>
+- Rate, budget, and iteration limits:
+  - max iterations: `<n>`
+  - max tool calls: `<n>`
+  - timeout: `<duration>`
+  - budget: `<limit>`
+- Audit or logging requirements:
+  - <what must be logged or redacted>
+- Abuse or misuse cases:
+  - <risk and mitigation>
+
+## 14. Evaluation Plan
+
+- Golden tasks:
+  - <representative success case, edge case, and failure case>
+- Automated checks:
+  - <unit tests, tool contract tests, eval suite, lint, smoke tests>
+- Manual review gates:
+  - <human-in-the-loop review points>
+- Metrics:
+  - task success: `<metric>`
+  - tool-call accuracy: `<metric>`
+  - latency: `<metric>`
+  - cost: `<metric>`
+  - safety violations: `<metric>`
+- Regression strategy:
+  - <how future prompt, tool, model, or memory changes are tested>
+- Experimental capabilities:
+  - <capability, opt-in requirement, compatibility caveat, or not applicable>
+
+## 15. Observability and Operations
+
+- Logs or traces:
+  - <model calls, tool calls, decisions, errors>
+- Event layers:
+  - producer event: <source>
+  - internal adapter: <mapping>
+  - consumer-facing event: <UI/API/transport event>
+  - telemetry-only or suppressed events: <policy>
+- Result surfaces and audit surfaces:
+  - final output contract: <shape>
+  - continuation state: <shape>
+  - run item or event log: <shape>
+  - approval/interruption state: <shape>
+  - raw diagnostics: <retention and access>
+- Evidence model:
+  - model-visible transcript: <included data>
+  - runtime-only evidence: <tool payloads, terminal output, raw refs>
+  - reducer or semantic view: <owner and transformation>
+- Trace payload capture:
+  - model inputs/outputs: `<yes | no | conditional>`
+  - tool inputs/outputs: `<yes | no | conditional>`
+  - audio/binary payloads: `<yes | no | conditional | not applicable>`
+  - trace grouping/export destination: <destination>
+- Redaction policy:
+  - <what not to log>
+- Run reports:
+  - <trigger context, summary, usage, tool calls, outputs, validation state>
+- Monitoring:
+  - <latency, failures, tool errors, budget use, safety events>
+- Alerting or escalation:
+  - <when humans are notified>
+- Debuggability:
+  - <how to reproduce a run>
+
+## 16. Implementation Plan Linkage
+
+- Related SDD plan: `<path>`
+- Related tasks: `<path>`
+- Implementation approach:
+  - <raw API, existing framework, local runtime, in-process model, etc.>
+- Framework or package choice, if any:
+  - <chosen package and why>
+- Validation commands:
+  - `<command>` — <purpose>
+
+## 17. Runtime Package Artifacts
+
+Use this section when the design will feed a conceptual external runtime.
+
+- Runtime manifest: `<agent-runtime.yaml path or not generated>`
+- Mermaid graph: `<agent-graph.mmd path or not generated>`
+- Skill bundle directory: `<skill-bundle/ path or not generated>`
+- Packaging mode: `<hybrid_bundle | inline_only | bundled_only | not applicable>`
+- Entrypoint node: `<node id>`
+- Primary node kinds used:
+  - `llm_step`: <where used>
+  - `tool_use_step`: <where used>
+  - `decision_step`: <where used>
+- Tool registry summary:
+  - <tool id> — <purpose and side effect>
+- Packaged skills summary:
+  - <skill id> — <usage and bundled path>
+- Runtime portability notes:
+  - <provider, framework, path, secret, or environment caveat>
+
+## 18. Open Questions and Risks
+
+- <question or risk>
+
+## 19. Decision Log
+
+For each decision, record:
+
+- Date: `<date>`
+- Decision: <decision>
+- Rationale: <why>
+- Alternatives rejected:
+  - <alternative>

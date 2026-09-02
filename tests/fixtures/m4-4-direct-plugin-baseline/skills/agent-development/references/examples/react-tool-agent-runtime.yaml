@@ -1,0 +1,379 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: react-tool-agent
+name: ReAct Tool Agent
+entrypoint: reason
+mermaid_diagram: react-tool-agent-graph.mmd
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+runtime:
+  execution_policy:
+    autonomy_level: supervised_agent
+    allowed_execution_modes:
+    - sequential_fallback
+    external_backend_allowed: false
+    max_iterations: 5
+    max_steps: 8
+    timeout: 5m
+    exit_strategy:
+      terminal_conditions:
+      - final route selected and final_answer emitted
+      - max_iterations reached
+      - max_steps reached
+      - unsafe or unavailable tool path detected
+      on_exhaustion: finalize_with_caveats
+      ambiguous_completion: escalate
+    approval_required_for:
+    - live write or mutation
+    forbidden_actions:
+    - expose raw chain-of-thought or hidden reasoning
+    - invoke unapproved tools
+    prompt_cache:
+      enabled: false
+      strategy: stable_prefix
+      min_prefix_tokens: 1024
+      prefix_parts:
+      - system
+      - developer
+      - tool_schemas
+      - workflow_structure
+      variable_parts:
+      - user_prompt
+      - run_state
+      - tool_results
+      cache_key_hint: package_id
+      provider_hints: {}
+  state:
+    artifacts:
+    - id: prompt
+      description: Runtime-provided original user prompt.
+      source: user
+    - id: selected_route
+      description: Tool or final route selected by the model route gate.
+      source: runtime
+    - id: observation_log
+      description: Model-safe observations from prior approved tool calls.
+      source: tool
+    - id: final_answer
+      description: Final answer produced after loop termination.
+      source: llm
+    mutable_fields:
+    - selected_route
+    - observation_log
+metadata:
+  patterns_present:
+  - react_loop
+  approval_interactions:
+  - target:
+      tool_id: search_knowledge
+    approval_sensitivity: low_risk_read
+    approval_message: Human approval is only needed if the runtime treats this
+      knowledge source as a restricted read surface.
+    interruptible: true
+    resumability: expected
+  modes:
+  - id: default
+    description: Bounded ReAct loop with an explicit route gate before tool use.
+    enabled_phases:
+    - reasoning
+    - routing
+    - action
+    - completion
+    batching_allowed: false
+  phases:
+  - id: reasoning
+    label: Reason about next route
+    phase_kind: preparation
+    repeatable: true
+    participant_group:
+    peer_visibility: not_applicable
+    enabled_when: always
+  - id: routing
+    label: Route to tool or final
+    phase_kind: decision_gate
+    repeatable: true
+    participant_group:
+    peer_visibility: not_applicable
+    enabled_when: route_token_available
+  - id: action
+    label: Invoke approved tool
+    phase_kind: preparation
+    repeatable: true
+    participant_group:
+    peer_visibility: not_applicable
+    enabled_when: selected_route_is_tool
+  - id: completion
+    label: Complete
+    phase_kind: verification
+    repeatable: false
+    participant_group:
+    peer_visibility: not_applicable
+    enabled_when: selected_route_is_final
+  roles:
+  - id: react_reasoner
+    actor: reasoner
+    description: Chooses whether to use an approved tool or produce the final answer.
+    input_contract:
+    - prompt
+    - observation_log
+    output_contract:
+    - selected_route
+    - final_answer
+    prompt_source: inline
+extensions: {}
+skills:
+- id: agent-development
+  label: Agent development skill
+  source_type: repo_skill
+  source_path: corpus/capabilities/agent-development/SKILL.md
+  packaging_mode: bundled_copy
+  bundled_path: skill-bundle/agent-development/SKILL.md
+  support_files:
+  - source_path: corpus/capabilities/agent-development/references/agent-runtime-package.md
+    bundled_path: skill-bundle/agent-development/references/agent-runtime-package.md
+  notes: Provides ReAct runtime package conventions.
+tools:
+- id: search_knowledge
+  label: Search knowledge base
+  tool_type: structured_data_query
+  description_for_llm: |
+    Search approved local knowledge sources for evidence relevant to the current
+    goal. Use this only for read-only evidence gathering.
+  adapter: runtime.search
+  input_schema:
+    type: object
+    properties:
+      query:
+        type: string
+  output_schema:
+    type: object
+    properties:
+      summary:
+        type: string
+      citations:
+        type: array
+  side_effect: read
+  approval_required: false
+  timeout: 30s
+  retry_policy: bounded
+  failure_behavior: escalate
+  skill_bindings:
+  - skill_id: agent-development
+    usage: shared_reference
+nodes:
+- id: reason
+  kind: llm_step
+  label: Reason about next route
+  actor: reasoner
+  role: react_reasoner
+  phase: reasoning
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_functions
+    - supports_json_mode
+    reasoning_profile:
+      level: medium
+      task_type: planning
+      task_subtype: route_selection
+      uncertainty_handling: answer_with_caveats
+    context_requirements:
+      expected_input_size: medium
+      context_window: 16000
+      needs_retrieved_context: conditional
+    output_requirements:
+      format: schema_ref
+      schema_ref: selected_route
+      evidence_citations: preferred
+    operational_preferences:
+      latency_sensitivity: medium
+      cost_sensitivity: medium
+      determinism: preferred
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: escalate
+      minimum_acceptable_level: medium
+  prompt:
+    system: |
+      You are a bounded ReAct-style agent. Reply with exactly one route token:
+      tool or final.
+    developer: |
+      Choose tool only when another approved read-only search is needed. Choose
+      final when the current workflow state is enough to answer. Do not expose
+      hidden reasoning or raw chain-of-thought.
+    user_template: |
+      User request: {prompt}
+
+      Workflow state:
+      {node_outputs}
+
+      Choose the next route: tool or final.
+    input_vars:
+    - prompt
+    - node_outputs
+    output_schema_ref: selected_route
+  available_tools:
+  - tool_id: search_knowledge
+    usage: optional
+  skill_bindings:
+  - skill_id: agent-development
+    usage: instruction_context
+  inputs_from:
+  - prompt
+  - observation_log
+  outputs:
+  - selected_route
+- id: route_action
+  kind: decision_step
+  decision_subtype: llm_route
+  label: Route action
+  actor: runtime
+  phase: routing
+  route_from: reason
+  prompt:
+    system: |
+      Route using only the route token produced by the reasoning node.
+    developer: |
+      Allowed routes are tool and final.
+    user_template: |
+      Reasoning node output:
+      {node_outputs}
+    input_vars:
+    - node_outputs
+  decision_contract:
+    compares:
+    - selected_route
+    allowed_paths:
+    - id: tool
+      condition: tool
+      target: search_knowledge_step
+    - id: final
+      condition: final
+      target: final_response
+    default_path: final
+  inputs_from:
+  - selected_route
+  outputs:
+  - selected_route
+- id: search_knowledge_step
+  kind: tool_use_step
+  label: Search knowledge
+  actor: runtime
+  phase: action
+  tool_id: search_knowledge
+  inputs_from:
+  - prompt
+  outputs:
+  - observation_log
+  failure_behavior: escalate
+- id: final_response
+  kind: llm_step
+  label: Produce final response
+  actor: reasoner
+  role: react_reasoner
+  phase: completion
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    reasoning_profile:
+      level: medium
+      task_type: generation
+      task_subtype: synthesis
+      uncertainty_handling: answer_with_caveats
+    context_requirements:
+      expected_input_size: medium
+      context_window: 16000
+      needs_retrieved_context: true
+    output_requirements:
+      format: schema_ref
+      schema_ref: final_answer
+      evidence_citations: preferred
+    operational_preferences:
+      latency_sensitivity: medium
+      cost_sensitivity: medium
+      determinism: balanced
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: escalate
+      minimum_acceptable_level: low
+  prompt:
+    system: |
+      Produce the final answer from the user goal and model-safe workflow state.
+    developer: |
+      Cite available evidence, disclose uncertainty, and do not expose hidden
+      reasoning.
+    user_template: |
+      User request: {prompt}
+
+      Workflow state:
+      {node_outputs}
+
+      Final answer:
+    input_vars:
+    - prompt
+    - node_outputs
+    output_schema_ref: final_answer
+  available_tools: []
+  skill_bindings: []
+  inputs_from:
+  - prompt
+  - observation_log
+  outputs:
+  - final_answer
+edges:
+- from: reason
+  to: route_action
+  edge_kind: sequential
+  condition: route token produced
+  carries:
+  - selected_route
+- from: route_action
+  to: search_knowledge_step
+  edge_kind: branch
+  condition: tool
+  carries:
+  - selected_route
+- from: search_knowledge_step
+  to: reason
+  edge_kind: sequential
+  condition: observation available
+  carries:
+  - observation_log
+- from: search_knowledge_step
+  to: reason
+  edge_kind: loopback
+  condition: observation available
+  carries:
+  - observation_log
+- from: route_action
+  to: final_response
+  edge_kind: branch
+  condition: final
+  carries:
+  - selected_route
+output_contracts:
+- id: selected_route
+  required_fields:
+  - route
+  required_sections: []
+  validation: schema
+- id: final_answer
+  required_fields:
+  - answer
+  - evidence
+  - caveats
+  required_sections: []
+  validation: manual_review
+validation:
+  package_checks:
+  - ReAct loop declares max_iterations, max_steps, and timeout.
+  - ReAct reasoning flows through an llm_route decision before tool use.
+  - ReAct route branches can skip the tool and produce a final answer.
+  - ReAct loop includes both executable return flow and loopback metadata.
+  - Runtime state includes model-safe observation artifacts.

@@ -1,0 +1,427 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: event-driven-triage-agent
+name: Event-driven Triage Agent
+entrypoint: normalize_event
+mermaid_diagram: event-driven-triage-agent-graph.mmd
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+runtime:
+  execution_policy:
+    autonomy_level: supervised_agent
+    allowed_execution_modes:
+    - event_driven
+    - sequential_fallback
+    external_backend_allowed: false
+    max_iterations: 4
+    max_steps: 8
+    timeout: unknown
+    exit_strategy:
+      terminal_conditions:
+      - audit_summary emitted
+      - owner_notification emitted
+      - event ignored as non-actionable
+      on_exhaustion: escalate
+      ambiguous_completion: create_audit_summary
+    approval_required_for:
+    - posting owner notifications
+    - opening incidents
+    forbidden_actions:
+    - mutate external systems without declared event and approval state
+    - expose raw webhook payloads to the model when normalized fields suffice
+  state:
+    artifacts:
+    - id: incoming_event
+      description: Runtime-provided event payload
+      source: event
+    - id: normalized_event
+      description: Model-normalized event summary
+      source: llm
+    - id: service_context
+      description: Current service status and recent related signals
+      source: tool
+    - id: severity_route
+      description: Runtime route for ignore, notify, or escalate
+      source: runtime
+    - id: owner_notification
+      description: Owner-facing notification draft or send result
+      source: tool
+    - id: audit_summary
+      description: Final event triage audit summary
+      source: llm
+    mutable_fields:
+    - severity_route
+metadata:
+  patterns_present:
+  - event_driven
+  - routing
+  - workflow_orchestration
+  modes:
+  - id: default
+    description: Event-triggered triage mode
+    enabled_phases:
+    - event_normalization
+    - enrichment
+    - routing
+    - notification
+    - audit
+    batching_allowed: true
+  phases:
+  - id: event_normalization
+    label: Event normalization
+    phase_kind: preparation
+    repeatable: false
+    enabled_when: event_received
+  - id: enrichment
+    label: Event enrichment
+    phase_kind: preparation
+    repeatable: false
+    enabled_when: normalized_event_available
+  - id: routing
+    label: Event routing
+    phase_kind: decision_gate
+    repeatable: false
+    enabled_when: service_context_available
+  - id: notification
+    label: Owner notification
+    phase_kind: action
+    repeatable: false
+    enabled_when: owner_notification_required
+  - id: audit
+    label: Audit summary
+    phase_kind: aggregation
+    repeatable: false
+    enabled_when: route_selected
+  roles:
+  - id: triage_agent
+    actor: event_triage_agent
+    description: Normalizes events, routes severity, and prepares audit output.
+  event_contracts:
+  - id: service_signal_received
+    producer: runtime_event_source
+    consumer: normalize_event
+    payload_shape: normalized_event_input
+    ordering: per_service_key
+    idempotency: event_id
+  - id: owner_notification_ready
+    producer: notify_owner
+    consumer: create_audit_summary
+    payload_shape: owner_notification
+    ordering: after_severity_route
+    idempotency: notification_id
+  completion_contract:
+    mechanism: event_audit_summary
+    ambiguous_completion: create_audit_summary
+  result_surfaces:
+    final_output: true
+    continuation_state: false
+    audit_records: true
+  permission_profile:
+    filesystem: none
+    network: approved
+    process: none
+  approval_interactions:
+  - target:
+      tool_id: notify_owner
+    approval_sensitivity: medium_risk_write
+    approval_message: Approve owner notification for this event.
+    interruptible: true
+    resumability: expected
+  trace_bundle:
+    payload_capture: redacted
+    layering:
+    - event_ingress
+    - enrichment_tool
+    - routing_decision
+    - notification_result
+extensions: {}
+skills:
+- id: agent-development
+  label: Agent development skill
+  source_type: repo_skill
+  source_path: corpus/capabilities/agent-development/SKILL.md
+  packaging_mode: bundled_copy
+  bundled_path: skill-bundle/agent-development/SKILL.md
+  support_files:
+  - source_path: corpus/capabilities/agent-development/references/agent-runtime-package.md
+    bundled_path: skill-bundle/agent-development/references/agent-runtime-package.md
+  notes: Provides runtime package design conventions.
+tools:
+- id: read_service_status
+  label: Read service status
+  tool_type: structured_data_query
+  description_for_llm: |
+    Read current service status and nearby related signals for the normalized
+    event. This is read-only enrichment.
+  adapter: runtime.service_status
+  input_schema:
+    type: object
+    required:
+    - normalized_event
+    properties:
+      normalized_event:
+        type: string
+  output_schema:
+    type: object
+    properties:
+      status:
+        type: string
+      related_signals:
+        type: array
+  side_effect: read
+  approval_required: false
+  timeout: runtime_default
+  retry_policy: bounded
+  failure_behavior: fallback
+  skill_bindings:
+  - skill_id: agent-development
+    usage: shared_reference
+- id: notify_owner
+  label: Notify owner
+  tool_type: external_api
+  description_for_llm: |
+    Send or stage an owner notification for actionable events after approval.
+    Include severity, evidence, and the requested next action.
+  adapter: runtime.notify_owner
+  input_schema:
+    type: object
+    required:
+    - normalized_event
+    - severity_route
+    properties:
+      normalized_event:
+        type: string
+      severity_route:
+        type: string
+  output_schema:
+    type: object
+    properties:
+      notification_id:
+        type: string
+      status:
+        type: string
+  side_effect: write
+  approval_required: true
+  timeout: runtime_default
+  retry_policy: bounded
+  failure_behavior: escalate
+  skill_bindings:
+  - skill_id: agent-development
+    usage: shared_reference
+nodes:
+- id: normalize_event
+  kind: llm_step
+  label: Normalize event
+  actor: event_triage_agent
+  role: triage_agent
+  phase: event_normalization
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    reasoning_profile:
+      level: low
+      task_type: extraction
+      task_subtype: synthesis
+      uncertainty_handling: ask_clarification
+    context_requirements:
+      expected_input_size: small
+      context_window: 8000
+      needs_retrieved_context: false
+    output_requirements:
+      format: schema_ref
+      schema_ref: normalized_event
+      evidence_citations: not_needed
+    operational_preferences:
+      latency_sensitivity: high
+      cost_sensitivity: medium
+      determinism: preferred
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: escalate
+      minimum_acceptable_level: low
+  prompt:
+    system: |
+      Normalize the incoming runtime event into model-safe fields.
+    developer: |
+      Preserve event id, service, severity hints, timestamps, and redaction state.
+    user_template: |
+      Incoming event: {incoming_event}
+    input_vars:
+    - incoming_event
+    output_schema_ref: normalized_event
+  inputs_from:
+  - incoming_event
+  outputs:
+  - normalized_event
+- id: enrich_event
+  kind: tool_use_step
+  label: Enrich event
+  actor: runtime
+  phase: enrichment
+  tool_id: read_service_status
+  inputs_from:
+  - normalized_event
+  outputs:
+  - service_context
+  failure_behavior: fallback
+- id: classify_event
+  kind: decision_step
+  decision_subtype: llm_route
+  label: Classify event
+  actor: event_triage_agent
+  phase: routing
+  prompt:
+    system: |
+      Route the event using normalized event details and service context.
+    developer: |
+      Use ignore for noise, notify for actionable owner work, and escalate for
+      uncertain high-risk conditions.
+    user_template: |
+      Event: {normalized_event}
+      Context: {service_context}
+    input_vars:
+    - normalized_event
+    - service_context
+  decision_contract:
+    compares:
+    - normalized_event
+    - service_context
+    allowed_paths:
+    - id: ignore
+      condition: non-actionable or duplicate event
+      target: create_audit_summary
+    - id: notify
+      condition: owner action is needed
+      target: notify_owner
+    - id: escalate
+      condition: high-risk ambiguity remains
+      target: create_audit_summary
+    default_path: escalate
+  inputs_from:
+  - normalized_event
+  - service_context
+  outputs:
+  - severity_route
+- id: notify_owner
+  kind: tool_use_step
+  label: Notify owner
+  actor: runtime
+  phase: notification
+  tool_id: notify_owner
+  inputs_from:
+  - normalized_event
+  - severity_route
+  outputs:
+  - owner_notification
+  failure_behavior: escalate
+- id: create_audit_summary
+  kind: llm_step
+  label: Create audit summary
+  actor: event_triage_agent
+  role: triage_agent
+  phase: audit
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    reasoning_profile:
+      level: low
+      task_type: generation
+      task_subtype: synthesis
+      uncertainty_handling: answer_with_caveats
+    context_requirements:
+      expected_input_size: medium
+      context_window: 8000
+      needs_retrieved_context: true
+    output_requirements:
+      format: schema_ref
+      schema_ref: audit_summary
+      evidence_citations: preferred
+    operational_preferences:
+      latency_sensitivity: high
+      cost_sensitivity: medium
+      determinism: preferred
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: use_lower_capability
+      minimum_acceptable_level: low
+  prompt:
+    system: |
+      Produce the final event triage audit summary.
+    developer: |
+      Include the route, notification status if present, and any escalation reason.
+    user_template: |
+      Event: {normalized_event}
+      Context: {service_context}
+      Route: {severity_route}
+      Notification: {owner_notification}
+    input_vars:
+    - normalized_event
+    - service_context
+    - severity_route
+    - owner_notification
+    output_schema_ref: audit_summary
+  inputs_from:
+  - normalized_event
+  - service_context
+  - severity_route
+  - owner_notification
+  outputs:
+  - audit_summary
+edges:
+- from: normalize_event
+  to: enrich_event
+  edge_kind: event
+  condition: service_signal_received
+  carries:
+  - normalized_event
+- from: enrich_event
+  to: classify_event
+  edge_kind: sequential
+  condition: service_context_available
+  carries:
+  - service_context
+- from: classify_event
+  to: notify_owner
+  edge_kind: branch
+  condition: notify
+  carries:
+  - severity_route
+- from: classify_event
+  to: create_audit_summary
+  edge_kind: branch
+  condition: ignore_or_escalate
+  carries:
+  - severity_route
+- from: notify_owner
+  to: create_audit_summary
+  edge_kind: event
+  condition: owner_notification_ready
+  carries:
+  - owner_notification
+output_contracts:
+- id: normalized_event
+  required_fields:
+  - event_id
+  - service
+  - severity_hint
+  - redaction_state
+  validation: schema_validation
+- id: audit_summary
+  required_fields:
+  - route
+  - evidence
+  - notification_status
+  - escalation_reason
+  validation: manual_review
+validation:
+  package_checks:
+  - Event payloads are normalized before model-visible use.
+  - Owner notification is approval-gated.
+  - Audit summary is emitted for every route.

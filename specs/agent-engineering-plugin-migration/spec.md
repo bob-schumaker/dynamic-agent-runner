@@ -122,8 +122,11 @@ and DAR workflow-authoring guidance are private router modules. The router
 member source contains only router instructions. Every other canonical artifact
 is either named private-module content, a declared payload asset, or an explicit
 exclusion; templates, schemas, validation scripts, and examples may not remain
-under the visible router member. The generated `skills/` tree contains only the
-router `SKILL.md` and no support subtree.
+under the visible router member. The generated `skills/` tree contains exactly
+one host-visible router `SKILL.md`; its only permitted support subtree is the
+packager-generated private-module instruction index under `references/modules/`.
+Payload assets remain outside `skills/` and may not be implicitly absorbed into
+that router surface.
 
 Routing changes delivery topology, not the public interface. The generated
 plugin retains the canonical public plugin identity (`agent-engineering`),
@@ -133,6 +136,13 @@ identifier and supported bounded DAR behavior. A concise router frontmatter may
 replace the direct skill body only when it is semantically equivalent for host
 selection. Generated source maps, payload receipts, and private-module layout
 are the only allowed interface differences.
+
+Native routed packaging requires the source manifest name to differ from the
+generated plugin name. Therefore the source-owned manifest uses the private
+`agent-engineering-direct` build-input identity; it is never a marketplace
+target. The generated manifest is the canonical public contract and must equal
+the frozen direct-plugin manifest before its router-only skill topology is
+considered accepted.
 
 Before router-source restructuring, capture and freeze the complete direct-skill
 timing baseline input and its plugin-tree digest. Retain that input only as

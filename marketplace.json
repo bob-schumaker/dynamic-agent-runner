@@ -12,7 +12,7 @@
         "installation": "AVAILABLE"
       },
       "source": {
-        "path": "./plugins/agent-engineering",
+        "path": "./.codex-plugin/generated/agent-engineering-routed",
         "source": "local"
       }
     }

@@ -56,7 +56,7 @@ plugin-acceptance framework.
       must not name `dar-authoring`, copy the DAR runtime profile's command
       recipe, or supply a package path, broker, MCP configuration, or source
       handle. A bare DAR mention must remain outside the DAR-profile path.
-- [ ] RED/GREEN: make manifest admission fail when any member of the checked-in
+- [x] RED/GREEN: make manifest admission fail when any member of the checked-in
       original 13-scenario ID set is missing or replaced; require that invariant
       for both the direct timing baseline and generated-root replay.
 - [ ] Capture and freeze the complete-manifest direct-skill timing baseline and
@@ -64,7 +64,8 @@ plugin-acceptance framework.
       as test-owned comparison collateral, never as a successor marketplace
       source.
 - [ ] RED/GREEN: define the canonical router-packaging source layout. Keep the
-      manifest and icon collateral source-owned; make the `agent-development`
+      private `agent-engineering-direct` build-input manifest and icon collateral
+      source-owned; make the `agent-development`
       router member instruction-only; move general agent-development and DAR
       workflow-authoring guidance into named private modules; and classify every
       remaining canonical artifact as a declared payload or explicit exclusion.
@@ -76,7 +77,9 @@ plugin-acceptance framework.
       routing topology may differ. Assert exactly one visible router `SKILL.md`,
       private module instructions below `references/modules/`, complete
       source-map coverage, declared payload ownership, and deterministic payload,
-      release-metadata, and source-map proof artifacts.
+      release-metadata, and source-map proof artifacts. The source manifest is
+      an internal `agent-engineering-direct` packager input; only the generated
+      manifest is the public `agent-engineering` marketplace contract.
 - [ ] RED/GREEN: plan then apply the router packaging into a disposable
       generated root without rewriting, publishing, installing, or cleaning the
       canonical source tree. Test plan/apply receipt agreement, public-manifest

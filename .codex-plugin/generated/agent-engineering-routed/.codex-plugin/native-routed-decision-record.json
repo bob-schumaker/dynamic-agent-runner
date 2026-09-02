@@ -1,0 +1,78 @@
+{
+  "decision_record": {
+    "bootstrap_state_reused": false,
+    "input_mode": "native_routed",
+    "plugin_kind": "skills_only",
+    "plugin_kind_source": "default",
+    "plugin_metadata_sources": {
+      "branding_assets": "source_plugin_manifest",
+      "display_name": "source_plugin_manifest",
+      "host_metadata": "source_plugin_manifest",
+      "plugin_slug": "generated.name",
+      "publisher_slug": "source_plugin_manifest"
+    },
+    "publication_source": null,
+    "rejected_candidates": [],
+    "router_authority": {
+      "routers": [
+        {
+          "description": "Route bounded DAR workflow authoring to focused private guidance.",
+          "members": [
+            "plugins/agent-engineering/skills/agent-development",
+            "plugins/agent-engineering/skills/general-agent-development",
+            "plugins/agent-engineering/skills/dar-workflow-authoring"
+          ],
+          "name": "agent-development"
+        }
+      ]
+    },
+    "skill_ids_source": "router_authority",
+    "source_manifest": "plugins/agent-engineering/.codex-plugin/plugin.json",
+    "source_plugin_version": "0.1.0",
+    "source_root_source": "source_manifest",
+    "state_scope": "output_root_local",
+    "surface_id_source": "generated.surface_id",
+    "surface_mode": "native_routed"
+  },
+  "display_name": "Agent Engineering",
+  "format_version": 1,
+  "input_mode": "native_routed",
+  "output_root": "/Users/roschuma/Repos/roschuma/dynamic-agent-runner/.codex-plugin/generated/agent-engineering-routed",
+  "packaging_mode": "router-surface",
+  "payload_assets": [
+    {
+      "acquisition_mode": "copied",
+      "destination": "references/modules/general-agent-development",
+      "id": "general-agent-development-support",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "provenance_path": null,
+      "source": "plugins/agent-engineering/payload/general-agent-development",
+      "source_glob": null,
+      "template_parameters": {}
+    },
+    {
+      "acquisition_mode": "copied",
+      "destination": "references/modules/dar-workflow-authoring",
+      "id": "dar-workflow-authoring-support",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "provenance_path": null,
+      "source": "plugins/agent-engineering/payload/dar-workflow-authoring",
+      "source_glob": null,
+      "template_parameters": {}
+    }
+  ],
+  "plugin_id": "bob-schumaker/agent-engineering/agent-engineering-routed",
+  "plugin_kind": "skills_only",
+  "repository_root": "/Users/roschuma/Repos/roschuma/dynamic-agent-runner",
+  "skill_ids": [
+    "agent-development",
+    "general-agent-development",
+    "dar-workflow-authoring"
+  ],
+  "source_root": "plugins/agent-engineering",
+  "surface_id": "agent-engineering-routed",
+  "version": "0.1.0",
+  "version_override": "0.1.0"
+}

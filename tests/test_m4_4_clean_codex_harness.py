@@ -73,6 +73,7 @@ def _manifest_records(module: object) -> tuple[object, ...]:
                 reviewer_id=None,
                 reviewer_decision="pending",
                 marketplace_manifest_digest=digest if positive else None,
+                actor_durations_ms=(100, 200) if positive else (100,),
             )
         )
     return tuple(records)
@@ -200,8 +201,17 @@ def test_manifest_evidence_requires_complete_fresh_redacted_record_set(
     assert value["format_version"] == "m4.4-external-evidence-v1"
     assert len(value["records"]) == 23
     assert all(
-        set(record) == {"scenario_id", "observed_status", "record_digest"}
+        set(record)
+        == {
+            "scenario_id",
+            "observed_status",
+            "record_digest",
+            "actor_duration_ms",
+        }
         for record in value["records"]
+    )
+    assert value["actor_duration_ms"] == sum(
+        record["actor_duration_ms"] for record in value["records"]
     )
     assert str(tmp_path) not in aggregate.read_text(encoding="utf-8")
     with pytest.raises(module.HarnessError):
@@ -228,6 +238,7 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
     records = {record.scenario_id: record for record in _manifest_records(module)}
     calls: list[dict[str, object]] = []
     fixture_contracts: list[str] = []
+    original_admission_calls: list[tuple[object, object]] = []
 
     def run_case(**kwargs: object) -> object:
         calls.append(kwargs)
@@ -239,6 +250,13 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
         "run_fixture_contract",
         lambda scenario: (
             fixture_contracts.append(scenario.scenario_id) or {"model_calls": 0}
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "validate_m44_original_scenario_admission",
+        lambda original_ids, **kwargs: original_admission_calls.append(
+            (original_ids, kwargs["plan"])
         ),
     )
 
@@ -266,6 +284,7 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
     )
 
     assert len(calls) == 23
+    assert len(original_admission_calls) == 2
     assert set(fixture_contracts) == set(records)
     assert {call["evidence"] for call in calls} == {None}
     assert len(json.loads(aggregate.read_text(encoding="utf-8"))["records"]) == 23
@@ -510,14 +529,21 @@ def test_marketplace_contains_only_the_copied_plugin(tmp_path: Path) -> None:
     plugin = tmp_path / "plugin"
     (plugin / ".codex-plugin").mkdir(parents=True)
     (plugin / "skills" / "agent-development").mkdir(parents=True)
-    (plugin / "references").mkdir(parents=True)
+    (plugin / "references" / "modules" / "dar-workflow-authoring" / "references").mkdir(
+        parents=True
+    )
     (plugin / ".codex-plugin" / "plugin.json").write_text("{}", encoding="utf-8")
     (plugin / "skills" / "agent-development" / "SKILL.md").write_text(
         "# Agent development\n", encoding="utf-8"
     )
-    (plugin / "references" / "dar-runtime-profile.md").write_text(
-        "# DAR runtime profile\n", encoding="utf-8"
-    )
+    (
+        plugin
+        / "references"
+        / "modules"
+        / "dar-workflow-authoring"
+        / "references"
+        / "dar-runtime-profile.md"
+    ).write_text("# DAR runtime profile\n", encoding="utf-8")
 
     marketplace = create_marketplace(
         plugin_root=plugin, destination=tmp_path / "marketplace"
@@ -527,7 +553,35 @@ def test_marketplace_contains_only_the_copied_plugin(tmp_path: Path) -> None:
     copied_plugin = tmp_path / "marketplace" / "plugins" / "agent-engineering"
     assert copied_plugin.is_dir()
     assert (copied_plugin / "skills" / "agent-development" / "SKILL.md").is_file()
-    assert (copied_plugin / "references" / "dar-runtime-profile.md").is_file()
+    assert (
+        copied_plugin
+        / "references"
+        / "modules"
+        / "dar-workflow-authoring"
+        / "references"
+        / "dar-runtime-profile.md"
+    ).is_file()
+
+
+def test_marketplace_allows_the_frozen_direct_baseline_only_when_explicit(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(M44CleanCodexError, match="successor plugin surface is invalid"):
+        create_marketplace(
+            plugin_root=REPO_ROOT
+            / "tests"
+            / "fixtures"
+            / "m4-4-direct-plugin-baseline",
+            destination=tmp_path / "generated-only-marketplace",
+        )
+
+    marketplace = create_marketplace(
+        plugin_root=REPO_ROOT / "tests" / "fixtures" / "m4-4-direct-plugin-baseline",
+        destination=tmp_path / "direct-baseline-marketplace",
+        plugin_surface="direct-baseline",
+    )
+
+    assert marketplace.is_file()
     manifest_value = json.loads(marketplace.read_text(encoding="utf-8"))
     assert manifest_value["plugins"][0]["name"] == "agent-engineering"
     assert "dar-authoring" not in marketplace.read_text(encoding="utf-8")

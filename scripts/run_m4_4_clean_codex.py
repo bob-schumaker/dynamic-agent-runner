@@ -69,14 +69,24 @@ from m4_4_scenarios import (  # noqa: E402 - repository test corpus import.
     M44ScenarioError,
     load_m44_coverage,
     load_m44_external_scenario_plan,
+    load_m44_original_scenario_ids,
     load_m44_scenario,
     validate_m44_external_scenario_plan,
+    validate_m44_original_scenario_admission,
     validate_m44_evidence,
 )
 
 
 class HarnessError(ValueError):
     """Raised when M4.4 cannot produce a valid redacted acceptance record."""
+
+
+_ORIGINAL_SCENARIO_IDS = (
+    Path(__file__).resolve().parents[1]
+    / "tests"
+    / "fixtures"
+    / "m4-4-original-scenario-ids.json"
+)
 
 
 class _ApprovedActionBroker:
@@ -262,6 +272,12 @@ def write_manifest_evidence(
     validate_m44_external_scenario_plan(
         plan, coverage=coverage, scenario_roots=scenario_roots
     )
+    validate_m44_original_scenario_admission(
+        load_m44_original_scenario_ids(_ORIGINAL_SCENARIO_IDS),
+        plan=plan,
+        coverage=coverage,
+        scenario_roots=scenario_roots,
+    )
     _validate_manifest_records(records, coverage=coverage, plan=plan)
     if evidence_directory.exists() or not evidence_directory.is_absolute():
         raise HarnessError("external evidence directory must be fresh and absolute")
@@ -275,6 +291,7 @@ def write_manifest_evidence(
                 "scenario_id": record.scenario_id,
                 "observed_status": record.observed_status,
                 "record_digest": _digest_file(destination),
+                "actor_duration_ms": sum(record.actor_durations_ms),
             }
         )
     aggregate = {
@@ -282,6 +299,9 @@ def write_manifest_evidence(
         "coverage_digest": _digest_file(coverage_source),
         "scenario_plan_digest": _digest_file(scenario_plan_source),
         "records": aggregate_records,
+        "actor_duration_ms": sum(
+            record["actor_duration_ms"] for record in aggregate_records
+        ),
     }
     destination = evidence_directory / "aggregate.json"
     destination.write_text(
@@ -418,6 +438,7 @@ def run_manifest(
     reviewer_decision: str,
     codex_executable: str,
     timeout: int,
+    plugin_surface: str = "generated-root",
 ) -> Path:
     """Replay every closed-plan scenario and write its one aggregate evidence set."""
 
@@ -426,6 +447,12 @@ def run_manifest(
     plan = load_m44_external_scenario_plan(scenario_plan)
     validate_m44_external_scenario_plan(
         plan, coverage=coverage_contract, scenario_roots=scenario_roots
+    )
+    validate_m44_original_scenario_admission(
+        load_m44_original_scenario_ids(_ORIGINAL_SCENARIO_IDS),
+        plan=plan,
+        coverage=coverage_contract,
+        scenario_roots=scenario_roots,
     )
     sources = _scenario_sources(scenario_roots)
     _verify_fixture_contracts(plan, sources)
@@ -447,6 +474,7 @@ def run_manifest(
             reviewer_decision=reviewer_decision,
             codex_executable=codex_executable,
             timeout=timeout,
+            plugin_surface=plugin_surface,
         )
         for entry in plan.entries
     )
@@ -477,6 +505,7 @@ def run_scenario(
     reviewer_decision: str,
     codex_executable: str,
     timeout: int,
+    plugin_surface: str = "generated-root",
 ) -> AuthorThenRunEvidence:
     """Run one author turn and, for the positive case, one independent run turn."""
 
@@ -579,7 +608,9 @@ def run_scenario(
                 materials=_load_materials(materials), now=datetime.now(UTC)
             )
             marketplace = create_marketplace(
-                plugin_root=plugin_root, destination=root / "marketplace"
+                plugin_root=plugin_root,
+                destination=root / "marketplace",
+                plugin_surface=plugin_surface,
             )
             management_environment = _management_environment(
                 _scenario_codex_home(codex_home, scenario_codex_home), author_workspace
@@ -590,6 +621,7 @@ def run_scenario(
                     codex_executable, marketplace, management_environment, timeout
                 )
                 installed = True
+                author_started = time.monotonic()
                 author_result = _run_codex(
                     codex_executable,
                     _author_request(
@@ -615,9 +647,14 @@ def run_scenario(
                     ),
                     timeout,
                 )
+                author_duration_ms = _actor_duration_ms(author_started)
                 if contract.expected_status == "expected_capability_unavailable":
                     result = _unavailable_evidence(
-                        contract, author_result, wheel, material_receipt.material_set_id
+                        contract,
+                        author_result,
+                        wheel,
+                        material_receipt.material_set_id,
+                        (author_duration_ms,),
                     )
                 else:
                     result = _pass_evidence(
@@ -643,6 +680,7 @@ def run_scenario(
                         mcp_client,
                         controller_input_root,
                         workspace_artifact_ids,
+                        author_duration_ms,
                     )
             finally:
                 if installed:
@@ -675,19 +713,32 @@ def _pass_evidence(
     mcp_client: _ControllerMCPClient | None,
     controller_input_root: Path,
     workspace_artifact_ids: list[str],
+    author_duration_ms: int,
 ) -> AuthorThenRunEvidence:
     created, finalized = (
         _receipt(author_result.stdout, "created"),
         _receipt(author_result.stdout, "finalized"),
     )
     if author_result.returncode or created is None or finalized is None:
-        return _failure(contract, "authoring_validation", wheel, material_set_id)
+        return _failure(
+            contract,
+            "authoring_validation",
+            wheel,
+            material_set_id,
+            (author_duration_ms,),
+        )
     output_id, package_digest = (
         created.get("authoring_output_id"),
         finalized.get("package_digest"),
     )
     if not isinstance(output_id, str) or not isinstance(package_digest, str):
-        return _failure(contract, "authoring_validation", wheel, material_set_id)
+        return _failure(
+            contract,
+            "authoring_validation",
+            wheel,
+            material_set_id,
+            (author_duration_ms,),
+        )
     try:
         source_handle = host.select_authored_package(
             package_name, now=datetime.now(UTC)
@@ -728,7 +779,15 @@ def _pass_evidence(
         if registration.revision_digest != package_digest:
             raise ValueError
     except (LocalWorkflowHostError, ValueError):
-        return _failure(contract, "registration", wheel, material_set_id, output_id)
+        return _failure(
+            contract,
+            "registration",
+            wheel,
+            material_set_id,
+            (author_duration_ms,),
+            output_id,
+        )
+    invocation_started = time.monotonic()
     run_result = _run_codex(
         codex,
         _run_request(package_name, run_prompt),
@@ -746,13 +805,21 @@ def _pass_evidence(
         ),
         timeout,
     )
+    invocation_duration_ms = _actor_duration_ms(invocation_started)
     invoked = _receipt(run_result.stdout, "completed")
     if (
         run_result.returncode
         or invoked is None
         or invoked.get("workflow_id") != package_name
     ):
-        return _failure(contract, "invocation", wheel, material_set_id, output_id)
+        return _failure(
+            contract,
+            "invocation",
+            wheel,
+            material_set_id,
+            (author_duration_ms, invocation_duration_ms),
+            output_id,
+        )
     result = AuthorThenRunEvidence(
         scenario_id=contract.scenario_id,
         scenario_contract_version="m4.4-v1",
@@ -797,6 +864,7 @@ def _pass_evidence(
             if mcp_client is not None
             else 0
         ),
+        actor_durations_ms=(author_duration_ms, invocation_duration_ms),
     )
     validate_m44_evidence(
         contract,
@@ -812,12 +880,19 @@ def _unavailable_evidence(
     author_result: subprocess.CompletedProcess[str],
     wheel: Path,
     material_set_id: str,
+    actor_durations_ms: tuple[int, ...],
 ) -> AuthorThenRunEvidence:
     if (
         author_result.returncode
         or _receipt(author_result.stdout, "created") is not None
     ):
-        return _failure(contract, "capability_preflight", wheel, material_set_id)
+        return _failure(
+            contract,
+            "capability_preflight",
+            wheel,
+            material_set_id,
+            actor_durations_ms,
+        )
     result = AuthorThenRunEvidence(
         scenario_id=contract.scenario_id,
         scenario_contract_version="m4.4-v1",
@@ -846,6 +921,7 @@ def _unavailable_evidence(
         controller_fixture_digest=_digest_json(
             {"gates": ["G3"], "fixture": "local-model-profile"}
         ),
+        actor_durations_ms=actor_durations_ms,
     )
     validate_m44_evidence(
         contract,
@@ -861,6 +937,7 @@ def _failure(
     phase: str,
     wheel: Path,
     material_set_id: str,
+    actor_durations_ms: tuple[int, ...],
     output_id: str | None = None,
 ) -> AuthorThenRunEvidence:
     return AuthorThenRunEvidence(
@@ -888,7 +965,12 @@ def _failure(
         dispatch_count=0,
         reviewer_id=None,
         reviewer_decision="pending",
+        actor_durations_ms=actor_durations_ms,
     )
+
+
+def _actor_duration_ms(started: float) -> int:
+    return max(0, int((time.monotonic() - started) * 1000))
 
 
 def _validate_manifest_records(
@@ -1086,6 +1168,11 @@ def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
         "--reviewer-decision", choices=("pending", "approved"), default="pending"
     )
     parser.add_argument("--codex-executable", default="codex")
+    parser.add_argument(
+        "--plugin-surface",
+        choices=("generated-root", "direct-baseline"),
+        default="generated-root",
+    )
     parser.add_argument("--timeout", type=int, default=300)
     arguments = parser.parse_args(argv)
     arguments.scenario_roots = tuple(arguments.scenario_root)
