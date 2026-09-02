@@ -3,6 +3,20 @@
 
 ## Current Focus
 
+- M4.4 clean-Codex replay diagnostics are captured in commits `cfc6335` and
+  `77a63d7`. The routed-plugin harness now supplies exact artifact roles to the
+  author prompt, selects the reviewed write-MCP template for approved
+  `email_body` sends, handles no-tool packages without requiring an MCP
+  binding, and records the full reviewed-MCP/artifact evidence. A targeted
+  `email-file-body-v1` replay passed authoring, registration, trusted ingress,
+  invocation, and evidence validation. Full manifest replay remains an
+  externally driven, serial run when launched; its older in-flight run does
+  not include the new progress instrumentation.
+- Future M4.4 runs emit flushed, redacted JSONL progress events
+  (`run_started`, `scenario_started`, `scenario_completed`, and
+  `run_completed`) beside the evidence directory by default, or at an explicit
+  `--progress-file` path. Events expose scenario index/count, status, terminal
+  phase, and actor duration without prompts, paths, or artifact contents.
 - `dar-authoring` is now a skills-only Codex plugin: it ships the adapted
   authoring skills and DAR support assets, but no plugin MCP server, session
   broker, or `run_dar_workflow` tool. Skills invoke DAR only through the

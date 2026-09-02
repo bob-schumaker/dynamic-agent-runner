@@ -3,6 +3,15 @@
 
 ## Working
 
+- M4.4 routed clean-Codex harness correctness and observability are committed
+  in `77a63d7`, with routed profile collateral refreshed in `cfc6335`. The
+  positive `email-file-body-v1` path now passes end to end using the reviewed
+  `mail_send` binding and exact `email_body` artifact provenance. The harness
+  emits live redacted JSONL progress (`run_started`, per-scenario start/end,
+  and `run_completed`) so serial 23-scenario replays can be monitored before
+  the final aggregate exists. The full replay must still be rerun with the
+  committed harness and its generated progress file before M4.4 is declared
+  complete.
 - `dar-authoring` is a skills-only Codex plugin, not a plugin MCP server.
   The `0.2.1` release-pin contract is committed in `8e79f34`; an `ocibuild -c`
   build produced and isolated-wheel verification passed for
