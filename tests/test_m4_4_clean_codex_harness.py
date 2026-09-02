@@ -861,6 +861,42 @@ def test_successor_author_prompt_uses_no_legacy_identity_or_cli_recipe() -> None
     assert "MCP" not in prompt
 
 
+def test_decision_summary_keeps_normalized_actor_choices_without_transcript_text() -> (
+    None
+):
+    module = _harness_module()
+    transcript = "\n".join(
+        (
+            json.dumps(
+                {
+                    "item": {
+                        "type": "agent_message",
+                        "text": "private prompt content",
+                    }
+                }
+            ),
+            json.dumps(
+                {
+                    "item": {
+                        "type": "command_execution",
+                        "command": "dar-package finalize-authored-package",
+                    }
+                }
+            ),
+            json.dumps({"item": {"type": "file_change"}}),
+        )
+    )
+
+    decisions = module._decision_summary(transcript, prefix="author")
+
+    assert decisions == (
+        "author:agent_message",
+        "author:command:dar-package",
+        "author:file_change",
+    )
+    assert "private prompt content" not in decisions
+
+
 def test_successor_author_prompt_declares_exact_artifact_roles() -> None:
     module = _harness_module()
 

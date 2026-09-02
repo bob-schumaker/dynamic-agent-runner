@@ -517,6 +517,7 @@ def run_manifest(
                 "observed_status": record.observed_status,
                 "terminal_phase": record.terminal_phase,
                 "actor_duration_ms": sum(record.actor_durations_ms),
+                "failure_reason": record.failure_reason,
             },
         )
     records = tuple(records_list)
@@ -810,6 +811,8 @@ def _pass_evidence(
             (author_duration_ms,),
             plugin_identity,
             provenance=provenance,
+            author_result=author_result,
+            failure_reason="author_process_or_receipt_validation",
         )
     output_id, package_digest = (
         created.get("authoring_output_id"),
@@ -824,6 +827,8 @@ def _pass_evidence(
             (author_duration_ms,),
             plugin_identity,
             provenance=provenance,
+            author_result=author_result,
+            failure_reason="author_receipt_fields_invalid",
         )
     try:
         source_handle = host.select_authored_package(
@@ -871,7 +876,7 @@ def _pass_evidence(
                 workspace_artifact_ids.append(artifact.artifact_id)
         if registration.revision_digest != package_digest:
             raise ValueError
-    except (LocalWorkflowHostError, ValueError):
+    except (LocalWorkflowHostError, ValueError) as error:
         return _failure(
             contract,
             "registration",
@@ -881,6 +886,12 @@ def _pass_evidence(
             output_id,
             plugin_identity,
             provenance=provenance,
+            author_result=author_result,
+            failure_reason=(
+                "registration_digest_mismatch"
+                if isinstance(error, ValueError)
+                else "host_registration_rejected"
+            ),
         )
     invocation_started = time.monotonic()
     run_result = _run_codex(
@@ -920,6 +931,13 @@ def _pass_evidence(
             output_id,
             plugin_identity,
             provenance=provenance,
+            author_result=author_result,
+            invocation_result=run_result,
+            failure_reason=(
+                "invocation_process_failed"
+                if run_result.returncode
+                else "invocation_completed_receipt_invalid"
+            ),
         )
     result = AuthorThenRunEvidence(
         scenario_id=contract.scenario_id,
@@ -974,6 +992,10 @@ def _pass_evidence(
             else 0
         ),
         actor_durations_ms=(author_duration_ms, invocation_duration_ms),
+        author_return_code=author_result.returncode,
+        invocation_return_code=run_result.returncode,
+        author_decisions=_decision_summary(author_result.stdout, prefix="author"),
+        invocation_decisions=_decision_summary(run_result.stdout, prefix="invocation"),
         **provenance,
     )
     validate_m44_evidence(
@@ -1053,6 +1075,8 @@ def _unavailable_evidence(
             {"gates": ["G3"], "fixture": "local-model-profile"}
         ),
         actor_durations_ms=actor_durations_ms,
+        author_return_code=author_result.returncode,
+        author_decisions=_decision_summary(author_result.stdout, prefix="author"),
         **provenance,
     )
     validate_m44_evidence(
@@ -1073,6 +1097,9 @@ def _failure(
     output_id: str | None = None,
     plugin_identity: str = "agent-engineering@unknown",
     provenance: Mapping[str, str] | None = None,
+    author_result: subprocess.CompletedProcess[str] | None = None,
+    invocation_result: subprocess.CompletedProcess[str] | None = None,
+    failure_reason: str | None = None,
 ) -> AuthorThenRunEvidence:
     return AuthorThenRunEvidence(
         scenario_id=contract.scenario_id,
@@ -1100,6 +1127,23 @@ def _failure(
         reviewer_id=None,
         reviewer_decision="pending",
         actor_durations_ms=actor_durations_ms,
+        author_return_code=(
+            author_result.returncode if author_result is not None else None
+        ),
+        invocation_return_code=(
+            invocation_result.returncode if invocation_result is not None else None
+        ),
+        author_decisions=(
+            _decision_summary(author_result.stdout, prefix="author")
+            if author_result is not None
+            else ()
+        ),
+        invocation_decisions=(
+            _decision_summary(invocation_result.stdout, prefix="invocation")
+            if invocation_result is not None
+            else ()
+        ),
+        failure_reason=failure_reason,
         **(provenance or {}),
     )
 
@@ -1289,6 +1333,32 @@ def _receipt(output: str, status: str) -> dict[str, object] | None:
         ),
         None,
     )
+
+
+def _decision_summary(output: str, *, prefix: str) -> tuple[str, ...]:
+    """Extract bounded decision labels from a Codex event transcript."""
+
+    labels: list[str] = []
+    for line in output.splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(value, dict):
+            continue
+        item = value.get("item")
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get("type")
+        if item_type == "agent_message":
+            labels.append(f"{prefix}:agent_message")
+        elif item_type == "command_execution":
+            command = item.get("command")
+            if isinstance(command, str):
+                labels.append(f"{prefix}:command:{command.split()[0].split('/')[-1]}")
+        elif item_type == "file_change":
+            labels.append(f"{prefix}:file_change")
+    return tuple(dict.fromkeys(labels))
 
 
 def _collect(value: Any, destination: list[dict[str, object]]) -> None:
