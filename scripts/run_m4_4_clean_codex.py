@@ -510,6 +510,7 @@ def run_scenario(
     """Run one author turn and, for the positive case, one independent run turn."""
 
     contract = load_m44_scenario(scenario)
+    plugin_identity = _plugin_identity(plugin_root)
     fixtures = _controller_fixtures(contract)
     _validate_inputs(
         contract,
@@ -648,13 +649,17 @@ def run_scenario(
                     timeout,
                 )
                 author_duration_ms = _actor_duration_ms(author_started)
-                if contract.expected_status == "expected_capability_unavailable":
+                if contract.expected_status in {
+                    "expected_capability_unavailable",
+                    "expected_refusal",
+                }:
                     result = _unavailable_evidence(
                         contract,
                         author_result,
                         wheel,
                         material_receipt.material_set_id,
                         (author_duration_ms,),
+                        plugin_identity,
                     )
                 else:
                     result = _pass_evidence(
@@ -681,6 +686,7 @@ def run_scenario(
                         controller_input_root,
                         workspace_artifact_ids,
                         author_duration_ms,
+                        plugin_identity,
                     )
             finally:
                 if installed:
@@ -714,6 +720,7 @@ def _pass_evidence(
     controller_input_root: Path,
     workspace_artifact_ids: list[str],
     author_duration_ms: int,
+    plugin_identity: str,
 ) -> AuthorThenRunEvidence:
     created, finalized = (
         _receipt(author_result.stdout, "created"),
@@ -726,6 +733,7 @@ def _pass_evidence(
             wheel,
             material_set_id,
             (author_duration_ms,),
+            plugin_identity,
         )
     output_id, package_digest = (
         created.get("authoring_output_id"),
@@ -738,6 +746,7 @@ def _pass_evidence(
             wheel,
             material_set_id,
             (author_duration_ms,),
+            plugin_identity,
         )
     try:
         source_handle = host.select_authored_package(
@@ -786,6 +795,7 @@ def _pass_evidence(
             material_set_id,
             (author_duration_ms,),
             output_id,
+            plugin_identity,
         )
     invocation_started = time.monotonic()
     run_result = _run_codex(
@@ -819,6 +829,7 @@ def _pass_evidence(
             material_set_id,
             (author_duration_ms, invocation_duration_ms),
             output_id,
+            plugin_identity,
         )
     result = AuthorThenRunEvidence(
         scenario_id=contract.scenario_id,
@@ -830,7 +841,7 @@ def _pass_evidence(
         else "pending_human_review",
         terminal_phase="invocation",
         invocation_mode=contract.invocation_mode,
-        plugin_identity=_plugin_identity(),
+        plugin_identity=plugin_identity,
         skill_identity="agent-development@agent-engineering",
         wheel_digest=_digest_file(wheel),
         harness_policy_digest=_harness_policy_digest(),
@@ -881,6 +892,7 @@ def _unavailable_evidence(
     wheel: Path,
     material_set_id: str,
     actor_durations_ms: tuple[int, ...],
+    plugin_identity: str,
 ) -> AuthorThenRunEvidence:
     if (
         author_result.returncode
@@ -892,16 +904,17 @@ def _unavailable_evidence(
             wheel,
             material_set_id,
             actor_durations_ms,
+            plugin_identity,
         )
     result = AuthorThenRunEvidence(
         scenario_id=contract.scenario_id,
         scenario_contract_version="m4.4-v1",
         checker_version="m4.4-cli-first-v1",
         expected_status=contract.expected_status,
-        observed_status="expected_capability_unavailable",
+        observed_status=contract.expected_status,
         terminal_phase=contract.expected_terminal_phase,
         invocation_mode=contract.invocation_mode,
-        plugin_identity=_plugin_identity(),
+        plugin_identity=plugin_identity,
         skill_identity="agent-development@agent-engineering",
         wheel_digest=_digest_file(wheel),
         harness_policy_digest=_harness_policy_digest(),
@@ -939,6 +952,7 @@ def _failure(
     material_set_id: str,
     actor_durations_ms: tuple[int, ...],
     output_id: str | None = None,
+    plugin_identity: str = "agent-engineering@unknown",
 ) -> AuthorThenRunEvidence:
     return AuthorThenRunEvidence(
         scenario_id=contract.scenario_id,
@@ -948,7 +962,7 @@ def _failure(
         observed_status="harness_failure",
         terminal_phase=phase,
         invocation_mode=contract.invocation_mode,
-        plugin_identity=_plugin_identity(),
+        plugin_identity=plugin_identity,
         skill_identity="agent-development@agent-engineering",
         wheel_digest=_digest_file(wheel),
         harness_policy_digest=_harness_policy_digest(),
@@ -1294,15 +1308,9 @@ def _harness_policy_digest() -> str:
     )
 
 
-def _plugin_identity() -> str:
+def _plugin_identity(plugin_root: Path) -> str:
     value = json.loads(
-        (
-            Path(__file__).resolve().parents[1]
-            / "plugins"
-            / "agent-engineering"
-            / ".codex-plugin"
-            / "plugin.json"
-        ).read_text(encoding="utf-8")
+        (plugin_root / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
     return f"{value['name']}@{value['version']}"
 

@@ -144,6 +144,19 @@ def test_actor_timeout_becomes_a_terminal_failure_record(
     assert result.stderr == ""
 
 
+def test_plugin_identity_reads_the_staged_plugin_manifest(tmp_path: Path) -> None:
+    module = _harness_module()
+    plugin_root = tmp_path / "generated-plugin"
+    manifest = plugin_root / ".codex-plugin" / "plugin.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        json.dumps({"name": "agent-engineering", "version": "0.1.0"}),
+        encoding="utf-8",
+    )
+
+    assert module._plugin_identity(plugin_root) == "agent-engineering@0.1.0"
+
+
 def test_unavailable_evidence_uses_its_declared_terminal_boundary() -> None:
     module = _harness_module()
     contract = module.load_m44_scenario(
@@ -161,9 +174,34 @@ def test_unavailable_evidence_uses_its_declared_terminal_boundary() -> None:
         REPO_ROOT / "dist" / "dynamic_agent_runner-0.2.1-py3-none-any.whl",
         "materials",
         (100,),
+        "agent-engineering@0.1.0",
     )
 
     assert evidence.terminal_phase == "source_selection"
+
+
+def test_refusal_evidence_preserves_the_declared_refusal_status() -> None:
+    module = _harness_module()
+    contract = module.load_m44_scenario(
+        REPO_ROOT
+        / "tests"
+        / "fixtures"
+        / "dar-authoring"
+        / "m4-4"
+        / "authoring-boundary-attack.json"
+    )
+
+    evidence = module._unavailable_evidence(
+        contract,
+        subprocess.CompletedProcess(("codex",), 0, "capability_unavailable", ""),
+        REPO_ROOT / "dist" / "dynamic_agent_runner-0.2.1-py3-none-any.whl",
+        "materials",
+        (100,),
+        "agent-engineering@0.1.0",
+    )
+
+    assert evidence.observed_status == "expected_refusal"
+    assert evidence.terminal_phase == contract.expected_terminal_phase
 
 
 def test_stage_dar_package_rejects_non_absolute_state_root(
