@@ -72,6 +72,24 @@ no-tool workflow. If the template cannot be used, return
 `authoring_runtime_unavailable` rather than emitting a plausible but
 unvalidated package.
 
+For a no-tool workflow that accepts declared workspace artifact roles, retain
+the canonical no-tool runtime and descriptor verbatim except for package
+identity, purpose, local-model prompt, and `allowed_artifact_roles`. Do not add
+a structured input schema, new runtime metadata, or a custom artifact protocol:
+the host prepares the declared opaque artifacts separately.
+
+Copy the canonical no-tool template files before editing. For this variant, the
+only YAML fields that may change are `package_id` in both files, `purpose` in
+the descriptor, the runtime's local-model prompt, and the descriptor's
+`allowed_artifact_roles`; leave every other template field byte-for-byte in its
+canonical shape. In particular, do not change `packaging.mode`, `metadata`,
+`input_contract`, `allowed_structured_input_fields`, `nodes`, or the output
+contract merely because the workflow has more than one artifact role.
+
+Do not normalize artifact role names: copy each declared role exactly into
+`allowed_artifact_roles`, preserving case and punctuation. For example,
+`risk-artifact` is not `risk_artifact`.
+
 ## Reviewed MCP template selection
 
 Use a tool template only when the explicit DAR request names its bounded
@@ -88,6 +106,10 @@ from general email wording.
 - For an explicitly read-only mailbox lookup, use
   `references/dar-authoring-read-only-mcp-template/` and retain its sole
   reviewed `lookup_records` read tool. Do not add a send operation.
+- For an explicitly declared OAuth reconnect workflow whose bounded operation
+  is a reviewed read-only mailbox query, use that same read-only MCP template.
+  The host owns OAuth connection state; retain `lookup_records` and do not
+  create a no-tool substitute, token-refresh mechanism, or send operation.
 
 If the explicit request needs a reviewed tool but its matching host capability
 or template is absent, return `authoring_runtime_unavailable`; never fabricate

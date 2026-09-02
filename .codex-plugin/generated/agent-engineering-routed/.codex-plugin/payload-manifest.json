@@ -233,7 +233,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "0e4ed5def7e29f798f91707bc370d84da4e9410ba77cb8e0ed8d9e71bf7e1c3d",
+      "content_hash": "0b6a42d07e60ed5032e13373c6e72958c8814f7cd4dbeb4b4f0818a510c29860",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -729,5 +729,5 @@
   ],
   "format_version": 1,
   "packager_format_version": 1,
-  "payload_fingerprint": "be122626ca92b6c17a6b639be24a70957ada443cf2d22d568f22bcded57024a5"
+  "payload_fingerprint": "7e879d3e52b7d65415de91f89934234278d5d2fa5f349ffda9860de4b4f32159"
 }
