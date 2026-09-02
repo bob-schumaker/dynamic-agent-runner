@@ -72,6 +72,27 @@ no-tool workflow. If the template cannot be used, return
 `authoring_runtime_unavailable` rather than emitting a plausible but
 unvalidated package.
 
+## Reviewed MCP template selection
+
+Use a tool template only when the explicit DAR request names its bounded
+operation and the host has already declared the corresponding reviewed
+capability. Do not infer a tool, connection, credential, recipient, or approval
+from general email wording.
+
+- For an explicitly approved email-send operation, use
+  `references/dar-authoring-write-mcp-template/`. Retain its sole `mail_send`
+  tool, `send_email` remote name, `write` side effect, and required approval.
+  Bind recipient authority only to a cited original-prompt span and body only
+  to the declared input or artifact role. Do not replace it with the no-tool
+  starter or add a second tool.
+- For an explicitly read-only mailbox lookup, use
+  `references/dar-authoring-read-only-mcp-template/` and retain its sole
+  reviewed `lookup_records` read tool. Do not add a send operation.
+
+If the explicit request needs a reviewed tool but its matching host capability
+or template is absent, return `authoring_runtime_unavailable`; never fabricate
+a tool contract.
+
 ## Author a package
 
 A human must first select the material files and issue the host-owned manifest.

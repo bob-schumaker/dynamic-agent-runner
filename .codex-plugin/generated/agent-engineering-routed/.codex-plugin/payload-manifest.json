@@ -178,6 +178,50 @@
     },
     {
       "acquisition_mode": "copied",
+      "content_hash": "c765abda159bb6da5ad04ba4cf2f3d820e87e6d769124cb87eb4c89f1310aa1b",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-write-mcp-template/agent-design.md",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-write-mcp-template/agent-design.md",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "copied",
+      "content_hash": "2dc78c0851ddd2955ed414f6e22dc42649351258b81a09e1816da0700dc6981f",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-write-mcp-template/agent-graph.mmd",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-write-mcp-template/agent-graph.mmd",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "copied",
+      "content_hash": "f01e6b84c99240825819b7e31f2136eba614f596269ec27ccf2cbb4d3440a14e",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-write-mcp-template/agent-runtime.yaml",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-write-mcp-template/agent-runtime.yaml",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "copied",
+      "content_hash": "ebfafe6bbfd0b44b1c956ed1b85c130dd733ca30603c6d0c7bfbbb3d1b0abdac",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-write-mcp-template/workflow-descriptor.yaml",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-write-mcp-template/workflow-descriptor.yaml",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "copied",
       "content_hash": "bb1daf8a7c5606b944b004b79cd628b6dd5d56635ef92d2ff6d15e48303043e2",
       "file_mode": "0o644",
       "file_type": "file",
@@ -189,7 +233,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "8270aa42ca51f0aba81ac066dbb232f784b10ddd9249da5f1ce98ab15682a3e5",
+      "content_hash": "0e4ed5def7e29f798f91707bc370d84da4e9410ba77cb8e0ed8d9e71bf7e1c3d",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -685,5 +729,5 @@
   ],
   "format_version": 1,
   "packager_format_version": 1,
-  "payload_fingerprint": "7eafbcc4cc2d9823772e662375cbfabbceab9d60d144f485159add4aaacb9ae6"
+  "payload_fingerprint": "be122626ca92b6c17a6b639be24a70957ada443cf2d22d568f22bcded57024a5"
 }

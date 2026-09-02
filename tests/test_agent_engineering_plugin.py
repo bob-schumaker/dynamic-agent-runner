@@ -179,6 +179,26 @@ def test_router_source_has_no_support_subtree_and_private_members_own_guidance()
     assert "corpus/" not in root_skill
 
 
+def test_private_dar_write_template_preserves_the_reviewed_email_contract() -> None:
+    support = PLUGIN_ROOT / "payload" / "dar-workflow-authoring" / "references"
+    guidance = (support / "dar-runtime-profile" / "agent-development.md").read_text(
+        encoding="utf-8"
+    )
+    descriptor = (
+        support / "dar-authoring-write-mcp-template" / "workflow-descriptor.yaml"
+    ).read_text(encoding="utf-8")
+    runtime = (
+        support / "dar-authoring-write-mcp-template" / "agent-runtime.yaml"
+    ).read_text(encoding="utf-8")
+
+    assert "dar-authoring-write-mcp-template" in guidance
+    assert "remote_tool_name: send_email" in descriptor
+    assert "side_effect: write" in descriptor
+    assert "approval_required: true" in descriptor
+    assert "id: mail_send" in runtime
+    assert "available_tools:" in runtime
+
+
 def test_marketplace_exposes_only_the_successor_plugin() -> None:
     marketplace = json.loads(MARKETPLACE_PATH.read_text(encoding="utf-8"))
 
