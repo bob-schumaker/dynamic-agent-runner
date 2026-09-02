@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -142,6 +143,10 @@ class _ControllerMCPClient:
                 input_schema={"type": "object", "properties": {}},
             ),
             MCPDiscoveredTool(
+                name="lookup_records",
+                input_schema={"type": "object", "properties": {}},
+            ),
+            MCPDiscoveredTool(
                 name="send_email",
                 input_schema={
                     "type": "object",
@@ -172,6 +177,12 @@ class _ControllerFixtures:
         self.fixture_ids = fixture_ids
         self.approval_broker_factory = approval_broker_factory
         self.guardrail_registry = guardrail_registry
+
+
+def _controller_available_gates() -> tuple[str, ...]:
+    """Return the M4.4 gates implemented by the deterministic controller."""
+
+    return ("G2", "G3", "G4", "G5")
 
 
 def _configure_controller_mcp(
@@ -315,6 +326,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the complete manifest-defined clean-Codex M4.4 acceptance replay."""
 
     arguments = _arguments(argv)
+    if arguments.progress_file is None:
+        arguments.progress_file = arguments.evidence_directory.with_name(
+            f"{arguments.evidence_directory.name}.progress.jsonl"
+        )
     try:
         with _fake_model_server() as base_url:
             aggregate = run_manifest(
@@ -439,6 +454,7 @@ def run_manifest(
     codex_executable: str,
     timeout: int,
     plugin_surface: str = "generated-root",
+    progress_file: Path | None = None,
 ) -> Path:
     """Replay every closed-plan scenario and write its one aggregate evidence set."""
 
@@ -456,8 +472,22 @@ def run_manifest(
     )
     sources = _scenario_sources(scenario_roots)
     _verify_fixture_contracts(plan, sources)
-    records = tuple(
-        run_scenario(
+    _write_progress_event(
+        progress_file,
+        {"event": "run_started", "scenario_count": len(plan.entries)},
+    )
+    records_list: list[AuthorThenRunEvidence] = []
+    for index, entry in enumerate(plan.entries, start=1):
+        _write_progress_event(
+            progress_file,
+            {
+                "event": "scenario_started",
+                "index": index,
+                "scenario_count": len(plan.entries),
+                "scenario_id": entry.scenario_id,
+            },
+        )
+        record = run_scenario(
             scenario=sources[entry.scenario_id],
             codex_home=codex_home,
             plugin_root=plugin_root,
@@ -476,7 +506,23 @@ def run_manifest(
             timeout=timeout,
             plugin_surface=plugin_surface,
         )
-        for entry in plan.entries
+        records_list.append(record)
+        _write_progress_event(
+            progress_file,
+            {
+                "event": "scenario_completed",
+                "index": index,
+                "scenario_count": len(plan.entries),
+                "scenario_id": record.scenario_id,
+                "observed_status": record.observed_status,
+                "terminal_phase": record.terminal_phase,
+                "actor_duration_ms": sum(record.actor_durations_ms),
+            },
+        )
+    records = tuple(records_list)
+    _write_progress_event(
+        progress_file,
+        {"event": "run_completed", "scenario_count": len(records)},
     )
     return write_manifest_evidence(
         evidence_directory=evidence_directory,
@@ -485,6 +531,23 @@ def run_manifest(
         scenario_roots=scenario_roots,
         records=records,
     )
+
+
+def _write_progress_event(
+    progress_file: Path | None, event: Mapping[str, object]
+) -> None:
+    """Append one redacted live-replay event for operator observability."""
+
+    if progress_file is None:
+        return
+    if not progress_file.is_absolute():
+        raise HarnessError("progress file must be absolute")
+    progress_file.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with progress_file.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(event, sort_keys=True, separators=(",", ":")))
+        stream.write("\n")
+        stream.flush()
+    os.chmod(progress_file, 0o600)
 
 
 def run_scenario(
@@ -556,7 +619,10 @@ def run_scenario(
                 profile_id=configuration.profile_id,
                 use_oauth="oauth-connection" in fixtures.fixture_ids,
             )
-            if "reviewed-mcp-connection" in fixtures.fixture_ids
+            if {
+                "reviewed-mcp-connection",
+                "oauth-connection",
+            }.intersection(fixtures.fixture_ids)
             else None
         )
         mcp_client, mcp_connections = mcp_fixture or (None, None)
@@ -635,6 +701,7 @@ def run_scenario(
                         material_receipt.material_set_id,
                         package_name,
                         contract.expected_status,
+                        artifact_roles=contract.required_artifact_roles,
                     ),
                     author_workspace,
                     build_clean_codex_environment(
@@ -764,18 +831,14 @@ def _pass_evidence(
         )
         snapshot = (
             host.review_mcp_surface(
-                approved_read_only_tool_names=("list_unread",),
+                approved_read_only_tool_names=("list_unread", "lookup_records"),
                 approved_tool_side_effects={"send_email": "write"},
             )
             if mcp_client is not None
             else None
         )
         binding = (
-            host.bind_mcp_package(
-                package_source_handle=source_handle,
-                snapshot_id=snapshot.snapshot_id,
-                now=datetime.now(UTC),
-            )
+            _bind_mcp_if_declared(host, source_handle, snapshot)
             if snapshot is not None
             else None
         )
@@ -786,15 +849,26 @@ def _pass_evidence(
             mcp_binding_id=binding.binding_id if binding is not None else None,
         )
         if "trusted-workspace-ingress" in available_host_fixtures:
-            fixture_input = controller_input_root / "fixture-input.txt"
-            fixture_input.write_text("controller fixture input\n", encoding="utf-8")
-            workspace_artifact_ids.append(
-                host.ingress_default_file(
-                    workflow_id=registration.workflow_id,
-                    path=fixture_input,
-                    now=datetime.now(UTC),
-                ).artifact_id
-            )
+            roles = contract.required_artifact_roles or (None,)
+            for role in roles:
+                fixture_input = controller_input_root / f"fixture-{role or 'input'}.txt"
+                fixture_input.write_text("controller fixture input\n", encoding="utf-8")
+                artifact = (
+                    host.ingress_file(
+                        workflow_id=registration.workflow_id,
+                        path=fixture_input,
+                        role=role,
+                        media_type="text/plain",
+                        now=datetime.now(UTC),
+                    )
+                    if role is not None
+                    else host.ingress_default_file(
+                        workflow_id=registration.workflow_id,
+                        path=fixture_input,
+                        now=datetime.now(UTC),
+                    )
+                )
+                workspace_artifact_ids.append(artifact.artifact_id)
         if registration.revision_digest != package_digest:
             raise ValueError
     except (LocalWorkflowHostError, ValueError):
@@ -811,7 +885,11 @@ def _pass_evidence(
     invocation_started = time.monotonic()
     run_result = _run_codex(
         codex,
-        _run_request(package_name, run_prompt),
+        _run_request(
+            package_name,
+            run_prompt,
+            requires_approval="approval-broker" in available_host_fixtures,
+        ),
         invocation_workspace,
         build_clean_codex_environment(
             codex_home=codex_home,
@@ -871,14 +949,22 @@ def _pass_evidence(
         reviewer_id=reviewer_id,
         reviewer_decision=reviewer_decision,
         controller_fixture_digest=_digest_json(
-            {"gates": ["G3"], "fixtures": available_host_fixtures}
+            {
+                "gates": _controller_available_gates(),
+                "fixtures": available_host_fixtures,
+            }
         ),
         marketplace_manifest_digest=marketplace_manifest_digest,
         mcp_snapshot_id=snapshot.snapshot_id if snapshot is not None else None,
         mcp_binding_id=binding.binding_id if binding is not None else None,
-        mcp_read_tool_names=("list_unread",) if snapshot is not None else (),
+        mcp_read_tool_names=(
+            ("list_unread", "lookup_records") if snapshot is not None else ()
+        ),
         mcp_read_call_count=(
-            sum(name == "list_unread" for name, _arguments in mcp_client.calls)
+            sum(
+                name in {"list_unread", "lookup_records"}
+                for name, _arguments in mcp_client.calls
+            )
             if mcp_client is not None
             else 0
         ),
@@ -893,10 +979,27 @@ def _pass_evidence(
     validate_m44_evidence(
         contract,
         result,
-        available_gates=("G3",),
+        available_gates=_controller_available_gates(),
         available_host_fixtures=available_host_fixtures,
     )
     return result
+
+
+def _bind_mcp_if_declared(
+    host: LocalWorkflowHost,
+    source_handle: str,
+    snapshot: object,
+) -> object | None:
+    try:
+        return host.bind_mcp_package(
+            package_source_handle=source_handle,
+            snapshot_id=snapshot.snapshot_id,
+            now=datetime.now(UTC),
+        )
+    except LocalWorkflowHostError as error:
+        if str(error) == "MCP package binding is unavailable":
+            return None
+        raise
 
 
 def _unavailable_evidence(
@@ -1129,25 +1232,45 @@ def _author_request(
     material_set_id: str,
     package_name: str,
     expected_status: str,
+    *,
+    artifact_roles: tuple[str, ...] = (),
 ) -> str:
     suffix = (
         "This requires unavailable multi-agent/subagent capability; report capability_unavailable and do not create a package."
         if expected_status != "pass"
         else "Create, write, and finalize the package, then report the redacted finalization receipt."
     )
+    artifact_guidance = (
+        f" Declared artifact roles: {', '.join(artifact_roles)}; copy each role exactly "
+        "into the package descriptor's allowed_artifact_roles."
+        if artifact_roles
+        else ""
+    )
+    operation_guidance = (
+        " This is an approved email-send operation: use the reviewed write-MCP "
+        "template with its sole mail_send tool; do not choose the no-tool starter."
+        if "email_body" in artifact_roles and "email" in author_prompt.lower()
+        else ""
+    )
     return (
         f"{author_prompt}\n\nUse the installed agent-engineering agent-development "
         f"skill to author a DAR workflow. The declared material_set_id is "
         f"`{material_set_id}` and the requested package name is `{package_name}`. "
+        f"{artifact_guidance}{operation_guidance} "
         f"{suffix}"
     )
 
 
-def _run_request(package_name: str, run_prompt: str) -> str:
+def _run_request(package_name: str, run_prompt: str, *, requires_approval: bool) -> str:
+    ask_mode = " --ask" if requires_approval else ""
+    command = (
+        f"printf '%s' {shlex.quote(run_prompt)} | dar-package invoke "
+        f"--package-name {shlex.quote(package_name)} --prompt-stdin{ask_mode}"
+    )
     return (
         f"Use the saved workflow `{package_name}` for this request: {run_prompt}\n\n"
-        "Use `dar-package invoke`, then report the JSON receipt. Do not select, "
-        "register, or modify the package."
+        f"Run exactly one command, `{command}`. Immediately return "
+        "its JSON receipt. Do not select, register, inspect, or modify the package."
     )
 
 
@@ -1208,6 +1331,7 @@ def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
         default="generated-root",
     )
     parser.add_argument("--timeout", type=int, default=300)
+    parser.add_argument("--progress-file", type=Path)
     arguments = parser.parse_args(argv)
     arguments.scenario_roots = tuple(arguments.scenario_root)
     del arguments.scenario_root
@@ -1274,10 +1398,10 @@ def _run_codex(
         "--json",
         "--cd",
         str(workspace),
-        prompt,
+        "-",
     ]
     try:
-        return _command(command, environment, timeout, check=False)
+        return _command(command, environment, timeout, check=False, input_text=prompt)
     except HarnessError:
         return subprocess.CompletedProcess(command, 124, "", "")
 
@@ -1288,7 +1412,11 @@ def _command(
     timeout: int,
     *,
     check: bool = True,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    standard_input = (
+        {"stdin": subprocess.DEVNULL} if input_text is None else {"input": input_text}
+    )
     try:
         result = subprocess.run(
             command,
@@ -1297,6 +1425,7 @@ def _command(
             text=True,
             timeout=timeout,
             check=False,
+            **standard_input,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise HarnessError("Codex command could not be run") from error

@@ -144,6 +144,42 @@ def test_actor_timeout_becomes_a_terminal_failure_record(
     assert result.stderr == ""
 
 
+def test_codex_actor_receives_prompt_on_closed_standard_input(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    module = _harness_module()
+    observed: dict[str, object] = {}
+
+    def completed(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        observed["command"] = args[0]
+        observed.update(kwargs)
+        return subprocess.CompletedProcess(args[0], 0, "", "")
+
+    monkeypatch.setattr(module, "_command", completed)
+
+    module._run_codex("codex", "author the workflow", tmp_path, {"PATH": "/bin"}, 30)
+
+    assert observed["command"][-1] == "-"
+    assert observed["input_text"] == "author the workflow"
+
+
+def test_codex_commands_close_inherited_standard_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _harness_module()
+    observed: dict[str, object] = {}
+
+    def completed(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        observed.update(kwargs)
+        return subprocess.CompletedProcess(args[0], 0, "", "")
+
+    monkeypatch.setattr(module.subprocess, "run", completed)
+
+    module._command(["codex", "exec", "prompt"], {"PATH": "/usr/bin:/bin"}, 30)
+
+    assert observed["stdin"] is subprocess.DEVNULL
+
+
 def test_plugin_identity_reads_the_staged_plugin_manifest(tmp_path: Path) -> None:
     module = _harness_module()
     plugin_root = tmp_path / "generated-plugin"
@@ -394,6 +430,7 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
         reviewer_decision="pending",
         codex_executable="codex",
         timeout=1,
+        progress_file=(tmp_path / "progress.jsonl").resolve(),
     )
 
     assert len(calls) == 23
@@ -401,6 +438,16 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
     assert set(fixture_contracts) == set(records)
     assert {call["evidence"] for call in calls} == {None}
     assert len(json.loads(aggregate.read_text(encoding="utf-8"))["records"]) == 23
+    progress = [
+        json.loads(line)
+        for line in (tmp_path / "progress.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert progress[0] == {"event": "run_started", "scenario_count": 23}
+    assert sum(event["event"] == "scenario_started" for event in progress) == 23
+    assert sum(event["event"] == "scenario_completed" for event in progress) == 23
+    assert progress[-1] == {"event": "run_completed", "scenario_count": 23}
 
 
 def test_external_command_rejects_a_scenario_only_override(tmp_path: Path) -> None:
@@ -476,6 +523,7 @@ def test_external_command_owns_its_deterministic_fake_model(
     )
     assert observed["model_id"] == "openai/local-model"
     assert observed["base_url"] == "http://127.0.0.1:18080/v1"
+    assert observed["progress_file"] == (tmp_path / "evidence.progress.jsonl").resolve()
 
 
 def test_controller_waits_for_fake_model_before_actor_launch(
@@ -591,6 +639,35 @@ def test_controller_mcp_fixture_reviews_without_a_network_transport(
 
     assert reviewed.read_only_tool_names == frozenset({"list_unread"})
     assert client.calls == []
+
+
+def test_controller_mcp_fixture_exposes_the_read_only_authoring_template_tool(
+    tmp_path: Path,
+) -> None:
+    module = _harness_module()
+    state_root = (tmp_path / "state").resolve()
+    package_root = (tmp_path / "packages").resolve()
+    package_root.mkdir()
+    configuration = module.configure_local_host(
+        root=state_root,
+        package_root=package_root,
+        model_id="openai/local-model",
+        base_url="http://127.0.0.1:8080/v1",
+    )
+    client, connections = module._configure_controller_mcp(
+        state_root=state_root, profile_id=configuration.profile_id
+    )
+    host = module.LocalWorkflowHost.open(
+        state_root,
+        mcp_client_factory=lambda _configuration: client,
+        mcp_connections=connections,
+    )
+
+    reviewed = host.review_mcp_surface(
+        approved_read_only_tool_names=("lookup_records",),
+    )
+
+    assert reviewed.read_only_tool_names == frozenset({"lookup_records"})
 
 
 def test_controller_oauth_fixture_reviews_without_a_network_transport(
@@ -784,13 +861,65 @@ def test_successor_author_prompt_uses_no_legacy_identity_or_cli_recipe() -> None
     assert "MCP" not in prompt
 
 
+def test_successor_author_prompt_declares_exact_artifact_roles() -> None:
+    module = _harness_module()
+
+    prompt = module._author_request(
+        "Author the declared DAR workflow using the supplied email_body artifact.",
+        "material-id",
+        "email-file-body",
+        "pass",
+        artifact_roles=("email_body",),
+    )
+
+    assert "Declared artifact roles: email_body" in prompt
+    assert "copy each role exactly" in prompt
+
+
+def test_email_artifact_author_prompt_requires_reviewed_write_template() -> None:
+    module = _harness_module()
+
+    prompt = module._author_request(
+        "Author the declared DAR approved email-send workflow.",
+        "material-id",
+        "email-file-body",
+        "pass",
+        artifact_roles=("email_body",),
+    )
+
+    assert "approved email-send operation" in prompt
+    assert "reviewed write-MCP template" in prompt
+    assert "do not choose the no-tool starter" in prompt
+
+
 def test_successor_run_prompt_names_only_the_saved_package_and_request() -> None:
     module = _harness_module()
 
-    prompt = module._run_request("summary", "Summarize this text.")
+    prompt = module._run_request(
+        "summary", "Summarize this text.", requires_approval=False
+    )
 
-    assert "dar-package invoke" in prompt
+    assert "dar-package invoke --package-name summary --prompt-stdin" in prompt
+    assert "printf '%s' 'Summarize this text.'" in prompt
     assert "summary" in prompt
     assert "Summarize this text." in prompt
+    assert "exactly one command" in prompt
+    assert "Immediately return" in prompt
     assert "uv run" not in prompt
     assert "/" not in prompt
+
+
+def test_successor_approval_run_prompt_requires_the_declared_ask_mode() -> None:
+    module = _harness_module()
+
+    prompt = module._run_request(
+        "email", "Send the declared email.", requires_approval=True
+    )
+
+    assert "dar-package invoke --package-name email --prompt-stdin --ask" in prompt
+
+
+def test_successor_controller_advertises_supported_execution_gates() -> None:
+    module = _harness_module()
+
+    assert set(module._controller_available_gates()) == {"G2", "G3", "G4", "G5"}

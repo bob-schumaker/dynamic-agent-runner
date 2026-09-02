@@ -54,7 +54,7 @@
       "workflow_id": "m44-document-summary"
     },
     {
-      "author_request": "Author the declared DAR email workflow using the supplied body artifact.",
+      "author_request": "Author the declared DAR approved email-send workflow using the supplied email_body artifact.",
       "fixture_ids": [
         "local-model-profile",
         "reviewed-mcp-connection",
@@ -62,7 +62,7 @@
         "approval-broker"
       ],
       "package_name": "m44-email-file-body",
-      "run_request": "Send the declared email.",
+      "run_request": "Send the email to fixture@example.test using the declared email_body artifact.",
       "scenario_id": "email-file-body-v1",
       "workflow_id": "m44-email-file-body"
     },
@@ -87,7 +87,7 @@
         "approval-broker"
       ],
       "package_name": "m44-generic-email",
-      "run_request": "Send the declared email.",
+      "run_request": "Send the email to fixture@example.test with body fixture body. Request the declared local approval with --ask.",
       "scenario_id": "generic-email-send-v1",
       "workflow_id": "m44-generic-email"
     },
@@ -136,7 +136,7 @@
       "workflow_id": "m44-guardrail-tool"
     },
     {
-      "author_request": "Author the declared DAR hybrid-input brief workflow.",
+      "author_request": "Author the declared DAR hybrid-input brief workflow using the supplied brief and risk-artifact roles.",
       "fixture_ids": [
         "local-model-profile",
         "trusted-workspace-ingress"

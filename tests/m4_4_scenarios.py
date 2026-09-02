@@ -513,15 +513,19 @@ def validate_m44_evidence(
         and evidence.controller_fixture_digest is None
     ):
         raise M44ScenarioError("controller fixture evidence is unavailable")
-    if scenario.expected_status == "pass" and "G2" in scenario.required_gates:
+    if (
+        scenario.expected_status == "pass"
+        and "reviewed-mcp-connection" in scenario.required_host_fixtures
+    ):
+        if evidence.mcp_snapshot_id is None or evidence.mcp_binding_id is None:
+            raise M44ScenarioError("reviewed MCP evidence is unavailable")
+    if "no-send-handler-dispatch" in scenario.zero_dispatch_assertions:
         if (
-            evidence.mcp_snapshot_id is None
-            or evidence.mcp_binding_id is None
-            or not evidence.mcp_read_tool_names
+            not evidence.mcp_read_tool_names
             or evidence.mcp_read_call_count <= 0
             or evidence.forbidden_send_dispatch_count != 0
         ):
-            raise M44ScenarioError("reviewed MCP evidence is unavailable")
+            raise M44ScenarioError("read-only MCP dispatch evidence is unavailable")
 
 
 def _choice(value: object, label: str, allowed: set[str]) -> str:

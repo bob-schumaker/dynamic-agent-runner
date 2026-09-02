@@ -199,6 +199,27 @@ def test_private_dar_write_template_preserves_the_reviewed_email_contract() -> N
     assert "available_tools:" in runtime
 
 
+def test_private_dar_guidance_keeps_artifact_workflows_on_the_no_tool_template() -> (
+    None
+):
+    guidance = (
+        PLUGIN_ROOT
+        / "payload"
+        / "dar-workflow-authoring"
+        / "references"
+        / "dar-runtime-profile"
+        / "agent-development.md"
+    ).read_text(encoding="utf-8")
+
+    assert "allowed_artifact_roles" in guidance
+    assert "structured input schema" in guidance
+    assert "custom artifact protocol" in guidance
+    assert "Copy the canonical no-tool template files" in guidance
+    assert "only YAML fields that may change" in guidance
+    assert "Do not normalize artifact role names" in guidance
+    assert "OAuth reconnect workflow" in guidance
+
+
 def test_marketplace_exposes_only_the_successor_plugin() -> None:
     marketplace = json.loads(MARKETPLACE_PATH.read_text(encoding="utf-8"))
 

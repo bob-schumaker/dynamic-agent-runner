@@ -212,6 +212,38 @@ def test_checked_in_external_scenario_plan_covers_the_complete_successor_manifes
     )
 
 
+def test_generic_email_scenario_supplies_the_reviewed_tool_arguments() -> None:
+    root = Path(__file__).resolve().parent
+    plan = load_m44_external_scenario_plan(
+        root / "fixtures" / "m4-4-external-scenario-plan.json"
+    )
+
+    entry = next(
+        entry for entry in plan.entries if entry.scenario_id == "generic-email-send-v1"
+    )
+
+    assert entry.run_request == (
+        "Send the email to fixture@example.test with body fixture body. "
+        "Request the declared local approval with --ask."
+    )
+
+
+def test_email_file_body_scenario_explicitly_requests_the_reviewed_write_tool() -> None:
+    root = Path(__file__).resolve().parent
+    plan = load_m44_external_scenario_plan(
+        root / "fixtures" / "m4-4-external-scenario-plan.json"
+    )
+
+    entry = next(
+        entry for entry in plan.entries if entry.scenario_id == "email-file-body-v1"
+    )
+
+    assert entry.author_request == (
+        "Author the declared DAR approved email-send workflow using the supplied "
+        "email_body artifact."
+    )
+
+
 def test_original_13_scenario_ids_are_required_by_the_external_replay() -> None:
     root = Path(__file__).resolve().parent
     original_ids = load_m44_original_scenario_ids(
@@ -382,6 +414,55 @@ def test_capability_unavailable_g2_scenario_does_not_require_a_live_mcp_read() -
         evidence,
         available_gates=("G3",),
         available_host_fixtures=("local-model-profile",),
+    )
+
+
+def test_reviewed_send_scenario_requires_binding_but_not_read_dispatch() -> None:
+    scenario = load_m44_scenario(
+        Path(__file__).resolve().parent
+        / "fixtures"
+        / "dar-authoring"
+        / "m4-4"
+        / "generic-email-send.json"
+    )
+    evidence = AuthorThenRunEvidence(
+        scenario_id=scenario.scenario_id,
+        scenario_contract_version="m4.4-v1",
+        checker_version="m4.4-checker-v1",
+        expected_status="pass",
+        observed_status="pending_human_review",
+        terminal_phase="invocation",
+        invocation_mode=scenario.invocation_mode,
+        plugin_identity="agent-engineering@local-test",
+        skill_identity="agent-development@local-test",
+        wheel_digest="a" * 64,
+        harness_policy_digest="f" * 64,
+        executable_identity="codex@0.149.1",
+        module_identity="dynamic-agent-runner@0.2.1",
+        authoring_material_set_id="v1.material-set.signature",
+        authoring_output_id="v1.output.signature",
+        authoring_receipt_digest="0" * 64,
+        final_package_digest="b" * 64,
+        catalog_revision_digest="c" * 64,
+        registration_digest="d" * 64,
+        prepared_input_registration_digest="d" * 64,
+        action_trace_digest="e" * 64,
+        dispatch_count=0,
+        reviewer_id=None,
+        reviewer_decision="pending",
+        controller_fixture_digest="1" * 64,
+        marketplace_manifest_digest="2" * 64,
+        mcp_snapshot_id="mcp-snapshot",
+        mcp_binding_id="mcp-binding",
+        forbidden_send_dispatch_count=1,
+        actor_durations_ms=(100, 200),
+    )
+
+    validate_m44_evidence(
+        scenario,
+        evidence,
+        available_gates=("G2", "G5"),
+        available_host_fixtures=scenario.required_host_fixtures,
     )
 
 
