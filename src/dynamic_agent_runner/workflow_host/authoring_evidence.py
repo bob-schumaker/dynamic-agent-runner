@@ -216,6 +216,11 @@ class AuthorThenRunEvidence:
     mcp_read_call_count: int = 0
     forbidden_send_dispatch_count: int = 0
     marketplace_manifest_digest: str | None = None
+    generated_manifest_digest: str | None = None
+    router_authority_digest: str | None = None
+    payload_manifest_digest: str | None = None
+    source_map_digest: str | None = None
+    release_metadata_digest: str | None = None
     actor_durations_ms: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
@@ -264,6 +269,11 @@ class AuthorThenRunEvidence:
             "mcp_read_call_count": self.mcp_read_call_count,
             "forbidden_send_dispatch_count": self.forbidden_send_dispatch_count,
             "marketplace_manifest_digest": self.marketplace_manifest_digest,
+            "generated_manifest_digest": self.generated_manifest_digest,
+            "router_authority_digest": self.router_authority_digest,
+            "payload_manifest_digest": self.payload_manifest_digest,
+            "source_map_digest": self.source_map_digest,
+            "release_metadata_digest": self.release_metadata_digest,
             "actor_durations_ms": list(self.actor_durations_ms),
         }
 
@@ -359,6 +369,11 @@ def _validate_optional_digests(evidence: AuthorThenRunEvidence) -> None:
         (evidence.action_trace_digest, "action_trace_digest"),
         (evidence.authoring_receipt_digest, "authoring_receipt_digest"),
         (evidence.marketplace_manifest_digest, "marketplace_manifest_digest"),
+        (evidence.generated_manifest_digest, "generated_manifest_digest"),
+        (evidence.router_authority_digest, "router_authority_digest"),
+        (evidence.payload_manifest_digest, "payload_manifest_digest"),
+        (evidence.source_map_digest, "source_map_digest"),
+        (evidence.release_metadata_digest, "release_metadata_digest"),
     ):
         if value is not None:
             _digest(value, label)

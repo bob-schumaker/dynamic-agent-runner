@@ -21,7 +21,7 @@ import sys
 import tempfile
 import time
 from threading import Event, Thread
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Mapping, Sequence
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
@@ -511,6 +511,11 @@ def run_scenario(
 
     contract = load_m44_scenario(scenario)
     plugin_identity = _plugin_identity(plugin_root)
+    provenance = (
+        _generated_plugin_provenance(plugin_root)
+        if plugin_surface == "generated-root"
+        else {}
+    )
     fixtures = _controller_fixtures(contract)
     _validate_inputs(
         contract,
@@ -660,6 +665,7 @@ def run_scenario(
                         material_receipt.material_set_id,
                         (author_duration_ms,),
                         plugin_identity,
+                        provenance,
                     )
                 else:
                     result = _pass_evidence(
@@ -687,6 +693,7 @@ def run_scenario(
                         workspace_artifact_ids,
                         author_duration_ms,
                         plugin_identity,
+                        provenance,
                     )
             finally:
                 if installed:
@@ -721,6 +728,7 @@ def _pass_evidence(
     workspace_artifact_ids: list[str],
     author_duration_ms: int,
     plugin_identity: str,
+    provenance: Mapping[str, str],
 ) -> AuthorThenRunEvidence:
     created, finalized = (
         _receipt(author_result.stdout, "created"),
@@ -734,6 +742,7 @@ def _pass_evidence(
             material_set_id,
             (author_duration_ms,),
             plugin_identity,
+            provenance=provenance,
         )
     output_id, package_digest = (
         created.get("authoring_output_id"),
@@ -747,6 +756,7 @@ def _pass_evidence(
             material_set_id,
             (author_duration_ms,),
             plugin_identity,
+            provenance=provenance,
         )
     try:
         source_handle = host.select_authored_package(
@@ -796,6 +806,7 @@ def _pass_evidence(
             (author_duration_ms,),
             output_id,
             plugin_identity,
+            provenance=provenance,
         )
     invocation_started = time.monotonic()
     run_result = _run_codex(
@@ -830,6 +841,7 @@ def _pass_evidence(
             (author_duration_ms, invocation_duration_ms),
             output_id,
             plugin_identity,
+            provenance=provenance,
         )
     result = AuthorThenRunEvidence(
         scenario_id=contract.scenario_id,
@@ -876,6 +888,7 @@ def _pass_evidence(
             else 0
         ),
         actor_durations_ms=(author_duration_ms, invocation_duration_ms),
+        **provenance,
     )
     validate_m44_evidence(
         contract,
@@ -893,6 +906,7 @@ def _unavailable_evidence(
     material_set_id: str,
     actor_durations_ms: tuple[int, ...],
     plugin_identity: str,
+    provenance: Mapping[str, str],
 ) -> AuthorThenRunEvidence:
     if (
         author_result.returncode
@@ -905,6 +919,7 @@ def _unavailable_evidence(
             material_set_id,
             actor_durations_ms,
             plugin_identity,
+            provenance=provenance,
         )
     result = AuthorThenRunEvidence(
         scenario_id=contract.scenario_id,
@@ -935,6 +950,7 @@ def _unavailable_evidence(
             {"gates": ["G3"], "fixture": "local-model-profile"}
         ),
         actor_durations_ms=actor_durations_ms,
+        **provenance,
     )
     validate_m44_evidence(
         contract,
@@ -953,6 +969,7 @@ def _failure(
     actor_durations_ms: tuple[int, ...],
     output_id: str | None = None,
     plugin_identity: str = "agent-engineering@unknown",
+    provenance: Mapping[str, str] | None = None,
 ) -> AuthorThenRunEvidence:
     return AuthorThenRunEvidence(
         scenario_id=contract.scenario_id,
@@ -980,6 +997,7 @@ def _failure(
         reviewer_id=None,
         reviewer_decision="pending",
         actor_durations_ms=actor_durations_ms,
+        **(provenance or {}),
     )
 
 
@@ -1313,6 +1331,27 @@ def _plugin_identity(plugin_root: Path) -> str:
         (plugin_root / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
     return f"{value['name']}@{value['version']}"
+
+
+def _generated_plugin_provenance(plugin_root: Path) -> dict[str, str]:
+    """Return the required redacted receipts for one generated routed plugin."""
+
+    receipts = {
+        "generated_manifest_digest": plugin_root / ".codex-plugin" / "plugin.json",
+        "router_authority_digest": plugin_root
+        / ".codex-plugin"
+        / "native-routed-decision-record.json",
+        "payload_manifest_digest": plugin_root
+        / ".codex-plugin"
+        / "payload-manifest.json",
+        "source_map_digest": plugin_root / ".router-plugin-packager-source-map.json",
+        "release_metadata_digest": plugin_root
+        / ".codex-plugin"
+        / "release-metadata.json",
+    }
+    if any(not receipt.is_file() for receipt in receipts.values()):
+        raise HarnessError("generated plugin receipt is missing")
+    return {name: _digest_file(receipt) for name, receipt in receipts.items()}
 
 
 def _codex_identity(codex: str) -> str:

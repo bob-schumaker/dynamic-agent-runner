@@ -178,6 +178,11 @@ def test_author_then_run_evidence_binds_a_positive_handoff_without_raw_content(
         reviewer_id=None,
         reviewer_decision="pending",
         marketplace_manifest_digest="f" * 64,
+        generated_manifest_digest="1" * 64,
+        router_authority_digest="2" * 64,
+        payload_manifest_digest="3" * 64,
+        source_map_digest="4" * 64,
+        release_metadata_digest="5" * 64,
         actor_durations_ms=(125, 250),
     )
 
@@ -189,6 +194,11 @@ def test_author_then_run_evidence_binds_a_positive_handoff_without_raw_content(
     assert recorded["harness_policy_digest"] == "f" * 64
     assert recorded["executable_identity"] == "codex@0.149.1"
     assert recorded["authoring_receipt_digest"] == "0" * 64
+    assert recorded["generated_manifest_digest"] == "1" * 64
+    assert recorded["router_authority_digest"] == "2" * 64
+    assert recorded["payload_manifest_digest"] == "3" * 64
+    assert recorded["source_map_digest"] == "4" * 64
+    assert recorded["release_metadata_digest"] == "5" * 64
     assert recorded["actor_durations_ms"] == [125, 250]
     assert "prompt" not in recorded
     assert "material_content" not in recorded

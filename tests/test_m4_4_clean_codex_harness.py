@@ -157,6 +157,39 @@ def test_plugin_identity_reads_the_staged_plugin_manifest(tmp_path: Path) -> Non
     assert module._plugin_identity(plugin_root) == "agent-engineering@0.1.0"
 
 
+def test_generated_plugin_provenance_requires_every_packager_receipt(
+    tmp_path: Path,
+) -> None:
+    module = _harness_module()
+    plugin_root = tmp_path / "generated-plugin"
+    manifest = plugin_root / ".codex-plugin" / "plugin.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        json.dumps({"name": "agent-engineering", "version": "0.1.0"}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(module.HarnessError, match="generated plugin receipt"):
+        module._generated_plugin_provenance(plugin_root)
+
+
+def test_generated_plugin_provenance_binds_every_packager_receipt() -> None:
+    module = _harness_module()
+
+    provenance = module._generated_plugin_provenance(
+        REPO_ROOT / ".codex-plugin" / "generated" / "agent-engineering-routed"
+    )
+
+    assert set(provenance) == {
+        "generated_manifest_digest",
+        "router_authority_digest",
+        "payload_manifest_digest",
+        "source_map_digest",
+        "release_metadata_digest",
+    }
+    assert all(len(digest) == 64 for digest in provenance.values())
+
+
 def test_unavailable_evidence_uses_its_declared_terminal_boundary() -> None:
     module = _harness_module()
     contract = module.load_m44_scenario(
@@ -175,6 +208,7 @@ def test_unavailable_evidence_uses_its_declared_terminal_boundary() -> None:
         "materials",
         (100,),
         "agent-engineering@0.1.0",
+        {},
     )
 
     assert evidence.terminal_phase == "source_selection"
@@ -198,6 +232,7 @@ def test_refusal_evidence_preserves_the_declared_refusal_status() -> None:
         "materials",
         (100,),
         "agent-engineering@0.1.0",
+        {},
     )
 
     assert evidence.observed_status == "expected_refusal"
