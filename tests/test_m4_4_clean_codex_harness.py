@@ -7,6 +7,7 @@ import json
 from dataclasses import replace
 from pathlib import Path
 import socket
+import subprocess
 import sys
 from contextlib import contextmanager
 from uuid import uuid4
@@ -141,6 +142,28 @@ def test_actor_timeout_becomes_a_terminal_failure_record(
     assert result.returncode == 124
     assert result.stdout == ""
     assert result.stderr == ""
+
+
+def test_unavailable_evidence_uses_its_declared_terminal_boundary() -> None:
+    module = _harness_module()
+    contract = module.load_m44_scenario(
+        REPO_ROOT
+        / "tests"
+        / "fixtures"
+        / "dar-authoring"
+        / "m4-4"
+        / "portable-package-handoff.json"
+    )
+
+    evidence = module._unavailable_evidence(
+        contract,
+        subprocess.CompletedProcess(("codex",), 0, "capability_unavailable", ""),
+        REPO_ROOT / "dist" / "dynamic_agent_runner-0.2.1-py3-none-any.whl",
+        "materials",
+        (100,),
+    )
+
+    assert evidence.terminal_phase == "source_selection"
 
 
 def test_stage_dar_package_rejects_non_absolute_state_root(

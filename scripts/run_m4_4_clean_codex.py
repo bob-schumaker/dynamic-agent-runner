@@ -899,7 +899,7 @@ def _unavailable_evidence(
         checker_version="m4.4-cli-first-v1",
         expected_status=contract.expected_status,
         observed_status="expected_capability_unavailable",
-        terminal_phase="capability_preflight",
+        terminal_phase=contract.expected_terminal_phase,
         invocation_mode=contract.invocation_mode,
         plugin_identity=_plugin_identity(),
         skill_identity="agent-development@agent-engineering",
