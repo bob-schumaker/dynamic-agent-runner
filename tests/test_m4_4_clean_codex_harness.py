@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+from dataclasses import replace
 from pathlib import Path
 import socket
 import sys
@@ -228,6 +229,22 @@ def test_manifest_evidence_requires_complete_fresh_redacted_record_set(
                 REPO_ROOT / "tests" / "fixtures" / "m4-4-successor",
             ),
             records=_manifest_records(module)[:-1],
+        )
+    records = _manifest_records(module)
+    with pytest.raises(module.HarnessError, match="actor durations"):
+        module.write_manifest_evidence(
+            evidence_directory=(tmp_path / "missing-duration-evidence").resolve(),
+            coverage_source=(
+                REPO_ROOT / "tests" / "fixtures" / "m4-4-successor-coverage.json"
+            ),
+            scenario_plan_source=(
+                REPO_ROOT / "tests" / "fixtures" / "m4-4-external-scenario-plan.json"
+            ),
+            scenario_roots=(
+                REPO_ROOT / "tests" / "fixtures" / "dar-authoring" / "m4-4",
+                REPO_ROOT / "tests" / "fixtures" / "m4-4-successor",
+            ),
+            records=(*records[:-1], replace(records[-1], actor_durations_ms=())),
         )
 
 

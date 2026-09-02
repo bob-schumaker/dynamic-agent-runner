@@ -997,6 +997,8 @@ def _validate_manifest_records(
         for record in records
     ):
         raise HarnessError("external evidence records are invalid")
+    if any(not record.actor_durations_ms for record in records):
+        raise HarnessError("external evidence records lack actor durations")
 
 
 def _scenario_sources(scenario_roots: tuple[Path, ...]) -> dict[str, Path]:
