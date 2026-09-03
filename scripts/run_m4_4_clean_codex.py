@@ -996,6 +996,8 @@ def _pass_evidence(
         invocation_return_code=run_result.returncode,
         author_decisions=_decision_summary(author_result.stdout, prefix="author"),
         invocation_decisions=_decision_summary(run_result.stdout, prefix="invocation"),
+        author_event_trace=_event_trace(author_result.stdout, prefix="author"),
+        invocation_event_trace=_event_trace(run_result.stdout, prefix="invocation"),
         **provenance,
     )
     validate_m44_evidence(
@@ -1077,6 +1079,7 @@ def _unavailable_evidence(
         actor_durations_ms=actor_durations_ms,
         author_return_code=author_result.returncode,
         author_decisions=_decision_summary(author_result.stdout, prefix="author"),
+        author_event_trace=_event_trace(author_result.stdout, prefix="author"),
         **provenance,
     )
     validate_m44_evidence(
@@ -1140,6 +1143,16 @@ def _failure(
         ),
         invocation_decisions=(
             _decision_summary(invocation_result.stdout, prefix="invocation")
+            if invocation_result is not None
+            else ()
+        ),
+        author_event_trace=(
+            _event_trace(author_result.stdout, prefix="author")
+            if author_result is not None
+            else ()
+        ),
+        invocation_event_trace=(
+            _event_trace(invocation_result.stdout, prefix="invocation")
             if invocation_result is not None
             else ()
         ),
@@ -1359,6 +1372,35 @@ def _decision_summary(output: str, *, prefix: str) -> tuple[str, ...]:
         elif item_type == "file_change":
             labels.append(f"{prefix}:file_change")
     return tuple(dict.fromkeys(labels))
+
+
+def _event_trace(output: str, *, prefix: str) -> tuple[str, ...]:
+    """Return an ordered, content-free actor event trace for post-mortems."""
+
+    trace: list[str] = []
+    sequence = 0
+    for line in output.splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        item = value.get("item") if isinstance(value, dict) else None
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get("type")
+        if not isinstance(item_type, str):
+            continue
+        sequence += 1
+        label = f"{prefix}:{sequence}:{item_type}"
+        if item_type == "command_execution":
+            command = item.get("command")
+            if isinstance(command, str):
+                label += f":{command.split()[0].split('/')[-1]}"
+            exit_code = item.get("exit_code")
+            if isinstance(exit_code, int):
+                label += f":exit={exit_code}"
+        trace.append(label)
+    return tuple(trace)
 
 
 def _collect(value: Any, destination: list[dict[str, object]]) -> None:

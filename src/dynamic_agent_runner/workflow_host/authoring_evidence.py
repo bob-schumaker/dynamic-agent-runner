@@ -226,6 +226,8 @@ class AuthorThenRunEvidence:
     invocation_return_code: int | None = None
     author_decisions: tuple[str, ...] = ()
     invocation_decisions: tuple[str, ...] = ()
+    author_event_trace: tuple[str, ...] = ()
+    invocation_event_trace: tuple[str, ...] = ()
     failure_reason: str | None = None
 
     def __post_init__(self) -> None:
@@ -285,6 +287,8 @@ class AuthorThenRunEvidence:
             "invocation_return_code": self.invocation_return_code,
             "author_decisions": list(self.author_decisions),
             "invocation_decisions": list(self.invocation_decisions),
+            "author_event_trace": list(self.author_event_trace),
+            "invocation_event_trace": list(self.invocation_event_trace),
             "failure_reason": self.failure_reason,
         }
 
@@ -460,6 +464,8 @@ def _validate_diagnostics(evidence: AuthorThenRunEvidence) -> None:
     for values, label in (
         (evidence.author_decisions, "author_decisions"),
         (evidence.invocation_decisions, "invocation_decisions"),
+        (evidence.author_event_trace, "author_event_trace"),
+        (evidence.invocation_event_trace, "invocation_event_trace"),
     ):
         if not isinstance(values, tuple) or any(
             not isinstance(item, str) or not item or len(item) > 96 for item in values

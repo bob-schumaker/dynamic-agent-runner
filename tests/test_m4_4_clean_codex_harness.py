@@ -897,6 +897,29 @@ def test_decision_summary_keeps_normalized_actor_choices_without_transcript_text
     assert "private prompt content" not in decisions
 
 
+def test_event_trace_preserves_actor_order_and_command_exit_without_content() -> None:
+    module = _harness_module()
+    transcript = "\n".join(
+        (
+            json.dumps({"item": {"type": "agent_message"}}),
+            json.dumps(
+                {
+                    "item": {
+                        "type": "command_execution",
+                        "command": "/bin/zsh -lc 'dar-package invoke'",
+                        "exit_code": 1,
+                    }
+                }
+            ),
+        )
+    )
+
+    assert module._event_trace(transcript, prefix="invocation") == (
+        "invocation:1:agent_message",
+        "invocation:2:command_execution:zsh:exit=1",
+    )
+
+
 def test_successor_author_prompt_declares_exact_artifact_roles() -> None:
     module = _harness_module()
 
