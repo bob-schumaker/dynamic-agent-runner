@@ -21,7 +21,7 @@ execution behavior.
 - DAR baseline revision: `1212667975af529a57b19604af13ed57ec0a0c9a`
 - Marketplace: `dynamic-agent-runner` / `Dynamic Agent Runner`
 - Runtime profile: retained as supplemental guidance under
-  `references/dar-runtime-profile.md`
+  `plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-runtime-profile/`
 - Legacy disposition: the former `dar-authoring` plugin moved to
   `legacy-dar-authoring/` as historical migration evidence. Its implemented
   host/runtime contract is retained as the live
@@ -157,6 +157,28 @@ release metadata. It must preserve the public manifest and branding assets, and
 must reject any undeclared support-file ownership rather than making source
 support files implicitly model-visible.
 
+DAR runtime release linkage is separate from plugin versioning. Each release
+preparation run carries one explicit PEP 440 runtime version `V` in the
+source-owned `.codex-plugin/dar-runtime-release.json` descriptor. That
+descriptor and `pyproject.toml`'s `dynamic-agent-runner` version are updated
+together for the release target; the built wheel metadata is the post-build
+authority. The built wheel metadata, the release descriptor, every
+runtime-version-bearing generated payload field (including workflow
+`required_version` values), and every payload-owned fallback `uv run`
+launcher selector must equal `V`. The plugin distribution version remains
+independent. Clean-Codex acceptance uses its controller-provided
+`dar-package` directly and never resolves the release wheel through `uv`.
+
+The release verifier records the authoritative descriptor digest, `V`, wheel
+filename and metadata digest, generated payload digest, and selector-list
+digest. It separately verifies that the staged marketplace preserves the
+public `agent-engineering` plugin selector; the marketplace selector is not a
+DAR runtime-version selector. It rejects a mismatch before publication or
+installation. The generated routed tree and its receipts remain disposable
+derived outputs; repositories may check in refreshed copies where their
+packaging policy requires them, but the source descriptor and source-version
+change remain the authority and are committed together.
+
 The external clean-Codex acceptance command stages that generated root in its
 temporary marketplace. Static generated-tree and marketplace inspection proves
 that the router is the sole initial visible skill surface. A DAR-targeted request
@@ -167,7 +189,8 @@ as a separately labeled timing baseline.
 
 Timing comparison uses the same coverage and scenario-plan digests, prompts,
 fixtures, controller version, actor configuration, Codex/model configuration,
-and timeout for the direct baseline and generated-root replay. It records
+and timeout for the direct baseline and generated-root replay, plus the same
+`V`, wheel filename/metadata digest, and release-descriptor digest. It records
 redacted aggregate actor durations and excludes generation and temporary
 marketplace staging. Generation, staging, and live-Codex replay are separate
 phases; a successful routed replay does not authorize source cleanup,
@@ -175,10 +198,12 @@ publication, or installation.
 
 The acceptance record must bind the canonical and generated plugin identities,
 generated-manifest and marketplace digests, router-authority/payload/source-map/
-release-metadata receipt digests, scenario/prompt/harness/controller versions,
-final package digest, staged catalog revision, registration/preparation linkage,
-terminal result, dispatch count, and timing-comparison provenance without
-persisting prompt bodies, material content, credentials, or physical paths.
+release-metadata receipt digests, DAR runtime version `V`, wheel metadata and
+release-descriptor digests, selector-list digest, scenario/prompt/harness/
+controller versions, final package digest, staged catalog revision,
+registration/preparation linkage, terminal result, dispatch count, and
+timing-comparison provenance without persisting prompt bodies, material
+content, credentials, or physical paths.
 
 One fresh evidence directory contains one redacted record per unique scenario
 ID plus a versioned aggregate manifest. The aggregate binds the coverage and

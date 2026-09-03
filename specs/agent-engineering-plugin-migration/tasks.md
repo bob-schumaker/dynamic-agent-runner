@@ -59,10 +59,38 @@ plugin-acceptance framework.
 - [x] RED/GREEN: make manifest admission fail when any member of the checked-in
       original 13-scenario ID set is missing or replaced; require that invariant
       for both the direct timing baseline and generated-root replay.
-- [ ] Capture and freeze the complete-manifest direct-skill timing baseline and
-      its plugin-tree digest before router-source restructuring. Retain it only
-      as test-owned comparison collateral, never as a successor marketplace
-      source.
+- [ ] RED: add a coordinated DAR package-version linkage contract before
+      router packaging. Keep the plugin distribution version independent from
+      the `dynamic-agent-runner` distribution version, but require one explicit
+      PEP 440 runtime version `V` in the source-owned
+      `.codex-plugin/dar-runtime-release.json` descriptor. Define tests that
+      fail when `pyproject.toml`, the descriptor, or the built DAR wheel
+      disagree about `V`.
+- [ ] GREEN: add the release-preparation input and generation seam that carries
+      `V` through the DAR release descriptor and routed-plugin payload. Generate
+      every runtime-version-bearing payload field, including workflow
+      `required_version`, and every payload-owned fallback `uv run` launcher as
+      `dynamic-agent-runner==V`. Keep clean acceptance on the controller-
+      provided direct `dar-package` path; do not make its test wheel, physical
+      path, or controller inputs model-visible. The release `V` may remain in
+      private fallback guidance, but clean acceptance must not execute or
+      resolve that fallback launcher. Preserve the plugin's own version and
+      marketplace identity as separate fields.
+- [ ] RED/GREEN: add a cross-artifact verifier and negative mismatch fixture.
+      Verify `pyproject.toml`, the checked-in DAR release descriptor, built
+      wheel metadata and digest, the ephemeral generated routed payload, and
+      the payload-owned fallback selector list all bind the same `V`; verify
+      separately that the staged marketplace preserves the public
+      `agent-engineering` selector. Reject a payload expecting `V` when the
+      built wheel is a distinct valid PEP 440 version before publication or
+      installation. Commit the source descriptor and source-version change
+      together; generated payloads and receipts are derived evidence and are
+      refreshed or checked in only where the repository packaging policy
+      requires it.
+- [ ] Capture and freeze the complete-manifest direct-skill timing baseline
+      after `V` and its wheel identity are established, and record the
+      plugin-tree digest. Retain it only as test-owned comparison collateral,
+      never as a successor marketplace source.
 - [x] RED/GREEN: define the canonical router-packaging source layout. Keep the
       private `agent-engineering-direct` build-input manifest and icon collateral
       source-owned; make the `agent-development`
@@ -70,20 +98,27 @@ plugin-acceptance framework.
       workflow-authoring guidance into named private modules; and classify every
       remaining canonical artifact as a declared payload or explicit exclusion.
       Test that no support subtree is visible beneath the router member.
+- [ ] RED/GREEN: add a checked-in classification manifest covering every
+      canonical input path with its disposition and digest. Require source-map
+      coverage for every non-excluded output and reject an unclassified input.
 - [x] RED/GREEN: add a native-routed packager invocation and focused
       generated-tree contract tests. It must retain the canonical public plugin
       identity, version, author, description, interface metadata, branding paths,
       marketplace selector, and `agent-development` identifier; only internal
       routing topology may differ. Assert exactly one visible router `SKILL.md`,
-      private module instructions below `references/modules/`, complete
-      source-map coverage, declared payload ownership, and deterministic payload,
-      release-metadata, and source-map proof artifacts. The source manifest is
-      an internal `agent-engineering-direct` packager input; only the generated
-      manifest is the public `agent-engineering` marketplace contract.
+      private module instructions below `references/modules/`, declared payload
+      ownership, and deterministic payload, release-metadata, and source-map
+      proof artifacts. The source manifest is an internal
+      `agent-engineering-direct` packager input; only the generated manifest is
+      the public `agent-engineering` marketplace contract.
 - [x] RED/GREEN: plan then apply the router packaging into a disposable
       generated root without rewriting, publishing, installing, or cleaning the
       canonical source tree. Test plan/apply receipt agreement, public-manifest
       and icon preservation, and rejection of undeclared support-file ownership.
+- [ ] RED/GREEN: reapply routed packaging after `V` injection and rerun the
+      generated-tree, classification/source-map, payload-receipt, and staged
+      clean-harness contract tests. Earlier pre-linkage packaging evidence does
+      not prove the versioned output.
 - [x] RED/GREEN: extend the clean-Codex harness to stage only the generated
       routed root. Statically prove that the router is the sole initial visible
       skill surface, then prove DAR-targeted bounded author/finalize/invoke
@@ -142,6 +177,8 @@ plugin-acceptance framework.
 - [ ] RED/GREEN: add per-scenario redacted evidence tests and writer support.
       Each record binds canonical/generated plugin identities, generated-manifest
       and marketplace digests, router/payload/source-map/release receipt digests,
+      DAR runtime version `V`, wheel filename/metadata digest,
+      release-descriptor digest, payload selector-list digest,
       scenario/prompt/harness/controller versions,
       package/catalog/registration/preparation linkage, terminal status, and
       dispatch count; it rejects prompt bodies, material content, credentials,
@@ -161,10 +198,12 @@ plugin-acceptance framework.
 - [ ] Replay the complete manifest against the generated routed root and compare
       it with the frozen direct-skill baseline. Use identical coverage/scenario-
       plan digests, prompts, fixtures, controller, actor/Codex/model
-      configuration, and timeout; bind the frozen input digest; record redacted
-      aggregate actor durations and comparison provenance, excluding generation
-      and marketplace staging. Do not use the router result to authorize source
-      cleanup or plugin publication.
+      configuration, timeout, DAR runtime version `V`, wheel filename/metadata
+      digest, release-descriptor digest, and payload selector-list digest; bind
+      the frozen input digest; record redacted aggregate actor durations and
+      comparison provenance, excluding generation and marketplace staging.
+      Reject comparison when any of those runtime identities differ. Do not
+      use the router result to authorize source cleanup or plugin publication.
 - [ ] Record reviewed redacted successor evidence from one complete external
       generated-root manifest replay. Review aggregate completeness, public
       interface parity, and router/payload/source-map/release proof receipts;
