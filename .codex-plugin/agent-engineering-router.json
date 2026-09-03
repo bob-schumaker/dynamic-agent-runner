@@ -21,6 +21,9 @@
       "source": "plugins/agent-engineering/payload/dar-workflow-authoring"
     }
   ],
+  "publication": {
+    "category": "Productivity"
+  },
   "repository_root": ".",
   "router_authority": {
     "routers": [

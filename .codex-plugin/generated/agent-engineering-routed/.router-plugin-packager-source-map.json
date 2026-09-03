@@ -844,7 +844,7 @@
     },
     {
       "acquisition_mode": "generated",
-      "content_hash": "df1651759b37616b7427621306cf48c4fe9d519c042abfefb962ed5419dd0323",
+      "content_hash": "b35cf0d3bc8ddc790fba35b99c329ed09312a2b5991561b7704a4fce9249ea05",
       "file_mode": "0o644",
       "kind": "plugin-manifest",
       "ownership_class": null,
@@ -858,13 +858,26 @@
     },
     {
       "acquisition_mode": "generated",
-      "content_hash": "2694f153a576e54fafb3732d777145c22f43ab6fda93fba1910adbd2cf1970cc",
+      "content_hash": "359f546a38a1fbb03994a6438d081f207d5e81e258668c061025b030b1ac5554",
+      "file_mode": "0o644",
+      "kind": "publication-metadata",
+      "ownership_class": null,
+      "ownership_role": "publication-metadata",
+      "path": ".codex-plugin/publication-metadata.json",
+      "provenance_reference": null,
+      "source_hash": null,
+      "source_reference": "generated:publication-metadata",
+      "transform_kind": "publication-metadata"
+    },
+    {
+      "acquisition_mode": "generated",
+      "content_hash": "d858012e971533c23aa02728cbf510fb1a677d176ab4f72e2c0b7b9886faad12",
       "file_mode": "0o644",
       "kind": "payload-manifest",
       "ownership_class": null,
       "ownership_role": "payload-manifest",
       "path": ".codex-plugin/payload-manifest.json",
-      "payload_fingerprint": "7e879d3e52b7d65415de91f89934234278d5d2fa5f349ffda9860de4b4f32159",
+      "payload_fingerprint": "c59d8d8b2ae998f0ba8cb1b4cd2b181057492b3c23c90f2d66579c1b6413aebc",
       "provenance_reference": null,
       "source_hash": null,
       "source_reference": "generated:payload-manifest",
@@ -872,13 +885,13 @@
     },
     {
       "acquisition_mode": "generated",
-      "content_hash": "6f3fd335e8e6c0c0d3b70d8b3fbfa8e8f66ecf20134c9cc7dfab53408142506e",
+      "content_hash": "54a0950f7338d5778db3025132acb562a696c2decdf8d2dc38db5e71f3bea259",
       "file_mode": "0o644",
       "kind": "release-metadata",
       "ownership_class": null,
       "ownership_role": "release-metadata",
       "path": ".codex-plugin/release-metadata.json",
-      "payload_fingerprint": "7e879d3e52b7d65415de91f89934234278d5d2fa5f349ffda9860de4b4f32159",
+      "payload_fingerprint": "c59d8d8b2ae998f0ba8cb1b4cd2b181057492b3c23c90f2d66579c1b6413aebc",
       "provenance_reference": null,
       "source_hash": null,
       "source_reference": "generated:release-metadata",
@@ -889,6 +902,7 @@
   "generated_paths": [
     ".codex-plugin/payload-manifest.json",
     ".codex-plugin/plugin.json",
+    ".codex-plugin/publication-metadata.json",
     ".codex-plugin/release-metadata.json",
     "assets/agent-engineering.png",
     "references/modules/dar-workflow-authoring/references/agent-development-procedure.md",
@@ -958,7 +972,7 @@
   ],
   "native_routed": {
     "format": "router-plugin-packager-native-routed-receipt-v1",
-    "generated_tree_digest": "72352ed6baaf043779d7ccd6ec64edd97407c893fbab3252e73234cdd5c63541",
+    "generated_tree_digest": "7ee822bc548d727436f63d67430478af9c13f569896364231a84275492806e19",
     "router_authority": {
       "routers": [
         {
@@ -994,7 +1008,7 @@
         "plugin_slug": "generated.name",
         "publisher_slug": "source_plugin_manifest"
       },
-      "publication_source": null,
+      "publication_source": "top_level",
       "rejected_candidates": [],
       "router_authority": {
         "routers": [
@@ -1043,7 +1057,9 @@
       }
     ],
     "plugin_kind": "skills_only",
-    "publication": null,
+    "publication": {
+      "category": "Productivity"
+    },
     "skill_ids": [
       "agent-development",
       "general-agent-development",
@@ -1053,7 +1069,7 @@
     "version_override": "0.1.0"
   },
   "packaging_mode": "router-surface",
-  "payload_fingerprint": "7e879d3e52b7d65415de91f89934234278d5d2fa5f349ffda9860de4b4f32159",
+  "payload_fingerprint": "c59d8d8b2ae998f0ba8cb1b4cd2b181057492b3c23c90f2d66579c1b6413aebc",
   "plugin_id": "bob-schumaker/agent-engineering/agent-engineering-routed",
   "surface_id": "agent-engineering-routed",
   "version": "0.1.0"

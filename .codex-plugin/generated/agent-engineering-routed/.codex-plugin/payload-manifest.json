@@ -2,13 +2,24 @@
   "entries": [
     {
       "acquisition_mode": "generated",
-      "content_hash": "df1651759b37616b7427621306cf48c4fe9d519c042abfefb962ed5419dd0323",
+      "content_hash": "b35cf0d3bc8ddc790fba35b99c329ed09312a2b5991561b7704a4fce9249ea05",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
       "ownership_role": "plugin-manifest",
       "relative_output_path": ".codex-plugin/plugin.json",
       "source_reference": "generated:plugin-manifest",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "generated",
+      "content_hash": "359f546a38a1fbb03994a6438d081f207d5e81e258668c061025b030b1ac5554",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "publication-metadata",
+      "relative_output_path": ".codex-plugin/publication-metadata.json",
+      "source_reference": "generated:publication-metadata",
       "symlink_policy": "forbidden"
     },
     {
@@ -729,5 +740,5 @@
   ],
   "format_version": 1,
   "packager_format_version": 1,
-  "payload_fingerprint": "7e879d3e52b7d65415de91f89934234278d5d2fa5f349ffda9860de4b4f32159"
+  "payload_fingerprint": "c59d8d8b2ae998f0ba8cb1b4cd2b181057492b3c23c90f2d66579c1b6413aebc"
 }

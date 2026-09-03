@@ -1,5 +1,6 @@
 {
   "author": {
+    "email": "cobblers@pobox.com",
     "name": "Bob Schumaker"
   },
   "description": "Design, validate, and run bounded Dynamic Agent Runner workflows.",
