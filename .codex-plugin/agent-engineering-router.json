@@ -2,9 +2,9 @@
   "format_version": 2,
   "generated": {
     "name": "agent-engineering",
-    "surface_id": "agent-engineering-routed"
+    "surface_id": "agent-engineering"
   },
-  "output_root": "generated/agent-engineering-routed",
+  "output_root": "generated/agent-engineering",
   "payload_assets": [
     {
       "acquisition_mode": "copied",

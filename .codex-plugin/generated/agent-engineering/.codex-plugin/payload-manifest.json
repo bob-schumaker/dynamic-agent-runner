@@ -2,7 +2,7 @@
   "entries": [
     {
       "acquisition_mode": "generated",
-      "content_hash": "f09f04d7b66961a84cb49fcf5083ebde60836eb36fa51f16ac2064d8b81724a3",
+      "content_hash": "28ece0a804453a00bd8c0453aab23b021a30c962bf38e139e5bb27ebfa2ccf63",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -740,5 +740,5 @@
   ],
   "format_version": 1,
   "packager_format_version": 1,
-  "payload_fingerprint": "81984be27f09345cfdf9c5a239280ba0ccad37a43ccb1866707bf1e327058397"
+  "payload_fingerprint": "80a8f8c30adb11120d98a791e9a38e1ea79cbae953f83c7856cc0b9988012ad7"
 }

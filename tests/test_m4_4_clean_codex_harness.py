@@ -213,7 +213,7 @@ def test_generated_plugin_provenance_binds_every_packager_receipt() -> None:
     module = _harness_module()
 
     provenance = module._generated_plugin_provenance(
-        REPO_ROOT / ".codex-plugin" / "generated" / "agent-engineering-routed"
+        REPO_ROOT / ".codex-plugin" / "generated" / "agent-engineering"
     )
 
     assert set(provenance) == {

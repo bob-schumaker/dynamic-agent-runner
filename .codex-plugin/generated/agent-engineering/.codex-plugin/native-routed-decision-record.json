@@ -28,7 +28,7 @@
     },
     "skill_ids_source": "router_authority",
     "source_manifest": "plugins/agent-engineering/.codex-plugin/plugin.json",
-    "source_plugin_version": "0.1.1",
+    "source_plugin_version": "0.1.2",
     "source_root_source": "source_manifest",
     "state_scope": "output_root_local",
     "surface_id_source": "generated.surface_id",
@@ -37,7 +37,7 @@
   "display_name": "Agent Engineering",
   "format_version": 1,
   "input_mode": "native_routed",
-  "output_root": "/Users/roschuma/Repos/roschuma/dynamic-agent-runner/.codex-plugin/generated/agent-engineering-routed",
+  "output_root": "/Users/roschuma/Repos/roschuma/dynamic-agent-runner/.codex-plugin/generated/agent-engineering",
   "packaging_mode": "router-surface",
   "payload_assets": [
     {
@@ -63,7 +63,7 @@
       "template_parameters": {}
     }
   ],
-  "plugin_id": "bob-schumaker/agent-engineering/agent-engineering-routed",
+  "plugin_id": "bob-schumaker/agent-engineering/agent-engineering",
   "plugin_kind": "skills_only",
   "repository_root": "/Users/roschuma/Repos/roschuma/dynamic-agent-runner",
   "skill_ids": [
@@ -72,7 +72,7 @@
     "dar-workflow-authoring"
   ],
   "source_root": "plugins/agent-engineering",
-  "surface_id": "agent-engineering-routed",
-  "version": "0.1.1",
-  "version_override": "0.1.1"
+  "surface_id": "agent-engineering",
+  "version": "0.1.2",
+  "version_override": "0.1.2"
 }

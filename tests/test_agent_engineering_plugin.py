@@ -9,7 +9,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "agent-engineering"
-GENERATED_ROOT = REPO_ROOT / ".codex-plugin" / "generated" / "agent-engineering-routed"
+GENERATED_ROOT = REPO_ROOT / ".codex-plugin" / "generated" / "agent-engineering"
 MARKETPLACE_PATH = REPO_ROOT / "marketplace.json"
 DIRECT_BASELINE_ROOT = REPO_ROOT / "tests" / "fixtures" / "m4-4-direct-plugin-baseline"
 DIRECT_BASELINE_MANIFEST = (
@@ -98,6 +98,8 @@ def test_generated_router_preserves_the_public_plugin_interface_and_receipts() -
         decision_record["decision_record"]["router_authority"]
         == invocation["router_authority"]
     )
+    assert decision_record["surface_id"] == "agent-engineering"
+    assert source_map["surface_id"] == "agent-engineering"
     assert any(
         entry["path"] == "skills/agent-development/SKILL.md"
         and entry["ownership_role"] == "router-skill"
@@ -230,7 +232,7 @@ def test_marketplace_exposes_only_the_successor_plugin() -> None:
             "name": "agent-engineering",
             "source": {
                 "source": "local",
-                "path": "./.codex-plugin/generated/agent-engineering-routed",
+                "path": "./.codex-plugin/generated/agent-engineering",
             },
             "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
             "category": "Productivity",
