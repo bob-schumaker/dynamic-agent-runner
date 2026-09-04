@@ -8,6 +8,9 @@ successor clean-Codex author-then-run acceptance suite covering every
 must not revive the retired `dar-authoring` plugin or create a generic
 plugin-acceptance framework.
 
+The routed-surface identity-alignment slice is implementation-ready. This plan
+is ready to execute under its stated gates.
+
 ## Successor Clean-Codex Acceptance
 
 - [x] RED: add `tests/fixtures/m4-4-successor-coverage.json` and scenario-
@@ -115,6 +118,17 @@ plugin-acceptance framework.
       generated root without rewriting, publishing, installing, or cleaning the
       canonical source tree. Test plan/apply receipt agreement, public-manifest
       and icon preservation, and rejection of undeclared support-file ownership.
+- [ ] RED/GREEN: align the generated routed surface with the public
+      `agent-engineering` plugin identity. Change the native-routed
+      `surface_id` and generated `output_root` from `agent-engineering-routed`
+      to `agent-engineering`, while retaining `agent-engineering-direct` only
+      as the private source-manifest identity. First add focused assertions for
+      the generated root, receipt surface ID, and marketplace selector. Update
+      every checked-in harness, marketplace, and receipt reference; regenerate
+      the complete derived tree; and prove the generated manifest, root,
+      marketplace selector, and installed Codex source path agree. Release the
+      changed payload as plugin version `0.1.2` with a receipt-backed local
+      publication and enabled-install verification.
 - [ ] RED/GREEN: reapply routed packaging after `V` injection and rerun the
       generated-tree, classification/source-map, payload-receipt, and staged
       clean-harness contract tests. Earlier pre-linkage packaging evidence does
