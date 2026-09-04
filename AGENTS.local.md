@@ -48,3 +48,14 @@ Use `memory-bank/` as project-local memory.
 Use `obsidian-memory` only for explicit Obsidian-vault memory.
 Do not treat Obsidian memory as current project memory unless explicitly asked.
 <!-- END MANAGED MEMORY-BANK ROUTING -->
+
+<!-- BEGIN MANAGED PROJECT OBSIDIAN WIKI GUIDANCE -->
+<!-- rumdl-disable MD041 -->
+Before answering from or changing the repo-local generated wiki, read its `index.md` first and then only task-relevant linked pages.
+Keep raw sources outside the repo-local generated wiki immutable.
+Codex owns generated wiki pages under the repo-local generated wiki.
+Update its `index.md` and `log.md` for every wiki mutation.
+Keep source summaries factual and put interpretation in concepts or synthesis pages.
+Use `type:`, `tags:`, and `date_updated:` frontmatter on generated pages.
+Use the global Obsidian skills only for live source discovery and read-only source-vault checks.
+<!-- END MANAGED PROJECT OBSIDIAN WIKI GUIDANCE -->
