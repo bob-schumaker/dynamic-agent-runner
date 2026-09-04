@@ -3,6 +3,13 @@
 
 ## Current Focus
 
+- The routed `agent-engineering` Codex plugin release is complete at version
+  `0.1.1` in commit `58d928c`. Its regenerated routed payload and direct
+  fixture digest passed focused plugin tests and Ruff; the version was
+  published to, and installed from, the local
+  `bob-schumaker-codex-support` marketplace. Documentation for the plugin was
+  authored and built in the sibling marketplace-support repository; its commit
+  boundary remains separate from this DAR repository.
 - M4.4 clean-Codex replay diagnostics are captured in commits `cfc6335` and
   `77a63d7`. The routed-plugin harness now supplies exact artifact roles to the
   author prompt, selects the reviewed write-MCP template for approved

@@ -3,6 +3,14 @@
 
 ## Working
 
+- `agent-engineering` plugin version `0.1.1` is released locally in
+  `58d928c`. The source manifest, generated routed plugin artifacts, and
+  direct-plugin fixture baseline agree on that version; focused plugin tests,
+  Ruff, and staged-diff checks passed before publishing to and installing from
+  the `bob-schumaker-codex-support` local marketplace. User-facing support
+  documentation was authored and built in the sibling marketplace-support
+  repository and intentionally remains outside this repository's commit
+  history.
 - M4.4 routed clean-Codex harness correctness and observability are committed
   in `77a63d7`, with routed profile collateral refreshed in `cfc6335`. The
   positive `email-file-body-v1` path now passes end to end using the reviewed
