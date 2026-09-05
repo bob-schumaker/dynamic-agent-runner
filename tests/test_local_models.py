@@ -3361,6 +3361,49 @@ def test_llama_cpp_local_adapter_resolves_model_and_normalizes_chat_response(
     ]
 
 
+def test_llama_cpp_local_adapter_offline_policy_blocks_download(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.errors import LocalModelOfflinePolicyError
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceModelFileReference,
+        LlamaCppLocalModelConfig,
+        create_llama_cpp_local_adapter,
+    )
+    from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    download_calls: list[object] = []
+
+    def download(*args: object, **kwargs: object) -> Path:
+        download_calls.append((args, kwargs))
+        return tmp_path / "downloaded.gguf"
+
+    adapter = create_llama_cpp_local_adapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=tmp_path / "missing.gguf",
+            huggingface_file=HuggingFaceModelFileReference(
+                repo_id="org/chat", filename="chat.gguf", revision="commit-123"
+            ),
+            allow_network=False,
+        ),
+        backend=_FakeLlamaCppBackend(),
+        download_file=download,
+    )
+
+    with pytest.raises(LocalModelOfflinePolicyError):
+        adapter.create_response(
+            build_openai_request(
+                model="llama-local-chat",
+                messages=[OpenAIMessage("user", "Hello")],
+            )
+        )
+
+    assert download_calls == []
+
+
 def test_llama_cpp_chatml_function_adapter_maps_required_tool_choice_to_auto(
     tmp_path: Path,
 ) -> None:

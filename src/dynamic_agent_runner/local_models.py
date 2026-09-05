@@ -303,6 +303,7 @@ class LlamaCppLocalModelConfig:
     huggingface_snapshot: HuggingFaceSnapshotReference | None = None
     expected_model_id: str | None = None
     model_kwargs: Mapping[str, object] | None = None
+    allow_network: bool = True
 
     def __init__(
         self,
@@ -315,6 +316,7 @@ class LlamaCppLocalModelConfig:
         huggingface_snapshot: HuggingFaceSnapshotReference | None = None,
         expected_model_id: str | None = None,
         model_kwargs: Mapping[str, object] | None = None,
+        allow_network: bool = True,
     ) -> None:
         resolved_model_path = Path(model_path)
         resolved_model_filename = model_filename or (
@@ -342,6 +344,7 @@ class LlamaCppLocalModelConfig:
             "model_kwargs",
             dict(model_kwargs) if model_kwargs is not None else None,
         )
+        object.__setattr__(self, "allow_network", allow_network)
 
 
 @dataclass(frozen=True)
@@ -856,6 +859,7 @@ class LlamaCppLocalModelAdapter:
                     huggingface_file=self._config.huggingface_file,
                     huggingface_snapshot=self._config.huggingface_snapshot,
                 ),
+                allow_network=self._config.allow_network,
                 download_file=self._download_file,
                 download_snapshot=self._download_snapshot,
             )
