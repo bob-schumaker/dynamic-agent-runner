@@ -60,3 +60,6 @@ review, package authoring, and one bounded read-only acceptance dispatch.
 - [x] T008 [validation] Before acceptance, run focused tests, full pytest,
   Ruff, changed-file pre-commit, and `git diff --check`; record results in
   `validation.md`.
+- [x] T009 [bug fix] Enforce FR-004 at the Fastmail host terminal boundary:
+  reject raw projected messages that omit per-item classification and rationale,
+  normalize valid classified reports, and cover both paths with fake-only tests.

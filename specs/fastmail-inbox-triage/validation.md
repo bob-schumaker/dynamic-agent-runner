@@ -3,8 +3,10 @@
 ## Status
 
 Automated implementation checks, including final pre-acceptance validation, and
-the authorized local-only T003 probe passed on 2026-09-05. T007 remains an
-unrun manual gate that requires separate explicit authorization.
+the authorized local-only T003 probe passed on 2026-09-05. A later non-empty
+owner-authorized run exposed that FR-004 was not enforced at the host terminal
+boundary; T009 corrects that gap with fake-only regression tests. Any future
+acceptance must pass the new host validation.
 
 ## Traceability
 
@@ -13,7 +15,7 @@ unrun manual gate that requires separate explicit authorization.
 | FR-001 host current surface | `test_dar_authoring_mcp_tools.py` fake reviewed-surface binding | passed; no live surface |
 | FR-002 exact Qwen binding | `test_fastmail_triage_model.py`, `test_local_models.py`; T003 local-only probe | passed; local-only synthetic probe recorded below |
 | FR-003 bounded read transaction | `test_executor.py`, `test_dar_authoring_mcp_tools.py` | passed; no Fastmail dispatch |
-| FR-004 validated report | `test_fastmail_triage_report.py` | passed |
+| FR-004 validated report | `test_fastmail_triage_report.py`, `test_dar_authoring_runner.py` | parser and Fastmail host-boundary regressions passed |
 | FR-005 hostile data boundary | T004 adversarial projection tests | passed; fake-only |
 | FR-006 no mutation | fake `search_email` surface and one-dispatch counter tests | passed; no live mutation ledger |
 
@@ -27,6 +29,22 @@ unrun manual gate that requires separate explicit authorization.
 | `poetry run ruff check src tests` | passed | Full source and test tree. |
 | `pre-commit run --files <changed-files>` | passed | Fastmail implementation, tests, and spec files. |
 | `git diff --check` | passed | No whitespace errors. |
+| `poetry run pytest tests/test_dar_authoring_runner.py -q -k 'fastmail_terminal_output or rejects_terminal_output'` | passed: 3 | T009 raw-projection rejection and valid-report normalization. |
+| `poetry run ruff check src/dynamic_agent_runner/workflow_host/runner.py tests/test_dar_authoring_runner.py` | passed | T009 changed Python files. |
+
+## T009 Post-acceptance report-validation defect
+
+A non-empty owner-authorized run returned syntactically valid JSON but echoed
+the bounded raw projection fields instead of supplying a classification and
+rationale for each item. The host marked that result completed because its
+generic terminal-output check only required a non-empty `message`; the strict
+Fastmail parser existed but was not invoked by `WorkflowRunner`.
+
+T009 routes output from the pinned Fastmail llama.cpp adapter through
+`parse_fastmail_triage_report` before a run can complete. Invalid reports now
+fail closed with a redacted terminal-output error; valid reports are normalized
+before return. The regression tests use synthetic references and contain no
+mailbox data. No additional Fastmail request was made to validate this fix.
 
 ## T003 Local-only Probe Receipt
 
@@ -40,7 +58,7 @@ MCP client or access Fastmail, credentials, or mailbox data.
 | Configuration fingerprint | `8f5619a7dd6215ced444ecc4966b849f453e7ba89376e046c4a08c4f0de34bcb` |
 | Initial tool calls | 1 (`search_email({})`, schema-valid) |
 | Continuation tool calls | 0 |
-| Terminal response | Valid JSON (`{"status":"complete"}`); 21 bytes |
+| Terminal response | JSON syntax was observed, but this legacy probe did not prove the complete FR-004 report shape; T009 adds host enforcement. |
 
 ## T006 Authoring Receipt
 

@@ -49,6 +49,9 @@ from dynamic_agent_runner.workflow_host.preparation import (
     WorkflowInvocationPreparationService,
 )  # noqa: E402
 from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControlPlane  # noqa: E402
+from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
+    FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+)
 from dynamic_agent_runner.workflow_host.registration import WorkflowRegistrationService  # noqa: E402
 from dynamic_agent_runner.workflow_host.runner import (  # noqa: E402
     RunDarWorkflowError,
@@ -1244,6 +1247,69 @@ def test_runner_rejects_terminal_output_that_misses_registered_contract_field(
 
     assert len(client.responses.calls) == 1
     assert runner.traces()[-1].status == "failed"
+
+
+def test_fastmail_terminal_output_rejects_raw_projected_messages() -> None:
+    raw_projection = json.dumps(
+        {
+            "status": "complete",
+            "window": "previous_24_hours",
+            "matched_count": 1,
+            "truncated": False,
+            "items": [
+                {
+                    "message_reference": "opaque-1",
+                    "subject": "Synthetic message",
+                    "sender": "synthetic@example.invalid",
+                    "received_at": "2026-09-05T00:00:00Z",
+                    "preview": "Synthetic preview",
+                }
+            ],
+            "warnings": [],
+        }
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="terminal output"):
+        workflow_runner_module._terminal_output(
+            raw_projection,
+            {"required_fields": ["message"]},
+            adapter_id=FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+        )
+
+
+def test_fastmail_terminal_output_normalizes_a_classified_report() -> None:
+    report = json.dumps(
+        {
+            "status": "complete",
+            "window": "previous_24_hours",
+            "matched_count": 1,
+            "truncated": False,
+            "items": [
+                {
+                    "message_reference": "opaque-1",
+                    "subject": "Synthetic message",
+                    "classification": "needs_reply",
+                    "rationale": "A response is requested.",
+                }
+            ],
+            "warnings": [],
+        }
+    )
+
+    output = workflow_runner_module._terminal_output(
+        report,
+        {"required_fields": ["message"]},
+        adapter_id=FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+    )
+
+    assert json.loads(output["message"])["items"] == [
+        {
+            "message_reference": "opaque-1",
+            "subject": "Synthetic message",
+            "classification": "needs_reply",
+            "rationale": "A response is requested.",
+        }
+    ]
 
 
 def test_runner_executes_one_registered_reviewed_read_only_mcp_workflow(

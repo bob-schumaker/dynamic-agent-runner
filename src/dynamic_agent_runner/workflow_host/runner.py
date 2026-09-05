@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Mapping
@@ -39,6 +40,10 @@ from dynamic_agent_runner.workflow_host.fastmail_triage import (
     create_fastmail_triage_search_binding,
     default_fastmail_triage_query,
     project_fastmail_triage_result,
+)
+from dynamic_agent_runner.workflow_host.fastmail_triage_report import (
+    FastmailTriageReportError,
+    parse_fastmail_triage_report,
 )
 from dynamic_agent_runner.workflow_host.mcp_binding import (
     MCPWorkflowCapabilityBindingControlPlane,
@@ -204,7 +209,11 @@ class WorkflowRunner:
                 model_adapter_coverage="strict",
                 run_id=run_id,
             )
-            output = _terminal_output(final_result, terminal_output_contract)
+            output = _terminal_output(
+                final_result,
+                terminal_output_contract,
+                adapter_id=self._configured_profile.adapter_id,
+            )
         except (
             WorkflowRegistrationError,
             PackageCatalogError,
@@ -474,11 +483,23 @@ def _render_prompt(prompt: str, additional_context: str) -> str:
     return f"{prompt}\n\nAdditional context:\n{additional_context}"
 
 
-def _terminal_output(value: object, contract: Mapping[str, Any]) -> dict[str, str]:
+def _terminal_output(
+    value: object,
+    contract: Mapping[str, Any],
+    *,
+    adapter_id: str,
+) -> dict[str, str]:
     if not isinstance(value, str) or not value:
         raise RunDarWorkflowError("workflow terminal output is not a message")
     if len(value.encode("utf-8")) > 32 * 1024:
         raise RunDarWorkflowError("workflow terminal output exceeds the response limit")
+    if adapter_id == FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID:
+        try:
+            value = json.dumps(
+                parse_fastmail_triage_report(value), separators=(",", ":")
+            )
+        except FastmailTriageReportError as error:
+            raise RunDarWorkflowError("Fastmail terminal output is invalid") from error
     output = {"message": value}
     required_fields = contract.get("required_fields")
     if not isinstance(required_fields, list) or any(

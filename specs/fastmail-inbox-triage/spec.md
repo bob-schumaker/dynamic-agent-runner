@@ -163,6 +163,9 @@ Acceptance criteria:
   rationale.
 - Given missing, ambiguous, or contradictory message data, when the model
   completes, then it classifies the message as `needs_review`.
+- Given the Fastmail model returns JSON that is not a valid triage report, when
+  the host processes terminal output, then it rejects the run rather than
+  returning raw projected mailbox fields as a completed report.
 - Given a request for a reply, when the result includes reply text, then the
   result labels it as an unapproved proposal and contains no action field,
   recipient, draft, or invocable send/reply instruction.
