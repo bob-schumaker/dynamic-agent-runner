@@ -42,6 +42,23 @@ MCP client or access Fastmail, credentials, or mailbox data.
 | Continuation tool calls | 0 |
 | Terminal response | Valid JSON (`{"status":"complete"}`); 21 bytes |
 
+## T006 Authoring Receipt
+
+The owner-authorized current reviewed surface produced an internal material
+receipt and a host-finalized four-file package. The receipt contains only
+reference-only specification, plan, and redacted surface-context material.
+
+| Field | Result |
+| --- | --- |
+| Reviewed snapshot | `v1.4qvjAiNxDWokPx7u9tpBymUTW8DHeWdNn-CfUvwsQU4.UebvTW_9kr5BbKFV4g23pA` |
+| Package id | `fastmail-inbox-triage-qwen` |
+| File count | 4 |
+| Package digest | `45df571d2bdf2e7612a90f1f3cecbb7dfd2e92a311036fd406ae8042423d04b2` |
+
+The package is finalized but not yet registered or invoked: direct llama.cpp
+profile and semantic Fastmail-binding integration remain required before T006
+can close and before the one authorized acceptance dispatch.
+
 ## Manual Gates
 
 - T007 requires separate explicit authorization. Retain only redacted status,
