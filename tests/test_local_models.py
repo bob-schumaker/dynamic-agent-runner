@@ -3404,6 +3404,81 @@ def test_llama_cpp_local_adapter_offline_policy_blocks_download(
     assert download_calls == []
 
 
+def test_llama_cpp_local_adapter_verifies_model_sha256_before_backend_load(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.errors import LocalModelIdentityMismatchError
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        create_llama_cpp_local_adapter,
+    )
+    from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_bytes(b"controlled local artifact")
+    backend = _FakeLlamaCppBackend()
+    adapter = create_llama_cpp_local_adapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+            expected_model_sha256="0" * 64,
+        ),
+        backend=backend,
+    )
+
+    with pytest.raises(LocalModelIdentityMismatchError, match="SHA-256"):
+        adapter.create_response(
+            build_openai_request(
+                model="llama-local-chat",
+                messages=[OpenAIMessage("user", "Hello")],
+            )
+        )
+
+    assert backend.calls == []
+
+
+def test_llama_cpp_local_configuration_fingerprint_is_deterministic(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceModelFileReference,
+        LlamaCppLocalModelConfig,
+        llama_cpp_configuration_fingerprint,
+    )
+
+    common = {
+        "model_aliases": ("fastmail-triage-qwen",),
+        "model_path": tmp_path / "model.gguf",
+        "huggingface_file": HuggingFaceModelFileReference(
+            repo_id="Qwen/Qwen2.5-3B-Instruct-GGUF",
+            filename="qwen2.5-3b-instruct-q4_k_m.gguf",
+            revision="7dabda4d13d513e3e842b20f0d435c732f172cbe",
+        ),
+        "expected_model_id": "Qwen/Qwen2.5-3B-Instruct-GGUF",
+        "expected_model_sha256": "6" * 64,
+        "allow_network": False,
+    }
+    first = LlamaCppLocalModelConfig(
+        **common,
+        model_kwargs={"n_ctx": 8192, "chat_format": "chatml-function-calling"},
+    )
+    same = LlamaCppLocalModelConfig(
+        **common,
+        model_kwargs={"chat_format": "chatml-function-calling", "n_ctx": 8192},
+    )
+    changed = LlamaCppLocalModelConfig(
+        **common,
+        model_kwargs={"n_ctx": 4096, "chat_format": "chatml-function-calling"},
+    )
+
+    assert llama_cpp_configuration_fingerprint(
+        first
+    ) == llama_cpp_configuration_fingerprint(same)
+    assert llama_cpp_configuration_fingerprint(
+        first
+    ) != llama_cpp_configuration_fingerprint(changed)
+
+
 def test_llama_cpp_chatml_function_adapter_maps_required_tool_choice_to_auto(
     tmp_path: Path,
 ) -> None:

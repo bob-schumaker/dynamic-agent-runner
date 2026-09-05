@@ -95,6 +95,7 @@ from dynamic_agent_runner.local_models import (
     create_local_async_openai_adapter,
     create_local_openai_adapter,
     list_local_model_assets,
+    llama_cpp_configuration_fingerprint,
     profile_llama_cpp_model_memory_fit,
 )
 from dynamic_agent_runner.mlx_models import (
@@ -337,6 +338,7 @@ __all__ = [
     "profile_llama_cpp_model_memory_fit",
     "check_local_model_availability",
     "list_local_model_assets",
+    "llama_cpp_configuration_fingerprint",
     "create_llama_cpp_local_adapter",
     "create_llama_cpp_local_async_adapter",
     "create_llama_cpp_local_async_embedding_adapter",
