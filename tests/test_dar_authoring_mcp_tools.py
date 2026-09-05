@@ -117,6 +117,29 @@ def test_fastmail_triage_defaults_to_bounded_unread_query_and_projection() -> No
     }
 
 
+def test_fastmail_live_shape_fixture_is_bounded_and_deidentified() -> None:
+    fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "fastmail-triage"
+            / "live-shape-projection.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert list(fixture) == ["items"]
+    assert len(fixture["items"]) == 5
+    assert [set(item) for item in fixture["items"]] == [
+        {"message_reference", "subject", "received_at", "preview"}
+    ] * 5
+    assert all(
+        item["message_reference"].startswith("live-shape-message-")
+        and item["subject"].startswith("Synthetic subject ")
+        and item["preview"].startswith("Synthetic body ")
+        for item in fixture["items"]
+    )
+
+
 def _policy() -> WorkflowPolicy:
     return WorkflowPolicy(
         package_id="mail-reader",

@@ -71,3 +71,7 @@ review, package authoring, and one bounded read-only acceptance dispatch.
   report supplies required triage data, retain strict rejection of invalid
   statuses and unknown fields, add the missing status enum to the Qwen prompt,
   and register `fastmail-inbox-triage-qwen-v4` without another mailbox dispatch.
+- [x] T012 [fixture] Capture the current five-item semantic projection shape
+  through the v4 reviewed binding, replace every identifying or message-content
+  value with synthetic equivalents, and protect the resulting local fixture
+  with a fake-only shape test.

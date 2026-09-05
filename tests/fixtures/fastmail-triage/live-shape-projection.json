@@ -1,0 +1,34 @@
+{
+  "items": [
+    {
+      "message_reference": "live-shape-message-1",
+      "preview": "Synthetic body 1",
+      "received_at": "2026-09-05T12:00:01Z",
+      "subject": "Synthetic subject 1"
+    },
+    {
+      "message_reference": "live-shape-message-2",
+      "preview": "Synthetic body 2",
+      "received_at": "2026-09-05T12:00:02Z",
+      "subject": "Synthetic subject 2"
+    },
+    {
+      "message_reference": "live-shape-message-3",
+      "preview": "Synthetic body 3",
+      "received_at": "2026-09-05T12:00:03Z",
+      "subject": "Synthetic subject 3"
+    },
+    {
+      "message_reference": "live-shape-message-4",
+      "preview": "Synthetic body 4",
+      "received_at": "2026-09-05T12:00:04Z",
+      "subject": "Synthetic subject 4"
+    },
+    {
+      "message_reference": "live-shape-message-5",
+      "preview": "Synthetic body 5",
+      "received_at": "2026-09-05T12:00:05Z",
+      "subject": "Synthetic subject 5"
+    }
+  ]
+}

@@ -40,6 +40,8 @@ unrun pending a separate owner instruction.
 | `poetry run pytest tests/test_dar_authoring_runner.py tests/test_fastmail_triage_report.py -q -k 'fastmail_terminal_output or parse_fastmail_triage_report_rejects'` | passed: 8 | T011 known projection-field normalization and invalid-status rejection. |
 | T011 package finalization | passed | Four-file v4 package digest `ce7f3d349745ee113ed6d11584cb58e87bdc896a2b1625babcbc9f7ed46a54ec`. |
 | T011 binding and registration | passed | Bound to the current reviewed read-only surface; registered as `fastmail-inbox-triage-qwen-v4`. |
+| T012 sanitized live-shape fixture | passed | Five-item projection captured through the reviewed semantic binding; fixture contains synthetic references, subjects, previews, and timestamps only. |
+| `poetry run pytest tests/test_dar_authoring_mcp_tools.py -q -k 'fastmail'` | passed: 4 | T012 fixture shape guard and Fastmail binding tests. |
 
 ## T009 Post-acceptance report-validation defect
 
@@ -85,6 +87,17 @@ instructions to use `complete` after a successful search. A fresh
 reference-only material receipt finalized the four-file package, which was
 bound and registered without another Fastmail dispatch. A new owner-authorized
 live run remains required to demonstrate v4 model compliance.
+
+## T012 De-identified live-shape fixture
+
+One owner-authorized, read-only `search_email` call ran through the registered
+v4 semantic binding. Before the result left process memory, the capture replaced
+every message reference, subject, preview/body, and timestamp with synthetic
+values. The live projection had five items and the keys
+`message_reference`, `subject`, `received_at`, and `preview`; it had no sender
+field, so none was invented. The committed fixture preserves that exact
+structural shape, count, and ordering for local harnesses without retaining
+mailbox content.
 
 ## T003 Local-only Probe Receipt
 
