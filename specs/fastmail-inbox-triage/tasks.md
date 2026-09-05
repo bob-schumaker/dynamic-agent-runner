@@ -10,7 +10,7 @@ authorized by this task list.
 - [ ] T001 [tests] Write fake-only tests for strict Qwen artifact identity,
   SHA-256 preflight, immutable alias/configuration fingerprint, no-network
   resolution, and synthetic two-turn tool-loop mechanics.
-- [ ] T001a [tests] Add sync/async executor RED tests proving that the initial
+- [x] T001a [tests] Add sync/async executor RED tests proving that the initial
   request alone exposes the required tool and the post-result continuation has
   `tools=()` and no tool choice.
 - [ ] T002 [implementation] Add the host-owned immutable local-model preflight
@@ -19,7 +19,7 @@ authorized by this task list.
   rejects arguments, constructs unread/24-hour/five limits after reviewed-surface
   revalidation, and projects bounded attachment-free results. Do not reuse the
   generic remote-schema-forwarding binding unchanged.
-- [ ] T002a [tests/implementation] Add sync/async phase-specific executor tool
+- [x] T002a [tests/implementation] Add sync/async phase-specific executor tool
   exposure: after the one result, requests carry no tools and no choice.
 - [ ] T003 [manual gate] After explicit authorization, run the local-only
   synthetic probe against the recorded Qwen GGUF. It must record redacted
