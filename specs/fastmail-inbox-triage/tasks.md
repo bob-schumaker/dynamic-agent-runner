@@ -45,10 +45,10 @@ review, package authoring, and one bounded read-only acceptance dispatch.
 
 ## P2 — Package and acceptance
 
-- [ ] T006 [authoring] After T003-T005 and T002a, issue the host-internal
+- [x] T006 [authoring] After T003-T005 and T002a, issue the host-internal
   material receipt from the owner's approved current-surface context, then
   generate and validate the four-file package through the host authoring path.
-- [ ] T007 [manual gate] After T006 and T008, perform the owner's authorized
+- [x] T007 [manual gate] After T006 and T008, perform the owner's authorized
   redacted acceptance using the pinned Qwen artifact, the reviewed Fastmail
   connection, and one bounded read-only dispatch.
   - Evidence: current reviewed-surface identity/schema receipt, one-or-zero

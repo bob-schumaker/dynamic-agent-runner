@@ -55,9 +55,23 @@ reference-only specification, plan, and redacted surface-context material.
 | File count | 4 |
 | Package digest | `45df571d2bdf2e7612a90f1f3cecbb7dfd2e92a311036fd406ae8042423d04b2` |
 
-The package is finalized but not yet registered or invoked: direct llama.cpp
-profile and semantic Fastmail-binding integration remain required before T006
-can close and before the one authorized acceptance dispatch.
+The corrected package revision was locally qualified, registered with the
+pinned direct llama.cpp profile, and bound to the reviewed `search_email`
+surface before acceptance.
+
+## T007 Acceptance Receipt
+
+One owner-authorized read-only acceptance run completed with no retained mailbox
+content. The terminal report was valid and empty: status `complete`, previous
+24-hour window, matched count zero, no truncation, no items, and no warnings.
+
+| Field | Result |
+| --- | --- |
+| Corrected package digest | `f047fb13f4fa34bf4a02affc1eda2c80d9dcfb370d68b5fb25bc5a59985fce50` |
+| Registration digest | `b83d58b7f5c679ced332055d6c8f445f9cda527035655f39e76c77f90d7eaf23` |
+| Run status | `completed` |
+| Run id | `bb3e1545-f34c-4f89-b83e-87f8d8d7fc88` |
+| Mutation ledger | Empty; the package exposes only one read-only capability. |
 
 ## Manual Gates
 
