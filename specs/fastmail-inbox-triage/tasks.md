@@ -76,3 +76,6 @@ review, package authoring, and one bounded read-only acceptance dispatch.
   value with synthetic equivalents, preserving only letter case, non-letter
   structure, and length in subjects/previews, and protect the resulting local
   fixture with a fake-only shape test.
+- [x] T013 [manual gate] Run one owner-authorized read-only v4 acceptance and
+  retain only the redacted terminal status, counts, classification distribution,
+  package/registration digests, and run identifier in `validation.md`.

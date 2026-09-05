@@ -47,9 +47,10 @@ is deliberately excluded.
 - Existing Fastmail OAuth and reviewed-surface work proves host-owned read-only
   binding. OAuth success alone does not approve a tool.
 - A live Fastmail acceptance is human-authorized only; unit tests use fakes.
-- The exact Qwen GGUF must still pass P0 tool-call/final-continuation evidence
-  before it can receive Fastmail data. This supersedes the former Apple B5.2
-  prerequisite; it does not authorize live Fastmail access.
+- T003 qualified the exact Qwen GGUF with local-only synthetic
+  tool-call/final-continuation evidence before it received Fastmail data. This
+  supersedes the former Apple B5.2 prerequisite; every future live Fastmail run
+  still requires separate human authorization.
 
 ## Trust Boundaries
 

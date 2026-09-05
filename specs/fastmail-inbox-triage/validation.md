@@ -2,15 +2,13 @@
 
 ## Status
 
-Automated implementation checks, including final pre-acceptance validation, and
-the authorized local-only T003 probe passed on 2026-09-05. A later non-empty
-owner-authorized run exposed that FR-004 was not enforced at the host terminal
-boundary; T009 corrects that gap with fake-only regression tests. Any future
-acceptance must pass the new host validation. T010 created a strengthened v3
-package revision and refreshed its reviewed binding; its live acceptance is
-intentionally unrun pending a separate owner instruction. T011 added a narrow
-raw-projection normalizer and registered v4; its live acceptance is likewise
-unrun pending a separate owner instruction.
+Automated implementation checks and the authorized local-only T003 probe passed
+on 2026-09-05. An earlier non-empty owner-authorized run exposed that FR-004 was
+not enforced at the host terminal boundary; T009 corrected that gap with
+fake-only regression tests. T010 strengthened the non-empty prompt and T011
+added narrow raw-projection normalization. T013 then completed the
+owner-authorized read-only acceptance of the registered v4 package; its redacted
+receipt below records a contract-valid `needs_review` terminal report.
 
 ## Traceability
 
@@ -42,6 +40,7 @@ unrun pending a separate owner instruction.
 | T011 binding and registration | passed | Bound to the current reviewed read-only surface; registered as `fastmail-inbox-triage-qwen-v4`. |
 | T012 sanitized live-shape fixture | passed | Five-item projection captured through the reviewed semantic binding; fixture contains synthetic references, subjects, previews, and timestamps only. |
 | `poetry run pytest tests/test_dar_authoring_mcp_tools.py -q -k 'fastmail'` | passed: 4 | T012 fixture shape guard and Fastmail binding tests. |
+| T013 v4 read-only acceptance | passed | Completed run with one contract-valid `needs_review` item, no warnings, and no retained mailbox content. |
 
 ## T009 Post-acceptance report-validation defect
 
@@ -55,7 +54,8 @@ T009 routes output from the pinned Fastmail llama.cpp adapter through
 `parse_fastmail_triage_report` before a run can complete. Invalid reports now
 fail closed with a redacted terminal-output error; valid reports are normalized
 before return. The regression tests use synthetic references and contain no
-mailbox data. No additional Fastmail request was made to validate this fix.
+mailbox data. T009 itself made no additional Fastmail request; T013 later
+validated the revised v4 package through the authorized acceptance path.
 
 ## T010 Qwen non-empty report prompt revision
 
@@ -70,8 +70,8 @@ the approved enum; directs uncertainty to `needs_review`; and forbids
 `sender`, `received_at`, `preview`, attachments, action fields, recipients,
 drafts, tool calls, and Markdown. It was finalized against the existing
 approved reference-only material set, bound to a fresh reviewed `search_email`
-surface, and registered without a second Fastmail dispatch. A new owner-
-authorized live run is still required to demonstrate model compliance.
+surface, and registered without a second Fastmail dispatch. T013 subsequently
+validated the revised v4 package, which superseded this v3 revision.
 
 ## T011 Raw-projection normalization and status contract
 
@@ -85,8 +85,8 @@ Unknown item fields, missing triage data, and `in_progress` still fail closed.
 The v4 prompt now enumerates `complete`, `needs_review`, and `failed`, with
 instructions to use `complete` after a successful search. A fresh
 reference-only material receipt finalized the four-file package, which was
-bound and registered without another Fastmail dispatch. A new owner-authorized
-live run remains required to demonstrate v4 model compliance.
+bound and registered without another Fastmail dispatch. T013 subsequently
+demonstrated v4 model compliance through the authorized read-only run.
 
 ## T012 De-identified live-shape fixture
 
@@ -146,7 +146,25 @@ content. The terminal report was valid and empty: status `complete`, previous
 | Run id | `bb3e1545-f34c-4f89-b83e-87f8d8d7fc88` |
 | Mutation ledger | Empty; the package exposes only one read-only capability. |
 
+## T013 v4 Acceptance Receipt
+
+One owner-authorized read-only acceptance run completed with no retained mailbox
+content. The terminal report was contract-valid: status `needs_review`, previous
+24-hour window, one matched item, no truncation, one `needs_reply`
+classification, and no warnings. The package exposes only the one read-only
+`search_email` capability; no mailbox mutation was authorized or exposed.
+
+| Field | Result |
+| --- | --- |
+| Package id | `fastmail-inbox-triage-qwen-v4` |
+| Package digest | `ce7f3d349745ee113ed6d11584cb58e87bdc896a2b1625babcbc9f7ed46a54ec` |
+| Registration digest | `09efc7f40758625bb9ecb3abf62c99136140bd84cb74976b69a30413bf228ed8` |
+| Run status | `completed` |
+| Run id | `82c8e0af-9be5-4faa-9411-9ccb1f3c4cb3` |
+| Warnings | 0 |
+
 ## Manual Gates
 
-- T007 requires separate explicit authorization. Retain only redacted status,
-  digest, dispatch count, configuration fingerprint, and diagnostics.
+- Every future live acceptance requires separate explicit authorization. Retain
+  only redacted status, digest, dispatch count, configuration fingerprint, and
+  diagnostics.

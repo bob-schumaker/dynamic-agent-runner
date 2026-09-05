@@ -5,7 +5,7 @@
 - Feature slug: `fastmail-inbox-triage`
 - Mode: `guided`
 - Artifact type: feature specification
-- Status: ready for gated implementation
+- Status: implemented and accepted through v4
 - Version: `0.1.0`
 - Date: 2026-09-02
 - Owner: dynamic-agent-runner

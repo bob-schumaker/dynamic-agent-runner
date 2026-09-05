@@ -2,9 +2,10 @@
 
 ## Status
 
-Ready for gated implementation. T001/T002/T002a close the documented runtime
-gaps before the local-model probe or Fastmail invocation, neither of which this
-plan authorizes.
+Implemented and accepted through T013. The direct llama.cpp/Qwen workflow is
+registered as `fastmail-inbox-triage-qwen-v4`; the current redacted acceptance
+receipt is recorded in `validation.md`. This plan remains the historical scope
+and gate definition for future revisions.
 
 ## Spec Trace
 
@@ -43,13 +44,12 @@ eligible. The native-MLX Qwen artifact is out of scope.
   reviewed-surface snapshots, capability binding, and redacted receipts.
 - The generic read-only package template provides a starting shape only. It
   does not authorize copying a historical Fastmail schema or connection data.
-- The former Apple Foundation Models B5.2 dependency is removed. Before package
-  authoring, this feature instead needs a local llama.cpp tool-use preflight for
-  the exact Qwen GGUF and its selected chat-format configuration.
-- Current llama.cpp path resolution permits downloader wiring. T001/T002 must
-  add a host-owned immutable local-model registration/preflight record that
-  rehashes the GGUF, resolves only its verified local path, and proves downloader
-  callables cannot run.
+- The former Apple Foundation Models B5.2 dependency is removed. T003's
+  local-only llama.cpp tool-use preflight qualified the exact Qwen GGUF and its
+  selected chat-format configuration before any Fastmail data was exposed.
+- T001/T002 delivered the host-owned immutable local-model
+  registration/preflight record: it rehashes the GGUF, resolves only its
+  verified local path, and proves downloader callables cannot run.
 
 ## Technical Approach
 
