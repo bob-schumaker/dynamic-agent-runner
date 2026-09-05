@@ -135,8 +135,9 @@ schema checks stops before remote dispatch or reports an inconclusive result.
 
 ### P2 — Author and finalize the saved package
 
-- Dependency: P1 and a human-approved `material_set_id` containing current
-  reviewed capability context.
+- Dependency: P1 and the owner's authorization to issue the host-internal
+  `material_set_id` from current reviewed capability context. The receipt is
+  implementation provenance, not a separate user-approval gate.
 - Deliverable: a validated four-file DAR package generated through existing
   host-owned authoring and finalization commands.
 - Exit criterion: a human selects/registers it with the exact Qwen adapter and
@@ -144,9 +145,9 @@ schema checks stops before remote dispatch or reports an inconclusive result.
 
 ### P3 — Conduct opt-in acceptance
 
-- Dependency: P2, green automated validation, and new explicit human
-  authorization naming this package, cached Qwen artifact, Fastmail connection,
-  and one read-only dispatch.
+- Dependency: P2, green automated validation, and the owner's authorization
+  for this goal, which names this package, cached Qwen artifact, reviewed
+  Fastmail connection, and one read-only dispatch.
 - Deliverable: one manually reviewed terminal report and redacted receipt.
 - Exit criterion: a pre-dispatch receipt proves current reviewed capability
   identity/schema and host-only semantic mapping; evidence retains only package

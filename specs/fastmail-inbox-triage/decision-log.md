@@ -57,5 +57,7 @@
 ## D7 — Specification gate approval
 
 - Status: approved 2026-09-05
-- Decision: the owner approved the refreshed Qwen llama.cpp scope for gated
-  implementation. P0 and Fastmail acceptance remain separately authorized.
+- Decision: the owner approved the refreshed Qwen llama.cpp scope and later
+  authorized the complete delivery goal: current-surface review, package
+  authoring, and one bounded read-only Fastmail acceptance dispatch. A
+  `material_set_id` remains host-internal provenance, not a new approval gate.

@@ -2,8 +2,8 @@
 
 ## Status
 
-T003's local-only probe passed on 2026-09-05. T007 remains unrun and requires
-separate explicit Fastmail authorization.
+The owner authorized this complete goal on 2026-09-05, including current-surface
+review, package authoring, and one bounded read-only acceptance dispatch.
 
 ## P0 — Qwen protocol qualification
 
@@ -45,11 +45,12 @@ separate explicit Fastmail authorization.
 
 ## P2 — Package and acceptance
 
-- [ ] T006 [authoring] After T003-T005, T002a, and a human-approved material set,
+- [ ] T006 [authoring] After T003-T005 and T002a, issue the host-internal
+  material receipt from the owner's approved current-surface context, then
   generate and validate the four-file package through the host authoring path.
-- [ ] T007 [manual gate] After T008 and explicit authorization naming the
-  package, Qwen artifact, Fastmail connection, and one dispatch, perform
-  redacted acceptance.
+- [ ] T007 [manual gate] After T006 and T008, perform the owner's authorized
+  redacted acceptance using the pinned Qwen artifact, the reviewed Fastmail
+  connection, and one bounded read-only dispatch.
   - Evidence: current reviewed-surface identity/schema receipt, one-or-zero
     dispatch count, empty mutation ledger, matching P0 fingerprint, and no raw
     email, OAuth, or schema data in retained evidence.
