@@ -3,6 +3,15 @@
 
 ## Current Focus
 
+- `fastmail-inbox-triage` is implemented and accepted through the registered
+  direct-llama.cpp/Qwen v4 package. Its owner-authorized read-only acceptance
+  produced a contract-valid `needs_review` report with one `needs_reply` item,
+  no warnings, and no retained mailbox content; `1a72cb9` reconciled the
+  feature corpus and redacted receipt.
+- The LiteLLM-only Codex transport migration is postponed pending upstream
+  support for DAR's ChatGPT/Codex authentication, account-selection, and
+  lifecycle requirements. DAR retains its direct SDK path and package-owned
+  auth discovery; the compatibility analysis remains the re-entry criterion.
 - The routed `agent-engineering` Codex plugin release is complete at version
   `0.1.1` in commit `58d928c`. Its regenerated routed payload and direct
   fixture digest passed focused plugin tests and Ruff; the version was
@@ -674,19 +683,19 @@
 
 ## Next Steps
 
-- No Fastmail action is currently pending. For any distinct live operation,
-  obtain and review a current eligible-Mac `preflight-apple-mcp-tool` receipt,
-  then obtain separate human dispatch authorization; do not treat a `gateway`
-  receipt as authorization.
+- No Fastmail triage action is currently pending. Any distinct live operation
+  requires a current reviewed-surface receipt and separate human dispatch
+  authorization; an eligible-Mac preflight applies only when the Apple profile
+  is selected and never grants dispatch authority.
 - Before planning interpreter implementation, resolve the five remaining
   clarification items and run backend prototypes/benchmarks. Keep executable
   adapters caller-provided and descriptor frontmatter non-executable.
 - Run the `memory-aware-context-pipeline` declarative first-slice validation when
   it is scheduled, including the explicit decision to retain a distinct memory
   contract or fold it back into RAG.
-- Resume LiteLLM work only for upstream package publication, live Codex parity,
-  or an approved global-default migration; L2.2-L2.6 are complete as an
-  opt-in wrapper.
+- Revisit the LiteLLM-only Codex migration only after upstream support covers
+  DAR's ChatGPT/Codex auth, account selection, and lifecycle requirements; do
+  not replace the direct SDK path merely to consolidate clients.
 - If extending model event streaming beyond v1, create plan/tasks for
   provider-native token deltas, adapter streaming protocol, model-tool-loop
   progress events, cancellation/backpressure behavior, redaction/tool payload

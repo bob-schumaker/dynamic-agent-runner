@@ -3,6 +3,16 @@
 
 ## Working
 
+- `fastmail-inbox-triage` is complete through the registered direct-llama.cpp/
+  Qwen v4 package. The owner-authorized read-only acceptance produced a
+  contract-valid `needs_review` report with one `needs_reply` item and no
+  warnings, without retaining mailbox content. Commit `1a72cb9` aligns the
+  spec, plan, task, validation, discovery, and portfolio records while
+  preserving the earlier acceptance receipt as history.
+- The LiteLLM-only Codex transport remains postponed pending upstream support
+  for DAR's ChatGPT/Codex auth discovery, account selection, and lifecycle
+  requirements. The current direct SDK path remains authoritative; the
+  compatibility analysis is retained for a later re-entry decision.
 - `agent-engineering` plugin version `0.1.1` is released locally in
   `58d928c`. The source manifest, generated routed plugin artifacts, and
   direct-plugin fixture baseline agree on that version; focused plugin tests,
