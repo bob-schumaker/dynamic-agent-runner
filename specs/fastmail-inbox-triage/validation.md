@@ -6,7 +6,9 @@ Automated implementation checks, including final pre-acceptance validation, and
 the authorized local-only T003 probe passed on 2026-09-05. A later non-empty
 owner-authorized run exposed that FR-004 was not enforced at the host terminal
 boundary; T009 corrects that gap with fake-only regression tests. Any future
-acceptance must pass the new host validation.
+acceptance must pass the new host validation. T010 created a strengthened v3
+package revision and refreshed its reviewed binding; its live acceptance is
+intentionally unrun pending a separate owner instruction.
 
 ## Traceability
 
@@ -31,6 +33,8 @@ acceptance must pass the new host validation.
 | `git diff --check` | passed | No whitespace errors. |
 | `poetry run pytest tests/test_dar_authoring_runner.py -q -k 'fastmail_terminal_output or rejects_terminal_output'` | passed: 3 | T009 raw-projection rejection and valid-report normalization. |
 | `poetry run ruff check src/dynamic_agent_runner/workflow_host/runner.py tests/test_dar_authoring_runner.py` | passed | T009 changed Python files. |
+| T010 package finalization | passed | Four-file v3 package digest `a58daadd354ebde4c46900b58ac39c944d69daeca7973a928c5738d0e6e78087`. |
+| T010 reviewed binding and registration | passed | Fresh read-only `search_email` review; registered as `fastmail-inbox-triage-qwen-v3`. |
 
 ## T009 Post-acceptance report-validation defect
 
@@ -45,6 +49,22 @@ T009 routes output from the pinned Fastmail llama.cpp adapter through
 fail closed with a redacted terminal-output error; valid reports are normalized
 before return. The regression tests use synthetic references and contain no
 mailbox data. No additional Fastmail request was made to validate this fix.
+
+## T010 Qwen non-empty report prompt revision
+
+The failed live run proved that the prior package prompt named only top-level
+report keys and supplied only an empty-result example. It did not define the
+non-empty item shape or forbid raw projection fields, so the model could echo
+the bounded tool projection and be rejected by T009.
+
+The finalized v3 package now requires `message_reference`, `classification`,
+and a concise `rationale` for every non-empty item; limits classifications to
+the approved enum; directs uncertainty to `needs_review`; and forbids
+`sender`, `received_at`, `preview`, attachments, action fields, recipients,
+drafts, tool calls, and Markdown. It was finalized against the existing
+approved reference-only material set, bound to a fresh reviewed `search_email`
+surface, and registered without a second Fastmail dispatch. A new owner-
+authorized live run is still required to demonstrate model compliance.
 
 ## T003 Local-only Probe Receipt
 

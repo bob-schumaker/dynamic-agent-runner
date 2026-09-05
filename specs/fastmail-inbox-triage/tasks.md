@@ -63,3 +63,7 @@ review, package authoring, and one bounded read-only acceptance dispatch.
 - [x] T009 [bug fix] Enforce FR-004 at the Fastmail host terminal boundary:
   reject raw projected messages that omit per-item classification and rationale,
   normalize valid classified reports, and cover both paths with fake-only tests.
+- [x] T010 [package revision] Replace the incomplete non-empty Qwen report
+  prompt with an explicit per-item contract, prohibit raw projection fields,
+  finalize the authored package, refresh the reviewed read-only binding, and
+  register `fastmail-inbox-triage-qwen-v3` without another mailbox dispatch.
