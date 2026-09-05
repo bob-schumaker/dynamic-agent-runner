@@ -13,7 +13,7 @@ unrun manual gates that require explicit authorization.
 | FR-002 exact Qwen binding | `test_fastmail_triage_model.py`, `test_local_models.py`; T003 local-only probe | automated checks passed; T003 not run |
 | FR-003 bounded read transaction | `test_executor.py`, `test_dar_authoring_mcp_tools.py` | passed; no Fastmail dispatch |
 | FR-004 validated report | `test_fastmail_triage_report.py` | passed |
-| FR-005 hostile data boundary | T004 adversarial projection tests | pending |
+| FR-005 hostile data boundary | T004 adversarial projection tests | passed; fake-only |
 | FR-006 no mutation | fake `search_email` surface and one-dispatch counter tests | passed; no live mutation ledger |
 
 ## Commands
