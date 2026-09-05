@@ -217,6 +217,10 @@ SUPPORTED_TOOL_USE_COMPLETION_STOP_ON_TOOL_VALUES = {
     "enabled",
     "disabled",
 }
+SUPPORTED_TOOL_USE_COMPLETION_AFTER_TOOL_RESULT_TOOLS_VALUES = {
+    "enabled",
+    "disabled",
+}
 SUPPORTED_TOOL_USE_COMPLETION_FINAL_OUTPUT_VALUES = {
     "default",
     "tool_result",
@@ -1709,6 +1713,13 @@ def _tool_use_completion_policy_errors(manifest: RuntimeManifest) -> list[str]:
         policy,
         "stop_on_tool",
         SUPPORTED_TOOL_USE_COMPLETION_STOP_ON_TOOL_VALUES,
+        label,
+        errors,
+    )
+    _validate_optional_enum(
+        policy,
+        "after_tool_result_tools",
+        SUPPORTED_TOOL_USE_COMPLETION_AFTER_TOOL_RESULT_TOOLS_VALUES,
         label,
         errors,
     )

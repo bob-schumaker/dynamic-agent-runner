@@ -1522,6 +1522,23 @@ async def _execute_model_tool_loop_async(
     response = initial_response
     transcript: list[Mapping[str, Any]] = []
     for iteration in range(1, max_iterations + 1):
+        if (
+            response.tool_calls
+            and iteration > 1
+            and not _tools_after_tool_result(plan, tools)
+        ):
+            tracer.emit(
+                "model_tool_loop_stopped",
+                node_id=str(node.id),
+                payload={
+                    "iteration": iteration,
+                    "stop_reason": "tool_call_after_tool_exposure_disabled",
+                },
+            )
+            raise WorkflowExecutionError(
+                f"llm_step node {node.id!r} returned a tool call after tool exposure "
+                "was disabled"
+            )
         if not response.tool_calls:
             _emit_model_tool_loop_stop(
                 node,
@@ -1593,7 +1610,7 @@ async def _execute_model_tool_loop_async(
             plan,
             state,
             prepared_input,
-            tuple(tools),
+            _tools_after_tool_result(plan, tools),
             tuple(transcript),
             adapter_context,
             tracer,
@@ -1639,10 +1656,14 @@ async def _request_loop_model_response_async(
         model=prepared_input.model,
         messages=messages,
         tools=tools,
-        tool_choice=_tool_choice_for_phase(
-            plan,
-            prepared_input,
-            phase="after_tool_result",
+        tool_choice=(
+            _tool_choice_for_phase(
+                plan,
+                prepared_input,
+                phase="after_tool_result",
+            )
+            if tools
+            else None
         ),
         response_format=prepared_input.response_format,
         adapter_context=adapter_context,
@@ -1968,6 +1989,18 @@ def _provenance_source_contains_artifact(source: object) -> bool:
 def _stop_on_tool_enabled(plan: ExecutionPlan) -> bool:
     policy = plan.tool_use_completion_policy
     return bool(policy is not None and policy.stop_on_tool == "enabled")
+
+
+def _tools_after_tool_result(
+    plan: ExecutionPlan,
+    tools: Sequence[Mapping[str, Any]],
+) -> tuple[Mapping[str, Any], ...]:
+    """Return the model-facing tools allowed after one tool result."""
+
+    policy = plan.tool_use_completion_policy
+    if policy is not None and policy.after_tool_result_tools == "disabled":
+        return ()
+    return tuple(tools)
 
 
 def _tool_sources_payload(tools: Sequence[RegisteredTool]) -> dict[str, Any]:

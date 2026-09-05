@@ -1529,6 +1529,7 @@ def test_tool_use_completion_policy_fails_closed_for_bad_values() -> None:
             "tool_use_completion": {
                 "run_again": "sometimes",
                 "stop_on_tool": "afterwards",
+                "after_tool_result_tools": "again",
                 "final_output": "custom",
                 "final_output_state_key": 99,
             },
@@ -1541,6 +1542,7 @@ def test_tool_use_completion_policy_fails_closed_for_bad_values() -> None:
     message = str(exc_info.value)
     assert ".run_again has unsupported value 'sometimes'" in message
     assert ".stop_on_tool has unsupported value 'afterwards'" in message
+    assert ".after_tool_result_tools has unsupported value 'again'" in message
     assert ".final_output has unsupported value 'custom'" in message
     assert ".final_output_state_key must be a string" in message
 
@@ -1555,6 +1557,7 @@ def test_tool_use_completion_policy_requires_state_key_for_state_field() -> None
             "tool_use_completion": {
                 "run_again": "required",
                 "stop_on_tool": "enabled",
+                "after_tool_result_tools": "disabled",
                 "final_output": "state_field",
             },
         }

@@ -282,10 +282,11 @@ class MCPLifecycleDiagnostics:
 
 @dataclass(frozen=True)
 class ToolUseCompletionPolicy:
-    """Deferred tool-use completion policy metadata for future loop runtimes."""
+    """Tool-use completion policy for iterative model loops."""
 
     run_again: str | None = None
     stop_on_tool: str | None = None
+    after_tool_result_tools: str | None = None
     final_output: str | None = None
     final_output_state_key: str | None = None
     raw: Mapping[str, Any] = field(default_factory=dict)
@@ -298,6 +299,7 @@ class ToolUseCompletionPolicy:
         return cls(
             run_again=_optional_str(raw.get("run_again")),
             stop_on_tool=_optional_str(raw.get("stop_on_tool")),
+            after_tool_result_tools=_optional_str(raw.get("after_tool_result_tools")),
             final_output=_optional_str(raw.get("final_output")),
             final_output_state_key=_optional_str(raw.get("final_output_state_key")),
             raw=raw,
