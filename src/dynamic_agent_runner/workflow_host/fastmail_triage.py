@@ -41,6 +41,50 @@ FastmailTriageQueryBuilder = Callable[[datetime], FastmailTriageQuery]
 FastmailTriageResultProjector = Callable[[Mapping[str, object]], Mapping[str, object]]
 
 
+def default_fastmail_triage_query(now: datetime) -> FastmailTriageQuery:
+    """Build the sole host-owned recent-unread search request."""
+
+    return FastmailTriageQuery(
+        arguments={"query": "is:unread newer_than:1d", "limit": 5},
+        unread=True,
+        received_after=now - timedelta(hours=24),
+        max_results=5,
+    )
+
+
+def project_fastmail_triage_result(
+    result: Mapping[str, object],
+) -> Mapping[str, object]:
+    """Expose a small attachment-free mail projection to the local model."""
+
+    values = result.get("emails", result.get("items", ()))
+    if not isinstance(values, Sequence) or isinstance(values, str | bytes):
+        raise FastmailTriageBindingError("Fastmail triage result projection is invalid")
+    items = []
+    for value in values[:5]:
+        if not isinstance(value, Mapping):
+            raise FastmailTriageBindingError(
+                "Fastmail triage result projection is invalid"
+            )
+        message_reference = value.get("id", value.get("message_reference"))
+        if not isinstance(message_reference, str) or not message_reference:
+            raise FastmailTriageBindingError(
+                "Fastmail triage result projection is invalid"
+            )
+        item = {"message_reference": message_reference}
+        for output_name, source_name in (
+            ("subject", "subject"),
+            ("sender", "from"),
+            ("received_at", "receivedAt"),
+            ("preview", "preview"),
+        ):
+            value_at_field = value.get(source_name)
+            if isinstance(value_at_field, str) and value_at_field:
+                item[output_name] = value_at_field
+        items.append(item)
+    return {"items": items}
+
+
 def create_fastmail_triage_search_binding(
     *,
     policy: WorkflowPolicy,

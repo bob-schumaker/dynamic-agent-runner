@@ -31,6 +31,8 @@ from dynamic_agent_runner.workflow_host.mcp_tools import (
 from dynamic_agent_runner.workflow_host.fastmail_triage import (  # noqa: E402
     FastmailTriageQuery,
     create_fastmail_triage_search_binding,
+    default_fastmail_triage_query,
+    project_fastmail_triage_result,
 )
 from dynamic_agent_runner.workflow_host.policy import WorkflowPolicy  # noqa: E402
 from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControlPlane  # noqa: E402
@@ -75,6 +77,42 @@ class CurrentClient:
 
     def reconnect(self) -> None:
         self.current_generation += 1
+
+
+def test_fastmail_triage_defaults_to_bounded_unread_query_and_projection() -> None:
+    now = datetime(2026, 9, 5, tzinfo=UTC)
+
+    query = default_fastmail_triage_query(now)
+    result = project_fastmail_triage_result(
+        {
+            "emails": [
+                {
+                    "id": "opaque-1",
+                    "subject": "Review this",
+                    "from": "sender@example.test",
+                    "receivedAt": "2026-09-05T10:00:00Z",
+                    "preview": "Untrusted message content",
+                    "attachments": [{"name": "never-visible.pdf"}],
+                }
+            ]
+        }
+    )
+
+    assert query.unread is True
+    assert query.received_after == now - timedelta(hours=24)
+    assert query.max_results == 5
+    assert query.arguments == {"query": "is:unread newer_than:1d", "limit": 5}
+    assert result == {
+        "items": [
+            {
+                "message_reference": "opaque-1",
+                "subject": "Review this",
+                "sender": "sender@example.test",
+                "received_at": "2026-09-05T10:00:00Z",
+                "preview": "Untrusted message content",
+            }
+        ]
+    }
 
 
 def _policy() -> WorkflowPolicy:

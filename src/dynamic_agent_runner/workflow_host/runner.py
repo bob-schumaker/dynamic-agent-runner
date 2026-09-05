@@ -34,6 +34,12 @@ from dynamic_agent_runner.workflow_host.catalog import (
     PackageCatalog,
     PackageCatalogError,
 )
+from dynamic_agent_runner.workflow_host.fastmail_triage import (
+    FastmailTriageBindingError,
+    create_fastmail_triage_search_binding,
+    default_fastmail_triage_query,
+    project_fastmail_triage_result,
+)
 from dynamic_agent_runner.workflow_host.mcp_binding import (
     MCPWorkflowCapabilityBindingControlPlane,
 )
@@ -54,7 +60,10 @@ from dynamic_agent_runner.workflow_host.preparation import (
     SealedWorkflowInput,
     WorkflowInvocationPreparationService,
 )
-from dynamic_agent_runner.workflow_host.profiles import LocalModelProfile
+from dynamic_agent_runner.workflow_host.profiles import (
+    FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+    LocalModelProfile,
+)
 from dynamic_agent_runner.workflow_host.registration import (
     WorkflowRegistration,
     WorkflowRegistrationError,
@@ -335,17 +344,34 @@ class WorkflowRunner:
             approval_grants = WorkflowRunApprovalGrants()
             bindings = []
             if read_tools:
-                bindings.extend(
-                    create_read_only_mcp_tool_bindings(
-                        policy=policy,
-                        binding_id=registration.mcp_binding_id,
-                        binding_control=self._mcp_bindings,
-                        client=self._mcp_client,
-                        surfaces=self._mcp_surfaces,
-                        tools=read_tools,
-                        counter=counter,
+                if (
+                    self._configured_profile.adapter_id
+                    == FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID
+                ):
+                    bindings.append(
+                        create_fastmail_triage_search_binding(
+                            policy=policy,
+                            binding_id=registration.mcp_binding_id,
+                            binding_control=self._mcp_bindings,
+                            client=self._mcp_client,
+                            surfaces=self._mcp_surfaces,
+                            query_builder=default_fastmail_triage_query,
+                            result_projector=project_fastmail_triage_result,
+                            now=lambda: now,
+                        )
                     )
-                )
+                else:
+                    bindings.extend(
+                        create_read_only_mcp_tool_bindings(
+                            policy=policy,
+                            binding_id=registration.mcp_binding_id,
+                            binding_control=self._mcp_bindings,
+                            client=self._mcp_client,
+                            surfaces=self._mcp_surfaces,
+                            tools=read_tools,
+                            counter=counter,
+                        )
+                    )
             if side_effect_tools:
                 if self._action_ledger is None:
                     raise RunDarWorkflowError("external action audit is unavailable")
@@ -393,7 +419,11 @@ class WorkflowRunner:
                     )
                 )
             return create_host_tool_registry(tuple(bindings))
-        except (AuthorizedToolBindingError, MCPToolBindingError) as error:
+        except (
+            AuthorizedToolBindingError,
+            FastmailTriageBindingError,
+            MCPToolBindingError,
+        ) as error:
             raise RunDarWorkflowError(
                 "registered MCP capability is unavailable"
             ) from error
