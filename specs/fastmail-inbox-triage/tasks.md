@@ -33,7 +33,7 @@ authorized by this task list.
 - [x] T004 [tests] Add fake reviewed-surface and package-policy tests for
   unread/24-hour/five-message host constraints, one semantic dispatch, bounded
   attachment-free result projection, adversarial content, and zero mutation.
-- [ ] T005 [implementation] Add a de-identified fixture and only the package
+- [x] T005 [implementation] Add a de-identified fixture and only the package
   validation/runtime support proven necessary by T004.
 
 ## P2 — Package and acceptance
