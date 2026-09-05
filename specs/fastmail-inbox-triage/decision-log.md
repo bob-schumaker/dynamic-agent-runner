@@ -44,13 +44,15 @@
 
 ## D6 — Qwen tool-use evidence is a feature prerequisite
 
-- Status: open local prerequisite
-- Decision: do not create, register, or invoke the inbox-triage package until
-  the exact Qwen GGUF and selected llama.cpp chat format prove one valid tool
-  call followed by a qualifying terminal completion, or the owner approves a
-  specification amendment.
-- Rationale: model availability is not tool-use capability. The preflight is
-  local-only and must pass before Fastmail data reaches the model.
+- Status: satisfied 2026-09-05
+- Decision: the authorized local-only probe qualified the exact Qwen GGUF with
+  `chatml-function-calling`: one schema-valid `search_email({})` call, zero
+  continuation calls after the synthetic result, and valid terminal JSON. Its
+  artifact SHA-256 and configuration fingerprint are recorded in
+  `validation.md`.
+- Rationale: model availability is not tool-use capability. The successful
+  preflight used synthetic data only, before any Fastmail data could reach the
+  model.
 
 ## D7 — Specification gate approval
 

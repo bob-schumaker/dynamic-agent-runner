@@ -77,8 +77,9 @@ Before model load, the host verifies the recorded SHA-256, one immutable model
 alias, `HuggingFaceModelFileReference(repo_id, filename, revision)`,
 `allow_network=False`, expected identity, strict coverage, and a persisted
 llama.cpp configuration fingerprint. The fingerprint includes `chat_format`,
-tool codec, context limit, and generation parameters. The selected chat format
-is not approved until P0 proves it.
+tool codec, context limit, and generation parameters. P0 approved
+`chatml-function-calling` for the recorded configuration fingerprint after its
+local-only synthetic qualification.
 
 ## Functional requirements
 
