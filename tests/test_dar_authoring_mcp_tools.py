@@ -134,8 +134,12 @@ def test_fastmail_live_shape_fixture_is_bounded_and_deidentified() -> None:
     ] * 5
     assert all(
         item["message_reference"].startswith("live-shape-message-")
-        and item["subject"].startswith("Synthetic subject ")
-        and item["preview"].startswith("Synthetic body ")
+        and all(
+            character in "Aa" for character in item["subject"] if character.isalpha()
+        )
+        and all(
+            character in "Aa" for character in item["preview"] if character.isalpha()
+        )
         for item in fixture["items"]
     )
 

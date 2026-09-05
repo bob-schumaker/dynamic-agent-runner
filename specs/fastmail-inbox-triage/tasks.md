@@ -73,5 +73,6 @@ review, package authoring, and one bounded read-only acceptance dispatch.
   and register `fastmail-inbox-triage-qwen-v4` without another mailbox dispatch.
 - [x] T012 [fixture] Capture the current five-item semantic projection shape
   through the v4 reviewed binding, replace every identifying or message-content
-  value with synthetic equivalents, and protect the resulting local fixture
-  with a fake-only shape test.
+  value with synthetic equivalents, preserving only letter case, non-letter
+  structure, and length in subjects/previews, and protect the resulting local
+  fixture with a fake-only shape test.

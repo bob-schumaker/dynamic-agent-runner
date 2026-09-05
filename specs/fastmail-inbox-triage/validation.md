@@ -92,8 +92,10 @@ live run remains required to demonstrate v4 model compliance.
 
 One owner-authorized, read-only `search_email` call ran through the registered
 v4 semantic binding. Before the result left process memory, the capture replaced
-every message reference, subject, preview/body, and timestamp with synthetic
-values. The live projection had five items and the keys
+every message reference and timestamp with synthetic values. In each subject
+and preview/body, every uppercase letter became `A` and every lowercase letter
+became `a`; only punctuation, whitespace, digits, emoji, case, and length are
+preserved. The live projection had five items and the keys
 `message_reference`, `subject`, `received_at`, and `preview`; it had no sender
 field, so none was invented. The committed fixture preserves that exact
 structural shape, count, and ordering for local harnesses without retaining
