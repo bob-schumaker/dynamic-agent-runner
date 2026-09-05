@@ -45,7 +45,10 @@ def default_fastmail_triage_query(now: datetime) -> FastmailTriageQuery:
     """Build the sole host-owned recent-unread search request."""
 
     return FastmailTriageQuery(
-        arguments={"query": "is:unread newer_than:1d", "limit": 5},
+        arguments={
+            "query": f"is:unread after:{(now - timedelta(hours=24)).date().isoformat()}",
+            "limit": 5,
+        },
         unread=True,
         received_after=now - timedelta(hours=24),
         max_results=5,
@@ -57,7 +60,13 @@ def project_fastmail_triage_result(
 ) -> Mapping[str, object]:
     """Expose a small attachment-free mail projection to the local model."""
 
-    values = result.get("emails", result.get("items", ()))
+    if result.get("isError") is True:
+        raise FastmailTriageBindingError("Fastmail triage search failed")
+    structured = result.get("structuredContent")
+    if isinstance(structured, Mapping):
+        values = structured.get("results", ())
+    else:
+        values = result.get("emails", result.get("items", ()))
     if not isinstance(values, Sequence) or isinstance(values, str | bytes):
         raise FastmailTriageBindingError("Fastmail triage result projection is invalid")
     items = []

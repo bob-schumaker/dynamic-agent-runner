@@ -85,23 +85,25 @@ def test_fastmail_triage_defaults_to_bounded_unread_query_and_projection() -> No
     query = default_fastmail_triage_query(now)
     result = project_fastmail_triage_result(
         {
-            "emails": [
-                {
-                    "id": "opaque-1",
-                    "subject": "Review this",
-                    "from": "sender@example.test",
-                    "receivedAt": "2026-09-05T10:00:00Z",
-                    "preview": "Untrusted message content",
-                    "attachments": [{"name": "never-visible.pdf"}],
-                }
-            ]
+            "structuredContent": {
+                "results": [
+                    {
+                        "id": "opaque-1",
+                        "subject": "Review this",
+                        "from": "sender@example.test",
+                        "receivedAt": "2026-09-05T10:00:00Z",
+                        "preview": "Untrusted message content",
+                        "attachments": [{"name": "never-visible.pdf"}],
+                    }
+                ]
+            }
         }
     )
 
     assert query.unread is True
     assert query.received_after == now - timedelta(hours=24)
     assert query.max_results == 5
-    assert query.arguments == {"query": "is:unread newer_than:1d", "limit": 5}
+    assert query.arguments == {"query": "is:unread after:2026-09-04", "limit": 5}
     assert result == {
         "items": [
             {
