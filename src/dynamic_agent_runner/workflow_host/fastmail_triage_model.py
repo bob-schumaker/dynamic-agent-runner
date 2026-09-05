@@ -7,11 +7,13 @@ from pathlib import Path
 
 from dynamic_agent_runner.local_models import (
     HuggingFaceModelFileReference,
+    LlamaCppLocalModelAdapter,
     LlamaCppLocalModelConfig,
 )
 
 
 FASTMAIL_TRIAGE_MODEL_ALIAS = "fastmail-triage-qwen2.5-3b"
+FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID = "fastmail-triage-llama-cpp-adapter-v1"
 _REPOSITORY = "Qwen/Qwen2.5-3B-Instruct-GGUF"
 _REVISION = "7dabda4d13d513e3e842b20f0d435c732f172cbe"
 _FILENAME = "qwen2.5-3b-instruct-q4_k_m.gguf"
@@ -38,4 +40,38 @@ def create_fastmail_triage_qwen_config(
         expected_model_sha256=_SHA256,
         allow_network=False,
         model_kwargs=model_kwargs,
+    )
+
+
+class FastmailTriageLlamaCppAdapter(LlamaCppLocalModelAdapter):
+    """Expose the pinned direct Qwen adapter through the host profile contract."""
+
+    @property
+    def capabilities(self) -> Mapping[str, object]:
+        return {"text_generation": True}
+
+    @property
+    def execution_profile_adapter_id(self) -> str:
+        return FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID
+
+    def resolved_model_id(self, model_id: str) -> str:
+        if model_id == FASTMAIL_TRIAGE_MODEL_ALIAS:
+            return _REPOSITORY
+        return model_id
+
+
+def create_fastmail_triage_llama_cpp_adapter() -> FastmailTriageLlamaCppAdapter:
+    """Create the immutable offline adapter from DAR's default model cache."""
+
+    return FastmailTriageLlamaCppAdapter(
+        create_fastmail_triage_qwen_config(
+            model_path=Path(".fastmail-triage-qwen-unset.gguf"),
+            model_kwargs={
+                "chat_format": "chatml-function-calling",
+                "n_ctx": 2048,
+                "n_gpu_layers": -1,
+                "seed": 7,
+                "verbose": False,
+            },
+        )
     )

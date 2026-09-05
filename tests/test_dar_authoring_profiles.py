@@ -9,9 +9,11 @@ import pytest
 
 
 from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
+    FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
     InstallationIdentityProvider,
     LocalModelProfileControlPlane,
     LocalModelProfileError,
+    create_fastmail_triage_llama_cpp_adapter,
     create_hosted_openai_adapter,
     create_local_adapter,
 )
@@ -94,6 +96,24 @@ def test_human_control_plane_creates_immutable_hosted_profile(
     assert loaded.profile_requirement == "general-language-model-v1"
     assert loaded.capabilities == frozenset({"text_generation"})
     assert len(loaded.profile_digest) == 64
+
+
+def test_control_plane_creates_pinned_fastmail_llama_cpp_profile(
+    tmp_path: Path,
+) -> None:
+    profile = LocalModelProfileControlPlane(
+        store=PrivateStateStore(tmp_path / "state")
+    ).create_fastmail_triage_llama_cpp()
+
+    adapter = create_fastmail_triage_llama_cpp_adapter(profile)
+
+    assert profile.adapter_id == FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID
+    assert profile.model_id == "Qwen/Qwen2.5-3B-Instruct-GGUF"
+    assert profile.execution_model_id == "fastmail-triage-qwen2.5-3b"
+    assert profile.base_url is None
+    assert adapter.execution_profile_adapter_id == profile.adapter_id
+    assert adapter.models == (profile.execution_model_id,)
+    assert adapter.resolved_model_id(profile.execution_model_id) == profile.model_id
 
 
 def test_profile_digest_rejects_a_forged_hosted_endpoint(tmp_path: Path) -> None:
