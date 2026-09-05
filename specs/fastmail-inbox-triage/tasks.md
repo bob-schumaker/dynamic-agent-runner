@@ -13,7 +13,7 @@ authorized by this task list.
 - [x] T001a [tests] Add sync/async executor RED tests proving that the initial
   request alone exposes the required tool and the post-result continuation has
   `tools=()` and no tool choice.
-- [ ] T002 [implementation] Add the host-owned immutable local-model preflight
+- [x] T002 [implementation] Add the host-owned immutable local-model preflight
   and triage binding T001 requires: verified local path/SHA/fingerprint with
   failing download seams, plus an empty-schema `search_email` wrapper that
   rejects arguments, constructs unread/24-hour/five limits after reviewed-surface
