@@ -7,7 +7,7 @@ authorized by this task list.
 
 ## P0 — Qwen protocol qualification
 
-- [ ] T001 [tests] Write fake-only tests for strict Qwen artifact identity,
+- [x] T001 [tests] Write fake-only tests for strict Qwen artifact identity,
   SHA-256 preflight, immutable alias/configuration fingerprint, no-network
   resolution, and synthetic two-turn tool-loop mechanics.
 - [x] T001a [tests] Add sync/async executor RED tests proving that the initial
