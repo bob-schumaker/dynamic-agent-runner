@@ -2,9 +2,9 @@
 
 ## Status
 
-Automated implementation checks and the authorized local-only T003 probe passed
-on 2026-09-05. T007 remains an unrun manual gate that requires separate
-explicit authorization.
+Automated implementation checks, including final pre-acceptance validation, and
+the authorized local-only T003 probe passed on 2026-09-05. T007 remains an
+unrun manual gate that requires separate explicit authorization.
 
 ## Traceability
 
@@ -23,7 +23,7 @@ explicit authorization.
 | --- | --- | --- |
 | `poetry run pytest tests/test_local_models.py -q` | passed: 153 | T001-T003 supporting code. |
 | Focused Fastmail/MCP tests | passed: 10 | Fake-only binding and report tests. |
-| `poetry run pytest -q` | passed: 1750; 1 skipped; 7 deselected | Seven pre-existing unknown-mark warnings. |
+| `poetry run pytest -q` | passed: 1752; 1 skipped; 7 deselected | Seven pre-existing unknown-mark warnings. |
 | `poetry run ruff check src tests` | passed | Full source and test tree. |
 | `pre-commit run --files <changed-files>` | passed | Fastmail implementation, tests, and spec files. |
 | `git diff --check` | passed | No whitespace errors. |

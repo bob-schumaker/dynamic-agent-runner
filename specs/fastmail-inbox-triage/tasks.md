@@ -56,6 +56,6 @@ separate explicit Fastmail authorization.
 
 ## Final Gate
 
-- [ ] T008 [validation] Before acceptance, run focused tests, full pytest,
+- [x] T008 [validation] Before acceptance, run focused tests, full pytest,
   Ruff, changed-file pre-commit, and `git diff --check`; record results in
   `validation.md`.
