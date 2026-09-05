@@ -67,3 +67,7 @@ review, package authoring, and one bounded read-only acceptance dispatch.
   prompt with an explicit per-item contract, prohibit raw projection fields,
   finalize the authored package, refresh the reviewed read-only binding, and
   register `fastmail-inbox-triage-qwen-v3` without another mailbox dispatch.
+- [x] T011 [bug fix] Normalize only known raw projection fields after a model
+  report supplies required triage data, retain strict rejection of invalid
+  statuses and unknown fields, add the missing status enum to the Qwen prompt,
+  and register `fastmail-inbox-triage-qwen-v4` without another mailbox dispatch.

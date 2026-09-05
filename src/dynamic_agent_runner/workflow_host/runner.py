@@ -43,7 +43,7 @@ from dynamic_agent_runner.workflow_host.fastmail_triage import (
 )
 from dynamic_agent_runner.workflow_host.fastmail_triage_report import (
     FastmailTriageReportError,
-    parse_fastmail_triage_report,
+    normalize_fastmail_triage_report,
 )
 from dynamic_agent_runner.workflow_host.mcp_binding import (
     MCPWorkflowCapabilityBindingControlPlane,
@@ -496,7 +496,7 @@ def _terminal_output(
     if adapter_id == FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID:
         try:
             value = json.dumps(
-                parse_fastmail_triage_report(value), separators=(",", ":")
+                normalize_fastmail_triage_report(value), separators=(",", ":")
             )
         except FastmailTriageReportError as error:
             raise RunDarWorkflowError("Fastmail terminal output is invalid") from error

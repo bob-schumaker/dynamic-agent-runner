@@ -8,7 +8,9 @@ owner-authorized run exposed that FR-004 was not enforced at the host terminal
 boundary; T009 corrects that gap with fake-only regression tests. Any future
 acceptance must pass the new host validation. T010 created a strengthened v3
 package revision and refreshed its reviewed binding; its live acceptance is
-intentionally unrun pending a separate owner instruction.
+intentionally unrun pending a separate owner instruction. T011 added a narrow
+raw-projection normalizer and registered v4; its live acceptance is likewise
+unrun pending a separate owner instruction.
 
 ## Traceability
 
@@ -35,6 +37,9 @@ intentionally unrun pending a separate owner instruction.
 | `poetry run ruff check src/dynamic_agent_runner/workflow_host/runner.py tests/test_dar_authoring_runner.py` | passed | T009 changed Python files. |
 | T010 package finalization | passed | Four-file v3 package digest `a58daadd354ebde4c46900b58ac39c944d69daeca7973a928c5738d0e6e78087`. |
 | T010 reviewed binding and registration | passed | Fresh read-only `search_email` review; registered as `fastmail-inbox-triage-qwen-v3`. |
+| `poetry run pytest tests/test_dar_authoring_runner.py tests/test_fastmail_triage_report.py -q -k 'fastmail_terminal_output or parse_fastmail_triage_report_rejects'` | passed: 8 | T011 known projection-field normalization and invalid-status rejection. |
+| T011 package finalization | passed | Four-file v4 package digest `ce7f3d349745ee113ed6d11584cb58e87bdc896a2b1625babcbc9f7ed46a54ec`. |
+| T011 binding and registration | passed | Bound to the current reviewed read-only surface; registered as `fastmail-inbox-triage-qwen-v4`. |
 
 ## T009 Post-acceptance report-validation defect
 
@@ -65,6 +70,21 @@ drafts, tool calls, and Markdown. It was finalized against the existing
 approved reference-only material set, bound to a fresh reviewed `search_email`
 surface, and registered without a second Fastmail dispatch. A new owner-
 authorized live run is still required to demonstrate model compliance.
+
+## T011 Raw-projection normalization and status contract
+
+The local synthetic subagent probe showed that Qwen supplied classifications
+and rationales but retained the three bounded projection fields and selected
+the unsupported status `in_progress`. T011 preserves the parser's allowed
+status set and adds a host normalizer that removes only `sender`,
+`received_at`, and `preview` before applying the strict report contract.
+Unknown item fields, missing triage data, and `in_progress` still fail closed.
+
+The v4 prompt now enumerates `complete`, `needs_review`, and `failed`, with
+instructions to use `complete` after a successful search. A fresh
+reference-only material receipt finalized the four-file package, which was
+bound and registered without another Fastmail dispatch. A new owner-authorized
+live run remains required to demonstrate v4 model compliance.
 
 ## T003 Local-only Probe Receipt
 

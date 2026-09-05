@@ -53,6 +53,7 @@ def test_parse_fastmail_triage_report_accepts_bounded_read_only_report() -> None
         "not JSON",
         _report(items=[], matched_count=1),
         _report(truncated=True, matched_count=1),
+        _report(status="in_progress"),
         _report(items=[{"message_reference": "opaque-1", "classification": "send"}]),
         _report(
             items=[

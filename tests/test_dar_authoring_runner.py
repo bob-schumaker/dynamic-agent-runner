@@ -1290,6 +1290,9 @@ def test_fastmail_terminal_output_normalizes_a_classified_report() -> None:
                     "subject": "Synthetic message",
                     "classification": "needs_reply",
                     "rationale": "A response is requested.",
+                    "sender": "synthetic@example.invalid",
+                    "received_at": "2026-09-05T00:00:00Z",
+                    "preview": "Synthetic preview",
                 }
             ],
             "warnings": [],

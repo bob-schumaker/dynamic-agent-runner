@@ -18,6 +18,7 @@ _REPORT_FIELDS = frozenset(
 _ITEM_FIELDS = frozenset(
     {"message_reference", "subject", "classification", "rationale", "proposed_reply"}
 )
+_RAW_PROJECTION_ITEM_FIELDS = frozenset({"sender", "received_at", "preview"})
 
 
 def parse_fastmail_triage_report(value: str) -> dict[str, object]:
@@ -61,6 +62,32 @@ def parse_fastmail_triage_report(value: str) -> dict[str, object]:
         "items": normalized_items,
         "warnings": list(warnings),
     }
+
+
+def normalize_fastmail_triage_report(value: str) -> dict[str, object]:
+    """Strip known projection fields before applying the strict report contract."""
+
+    try:
+        report = json.loads(value)
+    except (TypeError, json.JSONDecodeError) as error:
+        raise FastmailTriageReportError("triage report is not valid JSON") from error
+    if not isinstance(report, Mapping):
+        raise FastmailTriageReportError("triage report has an invalid shape")
+    items = report.get("items")
+    if not isinstance(items, Sequence) or isinstance(items, str | bytes):
+        raise FastmailTriageReportError("triage report is not bounded")
+    normalized = dict(report)
+    normalized["items"] = [
+        {
+            key: field
+            for key, field in item.items()
+            if key not in _RAW_PROJECTION_ITEM_FIELDS
+        }
+        if isinstance(item, Mapping)
+        else item
+        for item in items
+    ]
+    return parse_fastmail_triage_report(json.dumps(normalized))
 
 
 def _item(value: object) -> dict[str, str]:
