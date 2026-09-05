@@ -2,8 +2,8 @@
 
 ## Status
 
-Ready for gated implementation. No local-model probe or Fastmail action is
-authorized by this task list.
+T003's local-only probe passed on 2026-09-05. T007 remains unrun and requires
+separate explicit Fastmail authorization.
 
 ## P0 — Qwen protocol qualification
 
@@ -21,12 +21,19 @@ authorized by this task list.
   generic remote-schema-forwarding binding unchanged.
 - [x] T002a [tests/implementation] Add sync/async phase-specific executor tool
   exposure: after the one result, requests carry no tools and no choice.
-- [ ] T003 [manual gate] After explicit authorization, run the local-only
+- [x] T003 [manual gate] After explicit authorization, run the local-only
   synthetic probe against the recorded Qwen GGUF. It must record redacted
   version/configuration fingerprints, one schema-valid call, zero continuation
   calls, and valid terminal JSON. It must not construct an MCP client or use
   Fastmail data.
   - Depends on: T001, T001a, T002, T002a and focused suites passing.
+  - Receipt: artifact SHA-256
+    `626b4a6678b86442240e33df819e00132d3ba7dddfe1cdc4fbb18e0a9615c62d`;
+    configuration fingerprint
+    `8f5619a7dd6215ced444ecc4966b849f453e7ba89376e046c4a08c4f0de34bcb`;
+    one valid `search_email({})` call; zero continuation calls; valid terminal
+    JSON. The probe used only synthetic data and did not construct MCP or access
+    Fastmail, credentials, or the network.
 
 ## P1 — Package policy
 

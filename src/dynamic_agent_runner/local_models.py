@@ -1248,6 +1248,12 @@ def validate_local_model_identity(
         return
     if expected_model_id == observed_model_id:
         return
+    if (
+        explicit_model_path is not None
+        and huggingface_file is not None
+        and observed_model_id == str(explicit_model_path)
+    ):
+        return
     authoritative_identity = _describe_authoritative_model_identity(
         expected_model_id=expected_model_id,
         explicit_model_path=explicit_model_path,

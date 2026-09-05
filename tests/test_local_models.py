@@ -2823,6 +2823,28 @@ def test_validate_local_model_identity_reports_hub_file_reference_metadata() -> 
         )
 
 
+def test_validate_local_model_identity_accepts_bound_hub_asset_path(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceModelFileReference,
+        validate_local_model_identity,
+    )
+
+    model_path = tmp_path / "chat-model.gguf"
+    validate_local_model_identity(
+        requested_model="local-qwen-chat",
+        expected_model_id="Qwen/Qwen2.5-3B-Instruct-GGUF",
+        observed_model_id=str(model_path),
+        explicit_model_path=model_path,
+        huggingface_file=HuggingFaceModelFileReference(
+            repo_id="Qwen/Qwen2.5-3B-Instruct-GGUF",
+            filename="chat-model.gguf",
+            revision="commit-123",
+        ),
+    )
+
+
 def test_local_openai_adapter_validates_observed_model_against_expected_identity() -> (
     None
 ):
