@@ -100,7 +100,7 @@ authoritative requirements are
 
 ## NLA-3 — Generic Workflow-Local Tool Runtime
 
-- [ ] NLA-3.1 [RED] Add descriptor, runner, and sandbox tests for a declared
+- [x] NLA-3.1 [RED] Add descriptor, runner, and sandbox tests for a declared
       deterministic local tool.
   - Spec: FR-6; Workflow-Local Deterministic Tooling
   - Components: workflow descriptor/policy, runner, sandbox, and their tests
@@ -110,6 +110,8 @@ authoritative requirements are
   - Validation: run the focused descriptor, policy, runner, and sandbox tests.
   - Expected RED: no generic local-tool contract or approved dispatch path
     exists.
+  - RED: `poetry run pytest tests/test_dar_authoring_local_tools.py -q` failed
+    during collection with `ModuleNotFoundError` for `workflow_host.local_tools`.
 
 - [ ] NLA-3.2 [GREEN] Implement generic approved sandbox dispatch for an
       already implemented workflow-local tool.
