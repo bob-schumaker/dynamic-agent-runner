@@ -59,7 +59,7 @@ authoritative requirements are
 
 ## NLA-2 — Multimodal Profile Capability and Sealed Image Delivery
 
-- [ ] NLA-2.1 [RED] Add profile, ingress, adapter, registration, and runner
+- [x] NLA-2.1 [RED] Add profile, ingress, adapter, registration, and runner
       tests for one image-capable llama.cpp profile.
   - Spec: FR-3; Multimodal Local-Profile Execution
   - Components: `tests/test_dar_authoring_profiles.py`,
@@ -74,6 +74,9 @@ authoritative requirements are
     `poetry run pytest tests/test_dar_authoring_workspace_ingress.py`
     `poetry run pytest tests/test_dar_authoring_runner.py -q`
   - Expected RED: current profile capability and adapter path are text-only.
+  - RED: the focused command ran 57 tests: 54 passed and 3 failed because the
+    vision-profile factory, sealed-image consumer, and runner multimodal gate
+    do not exist.
 
 - [ ] NLA-2.2 [GREEN] Implement profile-derived `multimodal_input` capability,
       sealed-image consumption, and configured llama.cpp vision adapter wiring.

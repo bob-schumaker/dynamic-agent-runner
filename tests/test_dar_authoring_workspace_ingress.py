@@ -209,3 +209,38 @@ def test_materialize_rechecks_the_private_artifact_content_hash(tmp_path: Path) 
             registration_digest="a" * 64,
             now=NOW,
         )
+
+
+def test_materialize_image_returns_verified_bytes_without_a_workspace_path(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "input" / "floorplan.png"
+    source.parent.mkdir()
+    source.write_bytes(b"png bytes")
+    (tmp_path / "private-workspaces").mkdir(mode=0o700)
+    service = _service(tmp_path)
+    policy = WorkspaceIngressPolicy(
+        workflow_id="floorplan-from-image",
+        registration_digest="b" * 64,
+        accepted_roles=("source_image",),
+        accepted_media_types=("image/png",),
+    )
+    artifact = service.ingress(
+        source_path=source,
+        role="source_image",
+        media_type="image/png",
+        policy=policy,
+        now=NOW,
+    )
+
+    image = service.materialize_image(
+        artifact.artifact_id,
+        workflow_id="floorplan-from-image",
+        registration_digest="b" * 64,
+        now=NOW,
+    )
+
+    assert image.content == b"png bytes"
+    assert image.media_type == "image/png"
+    assert not hasattr(image, "content_path")
+    assert str(source) not in repr(image)

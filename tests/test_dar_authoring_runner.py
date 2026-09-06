@@ -381,6 +381,18 @@ def _runner(
     )
 
 
+def test_runner_rejects_an_image_workflow_for_a_text_only_profile(
+    tmp_path: Path,
+) -> None:
+    runner, _, registration, _, _ = _runner(tmp_path)
+
+    with pytest.raises(RunDarWorkflowError, match="multimodal"):
+        runner.validate_artifact_capability(
+            workflow_id=registration.workflow_id,
+            input_kind="image_artifact",
+        )
+
+
 def _approval_runner(
     tmp_path: Path,
     *,

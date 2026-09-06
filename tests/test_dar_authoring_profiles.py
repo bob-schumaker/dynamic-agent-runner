@@ -116,6 +116,21 @@ def test_control_plane_creates_pinned_fastmail_llama_cpp_profile(
     assert adapter.resolved_model_id(profile.execution_model_id) == profile.model_id
 
 
+def test_control_plane_creates_the_pinned_floorplan_vision_profile(
+    tmp_path: Path,
+) -> None:
+    control_plane = LocalModelProfileControlPlane(
+        store=PrivateStateStore(tmp_path / "state")
+    )
+
+    profile = control_plane.create_floorplan_vision_llama_cpp()
+
+    assert profile.model_id == "qwen25-vl-3b-floorplan-grpo"
+    assert profile.execution_model_id == "qwen25-vl-3b-floorplan-grpo"
+    assert profile.adapter_id == "floorplan-vision-llama-cpp-adapter-v1"
+    assert profile.capabilities == frozenset({"text_generation", "multimodal_input"})
+
+
 def test_profile_digest_rejects_a_forged_hosted_endpoint(tmp_path: Path) -> None:
     store = PrivateStateStore(tmp_path / "state")
     control_plane = LocalModelProfileControlPlane(store=store)
