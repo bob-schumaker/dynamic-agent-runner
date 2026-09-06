@@ -141,7 +141,7 @@ authoritative requirements are
 
 ## NLA-4 — Internal Composition and Opaque-Binary Tools
 
-- [ ] NLA-4.1 [RED] Add façade integration tests for authoring-material
+- [x] NLA-4.1 [RED] Add façade integration tests for authoring-material
       issuance, output creation/finalization, staging, registration, and
       rollback on failed registration.
   - Spec: FR-2, FR-5
@@ -154,7 +154,8 @@ authoritative requirements are
   - Progress: mismatched definitions now fail before persistence; valid
     definitions exercise internal material/output/finalization/registration
     composition through fakes; finalization failure is redacted and does not
-    reach registration. Profile, registration, and collision cases remain.
+    reach registration; package-name collision and registration/profile failure
+    are redacted. The focused suite passed with 15 tests.
 
 - [ ] NLA-4.2 [GREEN] Complete transactional registration composition and
       executable handoff.
