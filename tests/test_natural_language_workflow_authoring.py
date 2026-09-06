@@ -225,3 +225,38 @@ def test_host_composes_a_valid_definition_into_a_redacted_saved_handoff() -> Non
         "finalize",
         "register",
     ]
+
+
+def test_host_redacts_a_finalization_failure_without_registering() -> None:
+    host = object.__new__(LocalWorkflowHost)
+    registered = False
+
+    host.issue_authoring_materials = lambda **_kwargs: SimpleNamespace(
+        material_set_id="internal-material-set"
+    )
+    host.create_authored_package = lambda **_kwargs: SimpleNamespace(
+        output_id="internal-output"
+    )
+    host.write_authored_package_file = lambda **_kwargs: object()
+
+    def fail_finalization(**_kwargs: object) -> tuple[object, str]:
+        raise RuntimeError("/private/host/validation failed")
+
+    def register(**_kwargs: object) -> object:
+        nonlocal registered
+        registered = True
+        return object()
+
+    host.finalize_and_select_authored_output = fail_finalization
+    host.register = register
+
+    result = host.register_authored_workflow(
+        contract=_contract(), definition=_definition(), now=NOW
+    )
+
+    assert result.to_mapping() == {
+        "status": "unavailable",
+        "capability": "authoring_registration",
+        "requirement": "the authored workflow could not be registered",
+    }
+    assert not registered

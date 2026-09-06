@@ -778,57 +778,63 @@ class LocalWorkflowHost:
                 capability="authoring_contract",
                 requirement="the workflow definition does not match the requested contract",
             )
-        material = json.dumps(
-            {
-                "workflow_name": contract.workflow_name,
-                "model_id": contract.model_id,
-                "adapter_id": contract.adapter_id,
-                "input_kind": contract.input_kind,
-                "output_contract": contract.output_contract,
-                "required_capabilities": contract.required_capabilities,
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        receipt = self.issue_authoring_materials(
-            materials=(
-                AuthoringMaterialInput(
-                    role="canonical_workflow_contract",
-                    content=material,
-                    disposition="distributable",
+        try:
+            material = json.dumps(
+                {
+                    "workflow_name": contract.workflow_name,
+                    "model_id": contract.model_id,
+                    "adapter_id": contract.adapter_id,
+                    "input_kind": contract.input_kind,
+                    "output_contract": contract.output_contract,
+                    "required_capabilities": contract.required_capabilities,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            receipt = self.issue_authoring_materials(
+                materials=(
+                    AuthoringMaterialInput(
+                        role="canonical_workflow_contract",
+                        content=material,
+                        disposition="distributable",
+                    ),
                 ),
-            ),
-            now=now,
-        )
-        output = self.create_authored_package(
-            package_name=contract.workflow_name, now=now
-        )
-        for relative_path, content in definition.package_artifacts.items():
-            self.write_authored_package_file(
-                output_id=output.output_id,
-                relative_path=relative_path,
-                content=content,
                 now=now,
             )
-        _validation, source_handle = self.finalize_and_select_authored_output(
-            output_id=output.output_id,
-            material_set_id=receipt.material_set_id,
-            now=now,
-        )
-        self.register(
-            workflow_id=contract.workflow_name,
-            package_source_handle=source_handle,
-            now=now,
-        )
-        return ReadyAuthoredWorkflow(
-            workflow_name=contract.workflow_name,
-            input_contract=_authored_input_contract(contract.input_kind),
-            output_contract=contract.output_contract,
-            invocation=(
-                "dar-package invoke --package-name "
-                f"{contract.workflow_name} --prompt-stdin"
-            ),
-        )
+            output = self.create_authored_package(
+                package_name=contract.workflow_name, now=now
+            )
+            for relative_path, content in definition.package_artifacts.items():
+                self.write_authored_package_file(
+                    output_id=output.output_id,
+                    relative_path=relative_path,
+                    content=content,
+                    now=now,
+                )
+            _validation, source_handle = self.finalize_and_select_authored_output(
+                output_id=output.output_id,
+                material_set_id=receipt.material_set_id,
+                now=now,
+            )
+            self.register(
+                workflow_id=contract.workflow_name,
+                package_source_handle=source_handle,
+                now=now,
+            )
+            return ReadyAuthoredWorkflow(
+                workflow_name=contract.workflow_name,
+                input_contract=_authored_input_contract(contract.input_kind),
+                output_contract=contract.output_contract,
+                invocation=(
+                    "dar-package invoke --package-name "
+                    f"{contract.workflow_name} --prompt-stdin"
+                ),
+            )
+        except Exception:  # noqa: BLE001 - preserve the façade's redacted boundary.
+            return UnavailableAuthoredWorkflow(
+                capability="authoring_registration",
+                requirement="the authored workflow could not be registered",
+            )
 
     def select_authored_package(self, package_name: str, *, now: datetime) -> str:
         """Select one configured-root authored package by its user-facing name."""
