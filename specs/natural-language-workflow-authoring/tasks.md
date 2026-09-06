@@ -90,6 +90,9 @@ authoritative requirements are
     paths.
   - Validation: run the NLA-2.1 command plus the affected existing profile,
     ingress, and local-model suites.
+  - Progress: profile-derived multimodal admission, sealed-image materialization,
+    and text-profile rejection are implemented and covered. Dedicated llama.cpp
+    vision request transport remains required before this task is complete.
 
 ## NLA-3 — Generic Workflow-Local Tool Runtime
 

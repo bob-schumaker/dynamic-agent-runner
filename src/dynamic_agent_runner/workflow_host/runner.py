@@ -247,6 +247,20 @@ class WorkflowRunner:
 
         return tuple(self._traces)
 
+    def validate_artifact_capability(
+        self, *, workflow_id: str, input_kind: str
+    ) -> None:
+        """Reject artifact kinds that the exact configured profile cannot consume."""
+
+        if input_kind != "image_artifact":
+            raise RunDarWorkflowError("workflow artifact input is invalid")
+        registration, _, _, _ = self._preflight(workflow_id)
+        self._validate_adapter(registration)
+        if "multimodal_input" not in self._configured_profile.capabilities:
+            raise RunDarWorkflowError("configured profile lacks multimodal_input")
+        if not _adapter_supports(self._model_adapter, "multimodal_input"):
+            raise RunDarWorkflowError("configured adapter lacks multimodal_input")
+
     def dry_run(
         self, request: RunDarWorkflowRequest, *, now: datetime
     ) -> DryRunDarWorkflowResult:

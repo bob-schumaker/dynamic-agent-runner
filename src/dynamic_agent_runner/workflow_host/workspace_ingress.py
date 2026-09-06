@@ -67,6 +67,17 @@ class MaterializedWorkspaceInputArtifact:
     content: str
 
 
+@dataclass(frozen=True)
+class MaterializedWorkspaceImageArtifact:
+    """Hash-verified image bytes available only to an approved vision adapter."""
+
+    artifact_id: str
+    content_hash: str
+    role: str
+    media_type: str
+    content: bytes
+
+
 class WorkspaceIngressService:
     """Copy trusted caller files into fresh, registration-bound private workspaces."""
 
@@ -221,6 +232,32 @@ class WorkspaceIngressService:
             artifact.content_hash,
             artifact.role,
             text,
+        )
+
+    def materialize_image(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceImageArtifact:
+        """Read one sealed image after rechecking its registration and hash."""
+
+        artifact = self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        if not artifact.media_type.startswith("image/"):
+            raise WorkspaceIngressError("workspace image content is unavailable")
+        return MaterializedWorkspaceImageArtifact(
+            artifact.artifact_id,
+            artifact.content_hash,
+            artifact.role,
+            artifact.media_type,
+            _read_verified_private_content(artifact),
         )
 
 

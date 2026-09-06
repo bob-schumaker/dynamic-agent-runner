@@ -36,6 +36,8 @@ from dynamic_agent_runner.workflow_host.fastmail_triage_model import (
 
 
 FASTMAIL_TRIAGE_MODEL_ID = "Qwen/Qwen2.5-3B-Instruct-GGUF"
+FLOORPLAN_VISION_MODEL_ID = "qwen25-vl-3b-floorplan-grpo"
+FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID = "floorplan-vision-llama-cpp-adapter-v1"
 
 
 class LocalModelProfileError(ValueError):
@@ -44,6 +46,7 @@ class LocalModelProfileError(ValueError):
 
 _PROFILE_REQUIREMENT_CAPABILITIES = {
     "local-general-model": frozenset({"text_generation"}),
+    "local-multimodal-model-v1": frozenset({"text_generation", "multimodal_input"}),
     "general-language-model-v1": frozenset({"text_generation"}),
 }
 
@@ -166,6 +169,7 @@ class LocalModelProfileControlPlane:
         elif adapter_id in {
             "apple-foundation-models-adapter-v1",
             FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+            FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
         }:
             if base_url is not None:
                 raise LocalModelProfileError("local model profile is invalid")
@@ -226,6 +230,18 @@ class LocalModelProfileControlPlane:
             base_url=None,
             profile_requirement="local-general-model",
             capabilities={"text_generation"},
+        )
+
+    def create_floorplan_vision_llama_cpp(self) -> LocalModelProfile:
+        """Persist the exact configured local vision profile for floorplans."""
+
+        return self._issue(
+            model_id=FLOORPLAN_VISION_MODEL_ID,
+            execution_model_id=FLOORPLAN_VISION_MODEL_ID,
+            adapter_id=FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
+            base_url=None,
+            profile_requirement="local-multimodal-model-v1",
+            capabilities={"text_generation", "multimodal_input"},
         )
 
     def _issue(
@@ -433,6 +449,10 @@ def _validate_profile_contract(
         FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
     }:
         if profile_requirement != "local-general-model":
+            raise LocalModelProfileError("local model profile is invalid")
+        return
+    if adapter_id == FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID:
+        if profile_requirement != "local-multimodal-model-v1":
             raise LocalModelProfileError("local model profile is invalid")
         return
     if (
