@@ -235,6 +235,28 @@ def test_artifact_tool_descriptor_requires_a_reviewed_package_and_result_bound()
     )
 
 
+def test_artifact_tool_descriptor_rejects_a_nonopaque_artifact_role() -> None:
+    value = _descriptor()
+    value["tools"] = [
+        {
+            "id": "packet_summary",
+            "kind": "artifact",
+            "reviewed_package_name": "network-tools",
+            "accepted_artifact_role": "pcap",
+            "max_result_bytes": 4096,
+        }
+    ]
+    value["task_invocation"] = {
+        **value["task_invocation"],  # type: ignore[index]
+        "allowed_tool_ids": ["packet_summary"],
+        "max_total_tool_calls": 1,
+        "allowed_artifact_roles": ["pcap"],
+    }
+
+    with pytest.raises(WorkflowDescriptorError, match="opaque_binary_artifact"):
+        WorkflowDescriptor.from_mapping(value)
+
+
 @pytest.mark.parametrize(
     ("side_effect", "approval_required"),
     [("write", False), ("delete", True)],

@@ -436,14 +436,19 @@ def _parse_artifact_tool(
         "max_result_bytes",
     }:
         raise WorkflowDescriptorError("declared artifact tool is invalid")
+    accepted_artifact_role = _text(
+        mapping.get("accepted_artifact_role"), "tool.accepted_artifact_role"
+    )
+    if accepted_artifact_role != "opaque_binary_artifact":
+        raise WorkflowDescriptorError(
+            "artifact tools require opaque_binary_artifact input"
+        )
     return DeclaredArtifactTool(
         tool_id=tool_id,
         reviewed_package_name=_text(
             mapping.get("reviewed_package_name"), "tool.reviewed_package_name"
         ),
-        accepted_artifact_role=_text(
-            mapping.get("accepted_artifact_role"), "tool.accepted_artifact_role"
-        ),
+        accepted_artifact_role=accepted_artifact_role,
         max_result_bytes=_positive_int(
             mapping.get("max_result_bytes"), "tool.max_result_bytes"
         ),
