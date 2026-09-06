@@ -2,7 +2,8 @@
 
 ## Status
 
-NLA-1 and NLA-2 are complete; later slices remain implementation candidates.
+NLA-1 and NLA-2 are complete; NLA-3 is in progress and later slices remain
+implementation candidates.
 Complete tasks in dependency order and record RED and GREEN evidence in this
 file. The
 authoritative requirements are
@@ -119,7 +120,8 @@ authoritative requirements are
   - Depends on: NLA-3.1
   - Requirements: validate an implementation-owned asset at package validation;
     dispatch it with sealed artifacts, limits, tracing, and failure containment;
-    add no SVG or other domain parser to DAR.
+    define and test the deterministic executable I/O and result envelope before
+    dispatch; add no SVG or other domain parser to DAR.
   - Validation: run the NLA-3.1 command and existing no-tool and reviewed-tool
     regression suites.
   - Progress: the package-contained asset, sealed role, finite input/output,
@@ -131,7 +133,7 @@ authoritative requirements are
 - [ ] NLA-3.3 [GREEN] Add an implementation-owned floorplan fixture with a
       workflow-local SVG validator and invocation coverage.
   - Spec: FR-3, FR-4; Workflow-Local Deterministic Tooling
-  - Depends on: NLA-2.2, NLA-3.2
+  - Depends on: NLA-2.2, NLA-3.2, NLA-4.2
   - Cases: valid SVG succeeds; invalid SVG produces the workflow-declared
     failure without sandbox details; trusted image ingress works through the
     saved workflow name; dry run avoids ingress, local-tool, and model execution.
@@ -143,7 +145,7 @@ authoritative requirements are
       issuance, output creation/finalization, staging, registration, and
       rollback on failed registration.
   - Spec: FR-2, FR-5
-  - Depends on: NLA-1.2, NLA-2.2, NLA-3.2
+  - Depends on: NLA-1.2, NLA-2.2
   - Cases: unavailable profile capability, profile mismatch, invalid definition,
     registration failure, and name collision leave no partial saved registration
     and expose no internal detail.
