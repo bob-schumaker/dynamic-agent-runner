@@ -281,3 +281,37 @@ def test_opaque_binary_reference_exposes_bounded_metadata_without_content_or_pat
     assert not hasattr(opaque, "content")
     assert not hasattr(opaque, "content_path")
     assert str(source) not in repr(opaque)
+
+
+def test_materialize_binary_returns_verified_bytes_for_host_local_tools(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "input" / "input.bin"
+    source.parent.mkdir()
+    source.write_bytes(b"sealed bytes")
+    (tmp_path / "private-workspaces").mkdir(mode=0o700)
+    service = _service(tmp_path)
+    policy = WorkspaceIngressPolicy(
+        workflow_id="binary-tool-workflow",
+        registration_digest="c" * 64,
+        accepted_roles=("source_binary",),
+        accepted_media_types=("application/octet-stream",),
+    )
+    artifact = service.ingress(
+        source_path=source,
+        role="source_binary",
+        media_type="application/octet-stream",
+        policy=policy,
+        now=NOW,
+    )
+
+    materialized = service.materialize_binary(
+        artifact.artifact_id,
+        workflow_id="binary-tool-workflow",
+        registration_digest="c" * 64,
+        now=NOW,
+    )
+
+    assert materialized.content == b"sealed bytes"
+    assert materialized.role == "source_binary"
+    assert not hasattr(materialized, "content_path")
