@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Mapping
 from uuid import uuid4
 
@@ -55,6 +56,13 @@ from dynamic_agent_runner.workflow_host.mcp_tools import (
     MCPToolCallCounter,
     MCPToolBindingError,
     create_read_only_mcp_tool_bindings,
+)
+from dynamic_agent_runner.workflow_host.local_tools import (
+    LocalToolDefinition,
+    LocalToolExecutor,
+    LocalToolSandbox,
+    LocalToolSandboxError,
+    create_local_tool_binding,
 )
 from dynamic_agent_runner.workflow_host.policy import (
     PolicyCompilationError,
@@ -154,6 +162,7 @@ class WorkflowRunner:
         mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
         action_ledger: WorkflowActionLedger | None = None,
         approval_store: WorkflowApprovalStore | None = None,
+        local_tool_executor: LocalToolExecutor | None = None,
     ) -> None:
         self._registrations = registrations
         self._catalog = catalog
@@ -165,6 +174,7 @@ class WorkflowRunner:
         self._mcp_surfaces = mcp_surfaces
         self._action_ledger = action_ledger
         self._approval_store = approval_store
+        self._local_tool_executor = local_tool_executor
         self._traces: list[RedactedRunTrace] = []
 
     def run(
@@ -193,6 +203,7 @@ class WorkflowRunner:
             tool_registry = self._tool_registry(
                 policy,
                 registration,
+                package_root=package_root,
                 sealed=sealed,
                 run_id=run_id,
                 approval_broker=approval_broker,
@@ -312,7 +323,7 @@ class WorkflowRunner:
         """Validate a sealed run without consuming input or invoking DAR."""
 
         try:
-            registration, _, policy, _ = self._preflight(request.workflow_id)
+            registration, package_root, policy, _ = self._preflight(request.workflow_id)
             self._validate_adapter(registration)
             sealed = self._preparation.load(
                 request.prepared_input_id, registration=registration, now=now
@@ -320,6 +331,7 @@ class WorkflowRunner:
             self._tool_registry(
                 policy,
                 registration,
+                package_root=package_root,
                 sealed=sealed,
                 run_id="dry-run",
                 require_approval_broker=False,
@@ -384,16 +396,56 @@ class WorkflowRunner:
         policy: Any,
         registration: WorkflowRegistration,
         *,
+        package_root: Any,
         sealed: SealedWorkflowInput,
         run_id: str,
         approval_broker: LocalActionApprovalBroker | None = None,
         require_approval_broker: bool = True,
         now: datetime,
     ) -> Any:
-        if not policy.declared_tools:
+        if not policy.declared_tools and not policy.declared_local_tools:
             if registration.mcp_binding_id is not None:
                 raise RunDarWorkflowError("no-tool registration has an MCP binding")
             return None
+        bindings = []
+        if policy.declared_local_tools:
+            bindings.extend(
+                self._local_tool_bindings(
+                    policy=policy,
+                    registration=registration,
+                    package_root=package_root,
+                    sealed=sealed,
+                    now=now,
+                )
+            )
+        if not policy.declared_tools:
+            return create_host_tool_registry(tuple(bindings))
+        bindings.extend(
+            self._mcp_tool_bindings(
+                policy=policy,
+                registration=registration,
+                sealed=sealed,
+                run_id=run_id,
+                approval_broker=approval_broker,
+                require_approval_broker=require_approval_broker,
+                now=now,
+            )
+        )
+        return create_host_tool_registry(tuple(bindings))
+
+    def _mcp_tool_bindings(
+        self,
+        *,
+        policy: Any,
+        registration: WorkflowRegistration,
+        sealed: SealedWorkflowInput,
+        run_id: str,
+        approval_broker: LocalActionApprovalBroker | None,
+        require_approval_broker: bool,
+        now: datetime,
+    ) -> list[Any]:
+        """Create the existing reviewed MCP bindings without local-tool concerns."""
+
         if (
             registration.mcp_binding_id is None
             or self._mcp_bindings is None
@@ -486,7 +538,7 @@ class WorkflowRunner:
                         now=now,
                     )
                 )
-            return create_host_tool_registry(tuple(bindings))
+            return bindings
         except (
             AuthorizedToolBindingError,
             FastmailTriageBindingError,
@@ -495,6 +547,51 @@ class WorkflowRunner:
             raise RunDarWorkflowError(
                 "registered MCP capability is unavailable"
             ) from error
+
+    def _local_tool_bindings(
+        self,
+        *,
+        policy: Any,
+        registration: WorkflowRegistration,
+        package_root: Any,
+        sealed: SealedWorkflowInput,
+        now: datetime,
+    ) -> list[Any]:
+        """Bind each declared local asset to its role-matched sealed bytes."""
+
+        if self._local_tool_executor is None:
+            raise RunDarWorkflowError("local tool execution is unavailable")
+        try:
+            artifacts = self._preparation.materialize_workspace_binaries(
+                sealed, registration=registration, now=now
+            )
+            artifacts_by_role = {artifact.role: artifact for artifact in artifacts}
+            sandbox = LocalToolSandbox(
+                package_root=Path(package_root), execute=self._local_tool_executor
+            )
+            bindings = []
+            for tool in policy.declared_local_tools:
+                artifact = artifacts_by_role.get(tool.accepted_artifact_role)
+                if artifact is None:
+                    raise LocalToolSandboxError("local tool artifact is unavailable")
+                bindings.append(
+                    create_local_tool_binding(
+                        sandbox=sandbox,
+                        definition=LocalToolDefinition(
+                            tool_id=tool.tool_id,
+                            asset_path=Path(tool.asset_path),
+                            accepted_artifact_role=tool.accepted_artifact_role,
+                            max_input_bytes=tool.max_input_bytes,
+                            max_output_bytes=tool.max_output_bytes,
+                            timeout_seconds=tool.timeout_seconds,
+                        ),
+                        artifact_role=artifact.role,
+                        artifact_bytes=artifact.content,
+                    )
+                )
+            return bindings
+        except (LocalToolSandboxError, PreparedWorkflowInputError) as error:
+            raise RunDarWorkflowError("local tool execution is unavailable") from error
 
     def _validate_adapter(self, registration: WorkflowRegistration) -> None:
         profile = self._configured_profile

@@ -52,6 +52,7 @@ from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControl
 from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
 )
+from dynamic_agent_runner.workflow_host.descriptor import DeclaredLocalTool  # noqa: E402
 from dynamic_agent_runner.workflow_host.registration import WorkflowRegistrationService  # noqa: E402
 from dynamic_agent_runner.workflow_host.runner import (  # noqa: E402
     RunDarWorkflowError,
@@ -61,6 +62,7 @@ from dynamic_agent_runner.workflow_host.runner import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager  # noqa: E402
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 from dynamic_agent_runner.workflow_host.workspace_ingress import (  # noqa: E402
+    MaterializedWorkspaceBinaryArtifact,
     MaterializedWorkspaceImageArtifact,
     MaterializedWorkspaceInputArtifact,
 )
@@ -162,6 +164,30 @@ class VisionArtifactVerifier:
             "source_image",
             "image/png",
             b"sealed-image-bytes",
+        )
+
+
+class BinaryArtifactVerifier(ArtifactVerifier):
+    def materialize_binary(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceBinaryArtifact:
+        self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceBinaryArtifact(
+            artifact_id,
+            "sha256:" + "d" * 64,
+            "source_binary",
+            "application/octet-stream",
+            b"sealed binary",
         )
 
 
@@ -337,6 +363,8 @@ def _runner(
     terminal_required_field: str = "message",
     artifact_verifier: object | None = None,
     vision: bool = False,
+    local_asset: bool = False,
+    local_tool_executor: object | None = None,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -346,6 +374,10 @@ def _runner(
     runtime["nodes"][0]["model"] = package_model
     runtime["output_contracts"][0]["required_fields"] = [terminal_required_field]
     runtime_path.write_text(yaml.safe_dump(runtime), encoding="utf-8")
+    if local_asset:
+        asset = source / "tools" / "inspect"
+        asset.parent.mkdir()
+        asset.write_text("placeholder", encoding="utf-8")
     if hosted or vision:
         descriptor_path = source / "workflow-descriptor.yaml"
         descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
@@ -455,6 +487,7 @@ def _runner(
             preparation=preparation,
             model_adapter=adapter,
             configured_profile=profiles.load(active_profile_id or profile.profile_id),
+            local_tool_executor=local_tool_executor,  # type: ignore[arg-type]
         ),
         preparation,
         registration,
@@ -473,6 +506,55 @@ def test_runner_rejects_an_image_workflow_for_a_text_only_profile(
             workflow_id=registration.workflow_id,
             input_kind="image_artifact",
         )
+
+
+def test_runner_binds_a_declared_local_tool_to_sealed_binary_input(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, revision, _ = _runner(
+        tmp_path,
+        artifact_verifier=BinaryArtifactVerifier(),
+        local_asset=True,
+        local_tool_executor=lambda _command, input_bytes, _timeout: (
+            b'{"byte_count":' + str(len(input_bytes)).encode() + b"}"
+        ),
+    )
+    policy = compile_workflow_policy(revision)
+    policy = replace(
+        policy,
+        declared_local_tools=(
+            DeclaredLocalTool(
+                tool_id="inspect",
+                asset_path="tools/inspect",
+                accepted_artifact_role="source_binary",
+                max_input_bytes=1024,
+                max_output_bytes=1024,
+                timeout_seconds=1,
+            ),
+        ),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Inspect it.",
+        workspace_artifact_ids=("v1.workspace-artifact",),
+        now=NOW,
+    )
+    sealed = preparation.load(
+        prepared.prepared_input_id, registration=registration, now=NOW
+    )
+    registry = runner._tool_registry(  # type: ignore[attr-defined]
+        policy,
+        registration,
+        package_root=revision.package_root,
+        sealed=sealed,
+        run_id="test-run",
+        now=NOW,
+    )
+
+    result = registry.invoke_tool("inspect", {})
+
+    assert result.success is True
+    assert result.output == {"byte_count": len(b"sealed binary")}
 
 
 def _approval_runner(
