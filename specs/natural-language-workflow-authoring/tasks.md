@@ -151,6 +151,10 @@ authoritative requirements are
     and expose no internal detail.
   - Validation:
     `poetry run pytest tests/test_natural_language_workflow_authoring.py -q`
+  - Progress: mismatched definitions now fail before persistence; valid
+    definitions exercise internal material/output/finalization/registration
+    composition through fakes; finalization failure is redacted and does not
+    reach registration. Profile, registration, and collision cases remain.
 
 - [ ] NLA-4.2 [GREEN] Complete transactional registration composition and
       executable handoff.
