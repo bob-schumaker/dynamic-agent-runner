@@ -183,6 +183,31 @@ def test_read_only_mcp_descriptor_allows_only_its_declared_bounded_tool() -> Non
         )
 
 
+def test_local_tool_descriptor_requires_a_package_relative_asset_and_limits() -> None:
+    value = _descriptor()
+    value["tools"] = [
+        {
+            "id": "validate_svg",
+            "kind": "local",
+            "asset_path": "tools/validate_svg",
+            "accepted_artifact_role": "source_image",
+            "max_input_bytes": 1024,
+            "max_output_bytes": 512,
+            "timeout_seconds": 1,
+        }
+    ]
+    value["task_invocation"] = {
+        **value["task_invocation"],  # type: ignore[index]
+        "allowed_tool_ids": ["validate_svg"],
+        "max_total_tool_calls": 1,
+        "allowed_artifact_roles": ["source_image"],
+    }
+
+    descriptor = WorkflowDescriptor.from_mapping(value)
+
+    assert descriptor.declared_local_tools[0].asset_path == "tools/validate_svg"
+
+
 @pytest.mark.parametrize(
     ("side_effect", "approval_required"),
     [("write", False), ("delete", True)],
