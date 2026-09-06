@@ -131,9 +131,10 @@ authoritative requirements are
     output is a redacted failure. Registration-bound binary artifacts now
     materialize only through the host preparation boundary for those bindings.
     The runner now creates host-registry bindings from cataloged assets and
-    role-matched sealed binary artifacts. Package validation, concrete sandbox
-    execution, traces, and a workflow-owned implementation asset remain
-    required before this task is complete.
+    role-matched sealed binary artifacts. Staging grants execute permission
+    only to descriptor-declared regular local-tool assets, which policy then
+    revalidates. Concrete sandbox execution, traces, and a workflow-owned
+    implementation asset remain required before this task is complete.
 
 - [ ] NLA-3.3 [GREEN] Add an implementation-owned floorplan fixture with a
       workflow-local SVG validator and invocation coverage.
