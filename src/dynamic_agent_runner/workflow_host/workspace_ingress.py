@@ -78,6 +78,17 @@ class MaterializedWorkspaceImageArtifact:
     content: bytes
 
 
+@dataclass(frozen=True)
+class OpaqueBinaryArtifactReference:
+    """Verified opaque-artifact metadata safe to bind to a host-owned tool."""
+
+    artifact_id: str
+    content_hash: str
+    byte_count: int
+    role: str
+    media_type: str
+
+
 class WorkspaceIngressService:
     """Copy trusted caller files into fresh, registration-bound private workspaces."""
 
@@ -258,6 +269,33 @@ class WorkspaceIngressService:
             artifact.role,
             artifact.media_type,
             _read_verified_private_content(artifact),
+        )
+
+    def opaque_binary_reference(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> OpaqueBinaryArtifactReference:
+        """Return sealed opaque-artifact metadata without a caller path or bytes."""
+
+        artifact = self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        if artifact.role != "opaque_binary_artifact":
+            raise WorkspaceIngressError("opaque binary artifact is unavailable")
+        _read_verified_private_content(artifact)
+        return OpaqueBinaryArtifactReference(
+            artifact.artifact_id,
+            artifact.content_hash,
+            artifact.byte_count,
+            artifact.role,
+            artifact.media_type,
         )
 
 

@@ -244,3 +244,40 @@ def test_materialize_image_returns_verified_bytes_without_a_workspace_path(
     assert image.media_type == "image/png"
     assert not hasattr(image, "content_path")
     assert str(source) not in repr(image)
+
+
+def test_opaque_binary_reference_exposes_bounded_metadata_without_content_or_path(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "input" / "capture.bin"
+    source.parent.mkdir()
+    source.write_bytes(b"opaque packet bytes")
+    (tmp_path / "private-workspaces").mkdir(mode=0o700)
+    service = _service(tmp_path)
+    policy = WorkspaceIngressPolicy(
+        workflow_id="packet-analysis",
+        registration_digest="b" * 64,
+        accepted_roles=("opaque_binary_artifact",),
+        accepted_media_types=("application/octet-stream",),
+    )
+    artifact = service.ingress(
+        source_path=source,
+        role="opaque_binary_artifact",
+        media_type="application/octet-stream",
+        policy=policy,
+        now=NOW,
+    )
+
+    opaque = service.opaque_binary_reference(
+        artifact.artifact_id,
+        workflow_id="packet-analysis",
+        registration_digest="b" * 64,
+        now=NOW,
+    )
+
+    assert opaque.artifact_id == artifact.artifact_id
+    assert opaque.byte_count == len(b"opaque packet bytes")
+    assert opaque.role == "opaque_binary_artifact"
+    assert not hasattr(opaque, "content")
+    assert not hasattr(opaque, "content_path")
+    assert str(source) not in repr(opaque)
