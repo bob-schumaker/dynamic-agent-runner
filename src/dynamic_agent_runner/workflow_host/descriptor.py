@@ -102,6 +102,7 @@ class WorkflowDescriptor:
     output_schema_ref: str
     limits: WorkflowLimits
     declared_local_tools: tuple[DeclaredLocalTool, ...] = ()
+    declared_artifact_tools: tuple[DeclaredArtifactTool, ...] = ()
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> WorkflowDescriptor:
@@ -111,8 +112,8 @@ class WorkflowDescriptor:
         if mapping.get("format_version") != 1:
             raise WorkflowDescriptorError("format_version must be 1")
         declared_skill_ids = _parse_declared_skill_ids(mapping.get("skills"))
-        declared_tools, declared_local_tools = _parse_declared_tools(
-            mapping.get("tools")
+        declared_tools, declared_local_tools, declared_artifact_tools = (
+            _parse_declared_tools(mapping.get("tools"))
         )
         runtime = _mapping(mapping.get("dar_runtime"), "dar_runtime")
         if runtime.get("distribution") != "dynamic-agent-runner":
@@ -121,7 +122,12 @@ class WorkflowDescriptor:
         workspace = _parse_workspace_contract(mapping.get("workspace"))
         task = _parse_task_invocation(mapping.get("task_invocation"))
         declared_tool_ids = tuple(
-            tool.tool_id for tool in (*declared_tools, *declared_local_tools)
+            tool.tool_id
+            for tool in (
+                *declared_tools,
+                *declared_local_tools,
+                *declared_artifact_tools,
+            )
         )
         if task.allowed_tool_ids != declared_tool_ids:
             raise WorkflowDescriptorError(
@@ -153,6 +159,7 @@ class WorkflowDescriptor:
             output_schema_ref=output_schema_ref,
             limits=WorkflowLimits(_positive_int(limits.get("max_steps"), "max_steps")),
             declared_local_tools=declared_local_tools,
+            declared_artifact_tools=declared_artifact_tools,
         )
 
 
@@ -163,7 +170,11 @@ def validate_no_tool_runtime_nodes(
 
     declared = {
         tool.tool_id
-        for tool in (*descriptor.declared_tools, *descriptor.declared_local_tools)
+        for tool in (
+            *descriptor.declared_tools,
+            *descriptor.declared_local_tools,
+            *descriptor.declared_artifact_tools,
+        )
     }
     if not declared and descriptor.task_invocation.max_total_tool_calls != 0:
         raise WorkflowDescriptorError(
@@ -186,7 +197,11 @@ def validate_runtime_tool_contract(
 
     expected = tuple(
         tool.tool_id
-        for tool in (*descriptor.declared_tools, *descriptor.declared_local_tools)
+        for tool in (
+            *descriptor.declared_tools,
+            *descriptor.declared_local_tools,
+            *descriptor.declared_artifact_tools,
+        )
     )
     if tuple(tool.id for tool in runtime_tools) != expected:
         raise WorkflowDescriptorError(
@@ -327,11 +342,16 @@ def _parse_task_invocation(value: object) -> TaskInvocation:
 
 def _parse_declared_tools(
     value: object,
-) -> tuple[tuple[DeclaredTool, ...], tuple[DeclaredLocalTool, ...]]:
+) -> tuple[
+    tuple[DeclaredTool, ...],
+    tuple[DeclaredLocalTool, ...],
+    tuple[DeclaredArtifactTool, ...],
+]:
     if not isinstance(value, list):
         raise WorkflowDescriptorError("tools must be a list")
     tools: list[DeclaredTool] = []
     local_tools: list[DeclaredLocalTool] = []
+    artifact_tools: list[DeclaredArtifactTool] = []
     seen: set[str] = set()
     for raw_tool in value:
         mapping = _mapping(raw_tool, "tools entry")
@@ -341,6 +361,10 @@ def _parse_declared_tools(
         kind = mapping.get("kind")
         if kind == "local":
             local_tools.append(_parse_local_tool(mapping, tool_id))
+            seen.add(tool_id)
+            continue
+        if kind == "artifact":
+            artifact_tools.append(_parse_artifact_tool(mapping, tool_id))
             seen.add(tool_id)
             continue
         if kind != "mcp":
@@ -366,7 +390,7 @@ def _parse_declared_tools(
             )
         )
         seen.add(tool_id)
-    return tuple(tools), tuple(local_tools)
+    return tuple(tools), tuple(local_tools), tuple(artifact_tools)
 
 
 def _parse_local_tool(mapping: Mapping[str, Any], tool_id: str) -> DeclaredLocalTool:
@@ -397,6 +421,31 @@ def _parse_local_tool(mapping: Mapping[str, Any], tool_id: str) -> DeclaredLocal
         ),
         timeout_seconds=_positive_int(
             mapping.get("timeout_seconds"), "tool.timeout_seconds"
+        ),
+    )
+
+
+def _parse_artifact_tool(
+    mapping: Mapping[str, Any], tool_id: str
+) -> DeclaredArtifactTool:
+    if set(mapping) != {
+        "id",
+        "kind",
+        "reviewed_package_name",
+        "accepted_artifact_role",
+        "max_result_bytes",
+    }:
+        raise WorkflowDescriptorError("declared artifact tool is invalid")
+    return DeclaredArtifactTool(
+        tool_id=tool_id,
+        reviewed_package_name=_text(
+            mapping.get("reviewed_package_name"), "tool.reviewed_package_name"
+        ),
+        accepted_artifact_role=_text(
+            mapping.get("accepted_artifact_role"), "tool.accepted_artifact_role"
+        ),
+        max_result_bytes=_positive_int(
+            mapping.get("max_result_bytes"), "tool.max_result_bytes"
         ),
     )
 

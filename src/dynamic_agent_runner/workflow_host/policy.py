@@ -14,6 +14,7 @@ from dynamic_agent_runner.workflow_host.catalog import CatalogPackageRevision
 from dynamic_agent_runner.workflow_host.descriptor import (
     DeclaredTool,
     DeclaredLocalTool,
+    DeclaredArtifactTool,
     InputContract,
     TaskInvocation,
     WorkflowDescriptor,
@@ -51,6 +52,7 @@ class WorkflowPolicy:
     declared_skill_ids: tuple[str, ...] = ()
     declared_tools: tuple[DeclaredTool, ...] = ()
     declared_local_tools: tuple[DeclaredLocalTool, ...] = ()
+    declared_artifact_tools: tuple[DeclaredArtifactTool, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -155,6 +157,15 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
                 }
                 for tool in descriptor.declared_local_tools
             ],
+            "declared_artifact_tools": [
+                {
+                    "tool_id": tool.tool_id,
+                    "reviewed_package_name": tool.reviewed_package_name,
+                    "accepted_artifact_role": tool.accepted_artifact_role,
+                    "max_result_bytes": tool.max_result_bytes,
+                }
+                for tool in descriptor.declared_artifact_tools
+            ],
             "max_steps": descriptor.limits.max_steps,
             "required_capabilities": sorted(required_capabilities),
         }
@@ -173,6 +184,7 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         declared_skill_ids=descriptor.declared_skill_ids,
         declared_tools=descriptor.declared_tools,
         declared_local_tools=descriptor.declared_local_tools,
+        declared_artifact_tools=descriptor.declared_artifact_tools,
     )
 
 
