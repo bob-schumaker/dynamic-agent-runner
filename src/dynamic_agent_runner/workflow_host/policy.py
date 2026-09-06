@@ -13,6 +13,7 @@ from dynamic_agent_runner import load_agent_package_workflow
 from dynamic_agent_runner.workflow_host.catalog import CatalogPackageRevision
 from dynamic_agent_runner.workflow_host.descriptor import (
     DeclaredTool,
+    DeclaredLocalTool,
     InputContract,
     TaskInvocation,
     WorkflowDescriptor,
@@ -49,6 +50,7 @@ class WorkflowPolicy:
     )
     declared_skill_ids: tuple[str, ...] = ()
     declared_tools: tuple[DeclaredTool, ...] = ()
+    declared_local_tools: tuple[DeclaredLocalTool, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -86,9 +88,15 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         raise PolicyCompilationError("registered terminal output contract is missing")
     descriptor_digest = hashlib.sha256(descriptor_bytes).hexdigest()
     tool_capabilities = _tool_capabilities(descriptor.declared_tools)
+    local_tool_capabilities = _local_tool_capabilities(descriptor.declared_local_tools)
     deferred_capabilities = _deferred_runtime_capabilities(descriptor, workflow)
     required_capabilities = frozenset(
-        {"text_generation", *tool_capabilities, *deferred_capabilities}
+        {
+            "text_generation",
+            *tool_capabilities,
+            *local_tool_capabilities,
+            *deferred_capabilities,
+        }
     )
     policy_digest = _digest(
         {
@@ -136,6 +144,17 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
                 }
                 for tool in descriptor.declared_tools
             ],
+            "declared_local_tools": [
+                {
+                    "tool_id": tool.tool_id,
+                    "asset_path": tool.asset_path,
+                    "accepted_artifact_role": tool.accepted_artifact_role,
+                    "max_input_bytes": tool.max_input_bytes,
+                    "max_output_bytes": tool.max_output_bytes,
+                    "timeout_seconds": tool.timeout_seconds,
+                }
+                for tool in descriptor.declared_local_tools
+            ],
             "max_steps": descriptor.limits.max_steps,
             "required_capabilities": sorted(required_capabilities),
         }
@@ -153,6 +172,7 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         required_capabilities=required_capabilities,
         declared_skill_ids=descriptor.declared_skill_ids,
         declared_tools=descriptor.declared_tools,
+        declared_local_tools=descriptor.declared_local_tools,
     )
 
 
@@ -178,6 +198,12 @@ def _tool_capabilities(tools: tuple[DeclaredTool, ...]) -> frozenset[str]:
         )
         if present
     )
+
+
+def _local_tool_capabilities(
+    tools: tuple[DeclaredLocalTool, ...],
+) -> frozenset[str]:
+    return frozenset({"local_tool_sandbox"}) if tools else frozenset()
 
 
 def _deferred_runtime_capabilities(

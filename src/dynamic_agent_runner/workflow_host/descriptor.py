@@ -174,9 +174,11 @@ def validate_runtime_tool_contract(
 ) -> None:
     """Require runtime tool definitions to exactly match the descriptor."""
 
-    if tuple(tool.id for tool in runtime_tools) != tuple(
-        tool.tool_id for tool in descriptor.declared_tools
-    ):
+    expected = tuple(
+        tool.tool_id
+        for tool in (*descriptor.declared_tools, *descriptor.declared_local_tools)
+    )
+    if tuple(tool.id for tool in runtime_tools) != expected:
         raise WorkflowDescriptorError(
             "runtime tools must exactly match descriptor tools"
         )
