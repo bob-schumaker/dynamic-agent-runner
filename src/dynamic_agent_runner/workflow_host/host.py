@@ -110,6 +110,7 @@ from dynamic_agent_runner.workflow_host.profiles import (
     LocalModelProfileControlPlane,
     LocalModelProfileError,
     FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+    create_floorplan_vision_llama_cpp_adapter,
     create_fastmail_triage_llama_cpp_adapter,
     create_hosted_openai_adapter,
     create_local_adapter,
@@ -136,6 +137,9 @@ from dynamic_agent_runner.workflow_host.workspace_ingress import (
     WorkspaceIngressPolicy,
     WorkspaceIngressService,
     WorkspaceInputArtifact,
+)
+from dynamic_agent_runner.workflow_host.floorplan_vision_model import (
+    FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
 )
 from dynamic_agent_runner.errors import ModelExecutionError
 
@@ -169,6 +173,8 @@ def _create_model_adapter(profile: LocalModelProfile):
         )
     if profile.adapter_id == FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID:
         return create_fastmail_triage_llama_cpp_adapter(profile)
+    if profile.adapter_id == FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID:
+        return create_floorplan_vision_llama_cpp_adapter(profile)
     if profile.adapter_id == "hosted-openai-adapter-v1":
         return create_hosted_openai_adapter(profile)
     raise LocalWorkflowHostError("configured execution profile is unavailable")

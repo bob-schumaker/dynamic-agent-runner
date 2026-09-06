@@ -33,11 +33,14 @@ from dynamic_agent_runner.workflow_host.fastmail_triage_model import (
     FASTMAIL_TRIAGE_MODEL_ALIAS,
     create_fastmail_triage_llama_cpp_adapter as _create_fastmail_triage_llama_cpp_adapter,
 )
+from dynamic_agent_runner.workflow_host.floorplan_vision_model import (
+    FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
+    FLOORPLAN_VISION_MODEL_ID,
+    create_floorplan_vision_llama_cpp_adapter as _create_floorplan_vision_llama_cpp_adapter,
+)
 
 
 FASTMAIL_TRIAGE_MODEL_ID = "Qwen/Qwen2.5-3B-Instruct-GGUF"
-FLOORPLAN_VISION_MODEL_ID = "qwen25-vl-3b-floorplan-grpo"
-FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID = "floorplan-vision-llama-cpp-adapter-v1"
 
 
 class LocalModelProfileError(ValueError):
@@ -325,6 +328,19 @@ def create_fastmail_triage_llama_cpp_adapter(profile: LocalModelProfile):
     ):
         raise LocalModelProfileError("local model profile is invalid")
     return _create_fastmail_triage_llama_cpp_adapter()
+
+
+def create_floorplan_vision_llama_cpp_adapter(profile: LocalModelProfile):
+    """Create the pinned vision adapter only for its exact configured profile."""
+
+    if (
+        profile.adapter_id != FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID
+        or profile.model_id != FLOORPLAN_VISION_MODEL_ID
+        or profile.execution_model_id != FLOORPLAN_VISION_MODEL_ID
+        or profile.base_url is not None
+    ):
+        raise LocalModelProfileError("local model profile is invalid")
+    return _create_floorplan_vision_llama_cpp_adapter()
 
 
 def create_hosted_openai_adapter(profile: LocalModelProfile) -> OpenAIClientAdapter:
