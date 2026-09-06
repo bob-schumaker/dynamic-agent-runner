@@ -123,9 +123,10 @@ authoritative requirements are
   - Validation: run the NLA-3.1 command and existing no-tool and reviewed-tool
     regression suites.
   - Progress: the package-contained asset, sealed role, finite input/output,
-    timeout, and failure boundary is implemented with an injected executor.
-    Descriptor admission, host dispatch, traces, and a concrete workflow-owned
-    implementation asset remain required before this task is complete.
+    timeout, failure boundary, and descriptor admission are implemented with an
+    injected executor. Package validation, host dispatch, traces, and a concrete
+    workflow-owned implementation asset remain required before this task is
+    complete.
 
 - [ ] NLA-3.3 [GREEN] Add an implementation-owned floorplan fixture with a
       workflow-local SVG validator and invocation coverage.

@@ -65,6 +65,18 @@ class DeclaredTool:
 
 
 @dataclass(frozen=True)
+class DeclaredLocalTool:
+    """One package-owned deterministic tool asset with finite sealed I/O limits."""
+
+    tool_id: str
+    asset_path: str
+    accepted_artifact_role: str
+    max_input_bytes: int
+    max_output_bytes: int
+    timeout_seconds: int
+
+
+@dataclass(frozen=True)
 class WorkflowDescriptor:
     """The immutable authoring-to-runtime handoff for a bounded task workflow."""
 
@@ -79,6 +91,7 @@ class WorkflowDescriptor:
     declared_tools: tuple[DeclaredTool, ...]
     output_schema_ref: str
     limits: WorkflowLimits
+    declared_local_tools: tuple[DeclaredLocalTool, ...] = ()
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> WorkflowDescriptor:
@@ -88,14 +101,19 @@ class WorkflowDescriptor:
         if mapping.get("format_version") != 1:
             raise WorkflowDescriptorError("format_version must be 1")
         declared_skill_ids = _parse_declared_skill_ids(mapping.get("skills"))
-        declared_tools = _parse_declared_tools(mapping.get("tools"))
+        declared_tools, declared_local_tools = _parse_declared_tools(
+            mapping.get("tools")
+        )
         runtime = _mapping(mapping.get("dar_runtime"), "dar_runtime")
         if runtime.get("distribution") != "dynamic-agent-runner":
             raise WorkflowDescriptorError("dar_runtime.distribution is invalid")
         input_contract = _parse_input_contract(mapping.get("input_contract"))
         workspace = _parse_workspace_contract(mapping.get("workspace"))
         task = _parse_task_invocation(mapping.get("task_invocation"))
-        if task.allowed_tool_ids != tuple(tool.tool_id for tool in declared_tools):
+        declared_tool_ids = tuple(
+            tool.tool_id for tool in (*declared_tools, *declared_local_tools)
+        )
+        if task.allowed_tool_ids != declared_tool_ids:
             raise WorkflowDescriptorError(
                 "task_invocation.allowed_tool_ids must exactly match declared tools"
             )
@@ -124,6 +142,7 @@ class WorkflowDescriptor:
             declared_tools=declared_tools,
             output_schema_ref=output_schema_ref,
             limits=WorkflowLimits(_positive_int(limits.get("max_steps"), "max_steps")),
+            declared_local_tools=declared_local_tools,
         )
 
 
@@ -132,7 +151,10 @@ def validate_no_tool_runtime_nodes(
 ) -> None:
     """Reject a graph whose tool exposure escapes its task-specific declaration."""
 
-    declared = {tool.tool_id for tool in descriptor.declared_tools}
+    declared = {
+        tool.tool_id
+        for tool in (*descriptor.declared_tools, *descriptor.declared_local_tools)
+    }
     if not declared and descriptor.task_invocation.max_total_tool_calls != 0:
         raise WorkflowDescriptorError(
             "no-tool descriptor must set max_total_tool_calls to 0"
@@ -291,18 +313,26 @@ def _parse_task_invocation(value: object) -> TaskInvocation:
     )
 
 
-def _parse_declared_tools(value: object) -> tuple[DeclaredTool, ...]:
+def _parse_declared_tools(
+    value: object,
+) -> tuple[tuple[DeclaredTool, ...], tuple[DeclaredLocalTool, ...]]:
     if not isinstance(value, list):
         raise WorkflowDescriptorError("tools must be a list")
     tools: list[DeclaredTool] = []
+    local_tools: list[DeclaredLocalTool] = []
     seen: set[str] = set()
     for raw_tool in value:
         mapping = _mapping(raw_tool, "tools entry")
         tool_id = _text(mapping.get("id"), "tool.id")
         if tool_id in seen:
             raise WorkflowDescriptorError("declared tool ids must be unique")
-        if mapping.get("kind") != "mcp":
-            raise WorkflowDescriptorError("declared tool kind must be mcp")
+        kind = mapping.get("kind")
+        if kind == "local":
+            local_tools.append(_parse_local_tool(mapping, tool_id))
+            seen.add(tool_id)
+            continue
+        if kind != "mcp":
+            raise WorkflowDescriptorError("declared tool kind is invalid")
         side_effect = mapping.get("side_effect")
         if side_effect not in {"read", "write", "delete"}:
             raise WorkflowDescriptorError("declared MCP tool side_effect is invalid")
@@ -324,7 +354,39 @@ def _parse_declared_tools(value: object) -> tuple[DeclaredTool, ...]:
             )
         )
         seen.add(tool_id)
-    return tuple(tools)
+    return tuple(tools), tuple(local_tools)
+
+
+def _parse_local_tool(mapping: Mapping[str, Any], tool_id: str) -> DeclaredLocalTool:
+    if set(mapping) != {
+        "id",
+        "kind",
+        "asset_path",
+        "accepted_artifact_role",
+        "max_input_bytes",
+        "max_output_bytes",
+        "timeout_seconds",
+    }:
+        raise WorkflowDescriptorError("declared local tool is invalid")
+    asset_path = _text(mapping.get("asset_path"), "tool.asset_path")
+    if asset_path.startswith("/") or ".." in asset_path.split("/"):
+        raise WorkflowDescriptorError("local tool asset_path must be package-relative")
+    return DeclaredLocalTool(
+        tool_id=tool_id,
+        asset_path=asset_path,
+        accepted_artifact_role=_text(
+            mapping.get("accepted_artifact_role"), "tool.accepted_artifact_role"
+        ),
+        max_input_bytes=_positive_int(
+            mapping.get("max_input_bytes"), "tool.max_input_bytes"
+        ),
+        max_output_bytes=_positive_int(
+            mapping.get("max_output_bytes"), "tool.max_output_bytes"
+        ),
+        timeout_seconds=_positive_int(
+            mapping.get("timeout_seconds"), "tool.timeout_seconds"
+        ),
+    )
 
 
 def _parse_argument_sources(
