@@ -92,9 +92,9 @@ authoritative requirements are
     ingress, and local-model suites.
   - Progress: profile-derived multimodal admission, sealed-image materialization,
     text-profile rejection, dedicated llama.cpp sealed-image request shaping,
-    and profile-derived registration eligibility are implemented and covered.
-    Runner delivery through a declared image input remains required before this
-    task is complete.
+    profile-derived registration eligibility, and runner delivery through a
+    declared image input are implemented and covered. An end-to-end image
+    workflow fixture remains required before this task is complete.
 
 ## NLA-3 — Generic Workflow-Local Tool Runtime
 
