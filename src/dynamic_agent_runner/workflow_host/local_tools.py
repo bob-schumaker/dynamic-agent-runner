@@ -16,6 +16,28 @@ class LocalToolSandboxError(ValueError):
 LocalToolExecutor = Callable[[tuple[str, ...], bytes, int], bytes]
 
 
+def macos_sandbox_profile(
+    *, asset_path: Path, input_path: Path, output_path: Path
+) -> str:
+    """Return a deny-by-default macOS Sandbox profile for one local tool run."""
+
+    paths = (asset_path, input_path, output_path)
+    if any(not path.is_absolute() for path in paths):
+        raise LocalToolSandboxError("local tool sandbox paths must be absolute")
+    escaped = tuple(_sandbox_literal(path) for path in paths)
+    return "\n".join(
+        (
+            "(version 1)",
+            "(deny default)",
+            "(deny network*)",
+            f"(allow file-read-data (literal {escaped[0]}))",
+            f"(allow file-read-data (literal {escaped[1]}))",
+            f"(allow file-write* (literal {escaped[2]}))",
+            f"(allow process-exec (literal {escaped[0]}))",
+        )
+    )
+
+
 @dataclass(frozen=True)
 class LocalToolDefinition:
     """One package-reviewed deterministic executable and its finite limits."""
@@ -102,3 +124,10 @@ def _asset_path(asset_path: Path, *, package_root: Path) -> Path:
     if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
         raise LocalToolSandboxError("local tool asset is unavailable")
     return resolved
+
+
+def _sandbox_literal(path: Path) -> str:
+    value = str(path)
+    if '"' in value or "\n" in value:
+        raise LocalToolSandboxError("local tool sandbox path is invalid")
+    return f'"{value}"'

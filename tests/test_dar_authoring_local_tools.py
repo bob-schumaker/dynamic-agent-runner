@@ -10,6 +10,7 @@ from dynamic_agent_runner.workflow_host.local_tools import (
     LocalToolDefinition,
     LocalToolSandbox,
     LocalToolSandboxError,
+    macos_sandbox_profile,
 )
 
 
@@ -70,3 +71,19 @@ def test_local_tool_sandbox_rejects_undeclared_access_and_oversized_input(
 
     with pytest.raises(LocalToolSandboxError):
         sandbox.run(definition, artifact_role=role, artifact_bytes=body)
+
+
+def test_macos_sandbox_profile_denies_network_and_allows_only_declared_paths(
+    tmp_path: Path,
+) -> None:
+    profile = macos_sandbox_profile(
+        asset_path=tmp_path / "package" / "tools" / "validate_svg",
+        input_path=tmp_path / "run" / "input",
+        output_path=tmp_path / "run" / "output",
+    )
+
+    assert "(deny default)" in profile
+    assert "(deny network*)" in profile
+    assert f'(literal "{tmp_path / "package" / "tools" / "validate_svg"}")' in profile
+    assert f'(literal "{tmp_path / "run" / "input"}")' in profile
+    assert f'(literal "{tmp_path / "run" / "output"}")' in profile
