@@ -77,6 +77,16 @@ class DeclaredLocalTool:
 
 
 @dataclass(frozen=True)
+class DeclaredArtifactTool:
+    """One reviewed tool that may receive a sealed opaque artifact."""
+
+    tool_id: str
+    reviewed_package_name: str
+    accepted_artifact_role: str
+    max_result_bytes: int
+
+
+@dataclass(frozen=True)
 class WorkflowDescriptor:
     """The immutable authoring-to-runtime handoff for a bounded task workflow."""
 

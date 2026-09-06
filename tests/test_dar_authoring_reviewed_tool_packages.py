@@ -11,6 +11,7 @@ from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
     ReviewedToolPackageControlPlane,
     ReviewedToolPackageError,
 )
+from dynamic_agent_runner.workflow_host.descriptor import DeclaredArtifactTool
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 
 
@@ -78,3 +79,15 @@ def test_reviewed_package_rejects_non_artifact_aware_tool_selection(
             tool_id="packet_filter",
             current_binding=_binding(),
         )
+
+
+def test_artifact_tool_declaration_binds_one_reviewed_package_and_role() -> None:
+    declared = DeclaredArtifactTool(
+        tool_id="packet_summary",
+        reviewed_package_name="network-tools",
+        accepted_artifact_role="opaque_binary_artifact",
+        max_result_bytes=4096,
+    )
+
+    assert declared.reviewed_package_name == "network-tools"
+    assert declared.accepted_artifact_role == "opaque_binary_artifact"
