@@ -190,6 +190,10 @@ authoritative requirements are
     exists.
   - RED progress: the focused reviewed-package control-plane tests fail during
     collection with `ModuleNotFoundError` for `reviewed_tool_packages`.
+  - Progress: the named reviewed-package control plane now persists an exact
+    binding and tool allowlists, rejects unknown or changed bindings, and
+    rejects non-artifact-aware tool selection. Descriptor, ingress, and runner
+    opaque-artifact RED coverage remains required.
 
 - [ ] NLA-4.4 [GREEN] Implement named reviewed tool-package resolution and
       opaque-binary artifact binding.
