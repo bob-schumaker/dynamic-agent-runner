@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from dynamic_agent_runner.workflow_host.local_tools import (
+    create_local_tool_binding,
     LocalToolDefinition,
     LocalToolSandbox,
     LocalToolSandboxError,
@@ -63,6 +64,27 @@ def test_local_tool_sandbox_requires_bounded_json_evidence(tmp_path: Path) -> No
 
     with pytest.raises(LocalToolSandboxError, match="evidence"):
         sandbox.run(definition, artifact_role="source_image", artifact_bytes=b"x")
+
+
+def test_local_tool_binding_exposes_only_its_declared_sealed_evidence(
+    tmp_path: Path,
+) -> None:
+    asset = tmp_path / "tools" / "validate"
+    asset.parent.mkdir()
+    asset.write_text("placeholder", encoding="utf-8")
+    definition = LocalToolDefinition("validate", asset, "source_image", 1024, 512, 1)
+    binding = create_local_tool_binding(
+        sandbox=LocalToolSandbox(
+            package_root=tmp_path,
+            execute=lambda _command, _input, _timeout: b'{"valid":true}',
+        ),
+        definition=definition,
+        artifact_role="source_image",
+        artifact_bytes=b"sealed input",
+    )
+
+    assert binding.model_id == "validate"
+    assert binding.handler({}) == {"valid": True}
 
 
 @pytest.mark.parametrize(

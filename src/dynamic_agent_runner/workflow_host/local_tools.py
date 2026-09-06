@@ -9,6 +9,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from dynamic_agent_runner import HostToolBinding
+
 
 class LocalToolSandboxError(ValueError):
     """Raised when a local tool escapes its declared sealed boundary."""
@@ -108,6 +110,38 @@ class LocalToolSandbox:
         if not isinstance(evidence, dict):
             raise LocalToolSandboxError("local tool evidence is invalid")
         return evidence
+
+
+def create_local_tool_binding(
+    *,
+    sandbox: LocalToolSandbox,
+    definition: LocalToolDefinition,
+    artifact_role: str,
+    artifact_bytes: bytes,
+) -> HostToolBinding:
+    """Bind one sealed artifact to its declared local tool for this run only."""
+
+    def handler(arguments: object) -> dict[str, object]:
+        if arguments != {}:
+            raise LocalToolSandboxError("local tool arguments are invalid")
+        return sandbox.run(
+            definition, artifact_role=artifact_role, artifact_bytes=artifact_bytes
+        )
+
+    return HostToolBinding(
+        canonical_id=f"local:{definition.tool_id}",
+        model_id=definition.tool_id,
+        handler=handler,
+        label=definition.tool_id,
+        description="Run the workflow's declared deterministic local tool.",
+        input_schema={
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+        side_effect="read",
+        approval_required="no",
+    )
 
 
 def _directory(path: Path) -> Path:
