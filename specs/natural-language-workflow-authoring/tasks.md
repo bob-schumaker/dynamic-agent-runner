@@ -130,8 +130,10 @@ authoritative requirements are
     stdin and one bounded UTF-8 JSON evidence object on stdout; malformed
     output is a redacted failure. Registration-bound binary artifacts now
     materialize only through the host preparation boundary for those bindings.
-    Package validation, host dispatch, traces, and a concrete workflow-owned
-    implementation asset remain required before this task is complete.
+    The runner now creates host-registry bindings from cataloged assets and
+    role-matched sealed binary artifacts. Package validation, concrete sandbox
+    execution, traces, and a workflow-owned implementation asset remain
+    required before this task is complete.
 
 - [ ] NLA-3.3 [GREEN] Add an implementation-owned floorplan fixture with a
       workflow-local SVG validator and invocation coverage.
