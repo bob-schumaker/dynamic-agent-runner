@@ -188,6 +188,8 @@ authoritative requirements are
     runner tests.
   - Expected RED: no named reviewed package or opaque-artifact tool contract
     exists.
+  - RED progress: the focused reviewed-package control-plane tests fail during
+    collection with `ModuleNotFoundError` for `reviewed_tool_packages`.
 
 - [ ] NLA-4.4 [GREEN] Implement named reviewed tool-package resolution and
       opaque-binary artifact binding.
