@@ -118,6 +118,11 @@ class WorkflowRegistrationService:
             raise WorkflowRegistrationError("workflow alias is not registered")
         return _from_mapping(value)
 
+    def configured_profile(self) -> LocalModelProfile:
+        """Return the validated profile that is authoritative for registration."""
+
+        return self._configured_profile()
+
     def _configured_profile(self) -> LocalModelProfile:
         try:
             return self._profiles.load(self._configured_profile_id)

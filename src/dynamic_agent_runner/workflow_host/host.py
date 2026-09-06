@@ -1008,13 +1008,14 @@ class LocalWorkflowHost:
         )
         policy = compile_workflow_policy(revision)
         self._ensure_mcp_client(policy_requires_mcp=bool(policy.declared_tools))
+        profile = self._registrations.configured_profile()
         return self._registrations.register(
             workflow_id=workflow_id,
             policy=policy,
             capability_resolution=resolve_capabilities(
                 policy,
                 available_capabilities={
-                    "text_generation",
+                    *profile.capabilities,
                     *(
                         {"mcp_read_only", "mcp_side_effects"}
                         if self._mcp_client is not None
