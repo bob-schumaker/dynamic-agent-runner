@@ -260,3 +260,44 @@ def test_host_redacts_a_finalization_failure_without_registering() -> None:
         "requirement": "the authored workflow could not be registered",
     }
     assert not registered
+
+
+@pytest.mark.parametrize("failure_stage", ["create", "register"])
+def test_host_redacts_collisions_and_registration_failures(
+    failure_stage: str,
+) -> None:
+    host = object.__new__(LocalWorkflowHost)
+    registered = False
+
+    host.issue_authoring_materials = lambda **_kwargs: SimpleNamespace(
+        material_set_id="internal-material-set"
+    )
+
+    def create_authored_package(**_kwargs: object) -> object:
+        if failure_stage == "create":
+            raise RuntimeError("/private/packages/floorplan-from-image already exists")
+        return SimpleNamespace(output_id="internal-output")
+
+    def register(**_kwargs: object) -> object:
+        nonlocal registered
+        registered = True
+        raise RuntimeError("profile_id=private-profile does not match")
+
+    host.create_authored_package = create_authored_package
+    host.write_authored_package_file = lambda **_kwargs: object()
+    host.finalize_and_select_authored_output = lambda **_kwargs: (
+        object(),
+        "internal-source-handle",
+    )
+    host.register = register
+
+    result = host.register_authored_workflow(
+        contract=_contract(), definition=_definition(), now=NOW
+    )
+
+    assert result.to_mapping() == {
+        "status": "unavailable",
+        "capability": "authoring_registration",
+        "requirement": "the authored workflow could not be registered",
+    }
+    assert registered is (failure_stage == "register")
