@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
@@ -157,3 +158,70 @@ def test_host_redacts_a_mismatched_definition_before_authoring_persistence() -> 
         "capability": "authoring_contract",
         "requirement": "the workflow definition does not match the requested contract",
     }
+
+
+def test_host_composes_a_valid_definition_into_a_redacted_saved_handoff() -> None:
+    host = object.__new__(LocalWorkflowHost)
+    calls: list[str] = []
+
+    def issue_authoring_materials(*, materials: object, now: object) -> object:
+        assert now is NOW
+        assert materials
+        calls.append("issue")
+        return SimpleNamespace(material_set_id="internal-material-set")
+
+    def create_authored_package(*, package_name: str, now: object) -> object:
+        assert package_name == "floorplan-from-image"
+        assert now is NOW
+        calls.append("create")
+        return SimpleNamespace(output_id="internal-output")
+
+    def write_authored_package_file(**kwargs: object) -> object:
+        assert kwargs["output_id"] == "internal-output"
+        assert kwargs["now"] is NOW
+        calls.append(f"write:{kwargs['relative_path']}")
+        return object()
+
+    def finalize_and_select_authored_output(**kwargs: object) -> tuple[object, str]:
+        assert kwargs == {
+            "output_id": "internal-output",
+            "material_set_id": "internal-material-set",
+            "now": NOW,
+        }
+        calls.append("finalize")
+        return object(), "internal-source-handle"
+
+    def register(**kwargs: object) -> object:
+        assert kwargs == {
+            "workflow_id": "floorplan-from-image",
+            "package_source_handle": "internal-source-handle",
+            "now": NOW,
+        }
+        calls.append("register")
+        return SimpleNamespace(workflow_id="floorplan-from-image")
+
+    host.issue_authoring_materials = issue_authoring_materials
+    host.create_authored_package = create_authored_package
+    host.write_authored_package_file = write_authored_package_file
+    host.finalize_and_select_authored_output = finalize_and_select_authored_output
+    host.register = register
+
+    result = host.register_authored_workflow(
+        contract=_contract(), definition=_definition(), now=NOW
+    )
+
+    assert result.to_mapping() == {
+        "status": "ready",
+        "workflow_name": "floorplan-from-image",
+        "input_contract": "one image artifact",
+        "output_contract": "svg",
+        "invocation": "dar-package invoke --package-name floorplan-from-image --prompt-stdin",
+    }
+    assert calls == [
+        "issue",
+        "create",
+        "write:workflow-descriptor.yaml",
+        "write:agent-design.md",
+        "finalize",
+        "register",
+    ]

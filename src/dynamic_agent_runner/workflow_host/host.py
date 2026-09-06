@@ -142,6 +142,7 @@ from dynamic_agent_runner.workflow_host.workflow_authoring_registration import (
     AuthoringContractError,
     CanonicalWorkflowContract,
     DeclarativeWorkflowDefinition,
+    ReadyAuthoredWorkflow,
     UnavailableAuthoredWorkflow,
     validate_definition,
 )
@@ -767,10 +768,9 @@ class LocalWorkflowHost:
         contract: CanonicalWorkflowContract,
         definition: DeclarativeWorkflowDefinition,
         now: datetime,
-    ) -> UnavailableAuthoredWorkflow:
-        """Reject an invalid closed authoring request before host composition."""
+    ) -> ReadyAuthoredWorkflow | UnavailableAuthoredWorkflow:
+        """Compose one validated closed authoring request into a saved workflow."""
 
-        del now
         try:
             validate_definition(contract=contract, definition=definition)
         except AuthoringContractError:
@@ -778,7 +778,57 @@ class LocalWorkflowHost:
                 capability="authoring_contract",
                 requirement="the workflow definition does not match the requested contract",
             )
-        raise LocalWorkflowHostError("authored workflow composition is unavailable")
+        material = json.dumps(
+            {
+                "workflow_name": contract.workflow_name,
+                "model_id": contract.model_id,
+                "adapter_id": contract.adapter_id,
+                "input_kind": contract.input_kind,
+                "output_contract": contract.output_contract,
+                "required_capabilities": contract.required_capabilities,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        receipt = self.issue_authoring_materials(
+            materials=(
+                AuthoringMaterialInput(
+                    role="canonical_workflow_contract",
+                    content=material,
+                    disposition="distributable",
+                ),
+            ),
+            now=now,
+        )
+        output = self.create_authored_package(
+            package_name=contract.workflow_name, now=now
+        )
+        for relative_path, content in definition.package_artifacts.items():
+            self.write_authored_package_file(
+                output_id=output.output_id,
+                relative_path=relative_path,
+                content=content,
+                now=now,
+            )
+        _validation, source_handle = self.finalize_and_select_authored_output(
+            output_id=output.output_id,
+            material_set_id=receipt.material_set_id,
+            now=now,
+        )
+        self.register(
+            workflow_id=contract.workflow_name,
+            package_source_handle=source_handle,
+            now=now,
+        )
+        return ReadyAuthoredWorkflow(
+            workflow_name=contract.workflow_name,
+            input_contract=_authored_input_contract(contract.input_kind),
+            output_contract=contract.output_contract,
+            invocation=(
+                "dar-package invoke --package-name "
+                f"{contract.workflow_name} --prompt-stdin"
+            ),
+        )
 
     def select_authored_package(self, package_name: str, *, now: datetime) -> str:
         """Select one configured-root authored package by its user-facing name."""
@@ -1419,6 +1469,12 @@ def _validate_root(path: Path) -> None:
     if not path.is_absolute() or "." in path.parts or ".." in path.parts:
         raise LocalWorkflowHostError("host root must be an absolute canonical path")
     path.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+
+def _authored_input_contract(input_kind: str) -> str:
+    if input_kind == "image_artifact":
+        return "one image artifact"
+    return input_kind.replace("_", " ")
 
 
 def _validate_package_root(path: Path) -> None:
