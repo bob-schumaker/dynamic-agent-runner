@@ -208,6 +208,33 @@ def test_local_tool_descriptor_requires_a_package_relative_asset_and_limits() ->
     assert descriptor.declared_local_tools[0].asset_path == "tools/validate_svg"
 
 
+def test_artifact_tool_descriptor_requires_a_reviewed_package_and_result_bound() -> (
+    None
+):
+    value = _descriptor()
+    value["tools"] = [
+        {
+            "id": "packet_summary",
+            "kind": "artifact",
+            "reviewed_package_name": "network-tools",
+            "accepted_artifact_role": "opaque_binary_artifact",
+            "max_result_bytes": 4096,
+        }
+    ]
+    value["task_invocation"] = {
+        **value["task_invocation"],  # type: ignore[index]
+        "allowed_tool_ids": ["packet_summary"],
+        "max_total_tool_calls": 1,
+        "allowed_artifact_roles": ["opaque_binary_artifact"],
+    }
+
+    descriptor = WorkflowDescriptor.from_mapping(value)
+
+    assert (
+        descriptor.declared_artifact_tools[0].reviewed_package_name == "network-tools"
+    )
+
+
 @pytest.mark.parametrize(
     ("side_effect", "approval_required"),
     [("write", False), ("delete", True)],
