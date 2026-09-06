@@ -194,6 +194,10 @@ authoritative requirements are
     binding and tool allowlists, rejects unknown or changed bindings, and
     rejects non-artifact-aware tool selection. Descriptor, ingress, and runner
     opaque-artifact RED coverage remains required.
+  - Runner dependency: `WorkflowRunner._tool_registry()` currently returns
+    before dispatch when `declared_tools` is empty. Artifact-tool construction
+    must run before that branch and use the existing host registry/result path;
+    do not add a parallel direct execution path.
 
 - [ ] NLA-4.4 [GREEN] Implement named reviewed tool-package resolution and
       opaque-binary artifact binding.
