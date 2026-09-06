@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 import stat
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -81,7 +82,7 @@ class LocalToolSandbox:
         *,
         artifact_role: str,
         artifact_bytes: bytes,
-    ) -> bytes:
+    ) -> dict[str, object]:
         """Run one declared package asset with one sealed bounded artifact."""
 
         if artifact_role != definition.accepted_artifact_role:
@@ -100,7 +101,13 @@ class LocalToolSandbox:
             raise LocalToolSandboxError("local tool execution failed") from error
         if not isinstance(output, bytes) or len(output) > definition.max_output_bytes:
             raise LocalToolSandboxError("local tool output exceeds the declared limit")
-        return output
+        try:
+            evidence = json.loads(output.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise LocalToolSandboxError("local tool evidence is invalid") from error
+        if not isinstance(evidence, dict):
+            raise LocalToolSandboxError("local tool evidence is invalid")
+        return evidence
 
 
 def _directory(path: Path) -> Path:

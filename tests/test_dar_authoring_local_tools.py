@@ -30,7 +30,9 @@ def test_local_tool_sandbox_runs_only_a_declared_asset_with_bounded_io(
     )
     sandbox = LocalToolSandbox(
         package_root=tmp_path,
-        execute=lambda command, input_bytes, timeout_seconds: b"bounded result",
+        execute=lambda command, input_bytes, timeout_seconds: (
+            b'{"evidence":"bounded result"}'
+        ),
     )
 
     result = sandbox.run(
@@ -39,7 +41,28 @@ def test_local_tool_sandbox_runs_only_a_declared_asset_with_bounded_io(
         artifact_bytes=b"sealed input",
     )
 
-    assert result == b"bounded result"
+    assert result == {"evidence": "bounded result"}
+
+
+def test_local_tool_sandbox_requires_bounded_json_evidence(tmp_path: Path) -> None:
+    asset = tmp_path / "tools" / "validate"
+    asset.parent.mkdir()
+    asset.write_text("placeholder", encoding="utf-8")
+    definition = LocalToolDefinition(
+        tool_id="validate",
+        asset_path=asset,
+        accepted_artifact_role="source_image",
+        max_input_bytes=1024,
+        max_output_bytes=512,
+        timeout_seconds=1,
+    )
+    sandbox = LocalToolSandbox(
+        package_root=tmp_path,
+        execute=lambda _command, _input, _timeout: b"not-json",
+    )
+
+    with pytest.raises(LocalToolSandboxError, match="evidence"):
+        sandbox.run(definition, artifact_role="source_image", artifact_bytes=b"x")
 
 
 @pytest.mark.parametrize(

@@ -114,6 +114,12 @@ bounded skill-to-host value that DAR owns once it validates and persists it.
 
 ### Artifact and tool-package rules
 
+The common deterministic tool ABI is sealed raw artifact bytes on standard
+input and one bounded UTF-8 JSON evidence object on standard output. DAR never
+places a caller path or raw bytes in a model prompt. The JSON object is the
+tool's declared evidence result; malformed, oversized, or failed execution is
+a bounded declared failure rather than a host detail.
+
 Do not create a binary-format registry. A workflow input is either a declared
 image artifact or an `opaque_binary_artifact`; ingress keeps its existing
 generic copy-and-hash boundary. A typed host-only consumer rechecks the
