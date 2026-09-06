@@ -11,7 +11,7 @@
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related specifications:
   - `specs/mcp-runtime-integration/spec.md`
-  - `specs/dar-authoring-plugin/spec.md`
+  - `specs/authored-workflow-runtime-v1/spec.md`
   - `specs/approval-interruption-resume/spec.md`
 
 ## Objective
@@ -32,12 +32,13 @@ That is insufficient for an MCP server such as Fastmail that advertises OAuth
 protected-resource metadata and dynamic client registration.
 
 This feature is generic OAuth/MCP host support, not Fastmail functionality. It
-does not change `dar-authoring` into an MCP server or grant its skills a
-provisioning command. The authoritative currently-live configured HTTPS adapter
-is the G2 `MCPConnectionClient` and reviewed-surface contract in
-`dar-authoring-plugin`; the older `mcp-runtime-integration` v1 baseline has no
-live transport or discovery capability. This specification owns only the OAuth
-credential-bootstrap path for an explicitly human-configured HTTPS MCP endpoint.
+does not change the `agent-engineering` plugin into an MCP server or grant its
+skills a provisioning command. The authoritative currently-live configured HTTPS
+adapter is the G2 `MCPConnectionClient` and reviewed-surface contract in
+`authored-workflow-runtime-v1`; the older `mcp-runtime-integration` v1
+baseline has no live transport or discovery capability. This specification owns
+only the OAuth credential-bootstrap path for an explicitly human-configured
+HTTPS MCP endpoint.
 O6 and live acceptance depend on that G2 adapter having a protocol-conforming
 `tools/list` surface snapshot and binding path.
 

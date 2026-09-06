@@ -1,0 +1,564 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: runtime-package-review-agent
+name: Runtime Package Review Agent
+entrypoint: analyze_package_request
+mermaid_diagram: runtime-package-review-agent-graph.mmd
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+runtime:
+  execution_policy:
+    autonomy_level: supervised_agent
+    allowed_execution_modes:
+    - sequential_fallback
+    external_backend_allowed: false
+    max_iterations: 3
+    timeout: unknown
+    exit_strategy:
+      terminal_conditions:
+      - package_review_result emitted
+      - clarification_request emitted
+      - validation failed or package evidence unavailable
+      on_exhaustion: escalate
+      ambiguous_completion: clarify
+    approval_required_for:
+    - shell validation
+    - workspace mutation
+    forbidden_actions:
+    - mutate package files without approval
+    - store secrets in prompts or logs
+    prompt_cache:
+      enabled: true
+      strategy: stable_prefix
+      min_prefix_tokens: 1024
+      prefix_parts:
+      - system
+      - developer
+      - skill_instructions
+      - tool_schemas
+      - output_contracts
+      - x-runtime-package-policy
+      variable_parts:
+      - user_prompt
+      - run_state
+      - retrieved_context
+      - tool_results
+      cache_key_hint: package_id
+      provider_hints:
+        openai:
+          cache_key_strategy: package_id_and_version
+          retention: auto
+  state:
+    artifacts:
+    - id: user_request
+      description: Requested package review
+      source: user
+    - id: package_paths
+      description: Manifest and graph paths to inspect
+      source: llm
+    - id: manifest_excerpt
+      description: Selected manifest content
+      source: tool
+    - id: graph_excerpt
+      description: Selected Mermaid graph content
+      source: tool
+    - id: validation_result
+      description: Validator output
+      source: tool
+    - id: route_choice
+      description: Review route selected from validation state
+      source: runtime
+    - id: package_review_result
+      description: Final structured package review
+      source: llm
+    - id: clarification_request
+      description: Missing information needed before package review
+      source: llm
+    mutable_fields:
+    - route_choice
+metadata:
+  patterns_present:
+  - tool_based_function_calling
+  - routing
+  - validation_gate
+  participant_groups: []
+  modes:
+  - id: default
+    description: Sequential package review mode
+    enabled_phases:
+    - request_analysis
+    - package_read
+    - validation
+    - routing
+    - synthesis
+    batching_allowed: false
+  phases:
+  - id: request_analysis
+    label: Request analysis
+    phase_kind: preparation
+    repeatable: false
+    participant_group:
+    peer_visibility: not_applicable
+    enabled_when: always
+  - id: package_read
+    label: Package read
+    phase_kind: preparation
+    repeatable: true
+    participant_group:
+    peer_visibility: not_applicable
+    enabled_when: package_paths_available
+  - id: validation
+    label: Runtime validation
+    phase_kind: verification
+    repeatable: false
+    participant_group:
+    peer_visibility: not_applicable
+    enabled_when: manifest_excerpt_available
+  - id: routing
+    label: Validation routing
+    phase_kind: decision_gate
+    repeatable: false
+    participant_group:
+    peer_visibility: not_applicable
+    enabled_when: validation_result_available
+  - id: synthesis
+    label: Review synthesis
+    phase_kind: aggregation
+    repeatable: false
+    participant_group:
+    peer_visibility: not_applicable
+    enabled_when: route_choice_available
+  roles:
+  - id: reviewer
+    actor: package_reviewer
+    description: Reviews runtime package artifacts and validation evidence.
+    input_contract:
+    - user_request
+    - manifest_excerpt
+    - graph_excerpt
+    - validation_result
+    output_contract:
+    - package_review_result
+    prompt_source: inline
+  runtime_surface:
+    type: stateful_session_runtime
+    owner: host_runtime
+  workspace_boundary:
+    type: occasional_tool_execution
+    snapshot_strategy: none
+  completion_contract:
+    mechanism: structured_review_result
+    ambiguous_completion: clarify
+  result_surfaces:
+    final_output: true
+    continuation_state: true
+    audit_records: true
+  permission_profile:
+    filesystem: read
+    network: none
+    process: approved
+  approval_channels:
+  - shell_validation
+  action_policy:
+    source: repository_rules
+  sandbox_enforcement:
+    filesystem_backend: host_read_only
+  network_policy:
+    mode: forbidden
+  mutation_safety:
+    changed_state_provenance: not_applicable
+  tool_exposure:
+    strategy: namespace_grouped
+  context_pipeline:
+    model_visible_inputs: manifest excerpts, graph excerpts, validation summary
+    runtime_only: full file payloads and raw command output
+  instruction_authority:
+    precedence: system > repository rules > user request > package metadata
+  trace_bundle:
+    payload_capture: redacted
+  evidence_model:
+    model_visible: summarized validation and selected excerpts
+    runtime_only: full files and raw validator output
+  event_contracts:
+  - id: validation_completed
+    producer: validate_runtime_manifest
+    consumer: route_validation_result
+  goals:
+  - id: package_review
+    terminal_statuses:
+    - passed
+    - failed
+    - needs_clarification
+  experimental_capabilities:
+  - id: optional_metadata_review
+    opt_in: true
+  delegated_agents:
+  - id: validator_as_tool
+    tool_id: validate_runtime_manifest
+    delegation_mode: bounded_subtask
+    returns_to: reviewer
+    result_contract:
+      type: structured_report
+extensions: {}
+skills:
+- id: agent-development
+  label: Agent development skill
+  source_type: repo_skill
+  source_path: corpus/capabilities/agent-development/SKILL.md
+  packaging_mode: bundled_copy
+  bundled_path: skill-bundle/agent-development/SKILL.md
+  support_files:
+  - source_path: corpus/capabilities/agent-development/references/agent-runtime-package.md
+    bundled_path: skill-bundle/agent-development/references/agent-runtime-package.md
+  notes: Provides runtime package design conventions.
+tools:
+- id: read_package_file
+  label: Read package file
+  tool_type: file_read
+  description_for_llm: |
+    Read a repository-relative runtime package artifact. Use this only for
+    manifest, Mermaid, skill-bundle, schema, or example files in the requested
+    package scope.
+  adapter: runtime.read_file
+  input_schema:
+    type: object
+    required:
+    - path
+    properties:
+      path:
+        type: string
+  output_schema:
+    type: object
+    properties:
+      path:
+        type: string
+      content:
+        type: string
+  side_effect: read
+  approval_required: false
+  timeout: runtime_default
+  retry_policy: none
+  failure_behavior: escalate
+  skill_bindings:
+  - skill_id: agent-development
+    usage: shared_reference
+- id: validate_runtime_manifest
+  label: Validate runtime manifest
+  tool_type: agent_tool
+  description_for_llm: |
+    Validate an agent-runtime.yaml file and optional Mermaid graph using the
+    repository-local runtime package validator.
+  adapter: scripts.validate_agent_runtime
+  input_schema:
+    type: object
+    required:
+    - manifest_path
+    properties:
+      manifest_path:
+        type: string
+      mermaid_path:
+        type: string
+  output_schema:
+    type: object
+    properties:
+      ok:
+        type: boolean
+      errors:
+        type: array
+  side_effect: none
+  approval_required: conditional
+  timeout: runtime_default
+  retry_policy: none
+  failure_behavior: fail
+  skill_bindings:
+  - skill_id: agent-development
+    usage: tool_adapter
+nodes:
+- id: analyze_package_request
+  kind: llm_step
+  label: Analyze package request
+  actor: package_reviewer
+  role: reviewer
+  phase: request_analysis
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    reasoning_profile:
+      level: low
+      task_type: extraction
+      task_subtype: synthesis
+      uncertainty_handling: ask_clarification
+    context_requirements:
+      expected_input_size: small
+      context_window: 8000
+      needs_retrieved_context: false
+    output_requirements:
+      format: schema_ref
+      schema_ref: package_paths
+      evidence_citations: not_needed
+    operational_preferences:
+      latency_sensitivity: medium
+      cost_sensitivity: medium
+      determinism: preferred
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: escalate
+      minimum_acceptable_level: low
+  prompt:
+    system: 'You are a runtime package review assistant.
+
+'
+    developer: 'Extract manifest and graph paths. Do not infer missing package artifacts.
+
+'
+    user_template: 'Review request: {user_request}
+
+'
+    input_vars:
+    - user_request
+    output_schema_ref: package_paths
+  available_tools: []
+  skill_bindings:
+  - skill_id: agent-development
+    usage: instruction_context
+  inputs_from:
+  - user_request
+  outputs:
+  - package_paths
+- id: read_manifest
+  kind: tool_use_step
+  label: Read manifest
+  actor: runtime
+  phase: package_read
+  tool_id: read_package_file
+  inputs_from:
+  - package_paths
+  outputs:
+  - manifest_excerpt
+  failure_behavior: fail
+- id: read_graph
+  kind: tool_use_step
+  label: Read graph
+  actor: runtime
+  phase: package_read
+  tool_id: read_package_file
+  inputs_from:
+  - package_paths
+  outputs:
+  - graph_excerpt
+  failure_behavior: fallback
+- id: validate_package
+  kind: tool_use_step
+  label: Validate package
+  actor: runtime
+  phase: validation
+  tool_id: validate_runtime_manifest
+  inputs_from:
+  - package_paths
+  - manifest_excerpt
+  - graph_excerpt
+  outputs:
+  - validation_result
+  failure_behavior: fail
+- id: route_validation_result
+  kind: decision_step
+  decision_subtype: simple_check
+  label: Route validation result
+  actor: runtime
+  phase: routing
+  decision_contract:
+    compares:
+    - validation_result
+    allowed_paths:
+    - id: synthesize
+      condition: validation passed or only advisory warnings remain
+      target: synthesize_review
+    - id: clarify
+      condition: package path or validation evidence is missing
+      target: ask_for_package_clarification
+    default_path: clarify
+  inputs_from:
+  - validation_result
+  outputs:
+  - route_choice
+- id: synthesize_review
+  kind: llm_step
+  label: Synthesize review
+  actor: package_reviewer
+  role: reviewer
+  phase: synthesis
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    - code_reasoning
+    reasoning_profile:
+      level: medium
+      task_type: planning
+      task_subtype: critique
+      uncertainty_handling: answer_with_caveats
+    context_requirements:
+      expected_input_size: large
+      context_window: 32000
+      needs_retrieved_context: true
+    output_requirements:
+      format: schema_ref
+      schema_ref: package_review_result
+      evidence_citations: required
+    operational_preferences:
+      latency_sensitivity: medium
+      cost_sensitivity: medium
+      determinism: preferred
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: escalate
+      minimum_acceptable_level: medium
+  prompt:
+    system: |
+      Produce a structured package review with status, findings, validation,
+      caveats, and next steps.
+    developer: |
+      Distinguish model-visible evidence from runtime-only evidence. Do not
+      claim validation that was not observed.
+    user_template: |
+      Manifest: {manifest_excerpt}
+      Graph: {graph_excerpt}
+      Validation: {validation_result}
+    input_vars:
+    - manifest_excerpt
+    - graph_excerpt
+    - validation_result
+    output_schema_ref: package_review_result
+  available_tools: []
+  skill_bindings:
+  - skill_id: agent-development
+    usage: output_formatter
+  inputs_from:
+  - manifest_excerpt
+  - graph_excerpt
+  - validation_result
+  outputs:
+  - package_review_result
+- id: ask_for_package_clarification
+  kind: llm_step
+  label: Ask for package clarification
+  actor: package_reviewer
+  role: reviewer
+  phase: synthesis
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    reasoning_profile:
+      level: low
+      task_type: generation
+      task_subtype: synthesis
+      uncertainty_handling: ask_clarification
+    context_requirements:
+      expected_input_size: small
+      context_window: 8000
+      needs_retrieved_context: true
+    output_requirements:
+      format: schema_ref
+      schema_ref: clarification_request
+      evidence_citations: not_needed
+    operational_preferences:
+      latency_sensitivity: high
+      cost_sensitivity: medium
+      determinism: preferred
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: use_lower_capability
+      minimum_acceptable_level: minimal
+  prompt:
+    system: 'Ask for the missing package path or missing validation evidence.
+
+'
+    developer: 'Ask only for information required to continue the review safely.
+
+'
+    user_template: 'Validation result: {validation_result}
+
+'
+    input_vars:
+    - validation_result
+    output_schema_ref: clarification_request
+  available_tools: []
+  skill_bindings: []
+  inputs_from:
+  - validation_result
+  outputs:
+  - clarification_request
+edges:
+- from: analyze_package_request
+  to: read_manifest
+  edge_kind: sequential
+  condition: package_paths_available
+  carries:
+  - package_paths
+- from: read_manifest
+  to: read_graph
+  edge_kind: sequential
+  condition: manifest_excerpt_available
+  carries:
+  - manifest_excerpt
+- from: read_graph
+  to: validate_package
+  edge_kind: sequential
+  condition: graph_read_or_missing
+  carries:
+  - graph_excerpt
+- from: validate_package
+  to: route_validation_result
+  edge_kind: sequential
+  condition: validation_result_available
+  carries:
+  - validation_result
+- from: route_validation_result
+  to: synthesize_review
+  edge_kind: branch
+  condition: synthesize
+  carries:
+  - route_choice
+- from: route_validation_result
+  to: ask_for_package_clarification
+  edge_kind: branch
+  condition: clarify
+  carries:
+  - route_choice
+output_contracts:
+- id: package_paths
+  required_fields:
+  - manifest_path
+  required_sections: []
+  validation: manual_review
+- id: package_review_result
+  required_fields:
+  - status
+  - findings
+  - validation
+  - caveats
+  - next_steps
+  required_sections: []
+  validation: manual_review
+- id: clarification_request
+  required_fields:
+  - questions
+  required_sections: []
+  validation: manual_review
+validation:
+  package_checks:
+  - Every node id is unique.
+  - Every edge endpoint references an existing node.
+  - Every tool_use_step references an existing tool.
+  - Every llm_step has a prompt or a prompt_source.
+  - Mermaid graph contains every manifest node id.
+  - Optional metadata remains additive for format_version 1.

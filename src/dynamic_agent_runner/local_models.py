@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import html
 import inspect
 import json
@@ -302,7 +303,9 @@ class LlamaCppLocalModelConfig:
     huggingface_file: HuggingFaceModelFileReference | None = None
     huggingface_snapshot: HuggingFaceSnapshotReference | None = None
     expected_model_id: str | None = None
+    expected_model_sha256: str | None = None
     model_kwargs: Mapping[str, object] | None = None
+    allow_network: bool = True
 
     def __init__(
         self,
@@ -314,7 +317,9 @@ class LlamaCppLocalModelConfig:
         huggingface_file: HuggingFaceModelFileReference | None = None,
         huggingface_snapshot: HuggingFaceSnapshotReference | None = None,
         expected_model_id: str | None = None,
+        expected_model_sha256: str | None = None,
         model_kwargs: Mapping[str, object] | None = None,
+        allow_network: bool = True,
     ) -> None:
         resolved_model_path = Path(model_path)
         resolved_model_filename = model_filename or (
@@ -339,9 +344,37 @@ class LlamaCppLocalModelConfig:
         object.__setattr__(self, "expected_model_id", expected_model_id)
         object.__setattr__(
             self,
+            "expected_model_sha256",
+            _optional_sha256(expected_model_sha256, "expected_model_sha256"),
+        )
+        object.__setattr__(
+            self,
             "model_kwargs",
             dict(model_kwargs) if model_kwargs is not None else None,
         )
+        object.__setattr__(self, "allow_network", allow_network)
+
+
+def llama_cpp_configuration_fingerprint(config: LlamaCppLocalModelConfig) -> str:
+    """Return a stable fingerprint for an immutable direct llama.cpp binding."""
+
+    value = {
+        "model_aliases": config.model_aliases,
+        "model_filename": config.model_filename,
+        "huggingface_file": _huggingface_file_fingerprint(config.huggingface_file),
+        "huggingface_snapshot": _huggingface_snapshot_fingerprint(
+            config.huggingface_snapshot
+        ),
+        "expected_model_id": config.expected_model_id,
+        "expected_model_sha256": config.expected_model_sha256,
+        "allow_network": config.allow_network,
+        "model_kwargs": config.model_kwargs,
+    }
+    try:
+        encoded = json.dumps(value, sort_keys=True, separators=(",", ":"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("llama.cpp configuration is not fingerprintable") from exc
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -848,7 +881,7 @@ class LlamaCppLocalModelAdapter:
 
     def _resolve_model_path(self) -> Path:
         if self._resolved_model_path is None:
-            self._resolved_model_path = resolve_local_model_path(
+            model_path = resolve_local_model_path(
                 LocalModelPathConfig(
                     model_filename=self._config.model_filename,
                     explicit_model_path=self._config.model_path,
@@ -856,9 +889,12 @@ class LlamaCppLocalModelAdapter:
                     huggingface_file=self._config.huggingface_file,
                     huggingface_snapshot=self._config.huggingface_snapshot,
                 ),
+                allow_network=self._config.allow_network,
                 download_file=self._download_file,
                 download_snapshot=self._download_snapshot,
             )
+            _verify_model_sha256(model_path, self._config.expected_model_sha256)
+            self._resolved_model_path = model_path
         return self._resolved_model_path
 
     def _get_backend(self, model_path: Path) -> LlamaCppLocalBackend:
@@ -1211,6 +1247,12 @@ def validate_local_model_identity(
     if expected_model_id is None or observed_model_id is None:
         return
     if expected_model_id == observed_model_id:
+        return
+    if (
+        explicit_model_path is not None
+        and huggingface_file is not None
+        and observed_model_id == str(explicit_model_path)
+    ):
         return
     authoritative_identity = _describe_authoritative_model_identity(
         expected_model_id=expected_model_id,
@@ -2425,3 +2467,51 @@ def _load_huggingface_download_helpers() -> tuple[
         )
 
     return download_file, download_snapshot
+
+
+def _optional_sha256(value: str | None, name: str) -> str | None:
+    if value is None:
+        return None
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdefABCDEF" for character in value)
+    ):
+        raise ValueError(f"{name} must be a SHA-256 hex digest")
+    return value.lower()
+
+
+def _huggingface_file_fingerprint(
+    reference: HuggingFaceModelFileReference | None,
+) -> Mapping[str, str | None] | None:
+    if reference is None:
+        return None
+    return {
+        "repo_id": reference.repo_id,
+        "filename": reference.filename,
+        "revision": reference.revision,
+    }
+
+
+def _huggingface_snapshot_fingerprint(
+    reference: HuggingFaceSnapshotReference | None,
+) -> Mapping[str, str | None] | None:
+    if reference is None:
+        return None
+    return {"repo_id": reference.repo_id, "revision": reference.revision}
+
+
+def _verify_model_sha256(model_path: Path, expected_sha256: str | None) -> None:
+    if expected_sha256 is None:
+        return
+    digest = hashlib.sha256()
+    try:
+        with model_path.open("rb") as model_file:
+            for chunk in iter(lambda: model_file.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError as exc:
+        raise LocalModelResolutionError("local model asset is unavailable") from exc
+    if digest.hexdigest() != expected_sha256:
+        raise LocalModelIdentityMismatchError(
+            "local model SHA-256 does not match the configured artifact"
+        )

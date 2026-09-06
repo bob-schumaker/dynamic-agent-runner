@@ -10,17 +10,41 @@ import yaml
 from dynamic_agent_runner import load_agent_package_workflow
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "dar-authoring" / "invocations"
-TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
+TEMPLATE_ROOT = (
+    Path(__file__).resolve().parents[1]
+    / "specs"
+    / "agent-engineering-plugin-migration"
+    / "legacy-dar-authoring"
+    / "templates"
+)
 TOOL_TEMPLATE_ROOT = (
-    Path(__file__).resolve().parents[1] / "dar-authoring" / "tool-templates"
+    Path(__file__).resolve().parents[1]
+    / "specs"
+    / "agent-engineering-plugin-migration"
+    / "legacy-dar-authoring"
+    / "tool-templates"
 )
 EVALUATION_TEMPLATE_ROOT = (
-    Path(__file__).resolve().parents[1] / "dar-authoring" / "evaluation-templates"
+    Path(__file__).resolve().parents[1]
+    / "specs"
+    / "agent-engineering-plugin-migration"
+    / "legacy-dar-authoring"
+    / "evaluation-templates"
 )
 READ_ONLY_MCP_TEMPLATE_ROOT = (
-    Path(__file__).resolve().parents[1] / "dar-authoring" / "read-only-mcp-template"
+    Path(__file__).resolve().parents[1]
+    / "specs"
+    / "agent-engineering-plugin-migration"
+    / "legacy-dar-authoring"
+    / "read-only-mcp-template"
 )
-SKILL_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "skills"
+SKILL_ROOT = (
+    Path(__file__).resolve().parents[1]
+    / "specs"
+    / "agent-engineering-plugin-migration"
+    / "legacy-dar-authoring"
+    / "skills"
+)
 PROVENANCE_PATH = SKILL_ROOT / "adapted-skill-provenance.yaml"
 
 from dynamic_agent_runner.workflow_host.descriptor import WorkflowDescriptor  # noqa: E402

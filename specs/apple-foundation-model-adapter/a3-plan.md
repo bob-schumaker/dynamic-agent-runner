@@ -1,11 +1,11 @@
 <!-- markdownlint-disable MD013 -->
-# Apple Foundation Models A3 Sealed-Host Integration Plan
+# Apple Foundation Models A3 Sealed Authored-Workflow Runtime Host Plan
 
 Status: completed through C4; G5.2 generalizes execution-profile admission
 
 ## Objective
 
-Allow the sealed DAR-authoring host to run a registered workflow with the
+Allow the sealed authored-workflow runtime host to run a registered workflow with the
 existing Apple Foundation Models adapter. This is the missing boundary needed
 for the consented Fastmail read-only acceptance: the current host always builds
 an HTTP/LiteLLM local adapter from a base URL, while the Apple adapter is

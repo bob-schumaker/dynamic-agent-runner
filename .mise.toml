@@ -1,3 +1,9 @@
+# dot-mise-managed: dot-mise-poetry
+# dot-mise-update: dot-mise-poetry --update
+# dot-mise-replace: dot-mise-poetry --force
+
+
+
 [tools]
 # dot-mise-toml-tools:start -- DO NOT EDIT BETWEEN THESE COMMENTS
 python = "3.14.7"
@@ -23,13 +29,13 @@ venv = ".venv"
 
 [tasks."project-update"]
 # dot-mise-project-update-task:start -- DO NOT EDIT BETWEEN THESE COMMENTS
-run = "poetry update --with dev --with docs --with test --sync"
+run = "poetry update --with dev --with docs --with test"
 # dot-mise-project-update-task:end -- DO NOT EDIT BETWEEN THESE COMMENTS
 
-[hooks.enter]
+[hooks]
 # dot-mise-enter:start -- DO NOT EDIT BETWEEN THESE COMMENTS
-shell = "sh"
-script = '''
+enter = [
+  { shell = "bash", script = '''
 if [ -d "${MISE_PROJECT_ROOT}/.venv" ]; then
     VIRTUAL_ENV="${MISE_PROJECT_ROOT}/.venv"
     export VIRTUAL_ENV
@@ -41,13 +47,25 @@ if [ -d "${MISE_PROJECT_ROOT}/.venv" ]; then
         set_project_path "${MISE_PROJECT_ROOT}" "${VIRTUAL_ENV}"
     fi
 fi
-'''
+''' },
+  { shell = "zsh", script = '''
+if [ -d "${MISE_PROJECT_ROOT}/.venv" ]; then
+    VIRTUAL_ENV="${MISE_PROJECT_ROOT}/.venv"
+    export VIRTUAL_ENV
+    case ":${PATH:-}:" in
+        *:"${VIRTUAL_ENV}/bin":*) ;;
+        *) PATH="${VIRTUAL_ENV}/bin${PATH:+:${PATH}}"; export PATH ;;
+    esac
+    if command -v set_project_path >/dev/null 2>&1; then
+        set_project_path "${MISE_PROJECT_ROOT}" "${VIRTUAL_ENV}"
+    fi
+fi
+''' },
+]
 # dot-mise-enter:end -- DO NOT EDIT BETWEEN THESE COMMENTS
-
-[hooks.leave]
 # dot-mise-leave:start -- DO NOT EDIT BETWEEN THESE COMMENTS
-shell = "sh"
-script = '''
+leave = [
+  { shell = "bash", script = '''
 if [ -n "${VIRTUAL_ENV:-}" ]; then
     env_tools_mise_previous_path="${PATH:-}"
     PATH=$(printf '%s\n' "$env_tools_mise_previous_path" | awk -v RS=: -v ORS=: -v target="${VIRTUAL_ENV}/bin" '$0 != target && $0 != "" { print }')
@@ -55,5 +73,15 @@ if [ -n "${VIRTUAL_ENV:-}" ]; then
     export PATH
 fi
 unset VIRTUAL_ENV
-'''
+''' },
+  { shell = "zsh", script = '''
+if [ -n "${VIRTUAL_ENV:-}" ]; then
+    env_tools_mise_previous_path="${PATH:-}"
+    PATH=$(printf '%s\n' "$env_tools_mise_previous_path" | awk -v RS=: -v ORS=: -v target="${VIRTUAL_ENV}/bin" '$0 != target && $0 != "" { print }')
+    PATH="${PATH%:}"
+    export PATH
+fi
+unset VIRTUAL_ENV
+''' },
+]
 # dot-mise-leave:end -- DO NOT EDIT BETWEEN THESE COMMENTS

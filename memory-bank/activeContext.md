@@ -3,6 +3,36 @@
 
 ## Current Focus
 
+- `fastmail-inbox-triage` is implemented and accepted through the registered
+  direct-llama.cpp/Qwen v4 package. Its owner-authorized read-only acceptance
+  produced a contract-valid `needs_review` report with one `needs_reply` item,
+  no warnings, and no retained mailbox content; `1a72cb9` reconciled the
+  feature corpus and redacted receipt.
+- The LiteLLM-only Codex transport migration is postponed pending upstream
+  support for DAR's ChatGPT/Codex authentication, account-selection, and
+  lifecycle requirements. DAR retains its direct SDK path and package-owned
+  auth discovery; the compatibility analysis remains the re-entry criterion.
+- The routed `agent-engineering` Codex plugin release is complete at version
+  `0.1.1` in commit `58d928c`. Its regenerated routed payload and direct
+  fixture digest passed focused plugin tests and Ruff; the version was
+  published to, and installed from, the local
+  `bob-schumaker-codex-support` marketplace. Documentation for the plugin was
+  authored and built in the sibling marketplace-support repository; its commit
+  boundary remains separate from this DAR repository.
+- M4.4 clean-Codex replay diagnostics are captured in commits `cfc6335` and
+  `77a63d7`. The routed-plugin harness now supplies exact artifact roles to the
+  author prompt, selects the reviewed write-MCP template for approved
+  `email_body` sends, handles no-tool packages without requiring an MCP
+  binding, and records the full reviewed-MCP/artifact evidence. A targeted
+  `email-file-body-v1` replay passed authoring, registration, trusted ingress,
+  invocation, and evidence validation. Full manifest replay remains an
+  externally driven, serial run when launched; its older in-flight run does
+  not include the new progress instrumentation.
+- Future M4.4 runs emit flushed, redacted JSONL progress events
+  (`run_started`, `scenario_started`, `scenario_completed`, and
+  `run_completed`) beside the evidence directory by default, or at an explicit
+  `--progress-file` path. Events expose scenario index/count, status, terminal
+  phase, and actor duration without prompts, paths, or artifact contents.
 - `dar-authoring` is now a skills-only Codex plugin: it ships the adapted
   authoring skills and DAR support assets, but no plugin MCP server, session
   broker, or `run_dar_workflow` tool. Skills invoke DAR only through the
@@ -19,7 +49,7 @@
 - Commit `f219dc0` makes the ordinary suite default-deny for outbound IP
   sockets while preserving Unix-domain broker IPC; all provider/MCP unit paths
   use fakes. Commit `bef2d5d` records G0–G5's positive fixture map in
-  `specs/dar-authoring-plugin/validation.md` and tests that each named fixture
+  `specs/authored-workflow-runtime-v1/validation.md` and tests that each named fixture
   remains present. The full suite passed with 1072 tests and 4 explicit live
   skips; the mapped positive fixtures passed with 13 tests.
 - `dar-authoring-plugin` M0 (RA0 reproducible authoring baseline) is complete
@@ -653,19 +683,19 @@
 
 ## Next Steps
 
-- No Fastmail action is currently pending. For any distinct live operation,
-  obtain and review a current eligible-Mac `preflight-apple-mcp-tool` receipt,
-  then obtain separate human dispatch authorization; do not treat a `gateway`
-  receipt as authorization.
+- No Fastmail triage action is currently pending. Any distinct live operation
+  requires a current reviewed-surface receipt and separate human dispatch
+  authorization; an eligible-Mac preflight applies only when the Apple profile
+  is selected and never grants dispatch authority.
 - Before planning interpreter implementation, resolve the five remaining
   clarification items and run backend prototypes/benchmarks. Keep executable
   adapters caller-provided and descriptor frontmatter non-executable.
 - Run the `memory-aware-context-pipeline` declarative first-slice validation when
   it is scheduled, including the explicit decision to retain a distinct memory
   contract or fold it back into RAG.
-- Resume LiteLLM work only for upstream package publication, live Codex parity,
-  or an approved global-default migration; L2.2-L2.6 are complete as an
-  opt-in wrapper.
+- Revisit the LiteLLM-only Codex migration only after upstream support covers
+  DAR's ChatGPT/Codex auth, account selection, and lifecycle requirements; do
+  not replace the direct SDK path merely to consolidate clients.
 - If extending model event streaming beyond v1, create plan/tasks for
   provider-native token deltas, adapter streaming protocol, model-tool-loop
   progress events, cancellation/backpressure behavior, redaction/tool payload

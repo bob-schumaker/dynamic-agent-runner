@@ -1,0 +1,20 @@
+{
+  "interface": {
+    "displayName": "Dynamic Agent Runner"
+  },
+  "name": "dynamic-agent-runner",
+  "plugins": [
+    {
+      "category": "Productivity",
+      "name": "agent-engineering",
+      "policy": {
+        "authentication": "ON_INSTALL",
+        "installation": "AVAILABLE"
+      },
+      "source": {
+        "path": "./.codex-plugin/generated/agent-engineering",
+        "source": "local"
+      }
+    }
+  ]
+}

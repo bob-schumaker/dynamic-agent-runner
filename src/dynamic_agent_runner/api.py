@@ -20,6 +20,7 @@ from dynamic_agent_runner.executor import (
 )
 from dynamic_agent_runner.errors import WorkflowExecutionError
 from dynamic_agent_runner.hooks import WorkflowLifecycleHooks
+from dynamic_agent_runner.guardrails import InMemoryGuardrailRegistry
 from dynamic_agent_runner.models import CompiledAgentWorkflow, LoadedAgentWorkflow
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
@@ -150,6 +151,7 @@ def run_agent_workflow(
     tool_index: Any | None = None,
     runtime_overrides: Any | None = None,
     tool_registry: Any | None = None,
+    guardrail_registry: InMemoryGuardrailRegistry | None = None,
     model_adapter: ModelAdapterValue | None = None,
     max_steps: int | None = None,
     trace_sink: Any | None = None,
@@ -177,6 +179,7 @@ def run_agent_workflow(
             tool_index=tool_index,
             runtime_overrides=runtime_overrides,
             tool_registry=tool_registry,
+            guardrail_registry=guardrail_registry,
             model_adapter=model_adapter,
             max_steps=max_steps,
             trace_sink=trace_sink,
@@ -201,6 +204,7 @@ async def run_agent_workflow_async(
     tool_index: Any | None = None,
     runtime_overrides: Any | None = None,
     tool_registry: Any | None = None,
+    guardrail_registry: InMemoryGuardrailRegistry | None = None,
     model_adapter: ModelAdapterValue | None = None,
     max_steps: int | None = None,
     trace_sink: Any | None = None,
@@ -224,6 +228,7 @@ async def run_agent_workflow_async(
                 tool_index,
                 runtime_overrides,
                 tool_registry,
+                guardrail_registry,
                 model_adapter,
                 max_steps,
                 trace_sink,
@@ -265,6 +270,7 @@ async def run_agent_workflow_async(
         workflow,
         prompt=prompt,
         tool_registry=tool_registry,
+        guardrail_registry=guardrail_registry,
         model_adapter=model_adapter,
         max_steps=max_steps,
         trace_sink=trace_sink,

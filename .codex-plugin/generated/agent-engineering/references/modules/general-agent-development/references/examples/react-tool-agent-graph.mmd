@@ -1,0 +1,25 @@
+flowchart TD
+    subgraph reasoning[Reason about next route]
+        reason["LLM: Reason about next route"]
+    end
+
+    subgraph routing[Route to tool or final]
+        route_action{"Decision: Route action"}
+    end
+
+    subgraph action[Invoke approved tool]
+        search_knowledge_step["Tool Use: Search knowledge"]
+    end
+
+    subgraph completion[Complete]
+        final_response["LLM: Produce final response"]
+    end
+
+    search_knowledge[("Tool: Search knowledge base")]
+
+    reason -. "can call" .-> search_knowledge
+    reason -->|route token produced| route_action
+    route_action -->|tool| search_knowledge_step
+    search_knowledge_step -->|observation available| reason
+    search_knowledge_step -.->|loopback metadata| reason
+    route_action -->|final| final_response

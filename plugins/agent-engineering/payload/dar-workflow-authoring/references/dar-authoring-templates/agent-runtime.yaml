@@ -1,0 +1,46 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: dar-authoring-no-tool-template
+name: DAR Authoring No-Tool Template
+description: A bounded local no-tool workflow template.
+entrypoint: answer_request
+mermaid_diagram: agent-graph.mmd
+packaging:
+  mode: hybrid_bundle
+runtime:
+  execution_policy:
+    autonomy_level: assistive
+    allowed_execution_modes:
+      - sequential_fallback
+    external_backend_allowed: false
+    max_iterations: 1
+    max_steps: 2
+    model: local-model
+metadata:
+  patterns_present:
+    - basic-reasoning-agent
+  participant_groups: []
+  modes: []
+  phases: []
+  roles: []
+extensions: {}
+skills: []
+tools: []
+nodes:
+  - id: answer_request
+    kind: llm_step
+    label: Answer request
+    model: local-model
+    prompt:
+      system: Answer the user's request using only the supplied prompt.
+      user_template: "{prompt}"
+      input_vars:
+        - prompt
+edges: []
+output_contracts:
+  - id: final_answer
+    required_fields:
+      - message
+validation:
+  package_checks:
+    - Every node id is unique.

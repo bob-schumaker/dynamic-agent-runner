@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Mapping
@@ -12,6 +13,7 @@ from dynamic_agent_runner import (
     load_agent_package_workflow,
     run_agent_workflow,
 )
+from dynamic_agent_runner.guardrails import InMemoryGuardrailRegistry
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
     OpenAIClientAdapter,
@@ -33,6 +35,16 @@ from dynamic_agent_runner.workflow_host.catalog import (
     PackageCatalog,
     PackageCatalogError,
 )
+from dynamic_agent_runner.workflow_host.fastmail_triage import (
+    FastmailTriageBindingError,
+    create_fastmail_triage_search_binding,
+    default_fastmail_triage_query,
+    project_fastmail_triage_result,
+)
+from dynamic_agent_runner.workflow_host.fastmail_triage_report import (
+    FastmailTriageReportError,
+    normalize_fastmail_triage_report,
+)
 from dynamic_agent_runner.workflow_host.mcp_binding import (
     MCPWorkflowCapabilityBindingControlPlane,
 )
@@ -53,7 +65,10 @@ from dynamic_agent_runner.workflow_host.preparation import (
     SealedWorkflowInput,
     WorkflowInvocationPreparationService,
 )
-from dynamic_agent_runner.workflow_host.profiles import LocalModelProfile
+from dynamic_agent_runner.workflow_host.profiles import (
+    FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+    LocalModelProfile,
+)
 from dynamic_agent_runner.workflow_host.registration import (
     WorkflowRegistration,
     WorkflowRegistrationError,
@@ -155,6 +170,7 @@ class WorkflowRunner:
         *,
         now: datetime,
         approval_broker: LocalActionApprovalBroker | None = None,
+        guardrail_registry: InMemoryGuardrailRegistry | None = None,
     ) -> RunDarWorkflowResult:
         """Preflight, consume, and execute one sealed saved workflow."""
 
@@ -167,6 +183,7 @@ class WorkflowRunner:
                 terminal_output_contract,
             ) = self._preflight(request.workflow_id)
             self._validate_adapter(registration)
+            self._validate_guardrail_registry(package_root, guardrail_registry)
             sealed = self._preparation.load(
                 request.prepared_input_id, registration=registration, now=now
             )
@@ -187,11 +204,16 @@ class WorkflowRunner:
                 prompt=prompt,
                 model_adapter=self._model_adapter,
                 tool_registry=tool_registry,
+                guardrail_registry=guardrail_registry,
                 max_steps=policy.limits.max_steps,
                 model_adapter_coverage="strict",
                 run_id=run_id,
             )
-            output = _terminal_output(final_result, terminal_output_contract)
+            output = _terminal_output(
+                final_result,
+                terminal_output_contract,
+                adapter_id=self._configured_profile.adapter_id,
+            )
         except (
             WorkflowRegistrationError,
             PackageCatalogError,
@@ -279,6 +301,25 @@ class WorkflowRunner:
             terminal_output_contract,
         )
 
+    def _validate_guardrail_registry(
+        self,
+        package_root: Any,
+        guardrail_registry: InMemoryGuardrailRegistry | None,
+    ) -> None:
+        """Require every declared guardrail before consuming a sealed input."""
+
+        workflow = load_agent_package_workflow(str(package_root))
+        for declaration in workflow.runtime_manifest.guardrails:
+            guardrail_id = declaration.id
+            if (
+                not isinstance(guardrail_id, str)
+                or guardrail_registry is None
+                or not guardrail_registry.has_guardrail(guardrail_id)
+            ):
+                raise RunDarWorkflowError(
+                    "registered workflow guardrail is unavailable"
+                )
+
     def _tool_registry(
         self,
         policy: Any,
@@ -312,17 +353,34 @@ class WorkflowRunner:
             approval_grants = WorkflowRunApprovalGrants()
             bindings = []
             if read_tools:
-                bindings.extend(
-                    create_read_only_mcp_tool_bindings(
-                        policy=policy,
-                        binding_id=registration.mcp_binding_id,
-                        binding_control=self._mcp_bindings,
-                        client=self._mcp_client,
-                        surfaces=self._mcp_surfaces,
-                        tools=read_tools,
-                        counter=counter,
+                if (
+                    self._configured_profile.adapter_id
+                    == FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID
+                ):
+                    bindings.append(
+                        create_fastmail_triage_search_binding(
+                            policy=policy,
+                            binding_id=registration.mcp_binding_id,
+                            binding_control=self._mcp_bindings,
+                            client=self._mcp_client,
+                            surfaces=self._mcp_surfaces,
+                            query_builder=default_fastmail_triage_query,
+                            result_projector=project_fastmail_triage_result,
+                            now=lambda: now,
+                        )
                     )
-                )
+                else:
+                    bindings.extend(
+                        create_read_only_mcp_tool_bindings(
+                            policy=policy,
+                            binding_id=registration.mcp_binding_id,
+                            binding_control=self._mcp_bindings,
+                            client=self._mcp_client,
+                            surfaces=self._mcp_surfaces,
+                            tools=read_tools,
+                            counter=counter,
+                        )
+                    )
             if side_effect_tools:
                 if self._action_ledger is None:
                     raise RunDarWorkflowError("external action audit is unavailable")
@@ -370,7 +428,11 @@ class WorkflowRunner:
                     )
                 )
             return create_host_tool_registry(tuple(bindings))
-        except (AuthorizedToolBindingError, MCPToolBindingError) as error:
+        except (
+            AuthorizedToolBindingError,
+            FastmailTriageBindingError,
+            MCPToolBindingError,
+        ) as error:
             raise RunDarWorkflowError(
                 "registered MCP capability is unavailable"
             ) from error
@@ -421,11 +483,23 @@ def _render_prompt(prompt: str, additional_context: str) -> str:
     return f"{prompt}\n\nAdditional context:\n{additional_context}"
 
 
-def _terminal_output(value: object, contract: Mapping[str, Any]) -> dict[str, str]:
+def _terminal_output(
+    value: object,
+    contract: Mapping[str, Any],
+    *,
+    adapter_id: str,
+) -> dict[str, str]:
     if not isinstance(value, str) or not value:
         raise RunDarWorkflowError("workflow terminal output is not a message")
     if len(value.encode("utf-8")) > 32 * 1024:
         raise RunDarWorkflowError("workflow terminal output exceeds the response limit")
+    if adapter_id == FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID:
+        try:
+            value = json.dumps(
+                normalize_fastmail_triage_report(value), separators=(",", ":")
+            )
+        except FastmailTriageReportError as error:
+            raise RunDarWorkflowError("Fastmail terminal output is invalid") from error
     output = {"message": value}
     required_fields = contract.get("required_fields")
     if not isinstance(required_fields, list) or any(

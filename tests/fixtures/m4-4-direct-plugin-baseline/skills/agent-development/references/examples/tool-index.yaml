@@ -1,0 +1,149 @@
+# Example external tool index for agent runtime packages.
+#
+# Use this shape when tools are shared across multiple agent-runtime.yaml files or
+# when a runtime wants to load tool definitions separately from the graph
+# manifest. Runtime manifests can still inline a smaller `tools:` registry; this
+# index demonstrates a portable expanded catalog.
+format_version: 1
+index_type: agent_runtime_tool_index
+index_id: example-tool-index
+name: Example Tool Index
+
+usage:
+  intended_for:
+    - conceptual external runtime package examples
+    - reusable tool registry prototypes
+  default_import_mode: referenced_by_manifest
+  compatible_runtime_manifest_versions:
+    - 1
+  notes: |
+    Treat this index as a reusable catalog. A concrete agent-runtime.yaml should
+    reference only the tools it actually exposes to a given node or invokes from
+    a tool_use_step.
+
+tools:
+  - id: search_repo
+    label: Search repository
+    tool_type: file_read
+    description_for_llm: |
+      Search repository files for terms, paths, or implementation patterns.
+      Use this for read-only evidence gathering before planning edits.
+    adapter: runtime.search_files
+    input_schema:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          description: Search phrase or regular expression selected by the LLM.
+        path:
+          type: string
+          description: Optional repository-relative directory to search.
+        file_pattern:
+          type: string
+          description: Optional glob or suffix filter for candidate files.
+    output_schema:
+      type: object
+      properties:
+        matches:
+          type: array
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+              line:
+                type: integer
+              excerpt:
+                type: string
+    side_effect: read
+    approval_required: no
+    timeout: runtime_default
+    retry_policy: bounded
+    failure_behavior: fallback
+    skill_bindings:
+      - skill_id: agent-development
+        usage: shared_reference
+
+  - id: read_file
+    label: Read file
+    tool_type: file_read
+    description_for_llm: |
+      Read a repository file or a line range from a repository file. Use this
+      after search identifies a relevant source or reference file.
+    adapter: runtime.read_file
+    input_schema:
+      type: object
+      required:
+        - path
+      properties:
+        path:
+          type: string
+          description: Repository-relative file path.
+        start_line:
+          type: integer
+          description: Optional one-based start line.
+        end_line:
+          type: integer
+          description: Optional one-based end line.
+    output_schema:
+      type: object
+      properties:
+        path:
+          type: string
+        content:
+          type: string
+        truncated:
+          type: boolean
+    side_effect: read
+    approval_required: no
+    timeout: runtime_default
+    retry_policy: bounded
+    failure_behavior: escalate
+    skill_bindings:
+      - skill_id: agent-development
+        usage: instruction_context
+
+  - id: validate_runtime_manifest
+    label: Validate runtime manifest
+    tool_type: agent_tool
+    description_for_llm: |
+      Validate an agent-runtime.yaml file and, optionally, its Mermaid graph
+      against repository-local format_version 1 conventions.
+    adapter: scripts.validate_agent_runtime
+    input_schema:
+      type: object
+      required:
+        - manifest_path
+      properties:
+        manifest_path:
+          type: string
+          description: Repository-relative path to agent-runtime.yaml.
+        mermaid_path:
+          type: string
+          description: Optional repository-relative path to agent-graph.mmd.
+    output_schema:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+    side_effect: none
+    approval_required: no
+    timeout: runtime_default
+    retry_policy: none
+    failure_behavior: fail
+    skill_bindings:
+      - skill_id: agent-development
+        usage: tool_adapter
+
+skills:
+  - id: agent-development
+    source_type: repo_skill
+    source_path: corpus/capabilities/agent-development/SKILL.md
+    packaging_mode: referenced_only
+    notes: Provides the runtime package design conventions used by this index.

@@ -1,0 +1,23 @@
+{
+  "author": {
+    "email": "cobblers@pobox.com",
+    "name": "Bob Schumaker"
+  },
+  "description": "Design, validate, and run bounded Dynamic Agent Runner workflows.",
+  "interface": {
+    "capabilities": [
+      "Interactive"
+    ],
+    "category": "Productivity",
+    "composerIcon": "./assets/agent-engineering.png",
+    "defaultPrompt": "Design a bounded workflow and, when DAR is the explicit target, prepare it for DAR execution.",
+    "developerName": "Bob Schumaker",
+    "displayName": "Agent Engineering",
+    "logo": "./assets/agent-engineering.png",
+    "longDescription": "Moves the complete agent-engineering skill cohort into DAR, with a bounded DAR runtime profile for authored workflows.",
+    "shortDescription": "Design agents and implement DAR workflows."
+  },
+  "name": "agent-engineering",
+  "skills": "./skills/",
+  "version": "0.1.2"
+}

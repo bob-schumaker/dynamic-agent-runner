@@ -1,0 +1,18 @@
+{
+  "format_version": "m4.4-original-scenario-ids-v1",
+  "scenario_ids": [
+    "authoring-boundary-attack-v1",
+    "council-request-v1",
+    "document-embedding-v1",
+    "document-summary-v1",
+    "email-file-body-v1",
+    "generic-email-send-v1",
+    "hybrid-brief-v1",
+    "invocation-schema-boundary-attack-v1",
+    "mailbox-triage-v1",
+    "oauth-reconnect-v1",
+    "portable-package-handoff-v1",
+    "side-effect-recovery-v1",
+    "structured-single-model-review-v1"
+  ]
+}

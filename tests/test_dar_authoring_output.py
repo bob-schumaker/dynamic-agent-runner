@@ -22,7 +22,13 @@ from dynamic_agent_runner.workflow_host.authoring_output import (  # noqa: E402
 
 
 NOW = datetime(2026, 8, 24, tzinfo=UTC)
-TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
+TEMPLATE_ROOT = (
+    Path(__file__).resolve().parents[1]
+    / "specs"
+    / "agent-engineering-plugin-migration"
+    / "legacy-dar-authoring"
+    / "templates"
+)
 
 
 def _projection(

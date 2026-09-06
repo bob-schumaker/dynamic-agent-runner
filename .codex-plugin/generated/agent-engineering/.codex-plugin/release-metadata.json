@@ -1,0 +1,12 @@
+{
+  "control_surface": null,
+  "format_version": 1,
+  "integration_points": [],
+  "migration_contract_version": null,
+  "owned_integration_root": null,
+  "packager_format_version": 1,
+  "payload_fingerprint": "80a8f8c30adb11120d98a791e9a38e1ea79cbae953f83c7856cc0b9988012ad7",
+  "rollback_compatibility_hints": null,
+  "runtime_compatibility_version": "1",
+  "verification_targets": []
+}

@@ -28,6 +28,14 @@ from dynamic_agent_runner.openai_client import (
 from dynamic_agent_runner.apple_foundation_models import (
     preflight_apple_foundation_models,
 )
+from dynamic_agent_runner.workflow_host.fastmail_triage_model import (
+    FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+    FASTMAIL_TRIAGE_MODEL_ALIAS,
+    create_fastmail_triage_llama_cpp_adapter as _create_fastmail_triage_llama_cpp_adapter,
+)
+
+
+FASTMAIL_TRIAGE_MODEL_ID = "Qwen/Qwen2.5-3B-Instruct-GGUF"
 
 
 class LocalModelProfileError(ValueError):
@@ -155,7 +163,10 @@ class LocalModelProfileControlPlane:
         _nonempty(profile_requirement, "profile_requirement")
         if adapter_id == "strict-local-adapter-v1":
             _validate_loopback_base_url(base_url)
-        elif adapter_id == "apple-foundation-models-adapter-v1":
+        elif adapter_id in {
+            "apple-foundation-models-adapter-v1",
+            FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+        }:
             if base_url is not None:
                 raise LocalModelProfileError("local model profile is invalid")
         elif adapter_id == "hosted-openai-adapter-v1":
@@ -200,6 +211,18 @@ class LocalModelProfileControlPlane:
             model_id=model_id,
             execution_model_id=model_id,
             adapter_id="apple-foundation-models-adapter-v1",
+            base_url=None,
+            profile_requirement="local-general-model",
+            capabilities={"text_generation"},
+        )
+
+    def create_fastmail_triage_llama_cpp(self) -> LocalModelProfile:
+        """Persist the fixed offline Qwen profile for Fastmail triage only."""
+
+        return self._issue(
+            model_id=FASTMAIL_TRIAGE_MODEL_ID,
+            execution_model_id=FASTMAIL_TRIAGE_MODEL_ALIAS,
+            adapter_id=FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
             base_url=None,
             profile_requirement="local-general-model",
             capabilities={"text_generation"},
@@ -273,6 +296,19 @@ def create_local_adapter(profile: LocalModelProfile) -> OpenAIClientAdapter:
             expected_model_id=profile.model_id,
         )
     )
+
+
+def create_fastmail_triage_llama_cpp_adapter(profile: LocalModelProfile):
+    """Create the pinned direct Qwen adapter for its one matching profile."""
+
+    if (
+        profile.adapter_id != FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID
+        or profile.model_id != FASTMAIL_TRIAGE_MODEL_ID
+        or profile.execution_model_id != FASTMAIL_TRIAGE_MODEL_ALIAS
+        or profile.base_url is not None
+    ):
+        raise LocalModelProfileError("local model profile is invalid")
+    return _create_fastmail_triage_llama_cpp_adapter()
 
 
 def create_hosted_openai_adapter(profile: LocalModelProfile) -> OpenAIClientAdapter:
@@ -394,6 +430,7 @@ def _validate_profile_contract(
     if adapter_id in {
         "strict-local-adapter-v1",
         "apple-foundation-models-adapter-v1",
+        FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
     }:
         if profile_requirement != "local-general-model":
             raise LocalModelProfileError("local model profile is invalid")

@@ -1,4 +1,4 @@
-"""Keep live DAR-authoring claims bound to executable positive fixtures."""
+"""Keep v1 authored-workflow runtime claims bound to executable fixtures."""
 
 from __future__ import annotations
 
@@ -6,7 +6,9 @@ from pathlib import Path
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-VALIDATION_RECORD = REPOSITORY_ROOT / "specs" / "dar-authoring-plugin" / "validation.md"
+VALIDATION_RECORD = (
+    REPOSITORY_ROOT / "specs" / "authored-workflow-runtime-v1" / "validation.md"
+)
 LIVE_FIXTURE_SELECTORS = (
     "tests/test_verify_dar_package_wheel.py::test_verifier_runs_dar_package_from_an_isolated_wheel",
     "tests/test_dar_authoring_plugin.py::test_plugin_is_skills_only",

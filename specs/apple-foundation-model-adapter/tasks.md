@@ -100,7 +100,7 @@ fix, and eligible-Mac regression proof.
 
 ## A3 handoff
 
-Apple selection inside the sealed DAR-authoring host is governed by
+Apple selection inside the sealed authored-workflow runtime host is governed by
 `a3-plan.md` and `a3-tasks.md`. A3 C4 completed the Apple-backed Fastmail O7
 read-only acceptance with redacted evidence. This completed slice does not
 reopen A1/A2 or change generic OAuth/MCP ownership.

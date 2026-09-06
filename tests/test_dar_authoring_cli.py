@@ -19,7 +19,13 @@ from dynamic_agent_runner.workflow_host import cli  # noqa: E402
 from dynamic_agent_runner.workflow_host.cli import main, run_main  # noqa: E402
 
 
-TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
+TEMPLATE_ROOT = (
+    Path(__file__).resolve().parents[1]
+    / "specs"
+    / "agent-engineering-plugin-migration"
+    / "legacy-dar-authoring"
+    / "templates"
+)
 
 
 def _invoke(args: list[str]) -> tuple[int, dict[str, object]]:

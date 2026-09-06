@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -39,6 +40,7 @@ from dynamic_agent_runner.workflow_host.authoring_outputs import (
 from dynamic_agent_runner.workflow_host.authorized_tools import (
     LocalActionApprovalBroker,
 )
+from dynamic_agent_runner.guardrails import InMemoryGuardrailRegistry
 from dynamic_agent_runner.workflow_host.connections import (
     MCPAuthentication,
     MCPConnection,
@@ -107,6 +109,8 @@ from dynamic_agent_runner.workflow_host.profiles import (
     LocalModelProfile,
     LocalModelProfileControlPlane,
     LocalModelProfileError,
+    FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+    create_fastmail_triage_llama_cpp_adapter,
     create_hosted_openai_adapter,
     create_local_adapter,
 )
@@ -163,6 +167,8 @@ def _create_model_adapter(profile: LocalModelProfile):
         return create_apple_foundation_model_async_adapter(
             AppleFoundationModelConfig(model_aliases=(profile.model_id,))
         )
+    if profile.adapter_id == FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID:
+        return create_fastmail_triage_llama_cpp_adapter(profile)
     if profile.adapter_id == "hosted-openai-adapter-v1":
         return create_hosted_openai_adapter(profile)
     raise LocalWorkflowHostError("configured execution profile is unavailable")
@@ -271,6 +277,35 @@ def configure_apple_local_host(
         profile.profile_id,
         workspace_input_root,
         workspace_input_max_bytes,
+    )
+    _write_configuration(root, configuration)
+    return configuration
+
+
+def configure_fastmail_triage_llama_cpp_host(
+    *,
+    root: Path,
+    package_root: Path,
+    workspace_input_root: Path | None = None,
+    workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES,
+    mcp_client_configuration: MCPClientConfiguration | None = None,
+) -> LocalWorkflowHostConfiguration:
+    """Configure the fixed offline Qwen host profile for Fastmail triage."""
+
+    _validate_root(root)
+    _validate_package_root(package_root)
+    if workspace_input_root is not None:
+        _validate_workspace_input_root(workspace_input_root)
+    _validate_workspace_input_max_bytes(workspace_input_max_bytes)
+    profile = LocalModelProfileControlPlane(
+        store=PrivateStateStore(root)
+    ).create_fastmail_triage_llama_cpp()
+    configuration = LocalWorkflowHostConfiguration(
+        package_root,
+        profile.profile_id,
+        workspace_input_root,
+        workspace_input_max_bytes,
+        mcp_client_configuration,
     )
     _write_configuration(root, configuration)
     return configuration
@@ -604,7 +639,14 @@ class LocalWorkflowHost:
         self._mcp_bindings = mcp_bindings
 
     @classmethod
-    def open(cls, root: Path) -> LocalWorkflowHost:
+    def open(
+        cls,
+        root: Path,
+        *,
+        mcp_client_factory: Callable[[MCPClientConfiguration], MCPConnectionClient]
+        | None = None,
+        mcp_connections: MCPConnectionControlPlane | None = None,
+    ) -> LocalWorkflowHost:
         """Open a configured local host for the current OS user."""
 
         _validate_root(root)
@@ -612,14 +654,21 @@ class LocalWorkflowHost:
         store = PrivateStateStore(root)
         profiles = LocalModelProfileControlPlane(store=store)
         profile = profiles.load(configuration.profile_id)
-        connections = MCPConnectionControlPlane(store=store, profiles=profiles)
+        connections = mcp_connections or MCPConnectionControlPlane(
+            store=store, profiles=profiles
+        )
         surfaces = MCPSurfaceSnapshotControlPlane(store=store, connections=connections)
         mcp_bindings = MCPWorkflowCapabilityBindingControlPlane(
             store=store, surfaces=surfaces
         )
-        mcp_client = _mcp_client(
-            root=root, configuration=configuration, connections=connections
-        )
+        if mcp_client_factory is None:
+            mcp_client = _mcp_client(
+                root=root, configuration=configuration, connections=connections
+            )
+        elif configuration.mcp_client_configuration is None:
+            raise LocalWorkflowHostError("MCP client is not configured")
+        else:
+            mcp_client = mcp_client_factory(configuration.mcp_client_configuration)
         catalog = PackageCatalog(root / "catalog")
         registrations = WorkflowRegistrationService(
             profiles=profiles,
@@ -993,19 +1042,25 @@ class LocalWorkflowHost:
         package_name: str,
         prompt: str,
         workspace_files: Sequence[Path],
+        workspace_artifact_ids: Sequence[str] = (),
         dry_run: bool,
         approval_broker: LocalActionApprovalBroker | None,
+        guardrail_registry: InMemoryGuardrailRegistry | None = None,
         now: datetime,
     ) -> SavedWorkflowDryRunResult | RunDarWorkflowResult:
         """Run one registered saved package without accepting source authority."""
 
-        if dry_run and workspace_files:
+        if workspace_files and workspace_artifact_ids:
+            raise LocalWorkflowHostError(
+                "workspace files and artifacts cannot be combined"
+            )
+        if dry_run and (workspace_files or workspace_artifact_ids):
             raise LocalWorkflowHostError("dry run cannot accept workspace files")
         try:
             registration = self._registrations.resolve(package_name)
         except WorkflowRegistrationError as error:
             raise LocalWorkflowHostError("saved package is unavailable") from error
-        artifact_ids = tuple(
+        artifact_ids = tuple(workspace_artifact_ids) or tuple(
             self.ingress_default_file(
                 workflow_id=registration.workflow_id, path=path, now=now
             ).artifact_id
@@ -1036,6 +1091,7 @@ class LocalWorkflowHost:
             prepared_input_id=prepared.prepared_input_id,
             now=now,
             approval_broker=approval_broker,
+            guardrail_registry=guardrail_registry,
         )
 
     def ingress_file(
@@ -1139,6 +1195,7 @@ class LocalWorkflowHost:
         prepared_input_id: str,
         now: datetime,
         approval_broker: LocalActionApprovalBroker | None = None,
+        guardrail_registry: InMemoryGuardrailRegistry | None = None,
     ) -> RunDarWorkflowResult:
         """Execute a sealed local no-tool workflow through the one runner."""
 
@@ -1147,6 +1204,7 @@ class LocalWorkflowHost:
             _request(workflow_id, prepared_input_id),
             now=now,
             approval_broker=approval_broker,
+            guardrail_registry=guardrail_registry,
         )
 
     def run_traces(self) -> tuple[RedactedRunTrace, ...]:

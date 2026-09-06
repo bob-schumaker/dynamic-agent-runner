@@ -26,6 +26,7 @@ from dynamic_agent_runner.workflow_host.host import (
     authorize_mcp_oauth,
     configure_mcp_api_token,
     configure_apple_local_host,
+    configure_fastmail_triage_llama_cpp_host,
     configure_local_host,
     create_mcp_connection,
     inspect_discovered_mcp_oauth,
@@ -119,7 +120,11 @@ def run_main(
 def _configured_model(
     args: Any, *, root: Path
 ) -> LocalWorkflowHostConfiguration | None:
-    if args.command not in {"configure-local-model", "configure-apple-model"}:
+    if args.command not in {
+        "configure-local-model",
+        "configure-apple-model",
+        "configure-fastmail-triage-llama-cpp",
+    }:
         return None
     shared = {
         "root": root,
@@ -130,8 +135,10 @@ def _configured_model(
             else None
         ),
         "workspace_input_max_bytes": args.workspace_input_max_bytes,
-        "model_id": args.model_id,
     }
+    if args.command == "configure-fastmail-triage-llama-cpp":
+        return configure_fastmail_triage_llama_cpp_host(**shared)
+    shared["model_id"] = args.model_id
     if args.command == "configure-apple-model":
         return configure_apple_local_host(**shared)
     return configure_local_host(base_url=args.base_url, **shared)
@@ -156,6 +163,12 @@ def _parser() -> argparse.ArgumentParser:
         "--workspace-input-max-bytes", type=int, default=8 * 1024 * 1024
     )
     apple_configure.add_argument("--model-id", required=True)
+    fastmail_configure = commands.add_parser("configure-fastmail-triage-llama-cpp")
+    fastmail_configure.add_argument("--package-root", required=True)
+    fastmail_configure.add_argument("--workspace-input-root")
+    fastmail_configure.add_argument(
+        "--workspace-input-max-bytes", type=int, default=8 * 1024 * 1024
+    )
     issue_materials = commands.add_parser("issue-authoring-materials")
     issue_materials.add_argument("--materials-manifest", required=True, type=Path)
     project_materials = commands.add_parser("project-authoring-materials")

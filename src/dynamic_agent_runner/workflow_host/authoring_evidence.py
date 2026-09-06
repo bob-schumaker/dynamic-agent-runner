@@ -215,6 +215,20 @@ class AuthorThenRunEvidence:
     mcp_read_tool_names: tuple[str, ...] = ()
     mcp_read_call_count: int = 0
     forbidden_send_dispatch_count: int = 0
+    marketplace_manifest_digest: str | None = None
+    generated_manifest_digest: str | None = None
+    router_authority_digest: str | None = None
+    payload_manifest_digest: str | None = None
+    source_map_digest: str | None = None
+    release_metadata_digest: str | None = None
+    actor_durations_ms: tuple[int, ...] = ()
+    author_return_code: int | None = None
+    invocation_return_code: int | None = None
+    author_decisions: tuple[str, ...] = ()
+    invocation_decisions: tuple[str, ...] = ()
+    author_event_trace: tuple[str, ...] = ()
+    invocation_event_trace: tuple[str, ...] = ()
+    failure_reason: str | None = None
 
     def __post_init__(self) -> None:
         _validate_author_then_run_text(self)
@@ -224,6 +238,8 @@ class AuthorThenRunEvidence:
         _validate_optional_digests(self)
         _validate_author_then_run_terminal_phase(self)
         _validate_mcp_summary(self)
+        _validate_actor_durations(self.actor_durations_ms)
+        _validate_diagnostics(self)
 
     def to_mapping(self) -> dict[str, object]:
         """Return a redaction-safe stable evidence projection."""
@@ -260,6 +276,20 @@ class AuthorThenRunEvidence:
             "mcp_read_tool_names": list(self.mcp_read_tool_names),
             "mcp_read_call_count": self.mcp_read_call_count,
             "forbidden_send_dispatch_count": self.forbidden_send_dispatch_count,
+            "marketplace_manifest_digest": self.marketplace_manifest_digest,
+            "generated_manifest_digest": self.generated_manifest_digest,
+            "router_authority_digest": self.router_authority_digest,
+            "payload_manifest_digest": self.payload_manifest_digest,
+            "source_map_digest": self.source_map_digest,
+            "release_metadata_digest": self.release_metadata_digest,
+            "actor_durations_ms": list(self.actor_durations_ms),
+            "author_return_code": self.author_return_code,
+            "invocation_return_code": self.invocation_return_code,
+            "author_decisions": list(self.author_decisions),
+            "invocation_decisions": list(self.invocation_decisions),
+            "author_event_trace": list(self.author_event_trace),
+            "invocation_event_trace": list(self.invocation_event_trace),
+            "failure_reason": self.failure_reason,
         }
 
 
@@ -353,6 +383,12 @@ def _validate_optional_digests(evidence: AuthorThenRunEvidence) -> None:
         ),
         (evidence.action_trace_digest, "action_trace_digest"),
         (evidence.authoring_receipt_digest, "authoring_receipt_digest"),
+        (evidence.marketplace_manifest_digest, "marketplace_manifest_digest"),
+        (evidence.generated_manifest_digest, "generated_manifest_digest"),
+        (evidence.router_authority_digest, "router_authority_digest"),
+        (evidence.payload_manifest_digest, "payload_manifest_digest"),
+        (evidence.source_map_digest, "source_map_digest"),
+        (evidence.release_metadata_digest, "release_metadata_digest"),
     ):
         if value is not None:
             _digest(value, label)
@@ -388,6 +424,7 @@ def _validate_author_then_run_terminal_phase(evidence: AuthorThenRunEvidence) ->
             evidence.catalog_revision_digest,
             evidence.registration_digest,
             evidence.prepared_input_registration_digest,
+            evidence.marketplace_manifest_digest,
         )
         if any(value is None for value in required):
             raise AuthoringEvidenceError("positive evidence requires handoff digests")
@@ -407,6 +444,39 @@ def _validate_author_then_run_terminal_phase(evidence: AuthorThenRunEvidence) ->
     prohibited = _later_evidence_for_terminal_phase(evidence)
     if any(value is not None for value in prohibited):
         raise AuthoringEvidenceError("non-pass evidence contains later evidence")
+
+
+def _validate_actor_durations(value: tuple[int, ...]) -> None:
+    if not isinstance(value, tuple) or any(
+        not isinstance(duration, int) or isinstance(duration, bool) or duration < 0
+        for duration in value
+    ):
+        raise AuthoringEvidenceError("actor durations are invalid")
+
+
+def _validate_diagnostics(evidence: AuthorThenRunEvidence) -> None:
+    for value, label in (
+        (evidence.author_return_code, "author_return_code"),
+        (evidence.invocation_return_code, "invocation_return_code"),
+    ):
+        if value is not None and (not isinstance(value, int) or value < 0):
+            raise AuthoringEvidenceError(f"{label} is invalid")
+    for values, label in (
+        (evidence.author_decisions, "author_decisions"),
+        (evidence.invocation_decisions, "invocation_decisions"),
+        (evidence.author_event_trace, "author_event_trace"),
+        (evidence.invocation_event_trace, "invocation_event_trace"),
+    ):
+        if not isinstance(values, tuple) or any(
+            not isinstance(item, str) or not item or len(item) > 96 for item in values
+        ):
+            raise AuthoringEvidenceError(f"{label} is invalid")
+    if evidence.failure_reason is not None and (
+        not isinstance(evidence.failure_reason, str)
+        or not evidence.failure_reason
+        or len(evidence.failure_reason) > 96
+    ):
+        raise AuthoringEvidenceError("failure_reason is invalid")
 
 
 def _later_evidence_for_terminal_phase(

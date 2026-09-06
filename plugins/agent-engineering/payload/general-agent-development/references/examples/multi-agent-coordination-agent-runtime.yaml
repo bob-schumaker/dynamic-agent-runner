@@ -1,0 +1,481 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: multi-agent-coordination-agent
+name: Multi-agent Coordination Agent
+entrypoint: triage_request
+mermaid_diagram: multi-agent-coordination-agent-graph.mmd
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+runtime:
+  execution_policy:
+    autonomy_level: supervised_agent
+    allowed_execution_modes:
+    - sequential_fallback
+    external_backend_allowed: false
+    max_iterations: 4
+    max_steps: 8
+    timeout: unknown
+    exit_strategy:
+      terminal_conditions:
+      - final_response emitted
+      - escalation_request emitted
+      - specialist evidence unavailable
+      on_exhaustion: escalate
+      ambiguous_completion: clarify
+    approval_required_for:
+    - specialist delegation outside approved package scope
+    - external write or notification
+    forbidden_actions:
+    - let delegated specialists produce the final answer directly
+    - hide specialist uncertainty from the coordinator
+  state:
+    artifacts:
+    - id: user_request
+      description: Original coordination request
+      source: user
+    - id: intake_brief
+      description: Coordinator's normalized task brief
+      source: llm
+    - id: research_findings
+      description: Bounded research specialist result
+      source: tool
+    - id: risk_review
+      description: Bounded risk specialist result
+      source: tool
+    - id: synthesis_plan
+      description: Coordinator route after reviewing specialist outputs
+      source: runtime
+    - id: final_response
+      description: Coordinator-owned final response
+      source: llm
+    - id: escalation_request
+      description: Request for human review when specialist evidence conflicts
+      source: llm
+    mutable_fields:
+    - synthesis_plan
+metadata:
+  patterns_present:
+  - multi_agent
+  - routing
+  - parallelization
+  participant_groups:
+  - id: specialist_pool
+    label: Callable specialist pool
+    roles:
+    - research_specialist
+    - risk_reviewer
+  modes:
+  - id: default
+    description: Coordinator-owned specialist delegation mode
+    enabled_phases:
+    - intake
+    - specialist_review
+    - coordination_gate
+    - synthesis
+    batching_allowed: true
+  phases:
+  - id: intake
+    label: Intake
+    phase_kind: preparation
+    repeatable: false
+    enabled_when: always
+  - id: specialist_review
+    label: Specialist review
+    phase_kind: preparation
+    repeatable: false
+    participant_group: specialist_pool
+    peer_visibility: summary_only
+    enabled_when: intake_brief_available
+  - id: coordination_gate
+    label: Coordination gate
+    phase_kind: decision_gate
+    repeatable: false
+    enabled_when: specialist_outputs_available
+  - id: synthesis
+    label: Synthesis
+    phase_kind: aggregation
+    repeatable: false
+    enabled_when: synthesis_plan_available
+  roles:
+  - id: coordinator
+    actor: coordinator
+    description: Owns task framing, specialist delegation, final synthesis, and escalation.
+  - id: research_specialist
+    actor: callable_specialist
+    description: Provides bounded factual context for the coordinator.
+  - id: risk_reviewer
+    actor: callable_specialist
+    description: Reviews safety, policy, and ambiguity risks before synthesis.
+  handoffs:
+  - id: research_to_coordinator
+    kind: ownership_transfer
+    from_role: research_specialist
+    to_role: coordinator
+    trigger: research findings complete
+    carries:
+    - research_findings
+  - id: risk_to_coordinator
+    kind: ownership_transfer
+    from_role: risk_reviewer
+    to_role: coordinator
+    trigger: risk review complete
+    carries:
+    - risk_review
+  delegated_agents:
+  - id: research_delegate
+    tool_id: call_research_specialist
+    delegation_mode: bounded_subtask
+    returns_to: coordinator
+    result_contract:
+      type: research_findings
+  - id: risk_delegate
+    tool_id: call_risk_reviewer
+    delegation_mode: bounded_subtask
+    returns_to: coordinator
+    result_contract:
+      type: risk_review
+  completion_contract:
+    mechanism: coordinator_final_response_or_escalation
+    ambiguous_completion: escalate
+  result_surfaces:
+    final_output: true
+    continuation_state: true
+    audit_records: true
+  permission_profile:
+    filesystem: read
+    network: none
+    process: none
+  trace_bundle:
+    payload_capture: redacted
+    layering:
+    - workflow_trace
+    - coordinator_decisions
+    - specialist_spans
+extensions: {}
+skills:
+- id: agent-development
+  label: Agent development skill
+  source_type: repo_skill
+  source_path: corpus/capabilities/agent-development/SKILL.md
+  packaging_mode: bundled_copy
+  bundled_path: skill-bundle/agent-development/SKILL.md
+  support_files:
+  - source_path: corpus/capabilities/agent-development/references/agent-runtime-package.md
+    bundled_path: skill-bundle/agent-development/references/agent-runtime-package.md
+  notes: Provides runtime package design conventions.
+tools:
+- id: call_research_specialist
+  label: Call research specialist
+  tool_type: agent_tool
+  description_for_llm: |
+    Delegate a bounded factual research task to a specialist and return a
+    compact evidence-backed summary.
+  adapter: runtime.call_specialist
+  input_schema:
+    type: object
+    required:
+    - intake_brief
+    properties:
+      intake_brief:
+        type: string
+  output_schema:
+    type: object
+    properties:
+      findings:
+        type: array
+      confidence:
+        type: string
+  side_effect: none
+  approval_required: false
+  timeout: runtime_default
+  retry_policy: bounded
+  failure_behavior: fallback
+  skill_bindings:
+  - skill_id: agent-development
+    usage: shared_reference
+- id: call_risk_reviewer
+  label: Call risk reviewer
+  tool_type: agent_tool
+  description_for_llm: |
+    Delegate a bounded risk review and return only actionable concerns,
+    uncertainty, and escalation recommendations.
+  adapter: runtime.call_specialist
+  input_schema:
+    type: object
+    required:
+    - intake_brief
+    properties:
+      intake_brief:
+        type: string
+  output_schema:
+    type: object
+    properties:
+      risks:
+        type: array
+      escalation_needed:
+        type: boolean
+  side_effect: none
+  approval_required: false
+  timeout: runtime_default
+  retry_policy: bounded
+  failure_behavior: fallback
+  skill_bindings:
+  - skill_id: agent-development
+    usage: shared_reference
+nodes:
+- id: triage_request
+  kind: llm_step
+  label: Triage request
+  actor: coordinator
+  role: coordinator
+  phase: intake
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    reasoning_profile:
+      level: low
+      task_type: extraction
+      task_subtype: synthesis
+      uncertainty_handling: ask_clarification
+    context_requirements:
+      expected_input_size: small
+      context_window: 8000
+      needs_retrieved_context: false
+    output_requirements:
+      format: schema_ref
+      schema_ref: intake_brief
+      evidence_citations: not_needed
+    operational_preferences:
+      latency_sensitivity: medium
+      cost_sensitivity: medium
+      determinism: preferred
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: escalate
+      minimum_acceptable_level: low
+  prompt:
+    system: |
+      Normalize the coordination request into a compact specialist-ready brief.
+    developer: |
+      Preserve constraints and identify which specialist evidence is needed.
+    user_template: |
+      Request: {user_request}
+    input_vars:
+    - user_request
+    output_schema_ref: intake_brief
+  inputs_from:
+  - user_request
+  outputs:
+  - intake_brief
+- id: delegate_research
+  kind: tool_use_step
+  label: Delegate research
+  actor: runtime
+  phase: specialist_review
+  tool_id: call_research_specialist
+  inputs_from:
+  - intake_brief
+  outputs:
+  - research_findings
+  failure_behavior: fallback
+- id: delegate_risk_review
+  kind: tool_use_step
+  label: Delegate risk review
+  actor: runtime
+  phase: specialist_review
+  tool_id: call_risk_reviewer
+  inputs_from:
+  - intake_brief
+  outputs:
+  - risk_review
+  failure_behavior: fallback
+- id: coordinate_specialists
+  kind: decision_step
+  decision_subtype: simple_check
+  label: Coordinate specialists
+  actor: coordinator
+  phase: coordination_gate
+  decision_contract:
+    compares:
+    - research_findings
+    - risk_review
+    allowed_paths:
+    - id: synthesize
+      condition: enough evidence and no blocking risk
+      target: synthesize_response
+    - id: escalate
+      condition: specialist conflict or blocking risk remains
+      target: request_escalation
+    default_path: escalate
+  inputs_from:
+  - research_findings
+  - risk_review
+  outputs:
+  - synthesis_plan
+- id: synthesize_response
+  kind: llm_step
+  label: Synthesize response
+  actor: coordinator
+  role: coordinator
+  phase: synthesis
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    reasoning_profile:
+      level: medium
+      task_type: generation
+      task_subtype: synthesis
+      uncertainty_handling: answer_with_caveats
+    context_requirements:
+      expected_input_size: medium
+      context_window: 16000
+      needs_retrieved_context: true
+    output_requirements:
+      format: schema_ref
+      schema_ref: final_response
+      evidence_citations: preferred
+    operational_preferences:
+      latency_sensitivity: medium
+      cost_sensitivity: medium
+      determinism: balanced
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: escalate
+      minimum_acceptable_level: medium
+  prompt:
+    system: |
+      Produce the coordinator-owned final answer from specialist results.
+    developer: |
+      Cite specialist uncertainty and keep final ownership with the coordinator.
+    user_template: |
+      Brief: {intake_brief}
+      Research: {research_findings}
+      Risk: {risk_review}
+    input_vars:
+    - intake_brief
+    - research_findings
+    - risk_review
+    output_schema_ref: final_response
+  inputs_from:
+  - intake_brief
+  - research_findings
+  - risk_review
+  outputs:
+  - final_response
+- id: request_escalation
+  kind: llm_step
+  label: Request escalation
+  actor: coordinator
+  role: coordinator
+  phase: synthesis
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    reasoning_profile:
+      level: low
+      task_type: generation
+      task_subtype: synthesis
+      uncertainty_handling: escalate
+    context_requirements:
+      expected_input_size: medium
+      context_window: 8000
+      needs_retrieved_context: true
+    output_requirements:
+      format: schema_ref
+      schema_ref: escalation_request
+      evidence_citations: preferred
+    operational_preferences:
+      latency_sensitivity: high
+      cost_sensitivity: medium
+      determinism: preferred
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: use_lower_capability
+      minimum_acceptable_level: minimal
+  prompt:
+    system: |
+      Ask for human review when specialist outputs conflict or risk remains.
+    developer: |
+      State the blocking evidence and the decision needed from the human.
+    user_template: |
+      Research: {research_findings}
+      Risk: {risk_review}
+    input_vars:
+    - research_findings
+    - risk_review
+    output_schema_ref: escalation_request
+  inputs_from:
+  - research_findings
+  - risk_review
+  outputs:
+  - escalation_request
+edges:
+- from: triage_request
+  to: delegate_research
+  edge_kind: parallel_fanout
+  condition: intake_brief_available
+  carries:
+  - intake_brief
+- from: triage_request
+  to: delegate_risk_review
+  edge_kind: parallel_fanout
+  condition: intake_brief_available
+  carries:
+  - intake_brief
+- from: delegate_research
+  to: coordinate_specialists
+  edge_kind: parallel_join
+  condition: research_findings_available
+  carries:
+  - research_findings
+- from: delegate_risk_review
+  to: coordinate_specialists
+  edge_kind: parallel_join
+  condition: risk_review_available
+  carries:
+  - risk_review
+- from: coordinate_specialists
+  to: synthesize_response
+  edge_kind: branch
+  condition: synthesize
+  carries:
+  - synthesis_plan
+- from: coordinate_specialists
+  to: request_escalation
+  edge_kind: branch
+  condition: escalate
+  carries:
+  - synthesis_plan
+output_contracts:
+- id: intake_brief
+  required_fields:
+  - task
+  - constraints
+  - specialist_inputs
+  validation: manual_review
+- id: final_response
+  required_fields:
+  - answer
+  - evidence_summary
+  - caveats
+  validation: manual_review
+- id: escalation_request
+  required_fields:
+  - blocking_issue
+  - requested_decision
+  validation: manual_review
+validation:
+  package_checks:
+  - Coordinator owns the final answer.
+  - Specialist tools return bounded subtask outputs.
+  - Every branch preserves explicit escalation behavior.

@@ -1,23 +1,30 @@
 #!/usr/bin/env python3
 """Run the mandatory CLI-first M4.4 clean-Codex acceptance cases.
 
-The controller owns fixture state and package registration. Codex sees the
-installed DAR authoring skill, opaque material IDs, and a local DAR wheel; it
-uses DAR only through ``uv run ... dar-package``.
+The controller owns fixture state, package registration, and the test-owned
+``dar-package`` launcher. Codex sees only the installed successor skill,
+opaque material IDs, and declared text inputs.
 """
 
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime
 import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Any, Sequence
+import time
+from threading import Event, Thread
+from typing import Any, Callable, Mapping, Sequence
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
 from dynamic_agent_runner.workflow_host.authoring_evidence import (
     AuthorThenRunEvidence,
@@ -29,7 +36,22 @@ from dynamic_agent_runner.workflow_host.authoring_materials import (
 from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
     LocalWorkflowHostError,
+    attach_mcp_client,
     configure_local_host,
+)
+from dynamic_agent_runner.workflow_host.connections import MCPConnectionControlPlane
+from dynamic_agent_runner.workflow_host.mcp_client import MCPClientConfiguration
+from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool
+from dynamic_agent_runner.workflow_host.oauth import OAuthTokenBundle
+from dynamic_agent_runner.workflow_host.authorized_tools import LocalApprovalDecision
+from dynamic_agent_runner.workflow_host.package_controller import (
+    serve_package_controller,
+)
+from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControlPlane
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore
+from dynamic_agent_runner.guardrails import (
+    GuardrailResult,
+    InMemoryGuardrailRegistry,
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
@@ -38,11 +60,20 @@ from m4_4_clean_codex import (  # noqa: E402 - repository test corpus import.
     M44CleanCodexError,
     build_clean_codex_environment,
     create_marketplace,
+    stage_dar_package,
 )
+from m4_4_deterministic import run_fixture_contract  # noqa: E402
 from m4_4_scenarios import (  # noqa: E402 - repository test corpus import.
+    M44Coverage,
+    M44ExternalScenarioPlan,
     M44Scenario,
     M44ScenarioError,
+    load_m44_coverage,
+    load_m44_external_scenario_plan,
+    load_m44_original_scenario_ids,
     load_m44_scenario,
+    validate_m44_external_scenario_plan,
+    validate_m44_original_scenario_admission,
     validate_m44_evidence,
 )
 
@@ -51,12 +82,259 @@ class HarnessError(ValueError):
     """Raised when M4.4 cannot produce a valid redacted acceptance record."""
 
 
+_ORIGINAL_SCENARIO_IDS = (
+    Path(__file__).resolve().parents[1]
+    / "tests"
+    / "fixtures"
+    / "m4-4-original-scenario-ids.json"
+)
+
+
+class _ApprovedActionBroker:
+    """Deterministic controller-only approval for declared positive fixtures."""
+
+    def decide(self, **_kwargs: object) -> LocalApprovalDecision:
+        return LocalApprovalDecision.APPROVED
+
+
+class _ControllerSecretStore:
+    """Ephemeral controller credential storage for deterministic MCP setup."""
+
+    def __init__(self) -> None:
+        self._values: dict[str, str] = {}
+
+    def store(self, secret: str) -> str:
+        reference = f"m44-fixture-{len(self._values) + 1}"
+        self._values[reference] = secret
+        return reference
+
+    def load(self, reference: str) -> str:
+        return self._values[reference]
+
+    def delete(self, reference: str) -> None:
+        del self._values[reference]
+
+    def replace(self, reference: str, secret: str) -> None:
+        self._values[reference] = secret
+
+
+class _ControllerMCPClient:
+    """Fixed reviewed MCP surface with no transport or credential access."""
+
+    def __init__(self, configuration: MCPClientConfiguration) -> None:
+        self.connection_id = configuration.connection_id
+        self.authentication_id = configuration.authentication_id
+        self._generation = 0
+        self.calls: list[tuple[str, dict[str, object]]] = []
+
+    @property
+    def current_generation(self) -> int:
+        if self._generation == 0:
+            raise ValueError("controller MCP client is not initialized")
+        return self._generation
+
+    def initialize(self) -> None:
+        self._generation = 1
+
+    def list_tools(self) -> tuple[MCPDiscoveredTool, ...]:
+        return (
+            MCPDiscoveredTool(
+                name="list_unread",
+                input_schema={"type": "object", "properties": {}},
+            ),
+            MCPDiscoveredTool(
+                name="lookup_records",
+                input_schema={"type": "object", "properties": {}},
+            ),
+            MCPDiscoveredTool(
+                name="send_email",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "recipient": {"type": "string"},
+                        "body": {"type": "string"},
+                    },
+                    "required": ["recipient", "body"],
+                },
+            ),
+        )
+
+    def call_tool(self, name: str, arguments: dict[str, object]) -> dict[str, object]:
+        self.calls.append((name, arguments))
+        return {"content": [{"type": "text", "text": "fixture result"}]}
+
+
+class _ControllerFixtures:
+    """The concrete collaborators available to one controller-run scenario."""
+
+    def __init__(
+        self,
+        *,
+        fixture_ids: tuple[str, ...],
+        approval_broker_factory: Callable[[], object] | None = None,
+        guardrail_registry: InMemoryGuardrailRegistry | None = None,
+    ) -> None:
+        self.fixture_ids = fixture_ids
+        self.approval_broker_factory = approval_broker_factory
+        self.guardrail_registry = guardrail_registry
+
+
+def _controller_available_gates() -> tuple[str, ...]:
+    """Return the M4.4 gates implemented by the deterministic controller."""
+
+    return ("G2", "G3", "G4", "G5")
+
+
+def _configure_controller_mcp(
+    *, state_root: Path, profile_id: str, use_oauth: bool = False
+) -> tuple[_ControllerMCPClient, MCPConnectionControlPlane]:
+    """Persist a fixture-only reviewed connection without touching a network."""
+
+    store = PrivateStateStore(state_root)
+    connections = MCPConnectionControlPlane(
+        store=store,
+        profiles=LocalModelProfileControlPlane(store=store),
+        secret_store=_ControllerSecretStore(),
+    )
+    connection = connections.create(
+        profile_id=profile_id,
+        endpoint="https://m44-controller.invalid/mcp",
+        scopes=("mail.read",),
+        authentication_method=(
+            "oauth_authorization_code_pkce_loopback" if use_oauth else "api_token"
+        ),
+    )
+    authentication = (
+        connections.configure_oauth_token(
+            connection.connection_id,
+            OAuthTokenBundle(access_token="fixture-access").secret_value(),
+            token_endpoint="https://m44-controller.invalid/token",
+            client_id="m44-controller",
+        )
+        if use_oauth
+        else connections.configure_api_token(connection.connection_id, "fixture-token")
+    )
+    attached = attach_mcp_client(
+        root=state_root,
+        connection_id=connection.connection_id,
+        authentication_id=authentication.authentication_id,
+        peer_certificate_sha256="a" * 64,
+        timeout_seconds=1,
+        max_response_bytes=32768,
+    )
+    if attached.mcp_client_configuration is None:
+        raise HarnessError("controller MCP fixture is unavailable")
+    client = _ControllerMCPClient(attached.mcp_client_configuration)
+    client.initialize()
+    return client, connections
+
+
+def _controller_fixtures(contract: M44Scenario) -> _ControllerFixtures:
+    """Provision only the collaborators this controller really owns."""
+
+    fixture_ids = {"local-model-profile", "authoring-broker", "workflow-registration"}
+    approval_broker_factory: Callable[[], object] | None = None
+    handlers = {}
+    if contract.expected_status == "pass":
+        if "reviewed-mcp-connection" in contract.required_host_fixtures:
+            fixture_ids.add("reviewed-mcp-connection")
+        if "oauth-connection" in contract.required_host_fixtures:
+            fixture_ids.update(
+                {
+                    "fake-oauth-provider",
+                    "oauth-connection",
+                    "reviewed-mcp-connection",
+                }
+            )
+        if "trusted-workspace-ingress" in contract.required_host_fixtures:
+            fixture_ids.add("trusted-workspace-ingress")
+        if "approval-broker" in contract.required_host_fixtures:
+            fixture_ids.add("approval-broker")
+            approval_broker_factory = _ApprovedActionBroker
+        if "input-guardrail-registry" in contract.required_host_fixtures:
+            fixture_ids.add("input-guardrail-registry")
+            handlers["require_input"] = lambda _subject: GuardrailResult(
+                guardrail_id="require_input"
+            )
+        if "tool-input-guardrail-registry" in contract.required_host_fixtures:
+            fixture_ids.add("tool-input-guardrail-registry")
+            handlers["require_tool_input"] = lambda _subject: GuardrailResult(
+                guardrail_id="require_tool_input", phase="tool_input"
+            )
+    return _ControllerFixtures(
+        fixture_ids=tuple(sorted(fixture_ids)),
+        approval_broker_factory=approval_broker_factory,
+        guardrail_registry=InMemoryGuardrailRegistry(handlers) if handlers else None,
+    )
+
+
+def write_manifest_evidence(
+    *,
+    evidence_directory: Path,
+    coverage_source: Path,
+    scenario_plan_source: Path,
+    scenario_roots: tuple[Path, ...],
+    records: tuple[AuthorThenRunEvidence, ...],
+) -> Path:
+    """Write one complete redacted evidence set for the closed external replay."""
+
+    coverage = load_m44_coverage(coverage_source)
+    plan = load_m44_external_scenario_plan(scenario_plan_source)
+    validate_m44_external_scenario_plan(
+        plan, coverage=coverage, scenario_roots=scenario_roots
+    )
+    validate_m44_original_scenario_admission(
+        load_m44_original_scenario_ids(_ORIGINAL_SCENARIO_IDS),
+        plan=plan,
+        coverage=coverage,
+        scenario_roots=scenario_roots,
+    )
+    _validate_manifest_records(records, coverage=coverage, plan=plan)
+    if evidence_directory.exists() or not evidence_directory.is_absolute():
+        raise HarnessError("external evidence directory must be fresh and absolute")
+    evidence_directory.mkdir(mode=0o700, parents=True)
+    aggregate_records: list[dict[str, str]] = []
+    for record in sorted(records, key=lambda value: value.scenario_id):
+        destination = evidence_directory / record.scenario_id / "author-then-run.json"
+        write_author_then_run_evidence(destination, record)
+        aggregate_records.append(
+            {
+                "scenario_id": record.scenario_id,
+                "observed_status": record.observed_status,
+                "record_digest": _digest_file(destination),
+                "actor_duration_ms": sum(record.actor_durations_ms),
+            }
+        )
+    aggregate = {
+        "format_version": "m4.4-external-evidence-v1",
+        "coverage_digest": _digest_file(coverage_source),
+        "scenario_plan_digest": _digest_file(scenario_plan_source),
+        "records": aggregate_records,
+        "actor_duration_ms": sum(
+            record["actor_duration_ms"] for record in aggregate_records
+        ),
+    }
+    destination = evidence_directory / "aggregate.json"
+    destination.write_text(
+        json.dumps(aggregate, sort_keys=True, separators=(",", ":")), encoding="utf-8"
+    )
+    os.chmod(destination, 0o600)
+    return destination
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run one mandatory clean-Codex M4.4 scenario."""
+    """Run the complete manifest-defined clean-Codex M4.4 acceptance replay."""
 
     arguments = _arguments(argv)
+    if arguments.progress_file is None:
+        arguments.progress_file = arguments.evidence_directory.with_name(
+            f"{arguments.evidence_directory.name}.progress.jsonl"
+        )
     try:
-        evidence = run_scenario(**vars(arguments))
+        with _fake_model_server() as base_url:
+            aggregate = run_manifest(
+                **vars(arguments), model_id="openai/local-model", base_url=base_url
+            )
     except (
         HarnessError,
         LocalWorkflowHostError,
@@ -65,8 +343,212 @@ def main(argv: Sequence[str] | None = None) -> int:
     ) as error:
         print(f"M4.4 clean-Codex harness failed: {error}")
         return 2
-    print(json.dumps(evidence.to_mapping(), sort_keys=True, separators=(",", ":")))
+    print(aggregate.read_text(encoding="utf-8"))
     return 0
+
+
+@contextmanager
+def _fake_model_server():
+    """Run the controller-owned deterministic model fixture for one replay."""
+
+    port = _available_loopback_port()
+    fixture = Path(__file__).with_name("serve_m4_4_fake_model.py")
+    process = subprocess.Popen(
+        [sys.executable, str(fixture), "--port", str(port)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    try:
+        base_url = f"http://127.0.0.1:{port}/v1"
+        _wait_for_fake_model(base_url, process)
+        yield base_url
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+
+
+def _wait_for_fake_model(base_url: str, process: subprocess.Popen[str]) -> None:
+    for _ in range(20):
+        if process.poll() is not None:
+            raise HarnessError("deterministic fake model did not start")
+        try:
+            with urlopen(f"{base_url}/models", timeout=0.1) as response:  # noqa: S310
+                if response.status == 200:
+                    return
+        except OSError:
+            time.sleep(0.05)
+    raise HarnessError("deterministic fake model did not start")
+
+
+def _available_loopback_port() -> int:
+    import socket
+
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        return int(listener.getsockname()[1])
+
+
+@contextmanager
+def _package_controller(
+    *,
+    host: LocalWorkflowHost,
+    socket_path: Path,
+    allowed_commands: tuple[str, ...],
+    approval_broker_factory: Callable[[], object] | None = None,
+    guardrail_registry: InMemoryGuardrailRegistry | None = None,
+    workspace_artifact_ids: list[str] | None = None,
+):
+    stop_event = Event()
+    thread = Thread(
+        target=serve_package_controller,
+        kwargs={
+            "socket_path": socket_path,
+            "host": host,
+            "allowed_commands": allowed_commands,
+            "stop_event": stop_event,
+            "approval_broker_factory": approval_broker_factory,
+            "guardrail_registry": guardrail_registry,
+            "workspace_artifact_ids": (
+                workspace_artifact_ids if workspace_artifact_ids is not None else ()
+            ),
+        },
+        daemon=True,
+    )
+    thread.start()
+    for _ in range(20):
+        if socket_path.exists():
+            break
+        time.sleep(0.01)
+    if not socket_path.is_socket():
+        stop_event.set()
+        thread.join(timeout=1)
+        raise HarnessError("package controller did not start")
+    try:
+        yield socket_path
+    finally:
+        stop_event.set()
+        thread.join(timeout=1)
+        if thread.is_alive():
+            raise HarnessError("package controller did not stop")
+
+
+def run_manifest(
+    *,
+    coverage: Path,
+    scenario_plan: Path,
+    scenario_roots: tuple[Path, ...],
+    evidence_directory: Path,
+    codex_home: Path,
+    plugin_root: Path,
+    wheel: Path,
+    materials: Path,
+    model_id: str,
+    base_url: str,
+    reviewer_id: str | None,
+    reviewer_decision: str,
+    codex_executable: str,
+    timeout: int,
+    plugin_surface: str = "generated-root",
+    progress_file: Path | None = None,
+) -> Path:
+    """Replay every closed-plan scenario and write its one aggregate evidence set."""
+
+    _validate_deterministic_model(model_id, base_url)
+    coverage_contract = load_m44_coverage(coverage)
+    plan = load_m44_external_scenario_plan(scenario_plan)
+    validate_m44_external_scenario_plan(
+        plan, coverage=coverage_contract, scenario_roots=scenario_roots
+    )
+    validate_m44_original_scenario_admission(
+        load_m44_original_scenario_ids(_ORIGINAL_SCENARIO_IDS),
+        plan=plan,
+        coverage=coverage_contract,
+        scenario_roots=scenario_roots,
+    )
+    sources = _scenario_sources(scenario_roots)
+    _verify_fixture_contracts(plan, sources)
+    _write_progress_event(
+        progress_file,
+        {"event": "run_started", "scenario_count": len(plan.entries)},
+    )
+    records_list: list[AuthorThenRunEvidence] = []
+    for index, entry in enumerate(plan.entries, start=1):
+        _write_progress_event(
+            progress_file,
+            {
+                "event": "scenario_started",
+                "index": index,
+                "scenario_count": len(plan.entries),
+                "scenario_id": entry.scenario_id,
+            },
+        )
+        record = run_scenario(
+            scenario=sources[entry.scenario_id],
+            codex_home=codex_home,
+            plugin_root=plugin_root,
+            wheel=wheel,
+            package_name=entry.package_name,
+            workflow_id=entry.workflow_id,
+            author_prompt=entry.author_request,
+            run_prompt=entry.run_request,
+            materials=materials,
+            model_id=model_id,
+            base_url=base_url,
+            evidence=None,
+            reviewer_id=reviewer_id,
+            reviewer_decision=reviewer_decision,
+            codex_executable=codex_executable,
+            timeout=timeout,
+            plugin_surface=plugin_surface,
+        )
+        records_list.append(record)
+        _write_progress_event(
+            progress_file,
+            {
+                "event": "scenario_completed",
+                "index": index,
+                "scenario_count": len(plan.entries),
+                "scenario_id": record.scenario_id,
+                "observed_status": record.observed_status,
+                "terminal_phase": record.terminal_phase,
+                "actor_duration_ms": sum(record.actor_durations_ms),
+                "failure_reason": record.failure_reason,
+            },
+        )
+    records = tuple(records_list)
+    _write_progress_event(
+        progress_file,
+        {"event": "run_completed", "scenario_count": len(records)},
+    )
+    return write_manifest_evidence(
+        evidence_directory=evidence_directory,
+        coverage_source=coverage,
+        scenario_plan_source=scenario_plan,
+        scenario_roots=scenario_roots,
+        records=records,
+    )
+
+
+def _write_progress_event(
+    progress_file: Path | None, event: Mapping[str, object]
+) -> None:
+    """Append one redacted live-replay event for operator observability."""
+
+    if progress_file is None:
+        return
+    if not progress_file.is_absolute():
+        raise HarnessError("progress file must be absolute")
+    progress_file.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with progress_file.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(event, sort_keys=True, separators=(",", ":")))
+        stream.write("\n")
+        stream.flush()
+    os.chmod(progress_file, 0o600)
 
 
 def run_scenario(
@@ -82,15 +564,23 @@ def run_scenario(
     materials: Path,
     model_id: str,
     base_url: str,
-    evidence: Path,
+    evidence: Path | None,
     reviewer_id: str | None,
     reviewer_decision: str,
     codex_executable: str,
     timeout: int,
+    plugin_surface: str = "generated-root",
 ) -> AuthorThenRunEvidence:
     """Run one author turn and, for the positive case, one independent run turn."""
 
     contract = load_m44_scenario(scenario)
+    plugin_identity = _plugin_identity(plugin_root)
+    provenance = (
+        _generated_plugin_provenance(plugin_root)
+        if plugin_surface == "generated-root"
+        else {}
+    )
+    fixtures = _controller_fixtures(contract)
     _validate_inputs(
         contract,
         codex_home,
@@ -105,78 +595,179 @@ def run_scenario(
         dir="/private/tmp", prefix="m44-clean-codex-"
     ) as temporary:
         root = Path(temporary)
-        workspace = root / "workspace"
-        package_root, state_root = workspace / ".packages", workspace / ".state"
-        workspace.mkdir(mode=0o700)
+        author_workspace = root / "author-workspace"
+        invocation_workspace = root / "invocation-workspace"
+        scenario_codex_home = root / "codex-home"
+        package_root, state_root = (
+            author_workspace / ".packages",
+            author_workspace / ".state",
+        )
+        author_workspace.mkdir(mode=0o700)
+        invocation_workspace.mkdir(mode=0o700)
         package_root.mkdir(mode=0o700)
-        configure_local_host(
+        controller_input_root = root / "controller-inputs"
+        controller_input_root.mkdir(mode=0o700)
+        configuration = configure_local_host(
             root=state_root,
             package_root=package_root,
             model_id=model_id,
             base_url=base_url,
+            workspace_input_root=controller_input_root,
         )
-        host = LocalWorkflowHost.open(state_root)
-        material_receipt = host.issue_authoring_materials(
-            materials=_load_materials(materials), now=datetime.now(UTC)
-        )
-        marketplace = create_marketplace(
-            plugin_root=plugin_root, destination=root / "marketplace"
-        )
-        management_environment = _management_environment(codex_home, workspace)
-        installed = False
-        try:
-            _install_plugin(
-                codex_executable, marketplace, management_environment, timeout
+        mcp_fixture = (
+            _configure_controller_mcp(
+                state_root=state_root,
+                profile_id=configuration.profile_id,
+                use_oauth="oauth-connection" in fixtures.fixture_ids,
             )
-            installed = True
-            author_result = _run_codex(
-                codex_executable,
-                _author_request(
-                    author_prompt,
-                    material_receipt.material_set_id,
-                    package_name,
-                    wheel,
-                    model_id,
-                    contract.expected_status,
-                ),
-                workspace,
-                build_clean_codex_environment(
-                    codex_home=codex_home,
-                    working_directory=workspace,
-                    wheel=wheel,
-                    state_root=state_root,
-                    template_root=root / "marketplace" / "plugins" / "dar-authoring",
-                    inherited=os.environ,
-                ),
-                timeout,
-            )
-            if contract.expected_status == "expected_capability_unavailable":
-                result = _unavailable_evidence(
-                    contract, author_result, wheel, material_receipt.material_set_id
+            if {
+                "reviewed-mcp-connection",
+                "oauth-connection",
+            }.intersection(fixtures.fixture_ids)
+            else None
+        )
+        mcp_client, mcp_connections = mcp_fixture or (None, None)
+        host = LocalWorkflowHost.open(
+            state_root,
+            mcp_client_factory=(lambda _configuration: mcp_client)
+            if mcp_client is not None
+            else None,
+            mcp_connections=mcp_connections,
+        )
+        with ExitStack() as controllers:
+            workspace_artifact_ids: list[str] = []
+            author_socket = controllers.enter_context(
+                _package_controller(
+                    host=host,
+                    socket_path=root / "author-controller.sock",
+                    allowed_commands=(
+                        "project-authoring-materials",
+                        "create-authored-package",
+                        "write-authored-package-file",
+                        "finalize-authored-package",
+                    ),
+                    approval_broker_factory=fixtures.approval_broker_factory,
+                    guardrail_registry=fixtures.guardrail_registry,
                 )
-            else:
-                result = _pass_evidence(
-                    contract,
-                    host,
-                    author_result,
-                    package_name,
-                    workflow_id,
-                    run_prompt,
-                    codex_home,
-                    workspace,
-                    state_root,
-                    root / "marketplace" / "plugins" / "dar-authoring",
-                    wheel,
-                    reviewer_id,
-                    reviewer_decision,
+            )
+            invocation_socket = controllers.enter_context(
+                _package_controller(
+                    host=host,
+                    socket_path=root / "invocation-controller.sock",
+                    allowed_commands=("invoke",),
+                    approval_broker_factory=fixtures.approval_broker_factory,
+                    guardrail_registry=fixtures.guardrail_registry,
+                    workspace_artifact_ids=workspace_artifact_ids,
+                )
+            )
+            author_dar_bin = stage_dar_package(
+                wheel=wheel,
+                controller_socket=author_socket,
+                destination=root / "author-dar-bin",
+                allowed_commands=(
+                    "project-authoring-materials",
+                    "create-authored-package",
+                    "write-authored-package-file",
+                    "finalize-authored-package",
+                ),
+            )
+            invocation_dar_bin = stage_dar_package(
+                wheel=wheel,
+                controller_socket=invocation_socket,
+                destination=root / "invocation-dar-bin",
+                allowed_commands=("invoke",),
+            )
+            material_receipt = host.issue_authoring_materials(
+                materials=_load_materials(materials), now=datetime.now(UTC)
+            )
+            marketplace = create_marketplace(
+                plugin_root=plugin_root,
+                destination=root / "marketplace",
+                plugin_surface=plugin_surface,
+            )
+            management_environment = _management_environment(
+                _scenario_codex_home(codex_home, scenario_codex_home), author_workspace
+            )
+            installed = False
+            try:
+                _install_plugin(
+                    codex_executable, marketplace, management_environment, timeout
+                )
+                installed = True
+                author_started = time.monotonic()
+                author_result = _run_codex(
                     codex_executable,
+                    _author_request(
+                        author_prompt,
+                        material_receipt.material_set_id,
+                        package_name,
+                        contract.expected_status,
+                        artifact_roles=contract.required_artifact_roles,
+                    ),
+                    author_workspace,
+                    build_clean_codex_environment(
+                        codex_home=scenario_codex_home,
+                        working_directory=author_workspace,
+                        wheel=wheel,
+                        state_root=state_root,
+                        template_root=root
+                        / "marketplace"
+                        / "plugins"
+                        / "agent-engineering",
+                        inherited={
+                            **os.environ,
+                            "PATH": f"{author_dar_bin}{os.pathsep}{os.environ.get('PATH', '')}",
+                        },
+                    ),
                     timeout,
-                    material_receipt.material_set_id,
                 )
-        finally:
-            if installed:
-                _remove_plugin(codex_executable, management_environment, timeout)
-    write_author_then_run_evidence(evidence, result)
+                author_duration_ms = _actor_duration_ms(author_started)
+                if contract.expected_status in {
+                    "expected_capability_unavailable",
+                    "expected_refusal",
+                }:
+                    result = _unavailable_evidence(
+                        contract,
+                        author_result,
+                        wheel,
+                        material_receipt.material_set_id,
+                        (author_duration_ms,),
+                        plugin_identity,
+                        provenance,
+                    )
+                else:
+                    result = _pass_evidence(
+                        contract,
+                        host,
+                        author_result,
+                        package_name,
+                        workflow_id,
+                        run_prompt,
+                        scenario_codex_home,
+                        invocation_workspace,
+                        state_root,
+                        invocation_dar_bin,
+                        root / "marketplace" / "plugins" / "agent-engineering",
+                        wheel,
+                        reviewer_id,
+                        reviewer_decision,
+                        codex_executable,
+                        timeout,
+                        material_receipt.material_set_id,
+                        _digest_file(marketplace),
+                        fixtures.fixture_ids,
+                        mcp_client,
+                        controller_input_root,
+                        workspace_artifact_ids,
+                        author_duration_ms,
+                        plugin_identity,
+                        provenance,
+                    )
+            finally:
+                if installed:
+                    _remove_plugin(codex_executable, management_environment, timeout)
+    if evidence is not None:
+        write_author_then_run_evidence(evidence, result)
     return result
 
 
@@ -188,8 +779,9 @@ def _pass_evidence(
     workflow_id: str,
     run_prompt: str,
     codex_home: Path,
-    workspace: Path,
+    invocation_workspace: Path,
     state_root: Path,
+    dar_bin: Path,
     template_root: Path,
     wheel: Path,
     reviewer_id: str | None,
@@ -197,53 +789,156 @@ def _pass_evidence(
     codex: str,
     timeout: int,
     material_set_id: str,
+    marketplace_manifest_digest: str,
+    available_host_fixtures: tuple[str, ...],
+    mcp_client: _ControllerMCPClient | None,
+    controller_input_root: Path,
+    workspace_artifact_ids: list[str],
+    author_duration_ms: int,
+    plugin_identity: str,
+    provenance: Mapping[str, str],
 ) -> AuthorThenRunEvidence:
     created, finalized = (
         _receipt(author_result.stdout, "created"),
         _receipt(author_result.stdout, "finalized"),
     )
     if author_result.returncode or created is None or finalized is None:
-        return _failure(contract, "authoring_validation", wheel, material_set_id)
+        return _failure(
+            contract,
+            "authoring_validation",
+            wheel,
+            material_set_id,
+            (author_duration_ms,),
+            plugin_identity,
+            provenance=provenance,
+            author_result=author_result,
+            failure_reason="author_process_or_receipt_validation",
+        )
     output_id, package_digest = (
         created.get("authoring_output_id"),
         finalized.get("package_digest"),
     )
     if not isinstance(output_id, str) or not isinstance(package_digest, str):
-        return _failure(contract, "authoring_validation", wheel, material_set_id)
+        return _failure(
+            contract,
+            "authoring_validation",
+            wheel,
+            material_set_id,
+            (author_duration_ms,),
+            plugin_identity,
+            provenance=provenance,
+            author_result=author_result,
+            failure_reason="author_receipt_fields_invalid",
+        )
     try:
         source_handle = host.select_authored_package(
             package_name, now=datetime.now(UTC)
+        )
+        snapshot = (
+            host.review_mcp_surface(
+                approved_read_only_tool_names=("list_unread", "lookup_records"),
+                approved_tool_side_effects={"send_email": "write"},
+            )
+            if mcp_client is not None
+            else None
+        )
+        binding = (
+            _bind_mcp_if_declared(host, source_handle, snapshot)
+            if snapshot is not None
+            else None
         )
         registration = host.register(
             workflow_id=workflow_id,
             package_source_handle=source_handle,
             now=datetime.now(UTC),
+            mcp_binding_id=binding.binding_id if binding is not None else None,
         )
+        if "trusted-workspace-ingress" in available_host_fixtures:
+            roles = contract.required_artifact_roles or (None,)
+            for role in roles:
+                fixture_input = controller_input_root / f"fixture-{role or 'input'}.txt"
+                fixture_input.write_text("controller fixture input\n", encoding="utf-8")
+                artifact = (
+                    host.ingress_file(
+                        workflow_id=registration.workflow_id,
+                        path=fixture_input,
+                        role=role,
+                        media_type="text/plain",
+                        now=datetime.now(UTC),
+                    )
+                    if role is not None
+                    else host.ingress_default_file(
+                        workflow_id=registration.workflow_id,
+                        path=fixture_input,
+                        now=datetime.now(UTC),
+                    )
+                )
+                workspace_artifact_ids.append(artifact.artifact_id)
         if registration.revision_digest != package_digest:
             raise ValueError
-    except (LocalWorkflowHostError, ValueError):
-        return _failure(contract, "registration", wheel, material_set_id, output_id)
+    except (LocalWorkflowHostError, ValueError) as error:
+        return _failure(
+            contract,
+            "registration",
+            wheel,
+            material_set_id,
+            (author_duration_ms,),
+            output_id,
+            plugin_identity,
+            provenance=provenance,
+            author_result=author_result,
+            failure_reason=(
+                "registration_digest_mismatch"
+                if isinstance(error, ValueError)
+                else "host_registration_rejected"
+            ),
+        )
+    invocation_started = time.monotonic()
     run_result = _run_codex(
         codex,
-        _run_request(package_name, run_prompt, wheel),
-        workspace,
+        _run_request(
+            package_name,
+            run_prompt,
+            requires_approval="approval-broker" in available_host_fixtures,
+        ),
+        invocation_workspace,
         build_clean_codex_environment(
             codex_home=codex_home,
-            working_directory=workspace,
+            working_directory=invocation_workspace,
             wheel=wheel,
             state_root=state_root,
             template_root=template_root,
-            inherited=os.environ,
+            inherited={
+                **os.environ,
+                "PATH": f"{dar_bin}{os.pathsep}{os.environ.get('PATH', '')}",
+            },
         ),
         timeout,
     )
+    invocation_duration_ms = _actor_duration_ms(invocation_started)
     invoked = _receipt(run_result.stdout, "completed")
     if (
         run_result.returncode
         or invoked is None
         or invoked.get("workflow_id") != package_name
     ):
-        return _failure(contract, "invocation", wheel, material_set_id, output_id)
+        return _failure(
+            contract,
+            "invocation",
+            wheel,
+            material_set_id,
+            (author_duration_ms, invocation_duration_ms),
+            output_id,
+            plugin_identity,
+            provenance=provenance,
+            author_result=author_result,
+            invocation_result=run_result,
+            failure_reason=(
+                "invocation_process_failed"
+                if run_result.returncode
+                else "invocation_completed_receipt_invalid"
+            ),
+        )
     result = AuthorThenRunEvidence(
         scenario_id=contract.scenario_id,
         scenario_contract_version="m4.4-v1",
@@ -254,8 +949,8 @@ def _pass_evidence(
         else "pending_human_review",
         terminal_phase="invocation",
         invocation_mode=contract.invocation_mode,
-        plugin_identity=_plugin_identity(),
-        skill_identity="agent-development@dar-authoring",
+        plugin_identity=plugin_identity,
+        skill_identity="agent-development@agent-engineering",
         wheel_digest=_digest_file(wheel),
         harness_policy_digest=_harness_policy_digest(),
         executable_identity=_codex_identity(codex),
@@ -272,16 +967,63 @@ def _pass_evidence(
         reviewer_id=reviewer_id,
         reviewer_decision=reviewer_decision,
         controller_fixture_digest=_digest_json(
-            {"gates": ["G3"], "fixture": "local-model-profile"}
+            {
+                "gates": _controller_available_gates(),
+                "fixtures": available_host_fixtures,
+            }
         ),
+        marketplace_manifest_digest=marketplace_manifest_digest,
+        mcp_snapshot_id=snapshot.snapshot_id if snapshot is not None else None,
+        mcp_binding_id=binding.binding_id if binding is not None else None,
+        mcp_read_tool_names=(
+            ("list_unread", "lookup_records") if snapshot is not None else ()
+        ),
+        mcp_read_call_count=(
+            sum(
+                name in {"list_unread", "lookup_records"}
+                for name, _arguments in mcp_client.calls
+            )
+            if mcp_client is not None
+            else 0
+        ),
+        forbidden_send_dispatch_count=(
+            sum(name == "send_email" for name, _arguments in mcp_client.calls)
+            if mcp_client is not None
+            else 0
+        ),
+        actor_durations_ms=(author_duration_ms, invocation_duration_ms),
+        author_return_code=author_result.returncode,
+        invocation_return_code=run_result.returncode,
+        author_decisions=_decision_summary(author_result.stdout, prefix="author"),
+        invocation_decisions=_decision_summary(run_result.stdout, prefix="invocation"),
+        author_event_trace=_event_trace(author_result.stdout, prefix="author"),
+        invocation_event_trace=_event_trace(run_result.stdout, prefix="invocation"),
+        **provenance,
     )
     validate_m44_evidence(
         contract,
         result,
-        available_gates=("G3",),
-        available_host_fixtures=("local-model-profile",),
+        available_gates=_controller_available_gates(),
+        available_host_fixtures=available_host_fixtures,
     )
     return result
+
+
+def _bind_mcp_if_declared(
+    host: LocalWorkflowHost,
+    source_handle: str,
+    snapshot: object,
+) -> object | None:
+    try:
+        return host.bind_mcp_package(
+            package_source_handle=source_handle,
+            snapshot_id=snapshot.snapshot_id,
+            now=datetime.now(UTC),
+        )
+    except LocalWorkflowHostError as error:
+        if str(error) == "MCP package binding is unavailable":
+            return None
+        raise
 
 
 def _unavailable_evidence(
@@ -289,22 +1031,33 @@ def _unavailable_evidence(
     author_result: subprocess.CompletedProcess[str],
     wheel: Path,
     material_set_id: str,
+    actor_durations_ms: tuple[int, ...],
+    plugin_identity: str,
+    provenance: Mapping[str, str],
 ) -> AuthorThenRunEvidence:
     if (
         author_result.returncode
         or _receipt(author_result.stdout, "created") is not None
     ):
-        return _failure(contract, "capability_preflight", wheel, material_set_id)
+        return _failure(
+            contract,
+            "capability_preflight",
+            wheel,
+            material_set_id,
+            actor_durations_ms,
+            plugin_identity,
+            provenance=provenance,
+        )
     result = AuthorThenRunEvidence(
         scenario_id=contract.scenario_id,
         scenario_contract_version="m4.4-v1",
         checker_version="m4.4-cli-first-v1",
         expected_status=contract.expected_status,
-        observed_status="expected_capability_unavailable",
-        terminal_phase="capability_preflight",
+        observed_status=contract.expected_status,
+        terminal_phase=contract.expected_terminal_phase,
         invocation_mode=contract.invocation_mode,
-        plugin_identity=_plugin_identity(),
-        skill_identity="agent-development@dar-authoring",
+        plugin_identity=plugin_identity,
+        skill_identity="agent-development@agent-engineering",
         wheel_digest=_digest_file(wheel),
         harness_policy_digest=_harness_policy_digest(),
         executable_identity="codex@clean",
@@ -323,6 +1076,11 @@ def _unavailable_evidence(
         controller_fixture_digest=_digest_json(
             {"gates": ["G3"], "fixture": "local-model-profile"}
         ),
+        actor_durations_ms=actor_durations_ms,
+        author_return_code=author_result.returncode,
+        author_decisions=_decision_summary(author_result.stdout, prefix="author"),
+        author_event_trace=_event_trace(author_result.stdout, prefix="author"),
+        **provenance,
     )
     validate_m44_evidence(
         contract,
@@ -338,7 +1096,13 @@ def _failure(
     phase: str,
     wheel: Path,
     material_set_id: str,
+    actor_durations_ms: tuple[int, ...],
     output_id: str | None = None,
+    plugin_identity: str = "agent-engineering@unknown",
+    provenance: Mapping[str, str] | None = None,
+    author_result: subprocess.CompletedProcess[str] | None = None,
+    invocation_result: subprocess.CompletedProcess[str] | None = None,
+    failure_reason: str | None = None,
 ) -> AuthorThenRunEvidence:
     return AuthorThenRunEvidence(
         scenario_id=contract.scenario_id,
@@ -348,8 +1112,8 @@ def _failure(
         observed_status="harness_failure",
         terminal_phase=phase,
         invocation_mode=contract.invocation_mode,
-        plugin_identity=_plugin_identity(),
-        skill_identity="agent-development@dar-authoring",
+        plugin_identity=plugin_identity,
+        skill_identity="agent-development@agent-engineering",
         wheel_digest=_digest_file(wheel),
         harness_policy_digest=_harness_policy_digest(),
         executable_identity="codex@unavailable",
@@ -365,7 +1129,107 @@ def _failure(
         dispatch_count=0,
         reviewer_id=None,
         reviewer_decision="pending",
+        actor_durations_ms=actor_durations_ms,
+        author_return_code=(
+            author_result.returncode if author_result is not None else None
+        ),
+        invocation_return_code=(
+            invocation_result.returncode if invocation_result is not None else None
+        ),
+        author_decisions=(
+            _decision_summary(author_result.stdout, prefix="author")
+            if author_result is not None
+            else ()
+        ),
+        invocation_decisions=(
+            _decision_summary(invocation_result.stdout, prefix="invocation")
+            if invocation_result is not None
+            else ()
+        ),
+        author_event_trace=(
+            _event_trace(author_result.stdout, prefix="author")
+            if author_result is not None
+            else ()
+        ),
+        invocation_event_trace=(
+            _event_trace(invocation_result.stdout, prefix="invocation")
+            if invocation_result is not None
+            else ()
+        ),
+        failure_reason=failure_reason,
+        **(provenance or {}),
     )
+
+
+def _actor_duration_ms(started: float) -> int:
+    return max(0, int((time.monotonic() - started) * 1000))
+
+
+def _validate_manifest_records(
+    records: tuple[AuthorThenRunEvidence, ...],
+    *,
+    coverage: M44Coverage,
+    plan: M44ExternalScenarioPlan,
+) -> None:
+    if not isinstance(records, tuple) or not records:
+        raise HarnessError("external evidence records are invalid")
+    expected_statuses = {
+        entry.scenario_id: entry.expected_status for entry in coverage.entries
+    }
+    record_ids = [record.scenario_id for record in records]
+    if len(set(record_ids)) != len(record_ids) or set(record_ids) != set(
+        expected_statuses
+    ):
+        raise HarnessError("external evidence records are incomplete")
+    if set(record_ids) != {entry.scenario_id for entry in plan.entries}:
+        raise HarnessError("external evidence records do not match the scenario plan")
+    if any(
+        not isinstance(record, AuthorThenRunEvidence)
+        or record.expected_status != expected_statuses[record.scenario_id]
+        for record in records
+    ):
+        raise HarnessError("external evidence records are invalid")
+    if any(not record.actor_durations_ms for record in records):
+        raise HarnessError("external evidence records lack actor durations")
+
+
+def _scenario_sources(scenario_roots: tuple[Path, ...]) -> dict[str, Path]:
+    sources: dict[str, Path] = {}
+    for root in scenario_roots:
+        if not isinstance(root, Path) or not root.is_absolute() or not root.is_dir():
+            raise HarnessError("scenario root is invalid")
+        for source in root.glob("*.json"):
+            scenario_id = load_m44_scenario(source).scenario_id
+            if scenario_id in sources:
+                raise HarnessError("scenario sources are duplicated")
+            sources[scenario_id] = source
+    if not sources:
+        raise HarnessError("scenario roots are empty")
+    return sources
+
+
+def _verify_fixture_contracts(
+    plan: M44ExternalScenarioPlan, sources: dict[str, Path]
+) -> None:
+    for entry in plan.entries:
+        try:
+            run_fixture_contract(load_m44_scenario(sources[entry.scenario_id]))
+        except (KeyError, ValueError) as error:
+            raise HarnessError(
+                "deterministic fixture contract is unavailable"
+            ) from error
+
+
+def _validate_deterministic_model(model_id: str, base_url: str) -> None:
+    if model_id != "openai/local-model":
+        raise HarnessError("M4.4 requires the deterministic fake model")
+    parsed = urlparse(base_url)
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname not in {"127.0.0.1", "::1", "localhost"}
+        or parsed.path.rstrip("/") != "/v1"
+    ):
+        raise HarnessError("M4.4 fake model endpoint must be loopback /v1")
 
 
 def _validate_inputs(
@@ -374,15 +1238,15 @@ def _validate_inputs(
     plugin_root: Path,
     wheel: Path,
     materials: Path,
-    evidence: Path,
+    evidence: Path | None,
     reviewer_decision: str,
     timeout: int,
 ) -> None:
-    if contract.scenario_id not in {"document-summary-v1", "council-request-v1"}:
-        raise HarnessError("scenario is not an M4.4 mandatory case")
-    for path in (codex_home, plugin_root, wheel, materials, evidence):
+    for path in (codex_home, plugin_root, wheel, materials):
         if not path.is_absolute() or path.is_symlink():
             raise HarnessError("harness path is invalid")
+    if evidence is not None and (not evidence.is_absolute() or evidence.is_symlink()):
+        raise HarnessError("harness path is invalid")
     if not codex_home.is_dir() or not (codex_home / "auth.json").is_file():
         raise HarnessError("codex_home must be a pre-authenticated test profile")
     if (
@@ -424,30 +1288,47 @@ def _author_request(
     author_prompt: str,
     material_set_id: str,
     package_name: str,
-    wheel: Path,
-    model_id: str,
     expected_status: str,
+    *,
+    artifact_roles: tuple[str, ...] = (),
 ) -> str:
     suffix = (
         "This requires unavailable multi-agent/subagent capability; report capability_unavailable and do not create a package."
         if expected_status != "pass"
         else "Create, write, and finalize the package, then report the redacted finalization receipt."
     )
-    command = f"uv run --no-project --python 3.14 --with {wheel} dar-package"
-    contract = (
-        "Create a no-tool, single-local-model package with exactly agent-design.md, "
-        "agent-runtime.yaml, agent-graph.mmd, and workflow-descriptor.yaml. "
-        "Read each canonical starter from `$DAR_AUTHORING_TEMPLATE_ROOT/templates/` "
-        "and preserve its schema; adapt only package identity, purpose, and system prompt "
-        f"for a concise five-bullet summary. Set every runtime model field to `{model_id}`. "
-        "Do not ask a question or merely propose files."
+    artifact_guidance = (
+        f" Declared artifact roles: {', '.join(artifact_roles)}; copy each role exactly "
+        "into the package descriptor's allowed_artifact_roles."
+        if artifact_roles
+        else ""
     )
-    return f"{author_prompt}\n\nUse the installed dar-authoring agent-development skill. The host-issued material_set_id is `{material_set_id}`. Use package name `{package_name}` and local DAR wheel `{wheel}`. {contract} Execute, rather than merely describe, only `{command}` authoring commands: project-authoring-materials, create-authored-package, write-authored-package-file, and finalize-authored-package. Do not use MCP, a broker, paths, registration, or host configuration. {suffix}"
+    operation_guidance = (
+        " This is an approved email-send operation: use the reviewed write-MCP "
+        "template with its sole mail_send tool; do not choose the no-tool starter."
+        if "email_body" in artifact_roles and "email" in author_prompt.lower()
+        else ""
+    )
+    return (
+        f"{author_prompt}\n\nUse the installed agent-engineering agent-development "
+        f"skill to author a DAR workflow. The declared material_set_id is "
+        f"`{material_set_id}` and the requested package name is `{package_name}`. "
+        f"{artifact_guidance}{operation_guidance} "
+        f"{suffix}"
+    )
 
 
-def _run_request(package_name: str, run_prompt: str, wheel: Path) -> str:
-    command = f"uv run --no-project --python 3.14 --with {wheel} dar-package invoke --package-name {package_name} --prompt-stdin"
-    return f"Use the saved workflow `{package_name}` for this request: {run_prompt}\n\nExecute, rather than describe, only `{command}`. Use `printf '%s'` to pipe the request text to stdin, then report the JSON receipt. Do not select, register, or modify the package."
+def _run_request(package_name: str, run_prompt: str, *, requires_approval: bool) -> str:
+    ask_mode = " --ask" if requires_approval else ""
+    command = (
+        f"printf '%s' {shlex.quote(run_prompt)} | dar-package invoke "
+        f"--package-name {shlex.quote(package_name)} --prompt-stdin{ask_mode}"
+    )
+    return (
+        f"Use the saved workflow `{package_name}` for this request: {run_prompt}\n\n"
+        f"Run exactly one command, `{command}`. Immediately return "
+        "its JSON receipt. Do not select, register, inspect, or modify the package."
+    )
 
 
 def _receipt(output: str, status: str) -> dict[str, object] | None:
@@ -465,6 +1346,61 @@ def _receipt(output: str, status: str) -> dict[str, object] | None:
         ),
         None,
     )
+
+
+def _decision_summary(output: str, *, prefix: str) -> tuple[str, ...]:
+    """Extract bounded decision labels from a Codex event transcript."""
+
+    labels: list[str] = []
+    for line in output.splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(value, dict):
+            continue
+        item = value.get("item")
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get("type")
+        if item_type == "agent_message":
+            labels.append(f"{prefix}:agent_message")
+        elif item_type == "command_execution":
+            command = item.get("command")
+            if isinstance(command, str):
+                labels.append(f"{prefix}:command:{command.split()[0].split('/')[-1]}")
+        elif item_type == "file_change":
+            labels.append(f"{prefix}:file_change")
+    return tuple(dict.fromkeys(labels))
+
+
+def _event_trace(output: str, *, prefix: str) -> tuple[str, ...]:
+    """Return an ordered, content-free actor event trace for post-mortems."""
+
+    trace: list[str] = []
+    sequence = 0
+    for line in output.splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        item = value.get("item") if isinstance(value, dict) else None
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get("type")
+        if not isinstance(item_type, str):
+            continue
+        sequence += 1
+        label = f"{prefix}:{sequence}:{item_type}"
+        if item_type == "command_execution":
+            command = item.get("command")
+            if isinstance(command, str):
+                label += f":{command.split()[0].split('/')[-1]}"
+            exit_code = item.get("exit_code")
+            if isinstance(exit_code, int):
+                label += f":exit={exit_code}"
+        trace.append(label)
+    return tuple(trace)
 
 
 def _collect(value: Any, destination: list[dict[str, object]]) -> None:
@@ -486,30 +1422,32 @@ def _collect(value: Any, destination: list[dict[str, object]]) -> None:
 def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     for name in (
-        "scenario",
+        "coverage",
+        "scenario_plan",
         "codex_home",
         "plugin_root",
         "wheel",
         "materials",
-        "evidence",
+        "evidence_directory",
     ):
         parser.add_argument(f"--{name.replace('_', '-')}", type=Path, required=True)
-    for name in (
-        "package_name",
-        "workflow_id",
-        "author_prompt",
-        "run_prompt",
-        "model_id",
-        "base_url",
-    ):
-        parser.add_argument(f"--{name.replace('_', '-')}", required=True)
+    parser.add_argument("--scenario-root", type=Path, action="append", required=True)
     parser.add_argument("--reviewer-id")
     parser.add_argument(
         "--reviewer-decision", choices=("pending", "approved"), default="pending"
     )
     parser.add_argument("--codex-executable", default="codex")
+    parser.add_argument(
+        "--plugin-surface",
+        choices=("generated-root", "direct-baseline"),
+        default="generated-root",
+    )
     parser.add_argument("--timeout", type=int, default=300)
-    return parser.parse_args(argv)
+    parser.add_argument("--progress-file", type=Path)
+    arguments = parser.parse_args(argv)
+    arguments.scenario_roots = tuple(arguments.scenario_root)
+    del arguments.scenario_root
+    return arguments
 
 
 def _management_environment(codex_home: Path, workspace: Path) -> dict[str, str]:
@@ -524,6 +1462,15 @@ def _management_environment(codex_home: Path, workspace: Path) -> dict[str, str]
     }
 
 
+def _scenario_codex_home(source: Path, destination: Path) -> Path:
+    """Seed one scenario-local Codex profile with only test authentication."""
+
+    destination.mkdir(mode=0o700)
+    shutil.copy2(source / "auth.json", destination / "auth.json")
+    os.chmod(destination / "auth.json", 0o600)
+    return destination
+
+
 def _install_plugin(
     codex: str, marketplace: Path, environment: dict[str, str], timeout: int
 ) -> None:
@@ -533,13 +1480,15 @@ def _install_plugin(
         timeout,
     )
     _command(
-        [codex, "plugin", "add", "dar-authoring@m44-clean-codex"], environment, timeout
+        [codex, "plugin", "add", "agent-engineering@m44-clean-codex"],
+        environment,
+        timeout,
     )
 
 
 def _remove_plugin(codex: str, environment: dict[str, str], timeout: int) -> None:
     for command in (
-        [codex, "plugin", "remove", "dar-authoring@m44-clean-codex"],
+        [codex, "plugin", "remove", "agent-engineering@m44-clean-codex"],
         [codex, "plugin", "marketplace", "remove", "m44-clean-codex"],
     ):
         try:
@@ -551,23 +1500,22 @@ def _remove_plugin(codex: str, environment: dict[str, str], timeout: int) -> Non
 def _run_codex(
     codex: str, prompt: str, workspace: Path, environment: dict[str, str], timeout: int
 ) -> subprocess.CompletedProcess[str]:
-    return _command(
-        [
-            codex,
-            "exec",
-            "--ephemeral",
-            "--ignore-rules",
-            "--skip-git-repo-check",
-            "--approve-for-me",
-            "--json",
-            "--cd",
-            str(workspace),
-            prompt,
-        ],
-        environment,
-        timeout,
-        check=False,
-    )
+    command = [
+        codex,
+        "exec",
+        "--ephemeral",
+        "--ignore-rules",
+        "--skip-git-repo-check",
+        "--approve-for-me",
+        "--json",
+        "--cd",
+        str(workspace),
+        "-",
+    ]
+    try:
+        return _command(command, environment, timeout, check=False, input_text=prompt)
+    except HarnessError:
+        return subprocess.CompletedProcess(command, 124, "", "")
 
 
 def _command(
@@ -576,7 +1524,11 @@ def _command(
     timeout: int,
     *,
     check: bool = True,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    standard_input = (
+        {"stdin": subprocess.DEVNULL} if input_text is None else {"input": input_text}
+    )
     try:
         result = subprocess.run(
             command,
@@ -585,6 +1537,7 @@ def _command(
             text=True,
             timeout=timeout,
             check=False,
+            **standard_input,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise HarnessError("Codex command could not be run") from error
@@ -614,16 +1567,32 @@ def _harness_policy_digest() -> str:
     )
 
 
-def _plugin_identity() -> str:
+def _plugin_identity(plugin_root: Path) -> str:
     value = json.loads(
-        (
-            Path(__file__).resolve().parents[1]
-            / "dar-authoring"
-            / ".codex-plugin"
-            / "plugin.json"
-        ).read_text(encoding="utf-8")
+        (plugin_root / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
     return f"{value['name']}@{value['version']}"
+
+
+def _generated_plugin_provenance(plugin_root: Path) -> dict[str, str]:
+    """Return the required redacted receipts for one generated routed plugin."""
+
+    receipts = {
+        "generated_manifest_digest": plugin_root / ".codex-plugin" / "plugin.json",
+        "router_authority_digest": plugin_root
+        / ".codex-plugin"
+        / "native-routed-decision-record.json",
+        "payload_manifest_digest": plugin_root
+        / ".codex-plugin"
+        / "payload-manifest.json",
+        "source_map_digest": plugin_root / ".router-plugin-packager-source-map.json",
+        "release_metadata_digest": plugin_root
+        / ".codex-plugin"
+        / "release-metadata.json",
+    }
+    if any(not receipt.is_file() for receipt in receipts.values()):
+        raise HarnessError("generated plugin receipt is missing")
+    return {name: _digest_file(receipt) for name, receipt in receipts.items()}
 
 
 def _codex_identity(codex: str) -> str:

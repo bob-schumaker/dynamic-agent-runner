@@ -1,0 +1,40 @@
+format_version: 1
+source_locator: ../ai-environment-roschuma
+source_revision: 967c9f621b017f042c55c6ae73019588ee426e30
+skills:
+  agent-development:
+    upstream_path: corpus/capabilities/agent-development/SKILL.md
+    copied_path: skills/agent-development/SKILL.md
+    license_or_notice: >-
+      No top-level license or notice file was present in the selected source
+      checkout. Adaptation is authorized by the repository owner in this session.
+    redistribution_review: >-
+      Approved for this DAR plugin adaptation by the repository owner; preserve
+      this source record and do not represent the upstream environment as bundled.
+    dar_modification_summary: >-
+      Rewritten as a portable DAR package-authoring entry skill with explicit
+      descriptor, host-owned collaborator, and bounded workflow requirements.
+  agent-tool-contract-design:
+    upstream_path: corpus/capabilities/agent-tool-contract-design/SKILL.md
+    copied_path: skills/agent-tool-contract-design/SKILL.md
+    license_or_notice: >-
+      No top-level license or notice file was present in the selected source
+      checkout. Adaptation is authorized by the repository owner in this session.
+    redistribution_review: >-
+      Approved for this DAR plugin adaptation by the repository owner; preserve
+      this source record and do not represent the upstream environment as bundled.
+    dar_modification_summary: >-
+      Rewritten around reviewed host-owned tool surfaces, descriptor policy, and
+      the human-only connection/authentication boundary.
+  agent-evaluation:
+    upstream_path: corpus/capabilities/agent-evaluation/SKILL.md
+    copied_path: skills/agent-evaluation/SKILL.md
+    license_or_notice: >-
+      No top-level license or notice file was present in the selected source
+      checkout. Adaptation is authorized by the repository owner in this session.
+    redistribution_review: >-
+      Approved for this DAR plugin adaptation by the repository owner; preserve
+      this source record and do not represent the upstream environment as bundled.
+    dar_modification_summary: >-
+      Rewritten as an optional package-evaluation companion whose execution is
+      external to DAR and whose deterministic gates stay offline.

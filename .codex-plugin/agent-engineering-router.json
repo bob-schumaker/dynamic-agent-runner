@@ -1,0 +1,43 @@
+{
+  "format_version": 2,
+  "generated": {
+    "name": "agent-engineering",
+    "surface_id": "agent-engineering"
+  },
+  "output_root": "generated/agent-engineering",
+  "payload_assets": [
+    {
+      "acquisition_mode": "copied",
+      "destination": "references/modules/general-agent-development",
+      "id": "general-agent-development-support",
+      "ownership_role": "private_module_support",
+      "source": "plugins/agent-engineering/payload/general-agent-development"
+    },
+    {
+      "acquisition_mode": "copied",
+      "destination": "references/modules/dar-workflow-authoring",
+      "id": "dar-workflow-authoring-support",
+      "ownership_role": "private_module_support",
+      "source": "plugins/agent-engineering/payload/dar-workflow-authoring"
+    }
+  ],
+  "publication": {
+    "category": "Productivity"
+  },
+  "repository_root": ".",
+  "router_authority": {
+    "routers": [
+      {
+        "description": "Route bounded DAR workflow authoring to focused private guidance.",
+        "members": [
+          "plugins/agent-engineering/skills/agent-development",
+          "plugins/agent-engineering/skills/general-agent-development",
+          "plugins/agent-engineering/skills/dar-workflow-authoring"
+        ],
+        "name": "agent-development"
+      }
+    ]
+  },
+  "source_manifest": "plugins/agent-engineering/.codex-plugin/plugin.json",
+  "surface_mode": "native_routed"
+}

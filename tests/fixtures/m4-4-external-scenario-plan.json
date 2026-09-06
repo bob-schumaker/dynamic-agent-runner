@@ -1,0 +1,262 @@
+{
+  "format_version": "m4.4-external-scenario-plan-v1",
+  "scenarios": [
+    {
+      "author_request": "Attempt the declared DAR workflow only within the reviewed authoring boundary.",
+      "fixture_ids": [
+        "local-model-profile",
+        "authoring-broker"
+      ],
+      "package_name": "m44-authoring-boundary",
+      "run_request": "Run the saved workflow.",
+      "scenario_id": "authoring-boundary-attack-v1",
+      "workflow_id": "m44-authoring-boundary"
+    },
+    {
+      "author_request": "Request the declared DAR council workflow and report capability unavailable when the declared host capability is absent.",
+      "fixture_ids": [
+        "local-model-profile"
+      ],
+      "package_name": "m44-council-request",
+      "run_request": "Run the saved workflow.",
+      "scenario_id": "council-request-v1",
+      "workflow_id": "m44-council-request"
+    },
+    {
+      "author_request": "Request the declared deferred DAR runtime workflow and report capability unavailable when its host capability is absent.",
+      "fixture_ids": [
+        "local-model-profile",
+        "approval-broker"
+      ],
+      "package_name": "m44-deferred-runtime",
+      "run_request": "Run the saved workflow.",
+      "scenario_id": "deferred-runtime-boundaries-v1",
+      "workflow_id": "m44-deferred-runtime"
+    },
+    {
+      "author_request": "Request the declared DAR document embedding workflow and report capability unavailable when embedding support is absent.",
+      "fixture_ids": [
+        "local-model-profile"
+      ],
+      "package_name": "m44-document-embedding",
+      "run_request": "Run the saved workflow.",
+      "scenario_id": "document-embedding-v1",
+      "workflow_id": "m44-document-embedding"
+    },
+    {
+      "author_request": "Author the declared DAR document-summary workflow.",
+      "fixture_ids": [
+        "local-model-profile"
+      ],
+      "package_name": "m44-document-summary",
+      "run_request": "Summarize the supplied document.",
+      "scenario_id": "document-summary-v1",
+      "workflow_id": "m44-document-summary"
+    },
+    {
+      "author_request": "Author the declared DAR approved email-send workflow using the supplied email_body artifact.",
+      "fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection",
+        "trusted-workspace-ingress",
+        "approval-broker"
+      ],
+      "package_name": "m44-email-file-body",
+      "run_request": "Send the email to fixture@example.test using the declared email_body artifact.",
+      "scenario_id": "email-file-body-v1",
+      "workflow_id": "m44-email-file-body"
+    },
+    {
+      "author_request": "Request the declared DAR file workflow and report capability unavailable when trusted ingress is absent.",
+      "fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection",
+        "approval-broker",
+        "trusted-workspace-ingress"
+      ],
+      "package_name": "m44-file-provenance-missing",
+      "run_request": "Run the saved workflow.",
+      "scenario_id": "file-provenance-missing-ingress-v1",
+      "workflow_id": "m44-file-provenance-missing"
+    },
+    {
+      "author_request": "Author the declared DAR approved email-send workflow.",
+      "fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection",
+        "approval-broker"
+      ],
+      "package_name": "m44-generic-email",
+      "run_request": "Send the email to fixture@example.test with body fixture body. Request the declared local approval with --ask.",
+      "scenario_id": "generic-email-send-v1",
+      "workflow_id": "m44-generic-email"
+    },
+    {
+      "author_request": "Request the declared DAR input-guardrail workflow and report capability unavailable when its registry is absent.",
+      "fixture_ids": [
+        "local-model-profile",
+        "input-guardrail-registry"
+      ],
+      "package_name": "m44-guardrail-input-missing",
+      "run_request": "Run the saved workflow.",
+      "scenario_id": "guardrail-input-missing-v1",
+      "workflow_id": "m44-guardrail-input-missing"
+    },
+    {
+      "author_request": "Author the declared DAR input-guardrail workflow.",
+      "fixture_ids": [
+        "local-model-profile",
+        "input-guardrail-registry"
+      ],
+      "package_name": "m44-guardrail-input",
+      "run_request": "Run the saved workflow.",
+      "scenario_id": "guardrail-input-v1",
+      "workflow_id": "m44-guardrail-input"
+    },
+    {
+      "author_request": "Request the declared DAR tool-input guardrail workflow and report capability unavailable when its registry is absent.",
+      "fixture_ids": [
+        "local-model-profile",
+        "tool-input-guardrail-registry"
+      ],
+      "package_name": "m44-guardrail-tool-missing",
+      "run_request": "Run the saved workflow.",
+      "scenario_id": "guardrail-tool-input-missing-v1",
+      "workflow_id": "m44-guardrail-tool-missing"
+    },
+    {
+      "author_request": "Author the declared DAR tool-input guardrail workflow.",
+      "fixture_ids": [
+        "local-model-profile",
+        "tool-input-guardrail-registry"
+      ],
+      "package_name": "m44-guardrail-tool",
+      "run_request": "Run the saved workflow.",
+      "scenario_id": "guardrail-tool-input-v1",
+      "workflow_id": "m44-guardrail-tool"
+    },
+    {
+      "author_request": "Author the declared DAR hybrid-input brief workflow using the supplied brief and risk-artifact roles.",
+      "fixture_ids": [
+        "local-model-profile",
+        "trusted-workspace-ingress"
+      ],
+      "package_name": "m44-hybrid-brief",
+      "run_request": "Prepare the requested brief.",
+      "scenario_id": "hybrid-brief-v1",
+      "workflow_id": "m44-hybrid-brief"
+    },
+    {
+      "author_request": "Author the declared DAR workflow without adding a host-tool invocation field.",
+      "fixture_ids": [
+        "local-model-profile",
+        "workflow-registration"
+      ],
+      "package_name": "m44-invocation-boundary",
+      "run_request": "Run the saved workflow.",
+      "scenario_id": "invocation-schema-boundary-attack-v1",
+      "workflow_id": "m44-invocation-boundary"
+    },
+    {
+      "author_request": "Author the declared DAR read-only mailbox triage workflow.",
+      "fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection"
+      ],
+      "package_name": "m44-mailbox-triage",
+      "run_request": "List unread email.",
+      "scenario_id": "mailbox-triage-v1",
+      "workflow_id": "m44-mailbox-triage"
+    },
+    {
+      "author_request": "Request the declared DAR MCP workflow and report capability unavailable when the reviewed connection is absent.",
+      "fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection",
+        "approval-broker"
+      ],
+      "package_name": "m44-mcp-missing",
+      "run_request": "Run the saved workflow.",
+      "scenario_id": "mcp-tooling-missing-connection-v1",
+      "workflow_id": "m44-mcp-missing"
+    },
+    {
+      "author_request": "Author the declared DAR no-tool graph with its package-local skill.",
+      "fixture_ids": [
+        "local-model-profile"
+      ],
+      "package_name": "m44-no-tool-graph",
+      "run_request": "Complete the declared review.",
+      "scenario_id": "no-tool-graph-and-skill-v1",
+      "workflow_id": "m44-no-tool-graph"
+    },
+    {
+      "author_request": "Request the declared DAR OAuth workflow and report capability unavailable when the connection is absent.",
+      "fixture_ids": [
+        "local-model-profile",
+        "fake-oauth-provider",
+        "oauth-connection"
+      ],
+      "package_name": "m44-oauth-missing",
+      "run_request": "Run the saved workflow.",
+      "scenario_id": "oauth-missing-connection-v1",
+      "workflow_id": "m44-oauth-missing"
+    },
+    {
+      "author_request": "Author the declared DAR OAuth reconnect workflow.",
+      "fixture_ids": [
+        "local-model-profile",
+        "oauth-connection",
+        "fake-oauth-provider"
+      ],
+      "package_name": "m44-oauth-reconnect",
+      "run_request": "List unread email.",
+      "scenario_id": "oauth-reconnect-v1",
+      "workflow_id": "m44-oauth-reconnect"
+    },
+    {
+      "author_request": "Attempt the declared DAR portable package handoff and preserve its refusal boundary.",
+      "fixture_ids": [
+        "recipient-host"
+      ],
+      "package_name": "m44-package-handoff",
+      "run_request": "Run the saved workflow.",
+      "scenario_id": "portable-package-handoff-v1",
+      "workflow_id": "m44-package-handoff"
+    },
+    {
+      "author_request": "Request the declared DAR read-only MCP workflow and report capability unavailable when the connection is absent.",
+      "fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection"
+      ],
+      "package_name": "m44-read-only-missing",
+      "run_request": "Run the saved workflow.",
+      "scenario_id": "read-only-mcp-missing-connection-v1",
+      "workflow_id": "m44-read-only-missing"
+    },
+    {
+      "author_request": "Author the declared DAR side-effect recovery workflow.",
+      "fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection",
+        "trusted-workspace-ingress",
+        "approval-broker"
+      ],
+      "package_name": "m44-side-effect-recovery",
+      "run_request": "Send the declared email once.",
+      "scenario_id": "side-effect-recovery-v1",
+      "workflow_id": "m44-side-effect-recovery"
+    },
+    {
+      "author_request": "Author the declared DAR structured single-model review workflow.",
+      "fixture_ids": [
+        "local-model-profile"
+      ],
+      "package_name": "m44-structured-review",
+      "run_request": "Review the submitted answer.",
+      "scenario_id": "structured-single-model-review-v1",
+      "workflow_id": "m44-structured-review"
+    }
+  ]
+}

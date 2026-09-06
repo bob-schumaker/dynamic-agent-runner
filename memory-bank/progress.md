@@ -3,6 +3,33 @@
 
 ## Working
 
+- `fastmail-inbox-triage` is complete through the registered direct-llama.cpp/
+  Qwen v4 package. The owner-authorized read-only acceptance produced a
+  contract-valid `needs_review` report with one `needs_reply` item and no
+  warnings, without retaining mailbox content. Commit `1a72cb9` aligns the
+  spec, plan, task, validation, discovery, and portfolio records while
+  preserving the earlier acceptance receipt as history.
+- The LiteLLM-only Codex transport remains postponed pending upstream support
+  for DAR's ChatGPT/Codex auth discovery, account selection, and lifecycle
+  requirements. The current direct SDK path remains authoritative; the
+  compatibility analysis is retained for a later re-entry decision.
+- `agent-engineering` plugin version `0.1.1` is released locally in
+  `58d928c`. The source manifest, generated routed plugin artifacts, and
+  direct-plugin fixture baseline agree on that version; focused plugin tests,
+  Ruff, and staged-diff checks passed before publishing to and installing from
+  the `bob-schumaker-codex-support` local marketplace. User-facing support
+  documentation was authored and built in the sibling marketplace-support
+  repository and intentionally remains outside this repository's commit
+  history.
+- M4.4 routed clean-Codex harness correctness and observability are committed
+  in `77a63d7`, with routed profile collateral refreshed in `cfc6335`. The
+  positive `email-file-body-v1` path now passes end to end using the reviewed
+  `mail_send` binding and exact `email_body` artifact provenance. The harness
+  emits live redacted JSONL progress (`run_started`, per-scenario start/end,
+  and `run_completed`) so serial 23-scenario replays can be monitored before
+  the final aggregate exists. The full replay must still be rerun with the
+  committed harness and its generated progress file before M4.4 is declared
+  complete.
 - `dar-authoring` is a skills-only Codex plugin, not a plugin MCP server.
   The `0.2.1` release-pin contract is committed in `8e79f34`; an `ocibuild -c`
   build produced and isolated-wheel verification passed for

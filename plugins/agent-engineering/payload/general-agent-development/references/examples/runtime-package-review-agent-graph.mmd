@@ -1,0 +1,36 @@
+flowchart TD
+    subgraph request_analysis[Request analysis]
+        analyze_package_request["LLM: Analyze package request"]
+    end
+
+    subgraph package_read[Package read]
+        read_manifest["Tool Use: Read manifest"]
+        read_graph["Tool Use: Read graph"]
+    end
+
+    subgraph validation[Runtime validation]
+        validate_package["Tool Use: Validate package"]
+    end
+
+    subgraph routing[Validation routing]
+        route_validation_result{"Decision: Route validation result"}
+    end
+
+    subgraph synthesis[Review synthesis]
+        synthesize_review["LLM: Synthesize review"]
+        ask_for_package_clarification["LLM: Ask for package clarification"]
+    end
+
+    read_package_file[("Tool: Read package file")]
+    validate_runtime_manifest[("Tool: Validate runtime manifest")]
+
+    read_manifest -. "can call" .-> read_package_file
+    read_graph -. "can call" .-> read_package_file
+    validate_package -. "can call" .-> validate_runtime_manifest
+
+    analyze_package_request -->|package_paths_available| read_manifest
+    read_manifest -->|manifest_excerpt_available| read_graph
+    read_graph -->|graph_read_or_missing| validate_package
+    validate_package -->|validation_result_available| route_validation_result
+    route_validation_result -->|synthesize| synthesize_review
+    route_validation_result -->|clarify| ask_for_package_clarification

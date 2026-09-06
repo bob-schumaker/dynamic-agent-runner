@@ -1,0 +1,20 @@
+{
+  "modules": [
+    {
+      "description": "Route bounded agent design and explicit DAR workflow-authoring requests to focused private guidance.",
+      "path": "references/modules/agent-development/instructions.md",
+      "slug": "agent-development"
+    },
+    {
+      "description": "Use to design framework-neutral agents with SDD, safety, memory, implementation, and eval boundaries.",
+      "path": "references/modules/general-agent-development/instructions.md",
+      "slug": "general-agent-development"
+    },
+    {
+      "description": "Author bounded Dynamic Agent Runner workflows only after an explicit DAR-targeted request.",
+      "path": "references/modules/dar-workflow-authoring/instructions.md",
+      "slug": "dar-workflow-authoring"
+    }
+  ],
+  "router": "agent-development"
+}

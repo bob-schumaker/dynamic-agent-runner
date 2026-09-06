@@ -1,0 +1,419 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: simple-tool-agent
+name: Simple Tool Agent
+entrypoint: analyze_request
+mermaid_diagram: simple-tool-agent-graph.mmd
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+runtime:
+  execution_policy:
+    autonomy_level: assistive
+    allowed_execution_modes:
+    - sequential_fallback
+    external_backend_allowed: false
+    max_iterations: 3
+    timeout: unknown
+    exit_strategy:
+      terminal_conditions:
+      - draft_design emitted
+      - clarification_request emitted
+      - validation failure or unavailable context
+      on_exhaustion: escalate
+      ambiguous_completion: clarify
+    approval_required_for:
+    - live write or mutation
+    forbidden_actions:
+    - store secrets in prompts or logs
+    prompt_cache:
+      enabled: false
+      strategy: stable_prefix
+      min_prefix_tokens: 1024
+      prefix_parts:
+      - system
+      - developer
+      - skill_instructions
+      - tool_schemas
+      variable_parts:
+      - user_prompt
+      - run_state
+      - tool_results
+      cache_key_hint: package_id
+      provider_hints:
+        openai:
+          cache_key_strategy: package_id_and_version
+          retention: auto
+  state:
+    artifacts:
+    - id: user_request
+      description: Original task request
+      source: user
+    - id: request_summary
+      description: Structured request summary
+      source: llm
+    - id: repo_context
+      description: Local repository evidence gathered by search
+      source: tool
+    - id: selected_path
+      description: Decision route selected for the next action
+      source: runtime
+    - id: agent_design
+      description: Drafted agent design output
+      source: llm
+    - id: clarification_request
+      description: Clarification request for missing context
+      source: llm
+    mutable_fields:
+    - selected_path
+metadata:
+  patterns_present:
+  - prompt_chaining
+  - routing
+  participant_groups: []
+  modes:
+  - id: default
+    description: Sequential assistive design mode
+    enabled_phases:
+    - request_analysis
+    - evidence_gathering
+    - routing
+    batching_allowed: false
+  phases:
+  - id: request_analysis
+    label: Request analysis
+    phase_kind: preparation
+    repeatable: false
+    participant_group:
+    peer_visibility: not_applicable
+    enabled_when: always
+  - id: evidence_gathering
+    label: Evidence gathering
+    phase_kind: preparation
+    repeatable: false
+    participant_group:
+    peer_visibility: not_applicable
+    enabled_when: request_summary_available
+  - id: routing
+    label: Routing decision
+    phase_kind: decision_gate
+    repeatable: false
+    participant_group:
+    peer_visibility: not_applicable
+    enabled_when: repo_context_available
+  roles:
+  - id: designer
+    actor: designer
+    description: Converts the user request and evidence into a next-step decision.
+    input_contract:
+    - user_request
+    - repo_context
+    output_contract:
+    - request_summary
+    - selected_path
+    prompt_source: inline
+extensions: {}
+skills:
+- id: agent-development
+  label: Agent development skill
+  source_type: repo_skill
+  source_path: corpus/capabilities/agent-development/SKILL.md
+  packaging_mode: bundled_copy
+  bundled_path: skill-bundle/agent-development/SKILL.md
+  support_files:
+  - source_path: corpus/capabilities/agent-development/references/agent-runtime-package.md
+    bundled_path: skill-bundle/agent-development/references/agent-runtime-package.md
+  notes: Provides runtime package design conventions.
+tools:
+- id: search_repo
+  label: Search repository
+  tool_type: file_read
+  description_for_llm: |
+    Search repository files for terms related to the requested design.
+    Use this for read-only evidence gathering before planning edits.
+  adapter: runtime.search_files
+  input_schema:
+    type: object
+    properties:
+      query:
+        type: string
+  output_schema:
+    type: object
+    properties:
+      matches:
+        type: array
+  side_effect: read
+  approval_required: false
+  timeout: unknown
+  retry_policy: bounded
+  failure_behavior: fallback
+  skill_bindings:
+  - skill_id: agent-development
+    usage: shared_reference
+nodes:
+- id: analyze_request
+  kind: llm_step
+  label: Analyze request
+  actor: designer
+  role: designer
+  phase: request_analysis
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    reasoning_profile:
+      level: low
+      task_type: extraction
+      task_subtype: synthesis
+      uncertainty_handling: ask_clarification
+    context_requirements:
+      expected_input_size: small
+      context_window: 8000
+      needs_retrieved_context: false
+    output_requirements:
+      format: schema_ref
+      schema_ref: request_summary
+      evidence_citations: not_needed
+    operational_preferences:
+      latency_sensitivity: medium
+      cost_sensitivity: medium
+      determinism: preferred
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: escalate
+      minimum_acceptable_level: low
+  prompt:
+    system: 'You are an agent design assistant. Summarize the user request as a structured
+      goal.
+
+'
+    developer: 'Preserve explicit constraints and do not invent implementation details.
+
+'
+    user_template: 'Summarize this request: {user_request}
+
+'
+    input_vars:
+    - user_request
+    output_schema_ref: request_summary
+  available_tools:
+  - tool_id: search_repo
+    usage: optional
+  skill_bindings:
+  - skill_id: agent-development
+    usage: instruction_context
+  inputs_from:
+  - user_request
+  outputs:
+  - request_summary
+- id: gather_repo_context
+  kind: tool_use_step
+  label: Gather repository context
+  actor: runtime
+  phase: evidence_gathering
+  tool_id: search_repo
+  inputs_from:
+  - request_summary
+  outputs:
+  - repo_context
+  failure_behavior: fallback
+- id: choose_next_step
+  kind: decision_step
+  decision_subtype: llm_route
+  label: Choose next step
+  actor: designer
+  phase: routing
+  prompt:
+    system: 'Choose the safest next path from the allowed paths.
+
+'
+    developer: 'Use the repository evidence and route to clarification when evidence
+      is insufficient.
+
+'
+    user_template: |
+      Request summary: {request_summary}
+      Repository context: {repo_context}
+    input_vars:
+    - request_summary
+    - repo_context
+  decision_contract:
+    compares:
+    - repo_context
+    allowed_paths:
+    - id: proceed
+      condition: enough context exists
+      target: draft_design
+    - id: clarify
+      condition: material ambiguity remains
+      target: ask_clarification
+    default_path: clarify
+  inputs_from:
+  - request_summary
+  - repo_context
+  outputs:
+  - selected_path
+- id: draft_design
+  kind: llm_step
+  label: Draft design
+  actor: designer
+  role: designer
+  phase: routing
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    reasoning_profile:
+      level: medium
+      task_type: planning
+      task_subtype: synthesis
+      uncertainty_handling: answer_with_caveats
+    context_requirements:
+      expected_input_size: medium
+      context_window: 16000
+      needs_retrieved_context: true
+    output_requirements:
+      format: schema_ref
+      schema_ref: agent_design
+      evidence_citations: preferred
+    operational_preferences:
+      latency_sensitivity: medium
+      cost_sensitivity: medium
+      determinism: balanced
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: escalate
+      minimum_acceptable_level: medium
+  prompt:
+    system: 'Draft the agent design from the approved evidence.
+
+'
+    developer: 'Include assumptions and validation needs.
+
+'
+    user_template: 'Draft using {request_summary} and {repo_context}.
+
+'
+    input_vars:
+    - request_summary
+    - repo_context
+    output_schema_ref: agent_design
+  available_tools: []
+  skill_bindings:
+  - skill_id: agent-development
+    usage: output_formatter
+  inputs_from:
+  - request_summary
+  - repo_context
+  outputs:
+  - agent_design
+- id: ask_clarification
+  kind: llm_step
+  label: Ask clarification
+  actor: designer
+  role: designer
+  phase: routing
+  mode_scope:
+  - default
+  model_requirements:
+    required_capabilities:
+    - supports_structured
+    - supports_json_mode
+    reasoning_profile:
+      level: low
+      task_type: generation
+      task_subtype: synthesis
+      uncertainty_handling: ask_clarification
+    context_requirements:
+      expected_input_size: medium
+      context_window: 8000
+      needs_retrieved_context: true
+    output_requirements:
+      format: schema_ref
+      schema_ref: clarification_request
+      evidence_citations: not_needed
+    operational_preferences:
+      latency_sensitivity: high
+      cost_sensitivity: medium
+      determinism: preferred
+      data_boundary: private_runtime
+    fallback_policy:
+      if_unavailable: use_lower_capability
+      minimum_acceptable_level: minimal
+  prompt:
+    system: 'Ask concise clarification questions.
+
+'
+    developer: 'Ask only for information required to proceed safely.
+
+'
+    user_template: 'Missing context from {request_summary} and {repo_context}.
+
+'
+    input_vars:
+    - request_summary
+    - repo_context
+    output_schema_ref: clarification_request
+  available_tools: []
+  skill_bindings: []
+  inputs_from:
+  - request_summary
+  - repo_context
+  outputs:
+  - clarification_request
+edges:
+- from: analyze_request
+  to: gather_repo_context
+  edge_kind: sequential
+  condition: request_summary_available
+  carries:
+  - request_summary
+- from: gather_repo_context
+  to: choose_next_step
+  edge_kind: sequential
+  condition: repo_context_available
+  carries:
+  - repo_context
+- from: choose_next_step
+  to: draft_design
+  edge_kind: branch
+  condition: proceed
+  carries:
+  - selected_path
+- from: choose_next_step
+  to: ask_clarification
+  edge_kind: branch
+  condition: clarify
+  carries:
+  - selected_path
+output_contracts:
+- id: request_summary
+  required_fields:
+  - goal
+  - constraints
+  required_sections: []
+  validation: manual_review
+- id: agent_design
+  required_fields:
+  - purpose
+  - runtime
+  - validation
+  required_sections: []
+  validation: manual_review
+- id: clarification_request
+  required_fields:
+  - questions
+  required_sections: []
+  validation: manual_review
+validation:
+  package_checks:
+  - Every node id is unique.
+  - Every edge endpoint references an existing node.
+  - Every tool_use_step references an existing tool.
+  - Every node skill_binding references an existing skill.
+  - Every llm_step has a prompt or a prompt_source.
+  - Mermaid graph matches runtime manifest nodes and edges.

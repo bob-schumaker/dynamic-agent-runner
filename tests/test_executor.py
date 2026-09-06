@@ -1190,6 +1190,7 @@ def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
                     "tool_use_completion": {
                         "run_again": "required",
                         "stop_on_tool": "enabled",
+                        "after_tool_result_tools": "disabled",
                         "final_output": "state_field",
                         "final_output_state_key": "lookup_summary",
                     },
@@ -1272,6 +1273,7 @@ def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
     assert plan.tool_use_completion_policy is not None
     assert plan.tool_use_completion_policy.run_again == "required"
     assert plan.tool_use_completion_policy.stop_on_tool == "enabled"
+    assert plan.tool_use_completion_policy.after_tool_result_tools == "disabled"
     assert plan.tool_use_completion_policy.final_output == "state_field"
     assert plan.tool_use_completion_policy.final_output_state_key == "lookup_summary"
     assert plan.async_session_policy is not None
@@ -5627,6 +5629,141 @@ def test_execute_workflow_preserves_legacy_tool_choice_without_policy() -> None:
     assert result.final_result == "final answer"
     assert adapter.client.responses.calls[0]["tool_choice"] == "required"
     assert adapter.client.responses.calls[1]["tool_choice"] == "required"
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_execute_workflow_disables_tools_after_tool_result_when_requested(
+    asynchronous: bool,
+) -> None:
+    workflow = loop_tool_workflow(
+        execution_policy_extra={
+            "tool_use_completion": {
+                "run_again": "required",
+                "stop_on_tool": "disabled",
+                "final_output": "default",
+                "after_tool_result_tools": "disabled",
+            }
+        },
+        node_extra={"tool_choice": "required"},
+    )
+    registry = InMemoryToolRegistry([make_tool("search_repo")])
+    responses = [
+        {
+            "id": "resp_1",
+            "output": [
+                {
+                    "type": "function_call",
+                    "call_id": "call_1",
+                    "name": "search_repo",
+                    "arguments": '{"query":"agents"}',
+                }
+            ],
+        },
+        {"id": "resp_2", "output_text": "final answer"},
+    ]
+    adapter = make_async_adapter(responses) if asynchronous else make_adapter(responses)
+
+    result = (
+        asyncio.run(
+            execute_workflow_async(
+                workflow,
+                prompt="How?",
+                tool_registry=registry,
+                model_adapter=adapter,
+            )
+        )
+        if asynchronous
+        else execute_workflow(
+            workflow,
+            prompt="How?",
+            tool_registry=registry,
+            model_adapter=adapter,
+        )
+    )
+
+    assert result.final_result == "final answer"
+    assert adapter.client.responses.calls[0]["tools"][0]["name"] == "search_repo"
+    assert "tools" not in adapter.client.responses.calls[1]
+    assert "tool_choice" not in adapter.client.responses.calls[1]
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_execute_workflow_rejects_tool_calls_after_tool_exposure_is_disabled(
+    asynchronous: bool,
+) -> None:
+    workflow = loop_tool_workflow(
+        execution_policy_extra={
+            "tool_use_completion": {
+                "run_again": "required",
+                "stop_on_tool": "disabled",
+                "final_output": "default",
+                "after_tool_result_tools": "disabled",
+            }
+        }
+    )
+    calls: list[object] = []
+    tool = RegisteredTool(
+        ToolDefinition.from_mapping(
+            {
+                "id": "search_repo",
+                "description_for_llm": "Use search_repo",
+                "input_schema": {"type": "object", "properties": {}},
+            }
+        ),
+        lambda arguments: calls.append(arguments) or {"result": "first"},
+    )
+    responses = [
+        {
+            "id": "resp_1",
+            "output": [
+                {
+                    "type": "function_call",
+                    "call_id": "call_1",
+                    "name": "search_repo",
+                    "arguments": "{}",
+                }
+            ],
+        },
+        {
+            "id": "resp_2",
+            "output": [
+                {
+                    "type": "function_call",
+                    "call_id": "call_2",
+                    "name": "search_repo",
+                    "arguments": "{}",
+                }
+            ],
+        },
+    ]
+    adapter = make_async_adapter(responses) if asynchronous else make_adapter(responses)
+
+    if asynchronous:
+
+        def invocation() -> object:
+            return asyncio.run(
+                execute_workflow_async(
+                    workflow,
+                    prompt="How?",
+                    tool_registry=InMemoryToolRegistry([tool]),
+                    model_adapter=adapter,
+                )
+            )
+    else:
+
+        def invocation() -> object:
+            return execute_workflow(
+                workflow,
+                prompt="How?",
+                tool_registry=InMemoryToolRegistry([tool]),
+                model_adapter=adapter,
+            )
+
+    with pytest.raises(WorkflowExecutionError, match="tool exposure was disabled"):
+        invocation()
+
+    assert calls == [{}]
+    assert "tools" not in adapter.client.responses.calls[1]
 
 
 def test_execute_workflow_mid_turn_compaction_fails_without_compactor() -> None:

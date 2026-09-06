@@ -1,0 +1,12 @@
+graph TD
+  plan_goal["Plan goal"]
+  record_checkpoint["Record checkpoint"]
+  evaluate_progress["Evaluate progress"]
+  prepare_continuation["Prepare continuation"]
+  close_goal["Close goal"]
+
+  plan_goal -->|goal_plan_available| record_checkpoint
+  record_checkpoint -->|checkpoint_summary_available| evaluate_progress
+  evaluate_progress -->|continue| prepare_continuation
+  prepare_continuation -->|loopback: next checkpoint due| record_checkpoint
+  evaluate_progress -->|close| close_goal

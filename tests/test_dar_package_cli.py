@@ -20,7 +20,13 @@ from dynamic_agent_runner.workflow_host.host import (
 from dynamic_agent_runner.workflow_host.cli import main as workflow_host_main
 
 
-TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
+TEMPLATE_ROOT = (
+    Path(__file__).resolve().parents[1]
+    / "specs"
+    / "agent-engineering-plugin-migration"
+    / "legacy-dar-authoring"
+    / "templates"
+)
 
 
 class _Responses:
@@ -833,6 +839,106 @@ def test_invoke_passes_ask_as_a_local_host_broker(
             stdin=StringIO("Summarize this document."),
             stdout=StringIO(),
             stderr=StringIO(),
+        )
+        == 0
+    )
+
+
+def test_invoke_can_use_a_controller_owned_host_opener() -> None:
+    opened: list[Path] = []
+
+    class Host:
+        def invoke_saved(self, **_kwargs: object) -> object:
+            return type(
+                "Result",
+                (),
+                {
+                    "status": "completed",
+                    "run_id": "run-1",
+                    "output": {"summary": "done"},
+                },
+            )()
+
+    def open_host(root: Path) -> Host:
+        opened.append(root)
+        return Host()
+
+    assert (
+        dar_package_cli.main(
+            ["invoke", "--package-name", "document-summary", "--prompt-stdin"],
+            stdin=StringIO("Summarize this document."),
+            stdout=StringIO(),
+            stderr=StringIO(),
+            host_opener=open_host,
+        )
+        == 0
+    )
+    assert len(opened) == 1
+
+
+def test_invoke_can_use_a_controller_owned_approval_broker() -> None:
+    broker = object()
+
+    class Host:
+        def invoke_saved(
+            self, *, approval_broker: object | None, **_kwargs: object
+        ) -> object:
+            assert approval_broker is broker
+            return type(
+                "Result",
+                (),
+                {
+                    "status": "completed",
+                    "run_id": "run-1",
+                    "output": {"summary": "done"},
+                },
+            )()
+
+    assert (
+        dar_package_cli.main(
+            [
+                "invoke",
+                "--package-name",
+                "document-summary",
+                "--prompt-stdin",
+                "--ask",
+            ],
+            stdin=StringIO("Summarize this document."),
+            stdout=StringIO(),
+            stderr=StringIO(),
+            host_opener=lambda _root: Host(),
+            approval_broker_factory=lambda: broker,
+        )
+        == 0
+    )
+
+
+def test_invoke_can_use_a_controller_owned_guardrail_registry() -> None:
+    registry = object()
+
+    class Host:
+        def invoke_saved(
+            self, *, guardrail_registry: object | None, **_kwargs: object
+        ) -> object:
+            assert guardrail_registry is registry
+            return type(
+                "Result",
+                (),
+                {
+                    "status": "completed",
+                    "run_id": "run-1",
+                    "output": {"summary": "done"},
+                },
+            )()
+
+    assert (
+        dar_package_cli.main(
+            ["invoke", "--package-name", "document-summary", "--prompt-stdin"],
+            stdin=StringIO("Summarize this document."),
+            stdout=StringIO(),
+            stderr=StringIO(),
+            host_opener=lambda _root: Host(),
+            guardrail_registry=registry,
         )
         == 0
     )

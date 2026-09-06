@@ -1,0 +1,500 @@
+{
+  "entries": [
+    {
+      "capability_assertions": [
+        "document-summary"
+      ],
+      "capability_id": "basic-reasoning",
+      "configured_fixture_ids": [
+        "local-model-profile"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "document-summary-v1"
+    },
+    {
+      "capability_assertions": [
+        "llm-and-decision-steps"
+      ],
+      "capability_id": "no-tool-multi-step",
+      "configured_fixture_ids": [
+        "local-model-profile"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "no-tool-graph-and-skill-v1"
+    },
+    {
+      "capability_assertions": [
+        "declared-tool-node"
+      ],
+      "capability_id": "tool-using-graph",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection",
+        "approval-broker"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "generic-email-send-v1"
+    },
+    {
+      "capability_assertions": [
+        "no-tool-without-connection"
+      ],
+      "capability_id": "tool-using-graph",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "approval-broker"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [
+        "reviewed-mcp-connection"
+      ],
+      "scenario_id": "mcp-tooling-missing-connection-v1"
+    },
+    {
+      "capability_assertions": [
+        "terminal-schema"
+      ],
+      "capability_id": "structured-terminal-output",
+      "configured_fixture_ids": [
+        "local-model-profile"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "structured-single-model-review-v1"
+    },
+    {
+      "capability_assertions": [
+        "skill-bundle-only"
+      ],
+      "capability_id": "package-local-skill",
+      "configured_fixture_ids": [
+        "local-model-profile"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "no-tool-graph-and-skill-v1"
+    },
+    {
+      "capability_assertions": [
+        "reviewed-read-tool"
+      ],
+      "capability_id": "read-only-mcp-tool",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "mailbox-triage-v1"
+    },
+    {
+      "capability_assertions": [
+        "no-read-tool-without-connection"
+      ],
+      "capability_id": "read-only-mcp-tool",
+      "configured_fixture_ids": [
+        "local-model-profile"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [
+        "reviewed-mcp-connection"
+      ],
+      "scenario_id": "read-only-mcp-missing-connection-v1"
+    },
+    {
+      "capability_assertions": [
+        "approval-and-idempotency"
+      ],
+      "capability_id": "mcp-mutation",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection",
+        "approval-broker"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "generic-email-send-v1"
+    },
+    {
+      "capability_assertions": [
+        "no-mutation-without-connection"
+      ],
+      "capability_id": "mcp-mutation",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "approval-broker"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [
+        "reviewed-mcp-connection"
+      ],
+      "scenario_id": "mcp-tooling-missing-connection-v1"
+    },
+    {
+      "capability_assertions": [
+        "single-dispatch-recovery"
+      ],
+      "capability_id": "mcp-mutation",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection",
+        "trusted-workspace-ingress",
+        "approval-broker"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "side-effect-recovery-v1"
+    },
+    {
+      "capability_assertions": [
+        "trusted-artifact-role"
+      ],
+      "capability_id": "file-backed-task",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection",
+        "trusted-workspace-ingress",
+        "approval-broker"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "email-file-body-v1"
+    },
+    {
+      "capability_assertions": [
+        "no-artifact-without-ingress"
+      ],
+      "capability_id": "file-backed-task",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection",
+        "approval-broker"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [
+        "trusted-workspace-ingress"
+      ],
+      "scenario_id": "file-provenance-missing-ingress-v1"
+    },
+    {
+      "capability_assertions": [
+        "sealed-structured-and-artifact-input"
+      ],
+      "capability_id": "hybrid-input",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "trusted-workspace-ingress"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "hybrid-brief-v1"
+    },
+    {
+      "capability_assertions": [
+        "artifact-provenance"
+      ],
+      "capability_id": "tool-argument-provenance",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection",
+        "trusted-workspace-ingress",
+        "approval-broker"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "email-file-body-v1"
+    },
+    {
+      "capability_assertions": [
+        "no-unsealed-provenance"
+      ],
+      "capability_id": "tool-argument-provenance",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection",
+        "approval-broker"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [
+        "trusted-workspace-ingress"
+      ],
+      "scenario_id": "file-provenance-missing-ingress-v1"
+    },
+    {
+      "capability_assertions": [
+        "bounded-tool-loop"
+      ],
+      "capability_id": "react-tool-loop",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "reviewed-mcp-connection",
+        "approval-broker"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "generic-email-send-v1"
+    },
+    {
+      "capability_assertions": [
+        "no-loop-without-connection"
+      ],
+      "capability_id": "react-tool-loop",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "approval-broker"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [
+        "reviewed-mcp-connection"
+      ],
+      "scenario_id": "mcp-tooling-missing-connection-v1"
+    },
+    {
+      "capability_assertions": [
+        "configured-oauth-connection"
+      ],
+      "capability_id": "oauth-mcp-connection",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "oauth-connection",
+        "fake-oauth-provider"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "oauth-reconnect-v1"
+    },
+    {
+      "capability_assertions": [
+        "no-oauth-provisioning"
+      ],
+      "capability_id": "oauth-mcp-connection",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "fake-oauth-provider"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [
+        "oauth-connection"
+      ],
+      "scenario_id": "oauth-missing-connection-v1"
+    },
+    {
+      "capability_assertions": [
+        "no-successor-publication"
+      ],
+      "capability_id": "package-portability",
+      "configured_fixture_ids": [
+        "recipient-host"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "source_selection",
+      "missing_fixture_ids": [],
+      "scenario_id": "portable-package-handoff-v1"
+    },
+    {
+      "capability_assertions": [
+        "deterministic-evaluation"
+      ],
+      "capability_id": "evaluation",
+      "configured_fixture_ids": [
+        "local-model-profile"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "no-tool-graph-and-skill-v1"
+    },
+    {
+      "capability_assertions": [
+        "input-phase"
+      ],
+      "capability_id": "guardrails",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "input-guardrail-registry"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "guardrail-input-v1"
+    },
+    {
+      "capability_assertions": [
+        "missing-input-registry"
+      ],
+      "capability_id": "guardrails",
+      "configured_fixture_ids": [
+        "local-model-profile"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [
+        "input-guardrail-registry"
+      ],
+      "scenario_id": "guardrail-input-missing-v1"
+    },
+    {
+      "capability_assertions": [
+        "tool-input-phase"
+      ],
+      "capability_id": "guardrails",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "tool-input-guardrail-registry"
+      ],
+      "expected_status": "pass",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "guardrail-tool-input-v1"
+    },
+    {
+      "capability_assertions": [
+        "missing-tool-input-registry"
+      ],
+      "capability_id": "guardrails",
+      "configured_fixture_ids": [
+        "local-model-profile"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [
+        "tool-input-guardrail-registry"
+      ],
+      "scenario_id": "guardrail-tool-input-missing-v1"
+    },
+    {
+      "capability_assertions": [
+        "no-context-pipeline"
+      ],
+      "capability_id": "context-pruning-pipeline",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "approval-broker"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [],
+      "scenario_id": "deferred-runtime-boundaries-v1"
+    },
+    {
+      "capability_assertions": [
+        "scratch-access-none"
+      ],
+      "capability_id": "scratch-workspace",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "approval-broker"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [],
+      "scenario_id": "deferred-runtime-boundaries-v1"
+    },
+    {
+      "capability_assertions": [
+        "no-durable-continuation"
+      ],
+      "capability_id": "durable-session-continuation",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "approval-broker"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [],
+      "scenario_id": "deferred-runtime-boundaries-v1"
+    },
+    {
+      "capability_assertions": [
+        "no-subagent-binding"
+      ],
+      "capability_id": "collaboration-subagents",
+      "configured_fixture_ids": [
+        "local-model-profile"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [],
+      "scenario_id": "council-request-v1"
+    },
+    {
+      "capability_assertions": [
+        "no-embedding-provider"
+      ],
+      "capability_id": "retrieval-embedding-rag",
+      "configured_fixture_ids": [
+        "local-model-profile"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [],
+      "scenario_id": "document-embedding-v1"
+    },
+    {
+      "capability_assertions": [
+        "refuse-unreviewed-host-tool"
+      ],
+      "capability_id": "custom-host-tools",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "authoring-broker"
+      ],
+      "expected_status": "expected_refusal",
+      "expected_terminal_phase": "authoring_validation",
+      "missing_fixture_ids": [],
+      "scenario_id": "authoring-boundary-attack-v1"
+    },
+    {
+      "capability_assertions": [
+        "refuse-model-facing-host-tool-input"
+      ],
+      "capability_id": "custom-host-tools",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "workflow-registration"
+      ],
+      "expected_status": "expected_refusal",
+      "expected_terminal_phase": "invocation",
+      "missing_fixture_ids": [],
+      "scenario_id": "invocation-schema-boundary-attack-v1"
+    },
+    {
+      "capability_assertions": [
+        "no-native-resume"
+      ],
+      "capability_id": "native-approval-resume",
+      "configured_fixture_ids": [
+        "local-model-profile",
+        "approval-broker"
+      ],
+      "expected_status": "expected_capability_unavailable",
+      "expected_terminal_phase": "capability_preflight",
+      "missing_fixture_ids": [],
+      "scenario_id": "deferred-runtime-boundaries-v1"
+    }
+  ],
+  "format_version": "m4.4-successor-coverage-v1"
+}

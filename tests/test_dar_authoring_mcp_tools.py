@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -26,6 +28,12 @@ from dynamic_agent_runner.workflow_host.mcp_surfaces import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.mcp_tools import (
     create_read_only_mcp_tool_bindings,
 )  # noqa: E402
+from dynamic_agent_runner.workflow_host.fastmail_triage import (  # noqa: E402
+    FastmailTriageQuery,
+    create_fastmail_triage_search_binding,
+    default_fastmail_triage_query,
+    project_fastmail_triage_result,
+)
 from dynamic_agent_runner.workflow_host.policy import WorkflowPolicy  # noqa: E402
 from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControlPlane  # noqa: E402
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
@@ -69,6 +77,71 @@ class CurrentClient:
 
     def reconnect(self) -> None:
         self.current_generation += 1
+
+
+def test_fastmail_triage_defaults_to_bounded_unread_query_and_projection() -> None:
+    now = datetime(2026, 9, 5, tzinfo=UTC)
+
+    query = default_fastmail_triage_query(now)
+    result = project_fastmail_triage_result(
+        {
+            "structuredContent": {
+                "results": [
+                    {
+                        "id": "opaque-1",
+                        "subject": "Review this",
+                        "from": "sender@example.test",
+                        "receivedAt": "2026-09-05T10:00:00Z",
+                        "preview": "Untrusted message content",
+                        "attachments": [{"name": "never-visible.pdf"}],
+                    }
+                ]
+            }
+        }
+    )
+
+    assert query.unread is True
+    assert query.received_after == now - timedelta(hours=24)
+    assert query.max_results == 5
+    assert query.arguments == {"query": "is:unread after:2026-09-04", "limit": 5}
+    assert result == {
+        "items": [
+            {
+                "message_reference": "opaque-1",
+                "subject": "Review this",
+                "sender": "sender@example.test",
+                "received_at": "2026-09-05T10:00:00Z",
+                "preview": "Untrusted message content",
+            }
+        ]
+    }
+
+
+def test_fastmail_live_shape_fixture_is_bounded_and_deidentified() -> None:
+    fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "fastmail-triage"
+            / "live-shape-projection.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert list(fixture) == ["items"]
+    assert len(fixture["items"]) == 5
+    assert [set(item) for item in fixture["items"]] == [
+        {"message_reference", "subject", "received_at", "preview"}
+    ] * 5
+    assert all(
+        item["message_reference"].startswith("live-shape-message-")
+        and all(
+            character in "Aa" for character in item["subject"] if character.isalpha()
+        )
+        and all(
+            character in "Aa" for character in item["preview"] if character.isalpha()
+        )
+        for item in fixture["items"]
+    )
 
 
 def _policy() -> WorkflowPolicy:
@@ -217,3 +290,131 @@ def test_host_binding_never_constructs_an_unapproved_send_like_handler(
         )
 
     assert client.calls == []
+
+
+def test_fastmail_triage_binding_owns_query_constraints_and_result_projection(
+    tmp_path: Path,
+) -> None:
+    surfaces, binding_control, existing_binding, client = _setup(tmp_path)
+    policy = WorkflowPolicy(
+        **{
+            **_policy().__dict__,
+            "policy_digest": "d" * 64,
+            "task_invocation": TaskInvocation(
+                entrypoint="read_mail",
+                max_total_tool_calls=1,
+                allowed_structured_input_fields=(),
+                allowed_artifact_roles=(),
+                terminal_output_schema_ref="mail-v1",
+                allowed_tool_ids=("search_email",),
+            ),
+            "declared_tools": (DeclaredTool("search_email", "list_unread"),),
+        }
+    )
+    binding = binding_control.bind(
+        policy=policy,
+        snapshot_id=existing_binding.snapshot_id,
+        client=client,
+    )
+    invocation_time = datetime(2026, 9, 5, tzinfo=UTC)
+
+    def query_builder(now: datetime) -> FastmailTriageQuery:
+        return FastmailTriageQuery(
+            arguments={"host_owned": "query"},
+            unread=True,
+            received_after=now - timedelta(hours=24),
+            max_results=5,
+        )
+
+    registry = create_host_tool_registry(
+        (
+            create_fastmail_triage_search_binding(
+                policy=policy,
+                binding_id=binding.binding_id,
+                binding_control=binding_control,
+                client=client,
+                surfaces=surfaces,
+                query_builder=query_builder,
+                result_projector=lambda _result: {
+                    "items": [{"message_reference": "opaque-1", "subject": "One"}]
+                },
+                now=lambda: invocation_time,
+            ),
+        )
+    )
+
+    result = registry.invoke_tool("search_email", {})
+
+    assert result.success is True
+    assert result.output == {
+        "items": [{"message_reference": "opaque-1", "subject": "One"}]
+    }
+    assert client.calls == [("list_unread", {"host_owned": "query"})]
+
+
+def test_fastmail_triage_binding_keeps_hostile_mail_content_out_of_authority(
+    tmp_path: Path,
+) -> None:
+    surfaces, binding_control, existing_binding, client = _setup(tmp_path)
+    policy = WorkflowPolicy(
+        **{
+            **_policy().__dict__,
+            "policy_digest": "e" * 64,
+            "task_invocation": TaskInvocation(
+                entrypoint="read_mail",
+                max_total_tool_calls=1,
+                allowed_structured_input_fields=(),
+                allowed_artifact_roles=(),
+                terminal_output_schema_ref="mail-v1",
+                allowed_tool_ids=("search_email",),
+            ),
+            "declared_tools": (DeclaredTool("search_email", "list_unread"),),
+        }
+    )
+    binding = binding_control.bind(
+        policy=policy,
+        snapshot_id=existing_binding.snapshot_id,
+        client=client,
+    )
+    invocation_time = datetime(2026, 9, 5, tzinfo=UTC)
+    registry = create_host_tool_registry(
+        (
+            create_fastmail_triage_search_binding(
+                policy=policy,
+                binding_id=binding.binding_id,
+                binding_control=binding_control,
+                client=client,
+                surfaces=surfaces,
+                query_builder=lambda now: FastmailTriageQuery(
+                    arguments={"host_owned": "query"},
+                    unread=True,
+                    received_after=now - timedelta(hours=24),
+                    max_results=5,
+                ),
+                result_projector=lambda _result: json.loads(
+                    (
+                        Path(__file__).parent
+                        / "fixtures"
+                        / "fastmail-triage"
+                        / "hostile-projection.json"
+                    ).read_text(encoding="utf-8")
+                ),
+                now=lambda: invocation_time,
+            ),
+        )
+    )
+
+    result = registry.invoke_tool("search_email", {})
+    unexpected = registry.invoke_tool("send_email", {})
+
+    assert result.success is True
+    assert unexpected.success is False
+    assert client.calls == [("list_unread", {"host_owned": "query"})]
+    rejected = registry.invoke_tool("search_email", {"injected": "argument"})
+    exhausted = registry.invoke_tool("search_email", {})
+
+    assert rejected.success is False
+    assert "unknown input" in rejected.error
+    assert exhausted.success is False
+    assert "limit is exhausted" in exhausted.error
+    assert client.calls == [("list_unread", {"host_owned": "query"})]
