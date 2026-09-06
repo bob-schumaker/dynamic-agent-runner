@@ -2,8 +2,9 @@
 
 ## Status
 
-Implementation candidate. Complete tasks in dependency order and record RED and
-GREEN evidence in this file. The authoritative requirements are
+NLA-1 complete; later slices remain implementation candidates. Complete tasks
+in dependency order and record RED and GREEN evidence in this file. The
+authoritative requirements are
 [`spec.md`](spec.md); the slice design is [`plan.md`](plan.md).
 
 ## Scope Rules
@@ -24,7 +25,7 @@ GREEN evidence in this file. The authoritative requirements are
 
 ## NLA-1 — Closed Registration Contract
 
-- [ ] NLA-1.1 [RED] Add `tests/test_natural_language_workflow_authoring.py`
+- [x] NLA-1.1 [RED] Add `tests/test_natural_language_workflow_authoring.py`
       for the canonical workflow contract, declarative workflow definition, and
       `ready` / `unavailable` DAR result models.
   - Spec: FR-2, FR-5, FR-6
@@ -37,18 +38,24 @@ GREEN evidence in this file. The authoritative requirements are
   - Validation:
     `poetry run pytest tests/test_natural_language_workflow_authoring.py -q`
   - Expected RED: no closed registration transaction or result contract exists.
+  - RED: `poetry run pytest tests/test_natural_language_workflow_authoring.py -q`
+    failed during collection with `ModuleNotFoundError` for
+    `workflow_authoring_registration`.
 
-- [ ] NLA-1.2 [GREEN] Implement the closed canonical contract, declarative
+- [x] NLA-1.2 [GREEN] Implement the closed canonical contract, declarative
       definition validation, and immutable DAR result values.
   - Spec: FR-5, FR-6
   - Components: `workflow_host/workflow_authoring_registration.py`
   - Depends on: NLA-1.1
   - Requirements: accept only a completed canonical contract and declarative
     definition; reject paths, handles, credentials, executable tool code, and
-    control-plane values; return only `ready` or `unavailable`. Do not persist,
-    stage, register, or add a CLI command in this slice.
+    control-plane values; accept only the existing declarative workflow artifact
+    paths; return only `ready` or `unavailable`. Do not persist, stage,
+    register, or add a CLI command in this slice.
   - Validation:
     `poetry run pytest tests/test_natural_language_workflow_authoring.py -q`
+  - GREEN: targeted contract tests passed with 10 tests; Ruff passed for the new
+    module and test.
 
 ## NLA-2 — Multimodal Profile Capability and Sealed Image Delivery
 
