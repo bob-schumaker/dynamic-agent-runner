@@ -196,7 +196,9 @@ configured image-capable adapter; text workflows behave as before.
    `WorkflowRegistrationService` boundaries; it does not duplicate any of them.
 4. Add the `dar-package register-authored-workflow` closed command in
    `dar_package_cli.py`. It accepts only a completed canonical contract and
-   declarative definition on standard input,
+   declarative definition on standard input. Its v1 input is one JSON object
+   with exactly `format_version`, `contract`, and `definition`; each nested
+   value admits only the fields of its closed DAR contract,
    returns one versioned façade result, and rejects executable tool code, paths,
    package IDs, profile IDs, endpoints, credentials, manifests, and authoring
    handles. Clarification and implementation guidance remain in Agent

@@ -157,7 +157,7 @@ authoritative requirements are
     reach registration; package-name collision and registration/profile failure
     are redacted. The focused suite passed with 15 tests.
 
-- [ ] NLA-4.2 [GREEN] Complete transactional registration composition and
+- [x] NLA-4.2 [GREEN] Complete transactional registration composition and
       executable handoff.
   - Spec: FR-2, FR-4, FR-5
   - Depends on: NLA-4.1
@@ -168,6 +168,14 @@ authoritative requirements are
     `dar-package register-authored-workflow` command only here.
   - Validation: run the NLA-4.1 command plus existing authoring-output,
     registration, preparation, and CLI tests.
+  - GREEN: the host composes existing authoring-material, output,
+    finalization, selection, and registration collaborators behind the closed
+    `register_authored_workflow()` result. The stdin-only versioned
+    `dar-package register-authored-workflow --definition-stdin` command parses
+    only a complete canonical contract and declarative definition, returns the
+    redacted façade result, and was verified both with a fake host and a real
+    temporary host followed by saved-workflow dry run. Focused authoring and
+    CLI tests passed with 57 tests.
 
 - [ ] NLA-4.3 [RED] Add reviewed tool-package and opaque-artifact tests.
   - Spec: FR-7; Opaque-Binary Artifact Tool Analysis
