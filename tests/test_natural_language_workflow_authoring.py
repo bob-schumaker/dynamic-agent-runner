@@ -12,6 +12,10 @@ from dynamic_agent_runner.workflow_host.workflow_authoring_registration import (
     UnavailableAuthoredWorkflow,
     validate_definition,
 )
+from dynamic_agent_runner.workflow_host.host import LocalWorkflowHost
+
+
+NOW = object()
 
 
 def _contract() -> CanonicalWorkflowContract:
@@ -137,3 +141,19 @@ def test_results_reject_internal_details(
 ) -> None:
     with pytest.raises(AuthoringContractError):
         result_type(**kwargs)
+
+
+def test_host_redacts_a_mismatched_definition_before_authoring_persistence() -> None:
+    host = object.__new__(LocalWorkflowHost)
+
+    result = host.register_authored_workflow(
+        contract=_contract(),
+        definition=replace(_definition(), output_contract="json"),
+        now=NOW,
+    )
+
+    assert result.to_mapping() == {
+        "status": "unavailable",
+        "capability": "authoring_contract",
+        "requirement": "the workflow definition does not match the requested contract",
+    }
