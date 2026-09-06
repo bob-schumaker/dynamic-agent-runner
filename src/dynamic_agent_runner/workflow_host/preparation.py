@@ -25,6 +25,7 @@ from dynamic_agent_runner.workflow_host.state import (
     PrivateStateStore,
 )
 from dynamic_agent_runner.workflow_host.workspace_ingress import (
+    MaterializedWorkspaceBinaryArtifact,
     MaterializedWorkspaceImageArtifact,
     MaterializedWorkspaceInputArtifact,
 )
@@ -73,6 +74,20 @@ class WorkspaceArtifactImageMaterializer(WorkspaceArtifactVerifier, Protocol):
         registration_digest: str,
         now: datetime,
     ) -> MaterializedWorkspaceImageArtifact: ...
+
+
+@runtime_checkable
+class WorkspaceArtifactBinaryMaterializer(WorkspaceArtifactVerifier, Protocol):
+    """Private verifier that exposes sealed bytes only to a host-local tool."""
+
+    def materialize_binary(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceBinaryArtifact: ...
 
 
 @dataclass(frozen=True)
@@ -289,6 +304,40 @@ class WorkflowInvocationPreparationService:
         if len({image.role for image in images}) != len(images):
             raise PreparedWorkflowInputError("workspace artifact roles are ambiguous")
         return images
+
+    def materialize_workspace_binaries(
+        self,
+        sealed: SealedWorkflowInput,
+        *,
+        registration: WorkflowRegistration,
+        now: datetime,
+    ) -> tuple[MaterializedWorkspaceBinaryArtifact, ...]:
+        """Resolve sealed binary artifacts only for host-local tool bindings."""
+
+        if not sealed.workspace_artifact_ids:
+            return ()
+        materializer = self._artifact_verifier
+        if not isinstance(materializer, WorkspaceArtifactBinaryMaterializer):
+            raise PreparedWorkflowInputError(
+                "workspace binary materialization is unavailable"
+            )
+        try:
+            binaries = tuple(
+                materializer.materialize_binary(
+                    artifact_id,
+                    workflow_id=registration.workflow_id,
+                    registration_digest=registration.registration_digest,
+                    now=now,
+                )
+                for artifact_id in sealed.workspace_artifact_ids
+            )
+        except Exception as error:
+            raise PreparedWorkflowInputError(
+                "workspace binary materialization is unavailable"
+            ) from error
+        if len({binary.role for binary in binaries}) != len(binaries):
+            raise PreparedWorkflowInputError("workspace artifact roles are ambiguous")
+        return binaries
 
     def _registration_policy(self, workflow_id: str):
         try:

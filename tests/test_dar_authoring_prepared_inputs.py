@@ -26,6 +26,7 @@ from dynamic_agent_runner.workflow_host.registration import WorkflowRegistration
 from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager  # noqa: E402
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 from dynamic_agent_runner.workflow_host.workspace_ingress import (  # noqa: E402
+    MaterializedWorkspaceBinaryArtifact,
     MaterializedWorkspaceImageArtifact,
     MaterializedWorkspaceInputArtifact,
 )
@@ -96,6 +97,30 @@ class _ImageMaterializingArtifactVerifier(_ArtifactVerifier):
         )
         return MaterializedWorkspaceImageArtifact(
             artifact_id, "sha256:" + "b" * 64, "source_image", "image/png", b"image"
+        )
+
+
+class _BinaryMaterializingArtifactVerifier(_ArtifactVerifier):
+    def materialize_binary(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceBinaryArtifact:
+        self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceBinaryArtifact(
+            artifact_id,
+            "sha256:" + "c" * 64,
+            "source_binary",
+            "application/octet-stream",
+            b"binary",
         )
 
 
@@ -277,6 +302,33 @@ def test_preparation_materializes_sealed_images_only_through_image_boundary(
             "v1.artifact", "sha256:" + "b" * 64, "source_image", "image/png", b"image"
         ),
     )
+
+
+def test_preparation_materializes_sealed_binaries_only_for_host_tools(
+    tmp_path: Path,
+) -> None:
+    _, registrations, registration, _, _ = _prepared_service(tmp_path)
+    service = WorkflowInvocationPreparationService(
+        registrations=registrations,
+        catalog=PackageCatalog(tmp_path / "catalog"),
+        store=PrivateStateStore(tmp_path / "state"),
+        artifact_verifier=_BinaryMaterializingArtifactVerifier(),
+    )
+    prepared = service.prepare(
+        workflow_id="document-helper",
+        prompt="Answer.",
+        workspace_artifact_ids=("v1.artifact",),
+        now=NOW,
+    )
+    sealed = service.load(
+        prepared.prepared_input_id, registration=registration, now=NOW
+    )
+
+    binaries = service.materialize_workspace_binaries(
+        sealed, registration=registration, now=NOW
+    )
+
+    assert binaries[0].content == b"binary"
 
 
 def test_preparation_rejects_raw_structured_input_and_oversized_context(
