@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -13,10 +15,20 @@ from dynamic_agent_runner.workflow_host.workflow_authoring_registration import (
     UnavailableAuthoredWorkflow,
     validate_definition,
 )
-from dynamic_agent_runner.workflow_host.host import LocalWorkflowHost
+from dynamic_agent_runner.workflow_host.host import (
+    LocalWorkflowHost,
+    configure_local_host,
+)
 
 
 NOW = object()
+TEMPLATE_ROOT = (
+    Path(__file__).resolve().parents[1]
+    / "specs"
+    / "agent-engineering-plugin-migration"
+    / "legacy-dar-authoring"
+    / "templates"
+)
 
 
 def _contract() -> CanonicalWorkflowContract:
@@ -42,6 +54,27 @@ def _definition() -> DeclarativeWorkflowDefinition:
             "workflow-descriptor.yaml": "format_version: 1\n",
             "agent-design.md": "Create an SVG floorplan.\n",
         },
+    )
+
+
+def _runnable_definition() -> DeclarativeWorkflowDefinition:
+    artifacts = {
+        path.name: path.read_text(encoding="utf-8").replace("0.2.1", "0.1.17")
+        for path in (
+            TEMPLATE_ROOT / "agent-design.md",
+            TEMPLATE_ROOT / "agent-graph.mmd",
+            TEMPLATE_ROOT / "agent-runtime.yaml",
+            TEMPLATE_ROOT / "workflow-descriptor.yaml",
+        )
+    }
+    return DeclarativeWorkflowDefinition(
+        workflow_name="text-authoring-workflow",
+        model_id="local-model-v1",
+        adapter_id="strict-local-adapter-v1",
+        input_kind="text",
+        output_contract="text",
+        required_capabilities=("text_generation",),
+        package_artifacts=artifacts,
     )
 
 
@@ -158,6 +191,44 @@ def test_host_redacts_a_mismatched_definition_before_authoring_persistence() -> 
         "capability": "authoring_contract",
         "requirement": "the workflow definition does not match the requested contract",
     }
+
+
+def test_host_registers_a_valid_closed_definition_with_real_collaborators(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    configure_local_host(
+        root=root,
+        package_root=package_root,
+        model_id="local-model-v1",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
+    host = LocalWorkflowHost.open(root)
+    result = host.register_authored_workflow(
+        contract=CanonicalWorkflowContract(
+            workflow_name="text-authoring-workflow",
+            model_id="local-model-v1",
+            adapter_id="strict-local-adapter-v1",
+            input_kind="text",
+            output_contract="text",
+            required_capabilities=("text_generation",),
+        ),
+        definition=_runnable_definition(),
+        now=datetime(2026, 8, 23, tzinfo=UTC),
+    )
+
+    assert result.to_mapping()["status"] == "ready"
+    dry_run = host.invoke_saved(
+        package_name="text-authoring-workflow",
+        prompt="Answer this.",
+        workspace_files=(),
+        dry_run=True,
+        approval_broker=None,
+        now=datetime(2026, 8, 23, tzinfo=UTC),
+    )
+    assert dry_run.status == "ready"
 
 
 def test_host_composes_a_valid_definition_into_a_redacted_saved_handoff() -> None:
