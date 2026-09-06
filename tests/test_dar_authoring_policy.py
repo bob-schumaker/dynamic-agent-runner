@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import stat
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -42,6 +43,7 @@ def _catalog_revision(
     package_id: str | None = None,
     with_read_only_mcp_tool: bool = False,
     with_side_effecting_mcp_tool: bool = False,
+    with_local_tool: bool = False,
     package_skill_id: str | None = None,
     package_skill_bundled_path: str | None = None,
     enable_package_skill_source_resolution: bool = True,
@@ -157,6 +159,50 @@ def _catalog_revision(
         ]
         runtime_value["nodes"][0]["available_tools"] = ["mail_send"]
         runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
+    if with_local_tool:
+        descriptor = source / "workflow-descriptor.yaml"
+        descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+        descriptor_value["tools"] = [
+            {
+                "id": "inspect_binary",
+                "kind": "local",
+                "asset_path": "tools/inspect_binary",
+                "accepted_artifact_role": "source_binary",
+                "max_input_bytes": 1024,
+                "max_output_bytes": 1024,
+                "timeout_seconds": 1,
+            }
+        ]
+        descriptor_value["task_invocation"].update(
+            {
+                "allowed_tool_ids": ["inspect_binary"],
+                "allowed_artifact_roles": ["source_binary"],
+                "max_total_tool_calls": 1,
+            }
+        )
+        descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
+        runtime = source / "agent-runtime.yaml"
+        runtime_value = yaml.safe_load(runtime.read_text(encoding="utf-8"))
+        runtime_value["tools"] = [
+            {
+                "id": "inspect_binary",
+                "label": "Inspect binary",
+                "tool_type": "external_api",
+                "description_for_llm": "Inspect the sealed binary.",
+                "adapter": "host.local",
+                "input_schema": {"type": "object", "properties": {}},
+                "side_effect": "read",
+                "approval_required": False,
+                "timeout": "runtime_default",
+                "retry_policy": "none",
+                "failure_behavior": "error",
+            }
+        ]
+        runtime_value["nodes"][0]["available_tools"] = ["inspect_binary"]
+        runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
+        asset = source / "tools" / "inspect_binary"
+        asset.parent.mkdir()
+        asset.write_text("placeholder", encoding="utf-8")
     if package_skill_id is not None:
         descriptor = source / "workflow-descriptor.yaml"
         descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
@@ -277,6 +323,18 @@ def test_policy_compiles_a_cataloged_no_tool_package(tmp_path: Path) -> None:
     assert len(policy.policy_digest) == 64
     assert policy.required_capabilities == frozenset({"text_generation"})
     assert policy.workspace.accepted_input_types == ("text/plain",)
+
+
+def test_policy_stages_a_declared_local_tool_as_an_executable_asset(
+    tmp_path: Path,
+) -> None:
+    revision = _catalog_revision(tmp_path, with_local_tool=True)
+
+    policy = compile_workflow_policy(revision)
+
+    asset = revision.package_root / "tools" / "inspect_binary"
+    assert policy.declared_local_tools[0].tool_id == "inspect_binary"
+    assert asset.stat().st_mode & stat.S_IXUSR
 
 
 def test_policy_compiles_descriptor_declared_package_skill(tmp_path: Path) -> None:

@@ -106,6 +106,7 @@ class PrivatePackageStager:
                 raise PackageStagingError(
                     "DAR validation failed for staged package"
                 ) from error
+            _mark_declared_local_tool_assets_executable(temporary_root)
             expected_manifest = _content_manifest_bytes(
                 package_id=workflow.runtime_manifest.package_id,
                 content_digest=digest,
@@ -471,6 +472,38 @@ def _package_compatibility(root: Path, workflow: object) -> dict[str, object]:
     }
 
 
+def _mark_declared_local_tool_assets_executable(root: Path) -> None:
+    """Grant execute permission only to descriptor-declared package-local assets."""
+
+    try:
+        descriptor = yaml.safe_load(
+            (root / "workflow-descriptor.yaml").read_text(encoding="utf-8")
+        )
+    except (OSError, yaml.YAMLError) as error:
+        raise PackageStagingError("package descriptor is invalid") from error
+    if not isinstance(descriptor, Mapping):
+        raise PackageStagingError("package descriptor is invalid")
+    tools = descriptor.get("tools")
+    if not isinstance(tools, list):
+        return
+    for tool in tools:
+        if not isinstance(tool, Mapping) or tool.get("kind") != "local":
+            continue
+        asset_path = tool.get("asset_path")
+        if not isinstance(asset_path, str) or not asset_path:
+            continue
+        asset = root / asset_path
+        try:
+            resolved = asset.resolve(strict=True)
+            resolved.relative_to(root)
+            metadata = os.lstat(resolved)
+        except (OSError, ValueError) as error:
+            raise PackageStagingError("local tool asset is unavailable") from error
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            raise PackageStagingError("local tool asset is unavailable")
+        os.chmod(resolved, 0o700)
+
+
 def _positive_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
@@ -515,7 +548,11 @@ def _read_source_metadata(source_parent_fd: int, name: str) -> bytes:
 
 def _seal_tree(root: Path) -> None:
     for path in sorted(root.rglob("*"), reverse=True):
-        os.chmod(path, 0o500 if path.is_dir() else 0o400)
+        if path.is_dir():
+            os.chmod(path, 0o500)
+        else:
+            mode = os.lstat(path).st_mode
+            os.chmod(path, 0o500 if mode & stat.S_IXUSR else 0o400)
     os.chmod(root, 0o500)
 
 

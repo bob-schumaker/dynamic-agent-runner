@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import stat
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Iterable
 
 import yaml
@@ -71,6 +74,9 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         descriptor_bytes = descriptor_path.read_bytes()
         descriptor = WorkflowDescriptor.from_mapping(yaml.safe_load(descriptor_bytes))
         workflow = load_agent_package_workflow(str(revision.package_root))
+        _validate_local_tool_assets(
+            package_root=revision.package_root, tools=descriptor.declared_local_tools
+        )
         validate_no_tool_runtime_nodes(descriptor, workflow.runtime_manifest.nodes)
         validate_runtime_tool_contract(descriptor, workflow.runtime_manifest.tools)
         validate_package_skill_contract(
@@ -216,6 +222,27 @@ def _local_tool_capabilities(
     tools: tuple[DeclaredLocalTool, ...],
 ) -> frozenset[str]:
     return frozenset({"local_tool_sandbox"}) if tools else frozenset()
+
+
+def _validate_local_tool_assets(
+    *, package_root: Path, tools: tuple[DeclaredLocalTool, ...]
+) -> None:
+    """Require each local-tool declaration to name a catalog-contained executable."""
+
+    root = package_root.resolve(strict=True)
+    for tool in tools:
+        try:
+            asset = (root / tool.asset_path).resolve(strict=True)
+            asset.relative_to(root)
+            metadata = os.lstat(asset)
+        except (OSError, ValueError) as error:
+            raise PolicyCompilationError("local tool asset is unavailable") from error
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or not stat.S_ISREG(metadata.st_mode)
+            or not metadata.st_mode & stat.S_IXUSR
+        ):
+            raise PolicyCompilationError("local tool asset is unavailable")
 
 
 def _deferred_runtime_capabilities(
