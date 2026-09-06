@@ -138,6 +138,13 @@ from dynamic_agent_runner.workflow_host.workspace_ingress import (
     WorkspaceIngressService,
     WorkspaceInputArtifact,
 )
+from dynamic_agent_runner.workflow_host.workflow_authoring_registration import (
+    AuthoringContractError,
+    CanonicalWorkflowContract,
+    DeclarativeWorkflowDefinition,
+    UnavailableAuthoredWorkflow,
+    validate_definition,
+)
 from dynamic_agent_runner.workflow_host.floorplan_vision_model import (
     FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
 )
@@ -753,6 +760,25 @@ class LocalWorkflowHost:
         if path.suffix.lower() == ".zip":
             return self._sources.select_zip(path, now=now)
         return self._sources.select_directory(path, now=now)
+
+    def register_authored_workflow(
+        self,
+        *,
+        contract: CanonicalWorkflowContract,
+        definition: DeclarativeWorkflowDefinition,
+        now: datetime,
+    ) -> UnavailableAuthoredWorkflow:
+        """Reject an invalid closed authoring request before host composition."""
+
+        del now
+        try:
+            validate_definition(contract=contract, definition=definition)
+        except AuthoringContractError:
+            return UnavailableAuthoredWorkflow(
+                capability="authoring_contract",
+                requirement="the workflow definition does not match the requested contract",
+            )
+        raise LocalWorkflowHostError("authored workflow composition is unavailable")
 
     def select_authored_package(self, package_name: str, *, now: datetime) -> str:
         """Select one configured-root authored package by its user-facing name."""
