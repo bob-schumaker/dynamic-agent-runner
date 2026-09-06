@@ -197,6 +197,11 @@ def _deferred_runtime_capabilities(
                 capabilities.add("context-pruning-pipeline")
     if descriptor.workspace.scratch_access == "ephemeral":
         capabilities.add("scratch-workspace")
+    if any(
+        media_type.startswith("image/")
+        for media_type in descriptor.workspace.accepted_input_types
+    ):
+        capabilities.add("multimodal_input")
     if (
         manifest.async_session_policy is not None
         and manifest.async_session_policy.persist != "none"

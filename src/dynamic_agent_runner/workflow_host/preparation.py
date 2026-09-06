@@ -25,6 +25,7 @@ from dynamic_agent_runner.workflow_host.state import (
     PrivateStateStore,
 )
 from dynamic_agent_runner.workflow_host.workspace_ingress import (
+    MaterializedWorkspaceImageArtifact,
     MaterializedWorkspaceInputArtifact,
 )
 
@@ -58,6 +59,20 @@ class WorkspaceArtifactMaterializer(WorkspaceArtifactVerifier, Protocol):
         registration_digest: str,
         now: datetime,
     ) -> MaterializedWorkspaceInputArtifact: ...
+
+
+@runtime_checkable
+class WorkspaceArtifactImageMaterializer(WorkspaceArtifactVerifier, Protocol):
+    """Private verifier that exposes sealed image bytes only to a vision adapter."""
+
+    def materialize_image(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceImageArtifact: ...
 
 
 @dataclass(frozen=True)
@@ -240,6 +255,40 @@ class WorkflowInvocationPreparationService:
         if len({artifact.role for artifact in artifacts}) != len(artifacts):
             raise PreparedWorkflowInputError("workspace artifact roles are ambiguous")
         return artifacts
+
+    def materialize_workspace_images(
+        self,
+        sealed: SealedWorkflowInput,
+        *,
+        registration: WorkflowRegistration,
+        now: datetime,
+    ) -> tuple[MaterializedWorkspaceImageArtifact, ...]:
+        """Resolve sealed image artifacts for the selected vision adapter only."""
+
+        if not sealed.workspace_artifact_ids:
+            return ()
+        materializer = self._artifact_verifier
+        if not isinstance(materializer, WorkspaceArtifactImageMaterializer):
+            raise PreparedWorkflowInputError(
+                "workspace image materialization is unavailable"
+            )
+        try:
+            images = tuple(
+                materializer.materialize_image(
+                    artifact_id,
+                    workflow_id=registration.workflow_id,
+                    registration_digest=registration.registration_digest,
+                    now=now,
+                )
+                for artifact_id in sealed.workspace_artifact_ids
+            )
+        except Exception as error:
+            raise PreparedWorkflowInputError(
+                "workspace image materialization is unavailable"
+            ) from error
+        if len({image.role for image in images}) != len(images):
+            raise PreparedWorkflowInputError("workspace artifact roles are ambiguous")
+        return images
 
     def _registration_policy(self, workflow_id: str):
         try:

@@ -26,6 +26,7 @@ from dynamic_agent_runner.workflow_host.registration import WorkflowRegistration
 from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager  # noqa: E402
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 from dynamic_agent_runner.workflow_host.workspace_ingress import (  # noqa: E402
+    MaterializedWorkspaceImageArtifact,
     MaterializedWorkspaceInputArtifact,
 )
 
@@ -75,6 +76,26 @@ class _MaterializingArtifactVerifier(_ArtifactVerifier):
         )
         return MaterializedWorkspaceInputArtifact(
             artifact_id, "sha256:" + "a" * 64, "body", "<p>Hello</p>"
+        )
+
+
+class _ImageMaterializingArtifactVerifier(_ArtifactVerifier):
+    def materialize_image(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceImageArtifact:
+        self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceImageArtifact(
+            artifact_id, "sha256:" + "b" * 64, "source_image", "image/png", b"image"
         )
 
 
@@ -224,6 +245,38 @@ def test_preparation_materializes_only_verified_private_artifacts(
             workspace_artifact_ids=("v1.artifact", "v1.artifact"),
             now=NOW,
         )
+
+
+def test_preparation_materializes_sealed_images_only_through_image_boundary(
+    tmp_path: Path,
+) -> None:
+    _, registrations, registration, _, _ = _prepared_service(tmp_path)
+    verifier = _ImageMaterializingArtifactVerifier()
+    service = WorkflowInvocationPreparationService(
+        registrations=registrations,
+        catalog=PackageCatalog(tmp_path / "catalog"),
+        store=PrivateStateStore(tmp_path / "state"),
+        artifact_verifier=verifier,
+    )
+    prepared = service.prepare(
+        workflow_id="document-helper",
+        prompt="Answer this request.",
+        workspace_artifact_ids=("v1.artifact",),
+        now=NOW,
+    )
+    sealed = service.load(
+        prepared.prepared_input_id, registration=registration, now=NOW
+    )
+
+    images = service.materialize_workspace_images(
+        sealed, registration=registration, now=NOW
+    )
+
+    assert images == (
+        MaterializedWorkspaceImageArtifact(
+            "v1.artifact", "sha256:" + "b" * 64, "source_image", "image/png", b"image"
+        ),
+    )
 
 
 def test_preparation_rejects_raw_structured_input_and_oversized_context(

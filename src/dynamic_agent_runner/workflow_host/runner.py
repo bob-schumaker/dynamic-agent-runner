@@ -65,6 +65,9 @@ from dynamic_agent_runner.workflow_host.preparation import (
     SealedWorkflowInput,
     WorkflowInvocationPreparationService,
 )
+from dynamic_agent_runner.workflow_host.workspace_ingress import (
+    MaterializedWorkspaceImageArtifact,
+)
 from dynamic_agent_runner.workflow_host.profiles import (
     FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
     LocalModelProfile,
@@ -199,16 +202,22 @@ class WorkflowRunner:
                 request.prepared_input_id, registration=registration, now=now
             )
             prompt = _render_prompt(sealed.prompt, sealed.additional_context)
-            final_result = run_agent_workflow(
-                package_directory=str(package_root),
-                prompt=prompt,
-                model_adapter=self._model_adapter,
-                tool_registry=tool_registry,
-                guardrail_registry=guardrail_registry,
-                max_steps=policy.limits.max_steps,
-                model_adapter_coverage="strict",
-                run_id=run_id,
+            image = self._sealed_image_for_run(
+                policy=policy, sealed=sealed, registration=registration, now=now
             )
+            try:
+                final_result = run_agent_workflow(
+                    package_directory=str(package_root),
+                    prompt=prompt,
+                    model_adapter=self._model_adapter,
+                    tool_registry=tool_registry,
+                    guardrail_registry=guardrail_registry,
+                    max_steps=policy.limits.max_steps,
+                    model_adapter_coverage="strict",
+                    run_id=run_id,
+                )
+            finally:
+                self._clear_sealed_image(image)
             output = _terminal_output(
                 final_result,
                 terminal_output_contract,
@@ -260,6 +269,42 @@ class WorkflowRunner:
             raise RunDarWorkflowError("configured profile lacks multimodal_input")
         if not _adapter_supports(self._model_adapter, "multimodal_input"):
             raise RunDarWorkflowError("configured adapter lacks multimodal_input")
+
+    def _sealed_image_for_run(
+        self,
+        *,
+        policy: Any,
+        sealed: SealedWorkflowInput,
+        registration: WorkflowRegistration,
+        now: datetime,
+    ) -> MaterializedWorkspaceImageArtifact | None:
+        if not any(
+            media_type.startswith("image/")
+            for media_type in policy.workspace.accepted_input_types
+        ):
+            return None
+        self.validate_artifact_capability(
+            workflow_id=registration.workflow_id, input_kind="image_artifact"
+        )
+        images = self._preparation.materialize_workspace_images(
+            sealed, registration=registration, now=now
+        )
+        if len(images) != 1:
+            raise RunDarWorkflowError("registered workflow requires one sealed image")
+        bind = getattr(self._model_adapter, "bind_sealed_image", None)
+        if not callable(bind):
+            raise RunDarWorkflowError("configured adapter lacks multimodal_input")
+        bind(content=images[0].content, media_type=images[0].media_type)
+        return images[0]
+
+    def _clear_sealed_image(
+        self, image: MaterializedWorkspaceImageArtifact | None
+    ) -> None:
+        if image is None:
+            return
+        clear = getattr(self._model_adapter, "clear_sealed_image", None)
+        if callable(clear):
+            clear()
 
     def dry_run(
         self, request: RunDarWorkflowRequest, *, now: datetime
