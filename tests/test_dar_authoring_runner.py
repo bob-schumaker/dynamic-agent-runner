@@ -61,6 +61,7 @@ from dynamic_agent_runner.workflow_host.runner import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager  # noqa: E402
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 from dynamic_agent_runner.workflow_host.workspace_ingress import (  # noqa: E402
+    MaterializedWorkspaceImageArtifact,
     MaterializedWorkspaceInputArtifact,
 )
 import dynamic_agent_runner.workflow_host.runner as workflow_runner_module  # noqa: E402
@@ -122,6 +123,71 @@ class ArtifactVerifier:
         ):
             raise ValueError("unexpected artifact")
         return object()
+
+
+class VisionArtifactVerifier:
+    def load(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> object:
+        if (
+            artifact_id != "v1.source-image"
+            or workflow_id != "document-helper"
+            or not registration_digest
+        ):
+            raise ValueError("unexpected artifact")
+        return object()
+
+    def materialize_image(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceImageArtifact:
+        self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceImageArtifact(
+            artifact_id,
+            "sha256:" + "c" * 64,
+            "source_image",
+            "image/png",
+            b"sealed-image-bytes",
+        )
+
+
+class VisionFakeAdapter(OpenAIClientAdapter):
+    """Test-local adapter that records only DAR's sealed image handoff."""
+
+    def __init__(self, client: FakeClient, *, model: str, adapter_id: str) -> None:
+        super().__init__(
+            client,
+            models=(model,),
+            is_local=True,
+            execution_profile_adapter_id=adapter_id,
+            model_id_mapping={model: model},
+        )
+        self.bound_images: list[tuple[bytes, str]] = []
+        self.cleared = 0
+
+    @property
+    def capabilities(self) -> dict[str, bool]:
+        return {"text_generation": True, "multimodal_input": True}
+
+    def bind_sealed_image(self, *, content: bytes, media_type: str) -> None:
+        self.bound_images.append((content, media_type))
+
+    def clear_sealed_image(self) -> None:
+        self.cleared += 1
 
 
 class MemorySecretStore:
@@ -270,6 +336,7 @@ def _runner(
     package_model: str = "local-model",
     terminal_required_field: str = "message",
     artifact_verifier: object | None = None,
+    vision: bool = False,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -279,10 +346,15 @@ def _runner(
     runtime["nodes"][0]["model"] = package_model
     runtime["output_contracts"][0]["required_fields"] = [terminal_required_field]
     runtime_path.write_text(yaml.safe_dump(runtime), encoding="utf-8")
-    if hosted:
+    if hosted or vision:
         descriptor_path = source / "workflow-descriptor.yaml"
         descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
-        descriptor["model"]["profile_requirement"] = "general-language-model-v1"
+        if hosted:
+            descriptor["model"]["profile_requirement"] = "general-language-model-v1"
+        if vision:
+            descriptor["model"]["profile_requirement"] = "local-multimodal-model-v1"
+            descriptor["workspace"]["accepted_input_types"] = ["image/png"]
+            descriptor["task_invocation"]["allowed_artifact_roles"] = ["source_image"]
         descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
@@ -297,17 +369,21 @@ def _runner(
     policy = compile_workflow_policy(revision)
     profiles = LocalModelProfileControlPlane(store=store)
     profile = (
-        profiles.create_hosted_openai(
-            model_id="local-model-v1",
-            base_url="https://models.example.test/v1",
-            capabilities={"text_generation"},
-        )
-        if hosted
-        else profiles.create(
-            model_id="local-model-v1",
-            adapter_id="strict-local-adapter-v1",
-            base_url="http://127.0.0.1:11434/v1",
-            capabilities={"text_generation"},
+        profiles.create_floorplan_vision_llama_cpp()
+        if vision
+        else (
+            profiles.create_hosted_openai(
+                model_id="local-model-v1",
+                base_url="https://models.example.test/v1",
+                capabilities={"text_generation"},
+            )
+            if hosted
+            else profiles.create(
+                model_id="local-model-v1",
+                adapter_id="strict-local-adapter-v1",
+                base_url="http://127.0.0.1:11434/v1",
+                capabilities={"text_generation"},
+            )
         )
     )
     registrations = WorkflowRegistrationService(
@@ -319,7 +395,7 @@ def _runner(
         workflow_id="document-helper",
         policy=policy,
         capability_resolution=resolve_capabilities(
-            policy, available_capabilities={"text_generation"}
+            policy, available_capabilities=profile.capabilities
         ),
     )
     if active_apple_profile:
@@ -336,34 +412,40 @@ def _runner(
         else FakeClient("completed locally")
     )
     adapter = (
-        AsyncOpenAIClientAdapter(
-            client,
-            models=["local-model", "local-model-v1"],
-            is_local=local,
-            model_id_mapping={"local-model": "local-model-v1"},
-            execution_profile_adapter_id=(
-                configured_adapter_id
-                or (
-                    "apple-foundation-models-adapter-v1"
-                    if active_apple_profile
-                    else profile.adapter_id
-                )
-            ),
+        VisionFakeAdapter(
+            client, model=profile.execution_model_id, adapter_id=profile.adapter_id
         )
-        if async_adapter
-        else OpenAIClientAdapter(
-            client,
-            models=["local-model", "local-model-v1"],
-            is_local=local,
-            model_id_mapping={"local-model": "local-model-v1"},
-            execution_profile_adapter_id=(
-                configured_adapter_id
-                or (
-                    "apple-foundation-models-adapter-v1"
-                    if active_apple_profile
-                    else profile.adapter_id
-                )
-            ),
+        if vision
+        else (
+            AsyncOpenAIClientAdapter(
+                client,
+                models=["local-model", "local-model-v1"],
+                is_local=local,
+                model_id_mapping={"local-model": "local-model-v1"},
+                execution_profile_adapter_id=(
+                    configured_adapter_id
+                    or (
+                        "apple-foundation-models-adapter-v1"
+                        if active_apple_profile
+                        else profile.adapter_id
+                    )
+                ),
+            )
+            if async_adapter
+            else OpenAIClientAdapter(
+                client,
+                models=["local-model", "local-model-v1"],
+                is_local=local,
+                model_id_mapping={"local-model": "local-model-v1"},
+                execution_profile_adapter_id=(
+                    configured_adapter_id
+                    or (
+                        "apple-foundation-models-adapter-v1"
+                        if active_apple_profile
+                        else profile.adapter_id
+                    )
+                ),
+            )
         )
     )
     return (
@@ -1233,6 +1315,42 @@ def test_runner_never_sends_a_sealed_workspace_artifact_to_the_model_or_trace(
     assert "private document body" not in model_request
     assert "v1.workspace-artifact" not in trace
     assert "private document body" not in trace
+
+
+def test_runner_delivers_one_declared_sealed_image_only_to_the_vision_adapter(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, client = _runner(
+        tmp_path,
+        vision=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=VisionArtifactVerifier(),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": registration.workflow_id,
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    adapter = runner._model_adapter
+    assert isinstance(adapter, VisionFakeAdapter)
+    assert result.output == {"message": "completed locally"}
+    assert adapter.bound_images == [(b"sealed-image-bytes", "image/png")]
+    assert adapter.cleared == 1
+    assert "sealed-image-bytes" not in repr(client.responses.calls)
+    assert "v1.source-image" not in repr(runner.traces())
 
 
 def test_runner_rejects_terminal_output_that_misses_registered_contract_field(

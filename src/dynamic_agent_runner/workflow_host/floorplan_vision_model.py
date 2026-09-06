@@ -64,7 +64,11 @@ class FloorplanVisionLlamaCppAdapter(LlamaCppLocalModelAdapter):
         if not content or not media_type.startswith("image/"):
             raise ModelExecutionError("sealed image input is unavailable")
         projector = (self._config.model_kwargs or {}).get("clip_model_path")
-        if not isinstance(projector, str) or not projector:
+        if (
+            not isinstance(projector, str)
+            or not projector
+            or not Path(projector).is_file()
+        ):
             raise ModelExecutionError("llama.cpp vision projector is unavailable")
         self._sealed_image = (content, media_type)
 

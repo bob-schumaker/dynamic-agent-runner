@@ -2,8 +2,9 @@
 
 ## Status
 
-NLA-1 complete; later slices remain implementation candidates. Complete tasks
-in dependency order and record RED and GREEN evidence in this file. The
+NLA-1 and NLA-2 are complete; later slices remain implementation candidates.
+Complete tasks in dependency order and record RED and GREEN evidence in this
+file. The
 authoritative requirements are
 [`spec.md`](spec.md); the slice design is [`plan.md`](plan.md).
 
@@ -78,7 +79,7 @@ authoritative requirements are
     vision-profile factory, sealed-image consumer, and runner multimodal gate
     do not exist.
 
-- [ ] NLA-2.2 [GREEN] Implement profile-derived `multimodal_input` capability,
+- [x] NLA-2.2 [GREEN] Implement profile-derived `multimodal_input` capability,
       sealed-image consumption, and configured llama.cpp vision adapter wiring.
   - Spec: FR-3; Multimodal Local-Profile Execution
   - Components: `workflow_host/profiles.py`, `workflow_host/host.py`,
@@ -90,11 +91,12 @@ authoritative requirements are
     paths.
   - Validation: run the NLA-2.1 command plus the affected existing profile,
     ingress, and local-model suites.
-  - Progress: profile-derived multimodal admission, sealed-image materialization,
+  - GREEN: profile-derived multimodal admission, sealed-image materialization,
     text-profile rejection, dedicated llama.cpp sealed-image request shaping,
     profile-derived registration eligibility, and runner delivery through a
-    declared image input are implemented and covered. An end-to-end image
-    workflow fixture remains required before this task is complete.
+    declared image input are implemented and covered. The focused and affected
+    profile, ingress, runner, vision-adapter, and local-model tests passed with
+    214 tests.
 
 ## NLA-3 — Generic Workflow-Local Tool Runtime
 

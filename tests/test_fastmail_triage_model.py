@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
+from dynamic_agent_runner.errors import ModelExecutionError
 from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
 
 
@@ -52,8 +55,18 @@ def test_floorplan_vision_adapter_sends_only_sealed_image_bytes_to_llama_cpp(
 
     model_path = tmp_path / "model.gguf"
     model_path.write_bytes(b"fake")
+    projector_path = tmp_path / "projector.gguf"
+    projector_path.write_bytes(b"fake projector")
+    config = create_floorplan_vision_qwen_config()
     adapter = FloorplanVisionLlamaCppAdapter(
-        replace(create_floorplan_vision_qwen_config(), model_path=model_path)
+        replace(
+            config,
+            model_path=model_path,
+            model_kwargs={
+                **(config.model_kwargs or {}),
+                "clip_model_path": str(projector_path),
+            },
+        )
     )
     backend = FakeBackend()
     adapter._backend = backend  # type: ignore[assignment]
@@ -69,3 +82,17 @@ def test_floorplan_vision_adapter_sends_only_sealed_image_bytes_to_llama_cpp(
     content = backend.calls[0]["messages"][0]["content"]  # type: ignore[index]
     assert content[1]["image_url"]["url"] == "data:image/png;base64,aW1hZ2UtYnl0ZXM="  # type: ignore[index]
     assert str(tmp_path) not in repr(content)
+
+
+def test_floorplan_vision_adapter_rejects_a_missing_projector_before_model_call() -> (
+    None
+):
+    from dynamic_agent_runner.workflow_host.floorplan_vision_model import (
+        FloorplanVisionLlamaCppAdapter,
+        create_floorplan_vision_qwen_config,
+    )
+
+    adapter = FloorplanVisionLlamaCppAdapter(create_floorplan_vision_qwen_config())
+
+    with pytest.raises(ModelExecutionError, match="projector"):
+        adapter.bind_sealed_image(content=b"image-bytes", media_type="image/png")
