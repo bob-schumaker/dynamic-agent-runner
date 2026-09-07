@@ -37,7 +37,7 @@ but are not evidence of untrusted-code isolation.
   `transformers-generate-v1` contract, prepared-model recipe digest, and
   package digest. Reuse the current exact source and digest-validation pattern;
   do not create a plugin registry or discovery mechanism.
-- [ ] T1.4 [tests, GREEN] Prove a registered workflow cannot replace its
+- [x] T1.4 [tests, GREEN] Prove a registered workflow cannot replace its
   converter and another workflow cannot reuse it without its own exact binding.
   Run focused package, registration, and host regressions.
 

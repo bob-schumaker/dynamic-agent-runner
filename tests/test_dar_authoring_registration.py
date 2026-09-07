@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from dataclasses import replace
 
 import pytest
 
@@ -131,6 +132,38 @@ def test_registration_rejects_converter_without_a_host_recipe(tmp_path: Path) ->
         _service(tmp_path).register(
             workflow_id="document-helper",
             policy=_policy(input_converter=True),
+            capability_resolution=CapabilityResolution("eligible", ()),
+        )
+
+
+def test_converter_registration_cannot_be_replaced_or_shared_by_alias(
+    tmp_path: Path,
+) -> None:
+    service = _service(tmp_path, model_recipe_digest_provider=lambda _profile: "d" * 64)
+    policy = _policy(input_converter=True)
+    first = service.register(
+        workflow_id="floorplan-a",
+        policy=policy,
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+
+    assert (
+        service.register(
+            workflow_id="floorplan-b",
+            policy=policy,
+            capability_resolution=CapabilityResolution("eligible", ()),
+        ).registration_digest
+        != first.registration_digest
+    )
+
+    with pytest.raises(WorkflowRegistrationError, match="alias collision"):
+        service.register(
+            workflow_id="floorplan-a",
+            policy=replace(
+                policy,
+                policy_digest="e" * 64,
+                input_converter=replace(policy.input_converter, asset_digest="b" * 64),
+            ),
             capability_resolution=CapabilityResolution("eligible", ()),
         )
 
