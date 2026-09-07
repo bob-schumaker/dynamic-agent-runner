@@ -2,18 +2,18 @@
 
 ## Status
 
-NLA-1 and NLA-2 are complete; NLA-3 is in progress and later slices remain
-implementation candidates.
-Complete tasks in dependency order and record RED and GREEN evidence in this
-file. The
-authoritative requirements are
+NLA-1 through NLA-5 are complete. The authoritative requirements are
 [`spec.md`](spec.md); the slice design is [`plan.md`](plan.md).
+Complete tasks in dependency order and record RED and GREEN evidence in this
+file.
 
 ## Scope Rules
 
 - Agent Engineering asks only irreducible workflow-contract questions. When a
   required capability or workflow-local tool is absent, it creates repository
-  implementation guidance; it does not write executable code or tool assets.
+  implementation guidance; it does not write executable local-tool code or
+  tool assets. The future workflow input converter plugin exception is governed
+  only by `specs/workflow-input-converter-plugin/spec.md`.
 - DAR owns sealed artifacts, capability binding, approved sandbox dispatch,
   execution limits, tracing, redacted registration, and saved-workflow
   invocation. It does not own SVG, floorplan, PCAP, protobuf, or other domain
@@ -143,7 +143,7 @@ authoritative requirements are
     validator asset. Focused local-tool, runner, policy, host, and fixture
     suites pass.
 
-- [ ] NLA-3.3 [GREEN] Add an implementation-owned floorplan fixture with a
+- [x] NLA-3.3 [GREEN] Add an implementation-owned floorplan fixture with a
       workflow-local SVG validator and invocation coverage.
   - Spec: FR-3, FR-4; Workflow-Local Deterministic Tooling
   - Depends on: NLA-2.2, NLA-3.2, NLA-4.2
@@ -154,10 +154,15 @@ authoritative requirements are
   - Decision: validate the shaped terminal output through a declared host
     post-processing validator; do not expose generated SVG as a model tool
     argument.
-  - Progress: a workflow-owned `floorplan-svg` fixture declares the pinned
+  - GREEN: a workflow-owned `floorplan-svg` fixture declares the pinned
     multimodal profile and package-local validator. The fixture stages that
     asset as executable and exercises valid and invalid evidence through the
-    trusted `sandbox-exec` handoff. Saved-name CLI invocation coverage remains.
+    trusted `sandbox-exec` handoff. Saved-name CLI invocation coverage now
+    passes a PNG workspace file through the registered workflow name.
+    `test_invoke_passes_a_floorplan_image_to_saved_host_composition` passes a
+    PNG workspace file only through the saved `floorplan-from-image` name, and
+    the separate dry-run test rejects a workspace file before ingress. Focused
+    fixture, runner, and CLI tests passed with 83 tests.
 
 ## NLA-4 — Internal Composition and Opaque-Binary Tools
 
@@ -222,7 +227,7 @@ authoritative requirements are
     before it can reach the reviewed binding. Focused reviewed-package,
     descriptor, ingress, preparation, and runner suites pass.
 
-- [ ] NLA-4.4 [GREEN] Implement named reviewed tool-package resolution and
+- [x] NLA-4.4 [GREEN] Implement named reviewed tool-package resolution and
       opaque-binary artifact binding.
   - Spec: FR-7; Opaque-Binary Artifact Tool Analysis
   - Depends on: NLA-4.3
@@ -231,10 +236,15 @@ authoritative requirements are
     discovery, installation, or DAR format registry.
   - Validation: run the NLA-4.3 command plus existing MCP approval/budget and
     non-artifact tool regressions.
+  - GREEN: named reviewed package resolution is host-owned and exact; opaque
+    binary bindings accept only declared artifact-aware tools and emit bounded
+    evidence. Unknown, stale, altered, and non-artifact-aware selections fail
+    closed. Focused artifact, reviewed-package, ingress, descriptor, host,
+    CLI, and package-CLI suites passed with 114 tests.
 
 ## NLA-5 — Agent Engineering Integration and Release
 
-- [ ] NLA-5.1 [RED] Add fresh-session Agent Engineering regressions for the
+- [x] NLA-5.1 [RED] Add fresh-session Agent Engineering regressions for the
       floorplan and named tool-package requests.
   - Spec: FR-1, FR-5, FR-7
   - Components: `tests/test_agent_engineering_plugin.py`, source Agent
@@ -247,21 +257,30 @@ authoritative requirements are
     registration.
   - Validation: `poetry run pytest tests/test_agent_engineering_plugin.py -q`
   - Expected RED: the payload still exposes the material-set control plane.
+  - RED evidence was not retained: the source guidance was corrected before
+    the static regression was added. The regression now asserts the closed
+    registration command, the SVG no-follow-up rule, text default for opaque
+    binary analysis, and absence of the prior material/output control plane.
 
-- [ ] NLA-5.2 [GREEN] Migrate `agent-development` to design-first authoring.
+- [x] NLA-5.2 [GREEN] Migrate `agent-development` to design-first authoring.
   - Spec: FR-1, FR-5, FR-6
   - Depends on: NLA-1.2, NLA-2.2, NLA-3.2, NLA-3.3, NLA-4.2, NLA-4.4, NLA-5.1
   - Requirements: create repository guidance when an image runtime or local
     tool is missing. Guidance must state the workflow contract, missing
     boundary, sealed I/O, execution limits, failure result, and acceptance
-    tests. It must contain no executable asset/source, host detail,
+  tests. It must contain no executable local-tool asset/source, host detail,
     control-plane value, or extra question. An unknown, stale, or
     non-artifact-aware reviewed package returns `unavailable` without guidance
     or registration. Submit only requirements-satisfied declarative definitions
     to `register_authored_workflow`.
   - Validation: `poetry run pytest tests/test_agent_engineering_plugin.py -q`
+  - GREEN: source guidance asks only irreducible contract facts, makes SVG
+    terminal, defaults named opaque-binary analysis to text, returns
+    implementation guidance for missing capability boundaries, and otherwise
+    submits only the closed declarative request. The focused plugin suite
+    passed with 9 tests.
 
-- [ ] NLA-5.3 [GREEN] Repackage and validate the Agent Engineering plugin.
+- [x] NLA-5.3 [GREEN] Repackage and validate the Agent Engineering plugin.
   - Spec: Release and Compatibility Notes
   - Depends on: NLA-5.2
   - Requirements: regenerate plugin payload and direct-plugin baseline only via
@@ -269,8 +288,12 @@ authoritative requirements are
     digests, lock files, or receipts.
   - Validation: established plugin packager, direct-plugin baseline test, and
     installed-payload search proving no user-facing `material_set_id` remains.
+  - GREEN: the established router packager regenerated the 0.1.3 plugin and
+    the refreshed M4.4 baseline digest passed its frozen-surface test. The
+    installed 0.1.3 payload has no legacy authoring control-plane terms, and
+    its design-first guidance hash matches the generated payload.
 
-- [ ] NLA-5.4 [validation] Run release validation in order.
+- [x] NLA-5.4 [validation] Run release validation in order.
   - Spec: Validation; Release and Compatibility Notes
   - Depends on: NLA-2.2, NLA-3.3, NLA-4.2, NLA-4.4, NLA-5.3
   - Validation:
@@ -282,6 +305,13 @@ authoritative requirements are
     4. plugin package, publish, install, and installed-payload verification.
   - Release order: DAR runtime first, then Agent Engineering pin, package,
     publish, install, and verification.
+  - GREEN: focused host/model/ingress/sandbox/tool/CLI/plugin suites passed
+    (51, 114, and 83 tests in their focused groups); `poetry check`,
+    `poetry build`, and the DAR wheel smoke tests passed for 0.1.17. The
+    generated 0.1.3 Agent Engineering payload was published to the configured
+    local `bob-schumaker-codex-support` marketplace under the reviewed plan
+    digest `sha256:e4879e002437ad97e212989c9e40abcba367c43f463f83b3eb526d32fc7a986c`,
+    installed, and content-verified.
 
 ## Stop Conditions
 

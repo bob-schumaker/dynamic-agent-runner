@@ -14,6 +14,7 @@
   - `specs/sandbox-workspace-runtime/spec.md`
   - `specs/local-tool-sandbox-hardening/spec.md`
   - `specs/model-adapter-coverage/spec.md`
+  - `specs/workflow-input-converter-plugin/spec.md`
 
 ## Objective
 
@@ -63,12 +64,19 @@ covers tool-backed opaque-binary analysis. It:
    requirements from the user's request;
 2. asks only for facts that cannot be inferred safely or deterministically;
 3. writes a repository-appropriate implementation specification when a
-   required DAR capability or workflow-local tool is absent;
+   required DAR capability, workflow-local tool, or converter execution
+   capability is absent;
 4. creates and consumes private authoring materials and output handles inside
    the host only for a workflow whose requirements are already implemented;
 5. validates, stages, registers, and saves that workflow; and
 6. returns a concise user-facing registered workflow, implementation
    specification, or availability result.
+
+When the workflow input converter plugin capability and its isolation gate are
+implemented, authoring may include one contract-conforming, workflow-sealed
+converter asset. That exception is limited to
+`specs/workflow-input-converter-plugin/spec.md`; it does not authorize generic
+local-tool code or host-wide executable installation.
 
 The first vertical slice supports an image input artifact, an explicitly chosen
 SVG output contract, and a workflow-local deterministic SVG validation tool. It
@@ -164,9 +172,9 @@ For a request that names a model and adapter and requires no unimplemented
 workflow-local tool, the registration transaction shall select
 only an already configured, eligible local profile whose adapter and model
 identity match the requested values and whose declared capabilities include
-`multimodal_input`. The profile's adapter must transport the sealed image
-artifact to the model. It must not silently substitute a model or hosted
-provider.
+`multimodal_input`. The profile's adapter or converter-backed runner must
+transport the sealed image artifact to the model. It must not silently
+substitute a model or hosted provider.
 
 If no eligible profile exists, authoring ends with a concise availability result
 that identifies the unavailable requested model capability without exposing
@@ -201,9 +209,11 @@ DAR shall expose one skill-callable `register_authored_workflow` transaction.
 Its internal input is the Agent Engineering skill's completed canonical
 workflow contract plus a declarative workflow definition. Neither contains
 executable local-tool code, a host path, profile ID, manifest, receipt, or
-opaque handle. DAR validates the contract and definition, then persists,
-stages, binds, registers, and selects it. DAR does not interpret natural
-language, ask the user clarifying questions, or synthesize implementation code.
+opaque handle. A converter-backed definition may additionally contain one
+sealed converter asset only when it satisfies the converter-plugin contract and
+the required isolation capability. DAR validates the contract and definition,
+then persists, stages, binds, registers, and selects it. DAR does not interpret
+natural language or ask the user clarifying questions.
 
 The DAR registration result is one of the following, and contains no internal
 handles:
@@ -232,8 +242,11 @@ The Agent Engineering `agent-development` skill owns the user conversation:
 it asks the minimum clarification, builds the canonical contract, determines
 whether it has unmet implementation requirements, creates the corresponding
 repository specification when needed, and otherwise calls the transaction. It
-shall not generate executable code or a local-tool asset, or direct a user to
-create a manifest, configure an authoring model, or provide a `material_set_id`.
+shall not generate executable local-tool code. After the converter-plugin
+feature's isolation gate is available, it may generate only a sealed
+contract-conforming converter asset for that transaction; it must not direct a
+user to create a manifest, configure an authoring model, or provide a
+`material_set_id`.
 
 The `ready` SVG result shall identify one image input and an SVG output. The
 workflow-local validator, not DAR, determines whether its terminal value is a
@@ -241,14 +254,17 @@ successful SVG result.
 
 ### FR-6: Deterministic authoring boundary
 
-The authoring model may propose a declarative workflow definition, but the host
-remains the authority for schema validation, canonical package artifacts, model-profile
+The authoring model may propose a declarative workflow definition and, only
+under the workflow input converter plugin contract, its sealed converter asset.
+The host remains the authority for schema validation, canonical package
+artifacts, model-profile
 binding, package naming collision handling, staging, registration, and saved
 workflow selection. The authoring model cannot introduce tools, credentials,
 external destinations, or side effects absent from the request and an existing
 reviewed host capability. It may identify a deterministic local-tool
 requirement only under the host's approved sandbox contract; it does not
-implement that tool.
+implement that tool. A converter asset is not a local tool and is permitted
+only after the converter-specific isolation gate validates it.
 
 ### FR-7: Tool-backed opaque-binary analysis
 

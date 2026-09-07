@@ -57,7 +57,8 @@ requirements:
    default.
 4. If an implementation requirement is unmet, Agent Engineering creates a
    repository work-item specification that says what must be implemented for
-   the workflow to be complete. It does not write executable code.
+   the workflow to be complete. It does not write executable code, except for
+   a sealed converter asset after the converter-plugin isolation gate exists.
 5. Otherwise Agent Engineering creates the completed canonical contract and
    declarative workflow definition, then submits both to DAR internally.
 6. DAR performs the registration transaction and returns `ready` or
@@ -101,7 +102,9 @@ staging, registration, collision-safe naming, and redaction. The active Agent
 Engineering model supplies one internal fixed canonical contract and
 declarative workflow definition after clarification and requirement checking.
 The definition contains no executable local-tool code, path, host
-configuration, profile ID, manifest, receipt, or opaque handle. Tests supply
+configuration, profile ID, manifest, receipt, or opaque handle. A future
+converter-backed definition may contain a sealed converter asset only under the
+workflow input converter plugin contract and its isolation gate. Tests supply
 the same values as fixtures. The host rejects a definition that does not match
 its supplied canonical contract.
 
@@ -277,7 +280,9 @@ artifact, binding, result, and budget boundaries.
    every unmet requirement, and submit only a requirements-satisfied canonical
    contract plus declarative workflow definition to
    `register_authored_workflow`. It must
-   never generate executable code or a local-tool asset. Remove any instruction
+   never generate executable local-tool code or a local-tool asset. It may
+   generate only a contract-conforming sealed converter asset after the
+   converter-plugin isolation gate is available. Remove any instruction
    to ask for a manifest, material set, authoring-model setup, output handle, or
    manual select/register handoff for this path.
 2. Add a fresh-session fixture/regression in
@@ -315,7 +320,7 @@ the user.
 | Requirement | Evidence |
 | --- | --- |
 | One visible clarification for the floorplan prompt | Deterministic request-analysis and fresh Agent Engineering fixture tests. |
-| Missing implementation becomes guidance, not generated code | Agent Engineering fixture asserts a repository spec and no executable local-tool asset. |
+| Missing tool implementation becomes guidance, not generated code | Agent Engineering fixture asserts a repository spec and no executable local-tool asset. |
 | No exposed authoring internals | Façade JSON/result contract tests plus plugin-text regression search. |
 | Exact image-capable llama.cpp model only | Profile, adapter, registration, and runner fake tests. |
 | Image is sealed and path-free | Ingress/hash/media-type tests and fake adapter request assertions. |

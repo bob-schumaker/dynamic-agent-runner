@@ -9,13 +9,14 @@
   - `specs/natural-language-workflow-authoring/spec.md`
   - `specs/sandbox-workspace-runtime/spec.md`
   - `specs/host-workflow-integration/spec.md`
+  - `specs/workflow-input-converter-plugin/spec.md`
 
 ## Objective
 
-Before DAR admits an untrusted executable workflow-local tool, provide an OS or
-runtime isolation boundary that enforces the same capability model DAR already
-enforces for models: the tool receives only its declared sealed input and may
-return only its bounded declared evidence.
+Before DAR admits an untrusted executable workflow-local asset, including a
+tool or workflow input-converter plugin, provide an OS or runtime isolation
+boundary that enforces the same capability model DAR already enforces for
+models.
 
 ## Current Boundary
 
@@ -37,14 +38,15 @@ local-tool assets. It shall:
 1. provide a per-invocation execution environment with no caller workspace
    path, host credential, inherited secret, or ambient writable directory;
 2. deliver only the sealed artifact bytes through a defined input channel;
-3. permit only the declared executable and its explicitly reviewed runtime
+3. permit only the declared executable asset and its explicitly reviewed runtime
    dependencies;
 4. deny network, arbitrary process execution, filesystem reads outside the
    reviewed runtime and sealed input, and filesystem writes outside a bounded
    ephemeral output channel;
 5. enforce wall-clock timeout, input, output, memory, process-count, and
    scratch-space limits; and
-6. return only bounded UTF-8 JSON evidence or a redacted declared failure.
+6. return only bounded UTF-8 JSON evidence, a contract-private same-worker
+   handoff, or a redacted declared failure.
 
 The backend may be a container, micro-VM, dedicated restricted runner, or a
 platform sandbox whose allowances are proven to meet these requirements. It
@@ -62,13 +64,16 @@ This slice does not:
 - install, discover, download, or configure arbitrary tool packages;
 - expose sandbox configuration, paths, or handles to a model or workflow user;
 - treat a DAR opaque interface as proof of OS isolation; or
-- permit model-generated executable code or arbitrary executable assets.
+- independently authorize model-generated executable code or arbitrary
+  executable assets; a feature-specific package contract must make that
+  admission decision.
 
 ## Threat Model
 
 The protected assets are caller workspace contents, host credentials, process
 environment, network authority, unrelated package files, and host integrity.
-The adversary controls an admitted executable asset and its output. It may try
+The adversary controls an admitted executable asset and its output or private
+handoff. It may try
 to read paths, enumerate directories, exfiltrate through the network, spawn a
 child process, escape a temporary directory, exhaust resources, or encode raw
 input in evidence.
@@ -89,7 +94,7 @@ The implementation must provide deterministic adversarial regressions for:
   channels;
 - symlink, traversal, and package-asset substitution attempts;
 - timeout, output-size, memory, process-count, and scratch-space exhaustion;
-- malformed, non-object, oversized, or secret-bearing evidence; and
+- malformed, oversized, or secret-bearing evidence or private handoff; and
 - trace and model-prompt inspection proving that no caller path, raw artifact,
   sandbox path, or host failure detail escapes DAR.
 
@@ -110,4 +115,6 @@ remaining assumptions.
 This feature is complete only when DAR can distinguish trusted
 implementation-owned fixtures from untrusted executable assets, refuses the
 latter without the approved backend, and has the required positive and
-adversarial evidence for every supported platform.
+adversarial evidence for every supported platform. The workflow input converter
+plugin feature separately defines the only generated executable asset it may
+admit.
