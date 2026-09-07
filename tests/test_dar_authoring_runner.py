@@ -408,6 +408,8 @@ def _runner(
     vision: bool = False,
     local_asset: bool = False,
     local_tool_executor: object | None = None,
+    terminal_validator: bool = False,
+    response_content: str = "completed locally",
     reviewed_tool_packages: ReviewedToolPackageControlPlane | None = None,
     reviewed_artifact_tool_executors: object | None = None,
 ):
@@ -419,7 +421,7 @@ def _runner(
     runtime["nodes"][0]["model"] = package_model
     runtime["output_contracts"][0]["required_fields"] = [terminal_required_field]
     runtime_path.write_text(yaml.safe_dump(runtime), encoding="utf-8")
-    if local_asset:
+    if local_asset or terminal_validator:
         asset = source / "tools" / "inspect"
         asset.parent.mkdir()
         asset.write_text("placeholder", encoding="utf-8")
@@ -432,6 +434,15 @@ def _runner(
             descriptor["model"]["profile_requirement"] = "local-multimodal-model-v1"
             descriptor["workspace"]["accepted_input_types"] = ["image/png"]
             descriptor["task_invocation"]["allowed_artifact_roles"] = ["source_image"]
+        descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
+    if terminal_validator:
+        descriptor_path = source / "workflow-descriptor.yaml"
+        descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+        descriptor["output"]["validator"] = {
+            "asset_path": "tools/inspect",
+            "max_output_bytes": 512,
+            "timeout_seconds": 1,
+        }
         descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
@@ -484,9 +495,9 @@ def _runner(
         artifact_verifier=artifact_verifier,  # type: ignore[arg-type]
     )
     client = (
-        AsyncFakeClient("completed locally")
+        AsyncFakeClient(response_content)
         if async_adapter
-        else FakeClient("completed locally")
+        else FakeClient(response_content)
     )
     adapter = (
         VisionFakeAdapter(
@@ -1566,6 +1577,46 @@ def test_runner_delivers_one_declared_sealed_image_only_to_the_vision_adapter(
     assert adapter.cleared == 1
     assert "sealed-image-bytes" not in repr(client.responses.calls)
     assert "v1.source-image" not in repr(runner.traces())
+
+
+def test_floorplan_run_validates_shaped_terminal_output_after_image_delivery(
+    tmp_path: Path,
+) -> None:
+    validated: list[bytes] = []
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        terminal_validator=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=VisionArtifactVerifier(),
+        response_content='<svg xmlns="http://www.w3.org/2000/svg"/>',
+        local_tool_executor=lambda _command, content, _timeout: (
+            validated.append(content)
+            or (
+                b'{"valid":true}' if content.startswith(b"<svg") else b'{"valid":false}'
+            )
+        ),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": registration.workflow_id,
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    assert result.output == {"message": '<svg xmlns="http://www.w3.org/2000/svg"/>'}
+    assert validated == [b'<svg xmlns="http://www.w3.org/2000/svg"/>']
 
 
 def test_runner_rejects_terminal_output_that_misses_registered_contract_field(
