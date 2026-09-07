@@ -8,6 +8,7 @@ import pytest
 
 
 from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
+    DeclaredInputConverter,
     InputContract,
     TaskInvocation,
     WorkflowLimits,
@@ -27,7 +28,10 @@ from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: 
 
 
 def _policy(
-    *, digest: str = "a" * 64, profile_requirement: str = "local-general-model"
+    *,
+    digest: str = "a" * 64,
+    profile_requirement: str = "local-general-model",
+    input_converter: bool = False,
 ) -> WorkflowPolicy:
     return WorkflowPolicy(
         package_id="document-helper",
@@ -49,10 +53,29 @@ def _policy(
         ),
         limits=WorkflowLimits(max_steps=1),
         required_capabilities=frozenset({"local_model"}),
+        input_converter=(
+            DeclaredInputConverter(
+                converter_id="qwen-floorplan-input-v1",
+                converter_contract_version="v1",
+                compatible_runner_contract_id="transformers-generate-v1",
+                entrypoint="converters/qwen_floorplan.py",
+                asset_digest="a" * 64,
+                max_input_bytes=8 * 1024 * 1024,
+                max_output_bytes=1024,
+                timeout_seconds=30,
+            )
+            if input_converter
+            else None
+        ),
     )
 
 
-def _service(tmp_path: Path, *, profile_requirement: str = "local-general-model"):
+def _service(
+    tmp_path: Path,
+    *,
+    profile_requirement: str = "local-general-model",
+    model_recipe_digest_provider=None,
+):
     store = PrivateStateStore(tmp_path / "state")
     profiles = LocalModelProfileControlPlane(store=store)
     profile = profiles.create(
@@ -66,6 +89,7 @@ def _service(tmp_path: Path, *, profile_requirement: str = "local-general-model"
         profiles=profiles,
         configured_profile_id=profile.profile_id,
         root=tmp_path / "registrations",
+        model_recipe_digest_provider=model_recipe_digest_provider,
     )
 
 
@@ -85,6 +109,30 @@ def test_registration_binds_eligible_policy_to_configured_local_profile(
     assert len(registration.profile_digest) == 64
     assert len(registration.registration_digest) == 64
     assert service.resolve("document-helper") == registration
+
+
+def test_registration_binds_converter_to_the_host_recipe_digest(
+    tmp_path: Path,
+) -> None:
+    service = _service(tmp_path, model_recipe_digest_provider=lambda _profile: "d" * 64)
+
+    registration = service.register(
+        workflow_id="document-helper",
+        policy=_policy(input_converter=True),
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+
+    assert registration.model_recipe_digest == "d" * 64
+    assert service.resolve("document-helper") == registration
+
+
+def test_registration_rejects_converter_without_a_host_recipe(tmp_path: Path) -> None:
+    with pytest.raises(WorkflowRegistrationError, match="model recipe"):
+        _service(tmp_path).register(
+            workflow_id="document-helper",
+            policy=_policy(input_converter=True),
+            capability_resolution=CapabilityResolution("eligible", ()),
+        )
 
 
 def test_registration_rejects_unavailable_or_mismatched_profile(tmp_path: Path) -> None:

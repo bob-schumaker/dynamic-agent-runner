@@ -803,23 +803,6 @@ class LocalWorkflowHost:
         else:
             mcp_client = mcp_client_factory(configuration.mcp_client_configuration)
         catalog = PackageCatalog(root / "catalog")
-        registrations = WorkflowRegistrationService(
-            profiles=profiles,
-            configured_profile_id=profile.profile_id,
-            root=root / "registrations",
-            mcp_bindings=mcp_bindings if mcp_client is not None else None,
-            mcp_client=mcp_client,
-            mcp_surfaces=surfaces if mcp_client is not None else None,
-        )
-        workspace_ingress = _workspace_ingress_service(
-            root=root, configuration=configuration, store=store
-        )
-        preparation = WorkflowInvocationPreparationService(
-            registrations=registrations,
-            catalog=catalog,
-            store=store,
-            artifact_verifier=workspace_ingress,
-        )
         model_preparation = LocalModelPreparationService(
             catalog=LocalModelPreparationCatalog(
                 (
@@ -832,6 +815,30 @@ class LocalWorkflowHost:
             converter=PinnedLlamaCppLoraConverter(
                 checkout=root / "model-preparation" / "llama.cpp"
             ),
+        )
+        registrations = WorkflowRegistrationService(
+            profiles=profiles,
+            configured_profile_id=profile.profile_id,
+            root=root / "registrations",
+            mcp_bindings=mcp_bindings if mcp_client is not None else None,
+            mcp_client=mcp_client,
+            mcp_surfaces=surfaces if mcp_client is not None else None,
+            model_recipe_digest_provider=lambda candidate: (
+                model_preparation.recipe_digest(
+                    model_id=candidate.model_id,
+                    adapter_id=candidate.adapter_id,
+                    runner_id=candidate.runner_id,
+                )
+            ),
+        )
+        workspace_ingress = _workspace_ingress_service(
+            root=root, configuration=configuration, store=store
+        )
+        preparation = WorkflowInvocationPreparationService(
+            registrations=registrations,
+            catalog=catalog,
+            store=store,
+            artifact_verifier=workspace_ingress,
         )
         return cls(
             configuration=configuration,

@@ -587,6 +587,13 @@ class LocalModelPreparationService:
             raise LocalModelPreparationUnavailable("preparation_required")
         return prepared
 
+    def recipe_digest(
+        self, *, model_id: str, adapter_id: str, runner_id: str = "llama-cpp-v1"
+    ) -> str:
+        """Return the exact reviewed recipe identity without exposing paths."""
+
+        return self._catalog.lookup(model_id, adapter_id, runner_id).recipe_digest
+
     def source_path(
         self, recipe: LocalModelPreparationRecipe, artifact: LocalModelArtifact
     ) -> Path:

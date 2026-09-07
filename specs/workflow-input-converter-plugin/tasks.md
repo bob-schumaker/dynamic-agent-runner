@@ -32,7 +32,7 @@ but are not evidence of untrusted-code isolation.
   runner contract ID, entrypoint, asset digest, and declared resource limits.
   Reject a live callable, runtime path, interpreter choice, undeclared asset,
   or arbitrary manifest extension.
-- [ ] T1.3 [implementation] Extend existing package validation and workflow
+- [x] T1.3 [implementation] Extend existing package validation and workflow
   registration to bind the converter manifest/asset digest, selected
   `transformers-generate-v1` contract, prepared-model recipe digest, and
   package digest. Reuse the current exact source and digest-validation pattern;

@@ -8,7 +8,7 @@ import os
 import stat
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Mapping
 
 from dynamic_agent_runner.workflow_host.policy import (
     CapabilityResolution,
@@ -47,6 +47,7 @@ class WorkflowRegistration:
     profile_digest: str
     model_id: str
     mcp_binding_id: str | None = None
+    model_recipe_digest: str | None = None
 
 
 class WorkflowRegistrationService:
@@ -61,6 +62,7 @@ class WorkflowRegistrationService:
         mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
         mcp_client: MCPReadOnlyToolClient | None = None,
         mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
+        model_recipe_digest_provider: Callable[[LocalModelProfile], str] | None = None,
     ) -> None:
         self._profiles = profiles
         self._configured_profile_id = configured_profile_id
@@ -69,6 +71,7 @@ class WorkflowRegistrationService:
         self._mcp_bindings = mcp_bindings
         self._mcp_client = mcp_client
         self._mcp_surfaces = mcp_surfaces
+        self._model_recipe_digest_provider = model_recipe_digest_provider
         root.mkdir(mode=0o700, parents=True, exist_ok=True)
         mode = os.lstat(root).st_mode
         if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
@@ -92,8 +95,13 @@ class WorkflowRegistrationService:
         profile = self._configured_profile()
         self._validate_profile(policy, profile)
         bound_mcp_id = self._validate_mcp_binding(policy, mcp_binding_id)
+        model_recipe_digest = self._model_recipe_digest(policy, profile)
         registration = _registration_from(
-            policy, profile, workflow_id, mcp_binding_id=bound_mcp_id
+            policy,
+            profile,
+            workflow_id,
+            mcp_binding_id=bound_mcp_id,
+            model_recipe_digest=model_recipe_digest,
         )
         records = self._read()
         existing = records.get(workflow_id)
@@ -179,6 +187,21 @@ class WorkflowRegistrationService:
             ) from error
         return mcp_binding_id
 
+    def _model_recipe_digest(
+        self, policy: WorkflowPolicy, profile: LocalModelProfile
+    ) -> str | None:
+        if policy.input_converter is None:
+            return None
+        if self._model_recipe_digest_provider is None:
+            raise WorkflowRegistrationError("model recipe is unavailable")
+        try:
+            digest = self._model_recipe_digest_provider(profile)
+        except Exception as error:  # noqa: BLE001 - provider boundaries vary.
+            raise WorkflowRegistrationError("model recipe is unavailable") from error
+        if not _is_digest(digest):
+            raise WorkflowRegistrationError("model recipe is unavailable")
+        return digest
+
     def _read(self) -> dict[str, dict[str, str]]:
         try:
             value = json.loads(self._path.read_text(encoding="utf-8"))
@@ -208,6 +231,7 @@ def _registration_from(
     workflow_id: str,
     *,
     mcp_binding_id: str | None,
+    model_recipe_digest: str | None,
 ) -> WorkflowRegistration:
     digest_input = {
         "format_version": 1,
@@ -221,6 +245,8 @@ def _registration_from(
     }
     if mcp_binding_id is not None:
         digest_input["mcp_binding_id"] = mcp_binding_id
+    if model_recipe_digest is not None:
+        digest_input["model_recipe_digest"] = model_recipe_digest
     registration_digest = hashlib.sha256(
         json.dumps(digest_input, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -234,6 +260,7 @@ def _registration_from(
         profile_digest=profile.profile_digest,
         model_id=profile.model_id,
         mcp_binding_id=mcp_binding_id,
+        model_recipe_digest=model_recipe_digest,
     )
 
 
@@ -250,6 +277,8 @@ def _to_mapping(registration: WorkflowRegistration) -> dict[str, str]:
     }
     if registration.mcp_binding_id is not None:
         result["mcp_binding_id"] = registration.mcp_binding_id
+    if registration.model_recipe_digest is not None:
+        result["model_recipe_digest"] = registration.model_recipe_digest
     return result
 
 
@@ -260,17 +289,26 @@ def _from_mapping(value: object) -> WorkflowRegistration:
         values = {key: value[key] for key in _RECORD_FIELDS}
     except KeyError as error:
         raise WorkflowRegistrationError("registration catalog is invalid") from error
-    if set(value) not in (_RECORD_FIELDS, _RECORD_FIELDS | {"mcp_binding_id"}) or any(
-        not isinstance(item, str) or not item for item in values.values()
-    ):
+    allowed_fields = _RECORD_FIELDS | {"mcp_binding_id", "model_recipe_digest"}
+    if set(value) not in (
+        _RECORD_FIELDS,
+        _RECORD_FIELDS | {"mcp_binding_id"},
+        _RECORD_FIELDS | {"model_recipe_digest"},
+        allowed_fields,
+    ) or any(not isinstance(item, str) or not item for item in values.values()):
         raise WorkflowRegistrationError("registration catalog is invalid")
     mcp_binding_id = value.get("mcp_binding_id")
     if mcp_binding_id is not None and (
         not isinstance(mcp_binding_id, str) or not mcp_binding_id
     ):
         raise WorkflowRegistrationError("registration catalog is invalid")
+    model_recipe_digest = value.get("model_recipe_digest")
+    if model_recipe_digest is not None and not _is_digest(model_recipe_digest):
+        raise WorkflowRegistrationError("registration catalog is invalid")
     return WorkflowRegistration(  # type: ignore[arg-type]
-        **values, mcp_binding_id=mcp_binding_id
+        **values,
+        mcp_binding_id=mcp_binding_id,
+        model_recipe_digest=model_recipe_digest,
     )
 
 
@@ -289,3 +327,11 @@ _RECORD_FIELDS = {
 def _nonempty(value: object, name: str) -> None:
     if not isinstance(value, str) or not value:
         raise WorkflowRegistrationError(f"{name} must be a non-empty string")
+
+
+def _is_digest(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
