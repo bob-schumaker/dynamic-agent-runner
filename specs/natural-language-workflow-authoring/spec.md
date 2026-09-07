@@ -12,6 +12,7 @@
   - `specs/authored-workflow-runtime-v1/spec.md`
   - `specs/host-workflow-integration/spec.md`
   - `specs/sandbox-workspace-runtime/spec.md`
+  - `specs/local-tool-sandbox-hardening/spec.md`
   - `specs/model-adapter-coverage/spec.md`
 
 ## Objective
