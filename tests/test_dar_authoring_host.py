@@ -118,6 +118,21 @@ def test_local_host_open_uses_an_injected_controller_mcp_client(
     assert host._mcp_client is client
 
 
+def test_local_host_open_supplies_the_trusted_local_tool_executor(
+    tmp_path: Path,
+) -> None:
+    configure_local_host(
+        root=tmp_path / "state",
+        package_root=tmp_path / "packages",
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
+    host = LocalWorkflowHost.open(tmp_path / "state")
+
+    assert host._runner.local_tool_execution_available
+
+
 class _Responses:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []

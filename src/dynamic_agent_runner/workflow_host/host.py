@@ -64,6 +64,9 @@ from dynamic_agent_runner.workflow_host.mcp_surfaces import (
     MCPSurfaceSnapshotControlPlane,
     MCPSurfaceSnapshotError,
 )
+from dynamic_agent_runner.workflow_host.local_tools import (
+    execute_macos_sandbox_exec,
+)
 from dynamic_agent_runner.workflow_host.oauth import (
     OAuthAuthorizationService,
     OAuthClientConfiguration,
@@ -734,6 +737,7 @@ class LocalWorkflowHost:
                 approval_store=WorkflowApprovalStore(
                     store=store, owner=InstallationIdentityProvider().principal
                 ),
+                local_tool_executor=execute_macos_sandbox_exec,
             ),
             workspace_ingress=workspace_ingress,
             authoring_materials=AuthoringMaterialService(
@@ -1098,6 +1102,11 @@ class LocalWorkflowHost:
                 policy,
                 available_capabilities={
                     *profile.capabilities,
+                    *(
+                        {"local_tool_sandbox"}
+                        if self._runner.local_tool_execution_available
+                        else set()
+                    ),
                     *(
                         {"mcp_read_only", "mcp_side_effects"}
                         if self._mcp_client is not None

@@ -267,6 +267,12 @@ class WorkflowRunner:
 
         return tuple(self._traces)
 
+    @property
+    def local_tool_execution_available(self) -> bool:
+        """Report whether this host can execute its declared local-tool ABI."""
+
+        return self._local_tool_executor is not None
+
     def validate_artifact_capability(
         self, *, workflow_id: str, input_kind: str
     ) -> None:

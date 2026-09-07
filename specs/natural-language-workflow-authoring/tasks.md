@@ -136,8 +136,10 @@ authoritative requirements are
     revalidates. A trusted deterministic fixture now exercises the sealed ABI
     through permissive macOS `sandbox-exec`; this proves the execution handoff,
     not untrusted-tool isolation, which is deferred to
-    `local-tool-sandbox-hardening`. Traces and a workflow-owned implementation
-    asset remain required before this task is complete.
+    `local-tool-sandbox-hardening`. `LocalWorkflowHost.open()` now supplies
+    that executor and admits `local_tool_sandbox` only while its runner exposes
+    it. Traces and a workflow-owned implementation asset remain required before
+    this task is complete.
 
 - [ ] NLA-3.3 [GREEN] Add an implementation-owned floorplan fixture with a
       workflow-local SVG validator and invocation coverage.
