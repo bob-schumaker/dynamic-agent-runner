@@ -1,0 +1,42 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: floorplan-from-image
+name: Floorplan from Image
+description: Generate one SVG floorplan from one sealed image.
+entrypoint: answer_request
+mermaid_diagram: agent-graph.mmd
+packaging:
+  mode: hybrid_bundle
+runtime:
+  execution_policy:
+    autonomy_level: assistive
+    allowed_execution_modes: [sequential_fallback]
+    external_backend_allowed: false
+    max_iterations: 1
+    max_steps: 2
+    model: qwen25-vl-3b-floorplan-grpo
+metadata:
+  patterns_present: [basic-reasoning-agent]
+  participant_groups: []
+  modes: []
+  phases: []
+  roles: []
+extensions: {}
+skills: []
+tools: []
+nodes:
+  - id: answer_request
+    kind: llm_step
+    label: Generate SVG floorplan
+    model: qwen25-vl-3b-floorplan-grpo
+    prompt:
+      system: Return only an SVG floorplan.
+      user_template: "{prompt}"
+      input_vars: [prompt]
+edges: []
+output_contracts:
+  - id: svg_floorplan
+    required_fields: [message]
+validation:
+  package_checks:
+    - Every node id is unique.

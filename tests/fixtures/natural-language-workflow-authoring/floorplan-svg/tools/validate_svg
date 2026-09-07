@@ -1,0 +1,6 @@
+#!/bin/sh
+input=$(cat)
+case "$input" in
+  '<svg'*) printf '%s\n' '{"valid":true}' ;;
+  *) printf '%s\n' '{"valid":false}' ;;
+esac

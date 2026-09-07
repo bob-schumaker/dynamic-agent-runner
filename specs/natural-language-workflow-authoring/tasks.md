@@ -152,6 +152,10 @@ authoritative requirements are
   - Decision: validate the shaped terminal output through a declared host
     post-processing validator; do not expose generated SVG as a model tool
     argument.
+  - Progress: a workflow-owned `floorplan-svg` fixture declares the pinned
+    multimodal profile and package-local validator. The fixture stages that
+    asset as executable and exercises valid and invalid evidence through the
+    trusted `sandbox-exec` handoff. Saved-name CLI invocation coverage remains.
 
 ## NLA-4 — Internal Composition and Opaque-Binary Tools
 

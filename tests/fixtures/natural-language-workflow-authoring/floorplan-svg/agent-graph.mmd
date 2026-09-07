@@ -1,0 +1,4 @@
+flowchart TD
+  Input[Sealed image] --> Model[Floorplan vision model]
+  Model --> Validator[Host post-processing SVG validator]
+  Validator --> Output[Validated SVG]
