@@ -43,11 +43,11 @@ but are not evidence of untrusted-code isolation.
 
 ## T2 — `transformers-generate-v1` Standard Runner
 
-- [ ] T2.1 [tests, RED] Add fake-only runner tests for a private opaque packed
+- [x] T2.1 [tests, RED/GREEN] Add fake-only runner tests for a private opaque packed
   value: exact contract acceptance, `model.generate(**inputs)`, bounded
   generation, generated-token suffix decoding, and clearing packed state after
   success, runner rejection, generation failure, timeout, and cancellation.
-- [ ] T2.2 [implementation] Extract from
+- [x] T2.2 [implementation] Extract from
   `workflow_host/transformers_peft_model.py` the Qwen base-model/PEFT loading
   and bounded-generation responsibilities into the first standard runner.
   Retain verified prepared-set resolution, local-only/remote-code-disabled
@@ -55,7 +55,7 @@ but are not evidence of untrusted-code isolation.
   only the reviewed processor and contract-defined input-packing facilities to
   a converter; no paths, arbitrary files, host callbacks, environment, model
   selection, or model-loader controls.
-- [ ] T2.3 [tests, GREEN] Run focused runner, preparation, profile, and host
+- [x] T2.3 [tests, GREEN] Run focused runner, preparation, profile, and host
   regressions. Preserve the existing closed single-image adapter until T3 has
   migrated its profile; do not change client runners or other model recipes.
 

@@ -15,6 +15,9 @@ from dynamic_agent_runner.local_model_preparation import (
 from dynamic_agent_runner.openai_client import ModelResponse, OpenAIModelRequest
 
 
+TRANSFORMERS_GENERATE_V1 = "transformers-generate-v1"
+
+
 class TransformersPeftBackend(Protocol):
     """Minimal normalized generation boundary for the standard runner."""
 
@@ -22,8 +25,92 @@ class TransformersPeftBackend(Protocol):
         """Generate one text response from one in-memory image."""
 
 
+class TransformersGenerateBackend(Protocol):
+    """Private packed-input boundary for the standard runner."""
+
+    @property
+    def processor(self) -> object:
+        """Return the reviewed processor used by the compatible converter."""
+
+    def generate_packed(self, inputs: object, *, max_new_tokens: int) -> str:
+        """Generate one response from converter-packed framework inputs."""
+
+
 DependencyLoader = Callable[[Path, Path], TransformersPeftBackend]
+PackedDependencyLoader = Callable[[Path, Path], TransformersGenerateBackend]
 ImageDecoder = Callable[[bytes], object]
+
+
+class PackedModelInput:
+    """One worker-private packed input that the runner consumes exactly once."""
+
+    def __init__(self, inputs: object) -> None:
+        self._inputs: object | None = inputs
+
+    @property
+    def is_cleared(self) -> bool:
+        """Return whether this private input has been disposed."""
+
+        return self._inputs is None
+
+    def take(self) -> object:
+        """Return the packed value until the runner clears it."""
+
+        if self._inputs is None:
+            raise ModelExecutionError("packed model input is unavailable")
+        return self._inputs
+
+    def clear(self) -> None:
+        """Discard the private packed framework value."""
+
+        self._inputs = None
+
+
+class TransformersGenerateRunner:
+    """Run one verified Transformers + PEFT set from private packed inputs."""
+
+    contract_id = TRANSFORMERS_GENERATE_V1
+
+    def __init__(
+        self,
+        prepared_set: PreparedArtifactSet,
+        *,
+        dependency_loader: PackedDependencyLoader | None = None,
+    ) -> None:
+        self._base, self._adapter = _verified_prepared_paths(prepared_set)
+        self._dependency_loader = dependency_loader or _load_default_backend
+        self._backend: TransformersGenerateBackend | None = None
+
+    @property
+    def processor(self) -> object:
+        """Expose the reviewed processor and no model-loading controls."""
+
+        return self._get_backend().processor
+
+    def generate(self, packed_input: PackedModelInput, *, max_new_tokens: int) -> str:
+        """Consume one packed input and clear it on every exit path."""
+
+        try:
+            _validate_max_new_tokens(max_new_tokens)
+            return self._get_backend().generate_packed(
+                packed_input.take(), max_new_tokens=max_new_tokens
+            )
+        except ModelExecutionError:
+            raise
+        except Exception as error:  # noqa: BLE001 - backend errors vary.
+            raise ModelExecutionError("local model generation failed") from error
+        finally:
+            packed_input.clear()
+
+    def _get_backend(self) -> TransformersGenerateBackend:
+        if self._backend is None:
+            try:
+                self._backend = self._dependency_loader(self._base, self._adapter)
+            except ImportError as error:
+                raise ModelExecutionError(
+                    "Transformers + PEFT dependencies unavailable"
+                ) from error
+        return self._backend
 
 
 class TransformersPeftSingleImageAdapter:
@@ -36,18 +123,7 @@ class TransformersPeftSingleImageAdapter:
         dependency_loader: DependencyLoader | None = None,
         image_decoder: ImageDecoder | None = None,
     ) -> None:
-        if (
-            prepared_set.recipe.loader_profile != TRANSFORMERS_PEFT_SINGLE_IMAGE_V1
-            or not _valid_loader_profile(prepared_set.recipe)
-        ):
-            raise ModelExecutionError("prepared artifact set is incompatible")
-        try:
-            self._base = prepared_set.group_path("base")
-            self._adapter = prepared_set.group_path("adapter")
-        except KeyError as error:
-            raise ModelExecutionError(
-                "prepared artifact set is incompatible"
-            ) from error
+        self._base, self._adapter = _verified_prepared_paths(prepared_set)
         self._dependency_loader = dependency_loader or _load_default_backend
         self._image_decoder = image_decoder or _decode_image
         self._model_id = prepared_set.recipe.model_id
@@ -132,9 +208,25 @@ def _user_prompt(request: OpenAIModelRequest) -> str:
 
 def _max_new_tokens(request: OpenAIModelRequest) -> int:
     value = request.extra.get("max_tokens", 1024)
+    _validate_max_new_tokens(value)
+    return value
+
+
+def _validate_max_new_tokens(value: object) -> None:
     if not isinstance(value, int) or not 1 <= value <= 1024:
         raise ModelExecutionError("model generation limit is invalid")
-    return value
+
+
+def _verified_prepared_paths(prepared_set: PreparedArtifactSet) -> tuple[Path, Path]:
+    if (
+        prepared_set.recipe.loader_profile != TRANSFORMERS_PEFT_SINGLE_IMAGE_V1
+        or not _valid_loader_profile(prepared_set.recipe)
+    ):
+        raise ModelExecutionError("prepared artifact set is incompatible")
+    try:
+        return prepared_set.group_path("base"), prepared_set.group_path("adapter")
+    except KeyError as error:
+        raise ModelExecutionError("prepared artifact set is incompatible") from error
 
 
 def _decode_image(content: bytes) -> object:

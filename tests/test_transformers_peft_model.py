@@ -24,6 +24,116 @@ class FakeImage:
     height = 1
 
 
+def test_standard_runner_consumes_and_clears_private_packed_input(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TRANSFORMERS_GENERATE_V1,
+        PackedModelInput,
+        TransformersGenerateRunner,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths: dict[str, Path] = {}
+    for artifact in recipe.artifacts:
+        path = tmp_path / artifact.group / artifact.filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"fixture")
+        paths[artifact.role] = path
+
+    processor = object()
+    inputs = {"input_ids": SimpleNamespace(shape=(1, 3))}
+    calls: list[tuple[object, int]] = []
+
+    class Backend:
+        @property
+        def processor(self) -> object:
+            return processor
+
+        def generate_packed(self, packed: object, *, max_new_tokens: int) -> str:
+            calls.append((packed, max_new_tokens))
+            return "floorplan"
+
+    packed_input = PackedModelInput(inputs)
+    runner = TransformersGenerateRunner(
+        PreparedArtifactSet(recipe, paths),
+        dependency_loader=lambda _base, _adapter: Backend(),
+    )
+
+    assert runner.contract_id == TRANSFORMERS_GENERATE_V1
+    assert runner.processor is processor
+    assert runner.generate(packed_input, max_new_tokens=12) == "floorplan"
+    assert calls == [(inputs, 12)]
+    assert packed_input.is_cleared is True
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_error"),
+    [
+        (ModelExecutionError("packed model input is invalid"), ModelExecutionError),
+        (TimeoutError(), ModelExecutionError),
+        (asyncio.CancelledError(), asyncio.CancelledError),
+    ],
+)
+def test_standard_runner_clears_private_packed_input_after_failure(
+    tmp_path: Path, failure: BaseException, expected_error: type[BaseException]
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        PackedModelInput,
+        TransformersGenerateRunner,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths: dict[str, Path] = {}
+    for artifact in recipe.artifacts:
+        path = tmp_path / artifact.group / artifact.filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"fixture")
+        paths[artifact.role] = path
+
+    class Backend:
+        processor = object()
+
+        def generate_packed(self, _packed: object, *, max_new_tokens: int) -> str:
+            raise failure
+
+    packed_input = PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 3))})
+    runner = TransformersGenerateRunner(
+        PreparedArtifactSet(recipe, paths),
+        dependency_loader=lambda _base, _adapter: Backend(),
+    )
+
+    with pytest.raises(expected_error):
+        runner.generate(packed_input, max_new_tokens=12)
+
+    assert packed_input.is_cleared is True
+
+
+def test_standard_runner_clears_private_packed_input_on_runner_rejection(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        PackedModelInput,
+        TransformersGenerateRunner,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    packed_input = PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 3))})
+    runner = TransformersGenerateRunner(
+        PreparedArtifactSet(recipe, paths),
+        dependency_loader=lambda _base, _adapter: pytest.fail("must not load"),
+    )
+
+    with pytest.raises(ModelExecutionError, match="generation limit"):
+        runner.generate(packed_input, max_new_tokens=0)
+
+    assert packed_input.is_cleared is True
+
+
 def test_generic_runner_uses_verified_groups_and_clears_sealed_image(
     tmp_path: Path,
 ) -> None:
