@@ -542,6 +542,18 @@ def test_loaded_backend_generates_from_private_packed_inputs() -> None:
     assert calls["slice"] == (slice(None), slice(3, None))
 
 
+def test_loaded_backend_exposes_only_its_reviewed_processor() -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        _LoadedTransformersPeftBackend,
+    )
+
+    processor = object()
+    backend = _LoadedTransformersPeftBackend(model=object(), processor=processor)
+
+    assert backend.processor is processor
+    assert not hasattr(backend, "model")
+
+
 @pytest.mark.parametrize(
     ("error", "expected_error"),
     [

@@ -203,6 +203,12 @@ class _LoadedTransformersPeftBackend:
         self._model = model
         self._processor = processor
 
+    @property
+    def processor(self) -> object:
+        """Expose only the reviewed processor to the converter contract."""
+
+        return self._processor
+
     def generate(self, prompt: str, image: object, *, max_new_tokens: int) -> str:
         messages = [
             {
