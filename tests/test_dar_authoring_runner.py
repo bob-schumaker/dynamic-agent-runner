@@ -52,7 +52,14 @@ from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControl
 from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
 )
-from dynamic_agent_runner.workflow_host.descriptor import DeclaredLocalTool  # noqa: E402
+from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
+    DeclaredArtifactTool,
+    DeclaredLocalTool,
+)
+from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa: E402
+    ReviewedToolPackageBinding,
+    ReviewedToolPackageControlPlane,
+)
 from dynamic_agent_runner.workflow_host.registration import WorkflowRegistrationService  # noqa: E402
 from dynamic_agent_runner.workflow_host.runner import (  # noqa: E402
     RunDarWorkflowError,
@@ -189,6 +196,41 @@ class BinaryArtifactVerifier(ArtifactVerifier):
             "application/octet-stream",
             b"sealed binary",
         )
+
+
+class OpaqueBinaryArtifactVerifier(ArtifactVerifier):
+    def materialize_binary(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceBinaryArtifact:
+        self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceBinaryArtifact(
+            artifact_id,
+            "sha256:" + "e" * 64,
+            "opaque_binary_artifact",
+            "application/octet-stream",
+            b"sealed network capture",
+        )
+
+
+class ReviewedPacketExecutor:
+    def __init__(self, binding: ReviewedToolPackageBinding) -> None:
+        self.binding = binding
+        self.references: list[object] = []
+
+    def execute(self, *, tool_id: str, artifact: object, reader: object) -> object:
+        assert tool_id == "packet_summary"
+        self.references.append(artifact)
+        return {"packet_count": len(reader.read(artifact))}  # type: ignore[attr-defined]
 
 
 class VisionFakeAdapter(OpenAIClientAdapter):
@@ -365,6 +407,8 @@ def _runner(
     vision: bool = False,
     local_asset: bool = False,
     local_tool_executor: object | None = None,
+    reviewed_tool_packages: ReviewedToolPackageControlPlane | None = None,
+    reviewed_artifact_tool_executors: object | None = None,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -488,6 +532,8 @@ def _runner(
             model_adapter=adapter,
             configured_profile=profiles.load(active_profile_id or profile.profile_id),
             local_tool_executor=local_tool_executor,  # type: ignore[arg-type]
+            reviewed_tool_packages=reviewed_tool_packages,
+            reviewed_artifact_tool_executors=reviewed_artifact_tool_executors,  # type: ignore[arg-type]
         ),
         preparation,
         registration,
@@ -555,6 +601,63 @@ def test_runner_binds_a_declared_local_tool_to_sealed_binary_input(
 
     assert result.success is True
     assert result.output == {"byte_count": len(b"sealed binary")}
+
+
+def test_runner_binds_reviewed_tool_to_an_opaque_binary_artifact(
+    tmp_path: Path,
+) -> None:
+    binding = ReviewedToolPackageBinding(
+        binding_id="network-review-1",
+        binding_digest="a" * 64,
+        allowed_tool_ids=("packet_summary",),
+        artifact_aware_tool_ids=("packet_summary",),
+    )
+    packages = ReviewedToolPackageControlPlane(
+        store=PrivateStateStore(tmp_path / "reviewed"), owner="local-user"
+    )
+    packages.create(package_name="network-tools", binding=binding)
+    executor = ReviewedPacketExecutor(binding)
+    runner, preparation, registration, revision, _ = _runner(
+        tmp_path,
+        artifact_verifier=OpaqueBinaryArtifactVerifier(),
+        reviewed_tool_packages=packages,
+        reviewed_artifact_tool_executors={"network-tools": executor},
+    )
+    policy = replace(
+        compile_workflow_policy(revision),
+        declared_artifact_tools=(
+            DeclaredArtifactTool(
+                tool_id="packet_summary",
+                reviewed_package_name="network-tools",
+                accepted_artifact_role="opaque_binary_artifact",
+                max_result_bytes=1024,
+            ),
+        ),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Inspect it.",
+        workspace_artifact_ids=("v1.workspace-artifact",),
+        now=NOW,
+    )
+    sealed = preparation.load(
+        prepared.prepared_input_id, registration=registration, now=NOW
+    )
+
+    registry = runner._tool_registry(  # type: ignore[attr-defined]
+        policy,
+        registration,
+        package_root=revision.package_root,
+        sealed=sealed,
+        run_id="test-run",
+        now=NOW,
+    )
+
+    result = registry.invoke_tool("packet_summary", {})
+
+    assert result.success is True
+    assert result.output == {"packet_count": len(b"sealed network capture")}
+    assert len(executor.references) == 1
 
 
 def _approval_runner(

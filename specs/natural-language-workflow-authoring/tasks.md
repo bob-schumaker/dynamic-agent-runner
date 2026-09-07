@@ -203,12 +203,12 @@ authoritative requirements are
     collection with `ModuleNotFoundError` for `reviewed_tool_packages`.
   - Progress: the named reviewed-package control plane now persists an exact
     binding and tool allowlists, rejects unknown or changed bindings, and
-    rejects non-artifact-aware tool selection. Descriptor, ingress, and runner
-    opaque-artifact RED coverage remains required.
-  - Runner dependency: `WorkflowRunner._tool_registry()` currently returns
-    before dispatch when `declared_tools` is empty. Artifact-tool construction
-    must run before that branch and use the existing host registry/result path;
-    do not add a parallel direct execution path.
+    rejects non-artifact-aware tool selection. The runner now constructs a
+    normal host-registry binding for a declared artifact tool before its
+    no-MCP branch. It keeps verified binary bytes behind a private reader and
+    exposes no model-selectable artifact ID, path, or bytes; the model sees
+    only bounded evidence. Remaining: host configuration and façade admission
+    coverage for a reviewed executor, plus altered-artifact ingress coverage.
 
 - [ ] NLA-4.4 [GREEN] Implement named reviewed tool-package resolution and
       opaque-binary artifact binding.

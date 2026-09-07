@@ -64,6 +64,14 @@ from dynamic_agent_runner.workflow_host.local_tools import (
     LocalToolSandboxError,
     create_local_tool_binding,
 )
+from dynamic_agent_runner.workflow_host.artifact_tools import (
+    ArtifactToolBindingError,
+    ReviewedArtifactToolExecutor,
+    create_reviewed_artifact_tool_binding,
+)
+from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
+    ReviewedToolPackageControlPlane,
+)
 from dynamic_agent_runner.workflow_host.policy import (
     PolicyCompilationError,
     compile_workflow_policy,
@@ -75,6 +83,8 @@ from dynamic_agent_runner.workflow_host.preparation import (
 )
 from dynamic_agent_runner.workflow_host.workspace_ingress import (
     MaterializedWorkspaceImageArtifact,
+    MaterializedWorkspaceBinaryArtifact,
+    OpaqueBinaryArtifactReference,
 )
 from dynamic_agent_runner.workflow_host.profiles import (
     FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
@@ -146,6 +156,30 @@ class RedactedRunTrace:
     output_byte_count: int
 
 
+class _SealedArtifactReader:
+    """Expose one already verified private binary only to its host tool binding."""
+
+    def __init__(self, artifact: MaterializedWorkspaceBinaryArtifact) -> None:
+        self._artifact = artifact
+
+    def read(self, reference: OpaqueBinaryArtifactReference) -> bytes:
+        if reference != _opaque_reference(self._artifact):
+            raise RunDarWorkflowError("sealed artifact is unavailable")
+        return self._artifact.content
+
+
+def _opaque_reference(
+    artifact: MaterializedWorkspaceBinaryArtifact,
+) -> OpaqueBinaryArtifactReference:
+    return OpaqueBinaryArtifactReference(
+        artifact_id=artifact.artifact_id,
+        content_hash=artifact.content_hash,
+        byte_count=len(artifact.content),
+        role=artifact.role,
+        media_type=artifact.media_type,
+    )
+
+
 class WorkflowRunner:
     """Run one registered package through its configured host execution profile."""
 
@@ -163,6 +197,9 @@ class WorkflowRunner:
         action_ledger: WorkflowActionLedger | None = None,
         approval_store: WorkflowApprovalStore | None = None,
         local_tool_executor: LocalToolExecutor | None = None,
+        reviewed_tool_packages: ReviewedToolPackageControlPlane | None = None,
+        reviewed_artifact_tool_executors: Mapping[str, ReviewedArtifactToolExecutor]
+        | None = None,
     ) -> None:
         self._registrations = registrations
         self._catalog = catalog
@@ -175,6 +212,10 @@ class WorkflowRunner:
         self._action_ledger = action_ledger
         self._approval_store = approval_store
         self._local_tool_executor = local_tool_executor
+        self._reviewed_tool_packages = reviewed_tool_packages
+        self._reviewed_artifact_tool_executors = dict(
+            reviewed_artifact_tool_executors or {}
+        )
         self._traces: list[RedactedRunTrace] = []
 
     def run(
@@ -409,7 +450,11 @@ class WorkflowRunner:
         require_approval_broker: bool = True,
         now: datetime,
     ) -> Any:
-        if not policy.declared_tools and not policy.declared_local_tools:
+        if (
+            not policy.declared_tools
+            and not policy.declared_local_tools
+            and not policy.declared_artifact_tools
+        ):
             if registration.mcp_binding_id is not None:
                 raise RunDarWorkflowError("no-tool registration has an MCP binding")
             return None
@@ -420,6 +465,15 @@ class WorkflowRunner:
                     policy=policy,
                     registration=registration,
                     package_root=package_root,
+                    sealed=sealed,
+                    now=now,
+                )
+            )
+        if policy.declared_artifact_tools:
+            bindings.extend(
+                self._artifact_tool_bindings(
+                    policy=policy,
+                    registration=registration,
                     sealed=sealed,
                     now=now,
                 )
@@ -438,6 +492,48 @@ class WorkflowRunner:
             )
         )
         return create_host_tool_registry(tuple(bindings))
+
+    def _artifact_tool_bindings(
+        self,
+        *,
+        policy: Any,
+        registration: WorkflowRegistration,
+        sealed: SealedWorkflowInput,
+        now: datetime,
+    ) -> list[Any]:
+        """Bind reviewed opaque-artifact tools to verified private readers."""
+
+        if self._reviewed_tool_packages is None:
+            raise RunDarWorkflowError("reviewed artifact tool is unavailable")
+        try:
+            binaries = self._preparation.materialize_workspace_binaries(
+                sealed, registration=registration, now=now
+            )
+            by_role = {binary.role: binary for binary in binaries}
+            bindings = []
+            for declaration in policy.declared_artifact_tools:
+                binary = by_role.get(declaration.accepted_artifact_role)
+                executor = self._reviewed_artifact_tool_executors.get(
+                    declaration.reviewed_package_name
+                )
+                if binary is None or executor is None:
+                    raise ArtifactToolBindingError(
+                        "reviewed artifact tool is unavailable"
+                    )
+                bindings.append(
+                    create_reviewed_artifact_tool_binding(
+                        declaration=declaration,
+                        artifact=_opaque_reference(binary),
+                        packages=self._reviewed_tool_packages,
+                        executor=executor,
+                        reader=_SealedArtifactReader(binary),
+                    )
+                )
+            return bindings
+        except (ArtifactToolBindingError, PreparedWorkflowInputError) as error:
+            raise RunDarWorkflowError(
+                "reviewed artifact tool is unavailable"
+            ) from error
 
     def _mcp_tool_bindings(
         self,
