@@ -43,6 +43,9 @@ from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     LocalModelProfileControlPlane,
 )
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa: E402
+    ReviewedToolPackageBinding,
+)
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -131,6 +134,34 @@ def test_local_host_open_supplies_the_trusted_local_tool_executor(
     host = LocalWorkflowHost.open(tmp_path / "state")
 
     assert host._runner.local_tool_execution_available
+
+
+def test_local_host_configures_one_reviewed_tool_package(tmp_path: Path) -> None:
+    configure_local_host(
+        root=tmp_path / "state",
+        package_root=tmp_path / "packages",
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    host = LocalWorkflowHost.open(tmp_path / "state")
+    binding = ReviewedToolPackageBinding(
+        binding_id="network-review-1",
+        binding_digest="a" * 64,
+        allowed_tool_ids=("packet_summary",),
+        artifact_aware_tool_ids=("packet_summary",),
+    )
+
+    configured = host.configure_reviewed_tool_package(
+        package_name="network-tools", binding=binding
+    )
+
+    assert configured.package_name == "network-tools"
+    assert (
+        host._reviewed_tool_packages.resolve(
+            package_name="network-tools", current_binding=binding
+        )
+        == binding
+    )
 
 
 class _Responses:

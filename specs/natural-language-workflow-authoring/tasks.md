@@ -207,8 +207,10 @@ authoritative requirements are
     normal host-registry binding for a declared artifact tool before its
     no-MCP branch. It keeps verified binary bytes behind a private reader and
     exposes no model-selectable artifact ID, path, or bytes; the model sees
-    only bounded evidence. Remaining: host configuration and façade admission
-    coverage for a reviewed executor, plus altered-artifact ingress coverage.
+    only bounded evidence. `LocalWorkflowHost` now owns the named reviewed
+    package control plane and accepts only host-configured executor bindings.
+    Remaining: façade admission coverage for a reviewed executor and
+    altered-artifact ingress coverage.
 
 - [ ] NLA-4.4 [GREEN] Implement named reviewed tool-package resolution and
       opaque-binary artifact binding.

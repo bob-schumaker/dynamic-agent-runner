@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Sequence
+from typing import Mapping
 
 from dynamic_agent_runner.apple_foundation_models import (
     AppleFoundationModelConfig,
@@ -66,6 +67,14 @@ from dynamic_agent_runner.workflow_host.mcp_surfaces import (
 )
 from dynamic_agent_runner.workflow_host.local_tools import (
     execute_macos_sandbox_exec,
+)
+from dynamic_agent_runner.workflow_host.artifact_tools import (
+    ReviewedArtifactToolExecutor,
+)
+from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
+    ReviewedToolPackage,
+    ReviewedToolPackageBinding,
+    ReviewedToolPackageControlPlane,
 )
 from dynamic_agent_runner.workflow_host.oauth import (
     OAuthAuthorizationService,
@@ -640,6 +649,7 @@ class LocalWorkflowHost:
         mcp_client: MCPConnectionClient | None = None,
         mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
         mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
+        reviewed_tool_packages: ReviewedToolPackageControlPlane,
     ) -> None:
         self._configuration = configuration
         self._sources = sources
@@ -654,6 +664,7 @@ class LocalWorkflowHost:
         self._mcp_client = mcp_client
         self._mcp_surfaces = mcp_surfaces
         self._mcp_bindings = mcp_bindings
+        self._reviewed_tool_packages = reviewed_tool_packages
 
     @classmethod
     def open(
@@ -663,6 +674,8 @@ class LocalWorkflowHost:
         mcp_client_factory: Callable[[MCPClientConfiguration], MCPConnectionClient]
         | None = None,
         mcp_connections: MCPConnectionControlPlane | None = None,
+        reviewed_artifact_tool_executors: Mapping[str, ReviewedArtifactToolExecutor]
+        | None = None,
     ) -> LocalWorkflowHost:
         """Open a configured local host for the current OS user."""
 
@@ -677,6 +690,9 @@ class LocalWorkflowHost:
         surfaces = MCPSurfaceSnapshotControlPlane(store=store, connections=connections)
         mcp_bindings = MCPWorkflowCapabilityBindingControlPlane(
             store=store, surfaces=surfaces
+        )
+        reviewed_tool_packages = ReviewedToolPackageControlPlane(
+            store=store, owner=InstallationIdentityProvider().principal
         )
         if mcp_client_factory is None:
             mcp_client = _mcp_client(
@@ -738,6 +754,8 @@ class LocalWorkflowHost:
                     store=store, owner=InstallationIdentityProvider().principal
                 ),
                 local_tool_executor=execute_macos_sandbox_exec,
+                reviewed_tool_packages=reviewed_tool_packages,
+                reviewed_artifact_tool_executors=reviewed_artifact_tool_executors,
             ),
             workspace_ingress=workspace_ingress,
             authoring_materials=AuthoringMaterialService(
@@ -757,6 +775,7 @@ class LocalWorkflowHost:
             mcp_client=mcp_client,
             mcp_surfaces=surfaces if mcp_client is not None else None,
             mcp_bindings=mcp_bindings if mcp_client is not None else None,
+            reviewed_tool_packages=reviewed_tool_packages,
         )
 
     def select_package(self, path: Path, *, now: datetime) -> str:
@@ -765,6 +784,15 @@ class LocalWorkflowHost:
         if path.suffix.lower() == ".zip":
             return self._sources.select_zip(path, now=now)
         return self._sources.select_directory(path, now=now)
+
+    def configure_reviewed_tool_package(
+        self, *, package_name: str, binding: ReviewedToolPackageBinding
+    ) -> ReviewedToolPackage:
+        """Persist one host-reviewed package name without discovery or fallback."""
+
+        return self._reviewed_tool_packages.create(
+            package_name=package_name, binding=binding
+        )
 
     def register_authored_workflow(
         self,
