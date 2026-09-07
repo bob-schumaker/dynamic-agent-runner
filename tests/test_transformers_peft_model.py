@@ -504,6 +504,44 @@ def test_loaded_backend_uses_deterministic_template_and_decodes_only_suffix() ->
     assert calls["decode"] == ("generated-suffix", {"skip_special_tokens": True})
 
 
+def test_loaded_backend_generates_from_private_packed_inputs() -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        _LoadedTransformersPeftBackend,
+    )
+
+    calls: dict[str, object] = {}
+
+    class Inputs(dict):
+        def to(self, device: object) -> "Inputs":
+            calls["device"] = device
+            return self
+
+    class Generated:
+        def __getitem__(self, item: object) -> object:
+            calls["slice"] = item
+            return "suffix"
+
+    class Model:
+        device = "private-device"
+
+        def generate(self, **kwargs: object) -> Generated:
+            calls["generate"] = kwargs
+            return Generated()
+
+    class Processor:
+        def batch_decode(self, tokens: object, **kwargs: object) -> list[str]:
+            calls["decode"] = (tokens, kwargs)
+            return [" output "]
+
+    backend = _LoadedTransformersPeftBackend(model=Model(), processor=Processor())
+    packed = Inputs(input_ids=SimpleNamespace(shape=(1, 3)))
+
+    assert backend.generate_packed(packed, max_new_tokens=7) == "output"
+    assert calls["device"] == "private-device"
+    assert calls["generate"]["max_new_tokens"] == 7
+    assert calls["slice"] == (slice(None), slice(3, None))
+
+
 @pytest.mark.parametrize(
     ("error", "expected_error"),
     [

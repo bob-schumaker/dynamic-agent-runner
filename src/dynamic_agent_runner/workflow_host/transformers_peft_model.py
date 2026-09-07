@@ -220,12 +220,23 @@ class _LoadedTransformersPeftBackend:
             return_dict=True,
             return_tensors="pt",
         )
+        return self.generate_packed(inputs, max_new_tokens=max_new_tokens)
+
+    def generate_packed(self, inputs: object, *, max_new_tokens: int) -> str:
+        """Generate from converter-owned processor inputs within one worker."""
+
+        move = getattr(inputs, "to", None)
+        try:
+            input_ids = inputs["input_ids"]  # type: ignore[index]
+            packed = move(self._model.device) if callable(move) else inputs
+            prefix_length = input_ids.shape[1]
+        except (AttributeError, KeyError, TypeError, IndexError) as error:
+            raise ModelExecutionError("packed model input is invalid") from error
         generated = self._model.generate(
-            **inputs.to(self._model.device),
+            **packed,
             do_sample=False,
             max_new_tokens=max_new_tokens,
         )
-        prefix_length = inputs["input_ids"].shape[1]
         decoded = self._processor.batch_decode(
             generated[:, prefix_length:], skip_special_tokens=True
         )
