@@ -188,7 +188,7 @@ authoritative requirements are
     temporary host followed by saved-workflow dry run. Focused authoring and
     CLI tests passed with 57 tests.
 
-- [ ] NLA-4.3 [RED] Add reviewed tool-package and opaque-artifact tests.
+- [x] NLA-4.3 [RED] Add reviewed tool-package and opaque-artifact tests.
   - Spec: FR-7; Opaque-Binary Artifact Tool Analysis
   - Components: descriptor/policy, reviewed binding control plane, tool binding,
     workspace ingress, and runner tests
@@ -210,8 +210,8 @@ authoritative requirements are
     only bounded evidence. `LocalWorkflowHost` now owns the named reviewed
     package control plane and accepts only host-configured executor bindings.
     The opaque-reference ingress path now also rejects changed sealed content
-    before it can reach the reviewed binding. Remaining: façade admission
-    coverage for a reviewed executor.
+    before it can reach the reviewed binding. Focused reviewed-package,
+    descriptor, ingress, preparation, and runner suites pass.
 
 - [ ] NLA-4.4 [GREEN] Implement named reviewed tool-package resolution and
       opaque-binary artifact binding.
