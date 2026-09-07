@@ -209,8 +209,9 @@ authoritative requirements are
     exposes no model-selectable artifact ID, path, or bytes; the model sees
     only bounded evidence. `LocalWorkflowHost` now owns the named reviewed
     package control plane and accepts only host-configured executor bindings.
-    Remaining: façade admission coverage for a reviewed executor and
-    altered-artifact ingress coverage.
+    The opaque-reference ingress path now also rejects changed sealed content
+    before it can reach the reviewed binding. Remaining: façade admission
+    coverage for a reviewed executor.
 
 - [ ] NLA-4.4 [GREEN] Implement named reviewed tool-package resolution and
       opaque-binary artifact binding.
