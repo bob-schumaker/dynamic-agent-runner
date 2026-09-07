@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `workflow-input-converter-plugin`
-- Status: future work
+- Status: planned; generated assets gated on isolation backend evidence
 - Owner: dynamic-agent-runner workflow-host and local-model boundaries
 - Related specifications:
   - `specs/model-execution-plugin-interface/spec.md`
@@ -101,6 +101,14 @@ no universal tensor schema.
 The converter is a private graph node. The package can declare it for
 validation and trace identity, but a workflow user cannot invoke it directly
 and no graph edge exposes decoded input or packed state outside the worker.
+
+### Contract identifiers
+
+`transformers-peft-single-image-v1` remains the preparation loader profile and
+`transformers-peft-v1` remains the built-in runner catalog ID.
+`transformers-generate-v1` is the converter-compatible runner execution
+contract. A converter manifest shall match only the latter; these identifiers
+are not aliases and have no fallback matching.
 
 ### Converter contract
 
@@ -251,10 +259,10 @@ validation or isolation.
 - A capability-enforcement acceptance proves generated converter code cannot
   read an undeclared host file, write outside its ephemeral boundary, access the
   network, inherit a credential, or spawn an undeclared process.
-- A real, manually authorized acceptance packages a converter for a model input
-  that DAR does not understand, invokes the workflow through prompt plus sealed
-  bytes, and returns a bounded normalized result without exposing conversion or
-  model implementation details to the workflow user.
+- A real, manually authorized acceptance packages the Qwen floorplan converter,
+  invokes the workflow through prompt plus sealed bytes, and returns a bounded
+  normalized result without exposing conversion or model implementation details
+  to the workflow user.
 
 ## Relationship to Existing Model Execution Plugins
 
