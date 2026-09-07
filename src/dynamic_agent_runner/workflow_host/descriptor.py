@@ -87,6 +87,15 @@ class DeclaredArtifactTool:
 
 
 @dataclass(frozen=True)
+class DeclaredTerminalOutputValidator:
+    """One package-owned post-processing validator for shaped terminal output."""
+
+    asset_path: str
+    max_output_bytes: int
+    timeout_seconds: int
+
+
+@dataclass(frozen=True)
 class WorkflowDescriptor:
     """The immutable authoring-to-runtime handoff for a bounded task workflow."""
 
@@ -103,6 +112,7 @@ class WorkflowDescriptor:
     limits: WorkflowLimits
     declared_local_tools: tuple[DeclaredLocalTool, ...] = ()
     declared_artifact_tools: tuple[DeclaredArtifactTool, ...] = ()
+    terminal_output_validator: DeclaredTerminalOutputValidator | None = None
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> WorkflowDescriptor:
@@ -136,6 +146,7 @@ class WorkflowDescriptor:
         _validate_side_effect_contract(declared_tools, task)
         output = _mapping(mapping.get("output"), "output")
         output_schema_ref = _text(output.get("schema_ref"), "output.schema_ref")
+        terminal_output_validator = _parse_terminal_output_validator(output)
         if output_schema_ref != task.terminal_output_schema_ref:
             raise WorkflowDescriptorError(
                 "output.schema_ref must match task_invocation.terminal_output_schema_ref"
@@ -160,6 +171,7 @@ class WorkflowDescriptor:
             limits=WorkflowLimits(_positive_int(limits.get("max_steps"), "max_steps")),
             declared_local_tools=declared_local_tools,
             declared_artifact_tools=declared_artifact_tools,
+            terminal_output_validator=terminal_output_validator,
         )
 
 
@@ -337,6 +349,31 @@ def _parse_task_invocation(value: object) -> TaskInvocation:
             mapping.get("terminal_output_schema_ref"), "terminal_output_schema_ref"
         ),
         argument_sources=_parse_argument_sources(mapping.get("argument_sources")),
+    )
+
+
+def _parse_terminal_output_validator(
+    output: Mapping[str, Any],
+) -> DeclaredTerminalOutputValidator | None:
+    value = output.get("validator")
+    if value is None:
+        return None
+    validator = _mapping(value, "output.validator")
+    if set(validator) != {"asset_path", "max_output_bytes", "timeout_seconds"}:
+        raise WorkflowDescriptorError("output validator is invalid")
+    asset_path = _text(validator.get("asset_path"), "output.validator.asset_path")
+    if asset_path.startswith("/") or ".." in asset_path.split("/"):
+        raise WorkflowDescriptorError(
+            "output validator asset_path must be package-relative"
+        )
+    return DeclaredTerminalOutputValidator(
+        asset_path=asset_path,
+        max_output_bytes=_positive_int(
+            validator.get("max_output_bytes"), "output.validator.max_output_bytes"
+        ),
+        timeout_seconds=_positive_int(
+            validator.get("timeout_seconds"), "output.validator.timeout_seconds"
+        ),
     )
 
 

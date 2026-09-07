@@ -275,6 +275,9 @@ class WorkflowRunner:
                 terminal_output_contract,
                 adapter_id=self._configured_profile.adapter_id,
             )
+            self._validate_terminal_output(
+                policy=policy, package_root=Path(package_root), output=output
+            )
         except (
             WorkflowRegistrationError,
             PackageCatalogError,
@@ -363,6 +366,36 @@ class WorkflowRunner:
         clear = getattr(self._model_adapter, "clear_sealed_image", None)
         if callable(clear):
             clear()
+
+    def _validate_terminal_output(
+        self, *, policy: Any, package_root: Path, output: Mapping[str, str]
+    ) -> None:
+        """Run an optional workflow-owned validator after terminal shaping."""
+
+        validator = policy.terminal_output_validator
+        if validator is None:
+            return
+        if self._local_tool_executor is None:
+            raise RunDarWorkflowError("terminal output validation is unavailable")
+        try:
+            evidence = LocalToolSandbox(
+                package_root=package_root, execute=self._local_tool_executor
+            ).run(
+                LocalToolDefinition(
+                    tool_id="terminal-output-validator",
+                    asset_path=Path(validator.asset_path),
+                    accepted_artifact_role="terminal_output",
+                    max_input_bytes=32 * 1024,
+                    max_output_bytes=validator.max_output_bytes,
+                    timeout_seconds=validator.timeout_seconds,
+                ),
+                artifact_role="terminal_output",
+                artifact_bytes=output["message"].encode("utf-8"),
+            )
+        except LocalToolSandboxError as error:
+            raise RunDarWorkflowError("terminal output validation failed") from error
+        if evidence.get("valid") is not True:
+            raise RunDarWorkflowError("terminal output validation failed")
 
     def dry_run(
         self, request: RunDarWorkflowRequest, *, now: datetime

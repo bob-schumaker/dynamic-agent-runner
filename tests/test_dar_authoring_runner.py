@@ -55,6 +55,7 @@ from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
     DeclaredArtifactTool,
     DeclaredLocalTool,
+    DeclaredTerminalOutputValidator,
 )
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa: E402
     ReviewedToolPackageBinding,
@@ -601,6 +602,35 @@ def test_runner_binds_a_declared_local_tool_to_sealed_binary_input(
 
     assert result.success is True
     assert result.output == {"byte_count": len(b"sealed binary")}
+
+
+def test_runner_postprocesses_terminal_output_with_declared_validator(
+    tmp_path: Path,
+) -> None:
+    observed: list[bytes] = []
+    runner, _, _, revision, _ = _runner(
+        tmp_path,
+        local_asset=True,
+        local_tool_executor=lambda _command, content, _timeout: (
+            observed.append(content) or b'{"valid":true}'
+        ),
+    )
+    policy = replace(
+        compile_workflow_policy(revision),
+        terminal_output_validator=DeclaredTerminalOutputValidator(
+            asset_path="tools/inspect",
+            max_output_bytes=512,
+            timeout_seconds=1,
+        ),
+    )
+
+    runner._validate_terminal_output(  # type: ignore[attr-defined]
+        policy=policy,
+        package_root=revision.package_root,
+        output={"message": "<svg/>"},
+    )
+
+    assert observed == [b"<svg/>"]
 
 
 def test_runner_binds_reviewed_tool_to_an_opaque_binary_artifact(

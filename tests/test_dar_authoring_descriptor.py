@@ -208,6 +208,23 @@ def test_local_tool_descriptor_requires_a_package_relative_asset_and_limits() ->
     assert descriptor.declared_local_tools[0].asset_path == "tools/validate_svg"
 
 
+def test_output_validator_requires_one_bounded_package_asset() -> None:
+    value = _descriptor()
+    value["output"] = {
+        "schema_ref": value["task_invocation"]["terminal_output_schema_ref"],
+        "validator": {
+            "asset_path": "tools/validate_svg",
+            "max_output_bytes": 512,
+            "timeout_seconds": 1,
+        },
+    }
+
+    descriptor = WorkflowDescriptor.from_mapping(value)
+
+    assert descriptor.terminal_output_validator is not None
+    assert descriptor.terminal_output_validator.asset_path == "tools/validate_svg"
+
+
 def test_artifact_tool_descriptor_requires_a_reviewed_package_and_result_bound() -> (
     None
 ):

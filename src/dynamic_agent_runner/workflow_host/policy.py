@@ -18,6 +18,7 @@ from dynamic_agent_runner.workflow_host.descriptor import (
     DeclaredTool,
     DeclaredLocalTool,
     DeclaredArtifactTool,
+    DeclaredTerminalOutputValidator,
     InputContract,
     TaskInvocation,
     WorkflowDescriptor,
@@ -56,6 +57,7 @@ class WorkflowPolicy:
     declared_tools: tuple[DeclaredTool, ...] = ()
     declared_local_tools: tuple[DeclaredLocalTool, ...] = ()
     declared_artifact_tools: tuple[DeclaredArtifactTool, ...] = ()
+    terminal_output_validator: DeclaredTerminalOutputValidator | None = None
 
 
 @dataclass(frozen=True)
@@ -76,6 +78,10 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         workflow = load_agent_package_workflow(str(revision.package_root))
         _validate_local_tool_assets(
             package_root=revision.package_root, tools=descriptor.declared_local_tools
+        )
+        _validate_terminal_output_validator(
+            package_root=revision.package_root,
+            validator=descriptor.terminal_output_validator,
         )
         validate_no_tool_runtime_nodes(descriptor, workflow.runtime_manifest.nodes)
         validate_runtime_tool_contract(descriptor, workflow.runtime_manifest.tools)
@@ -172,6 +178,15 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
                 }
                 for tool in descriptor.declared_artifact_tools
             ],
+            "terminal_output_validator": (
+                {
+                    "asset_path": descriptor.terminal_output_validator.asset_path,
+                    "max_output_bytes": descriptor.terminal_output_validator.max_output_bytes,
+                    "timeout_seconds": descriptor.terminal_output_validator.timeout_seconds,
+                }
+                if descriptor.terminal_output_validator is not None
+                else None
+            ),
             "max_steps": descriptor.limits.max_steps,
             "required_capabilities": sorted(required_capabilities),
         }
@@ -191,6 +206,7 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         declared_tools=descriptor.declared_tools,
         declared_local_tools=descriptor.declared_local_tools,
         declared_artifact_tools=descriptor.declared_artifact_tools,
+        terminal_output_validator=descriptor.terminal_output_validator,
     )
 
 
@@ -243,6 +259,26 @@ def _validate_local_tool_assets(
             or not metadata.st_mode & stat.S_IXUSR
         ):
             raise PolicyCompilationError("local tool asset is unavailable")
+
+
+def _validate_terminal_output_validator(
+    *, package_root: Path, validator: DeclaredTerminalOutputValidator | None
+) -> None:
+    if validator is None:
+        return
+    _validate_local_tool_assets(
+        package_root=package_root,
+        tools=(
+            DeclaredLocalTool(
+                tool_id="terminal-output-validator",
+                asset_path=validator.asset_path,
+                accepted_artifact_role="terminal_output",
+                max_input_bytes=32 * 1024,
+                max_output_bytes=validator.max_output_bytes,
+                timeout_seconds=validator.timeout_seconds,
+            ),
+        ),
+    )
 
 
 def _deferred_runtime_capabilities(

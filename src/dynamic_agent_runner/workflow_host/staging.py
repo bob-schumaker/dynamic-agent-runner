@@ -484,12 +484,17 @@ def _mark_declared_local_tool_assets_executable(root: Path) -> None:
     if not isinstance(descriptor, Mapping):
         raise PackageStagingError("package descriptor is invalid")
     tools = descriptor.get("tools")
-    if not isinstance(tools, list):
-        return
-    for tool in tools:
-        if not isinstance(tool, Mapping) or tool.get("kind") != "local":
-            continue
-        asset_path = tool.get("asset_path")
+    assets: list[object] = []
+    if isinstance(tools, list):
+        assets.extend(
+            tool.get("asset_path")
+            for tool in tools
+            if isinstance(tool, Mapping) and tool.get("kind") == "local"
+        )
+    output = descriptor.get("output")
+    if isinstance(output, Mapping) and isinstance(output.get("validator"), Mapping):
+        assets.append(output["validator"].get("asset_path"))
+    for asset_path in assets:
         if not isinstance(asset_path, str) or not asset_path:
             continue
         asset = root / asset_path
