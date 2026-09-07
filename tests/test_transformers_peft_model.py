@@ -1,0 +1,606 @@
+"""Fake-only tests for the generic Transformers + PEFT single-image runner."""
+
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+from types import SimpleNamespace
+import sys
+
+import pytest
+
+from dynamic_agent_runner.errors import ModelExecutionError
+from dynamic_agent_runner.local_model_preparation import (
+    LocalModelArtifact,
+    LocalModelPreparationRecipe,
+    PreparedArtifactSet,
+    QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE,
+)
+from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+
+
+class FakeImage:
+    width = 1
+    height = 1
+
+
+def test_generic_runner_uses_verified_groups_and_clears_sealed_image(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TransformersPeftSingleImageAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths: dict[str, Path] = {}
+    for artifact in recipe.artifacts:
+        path = tmp_path / artifact.group / artifact.filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"fixture")
+        paths[artifact.role] = path
+
+    calls: list[tuple[str, object, int]] = []
+
+    class Backend:
+        def generate(self, prompt: str, image: object, *, max_new_tokens: int) -> str:
+            calls.append((prompt, image, max_new_tokens))
+            return '{"walls":[]}'
+
+    adapter = TransformersPeftSingleImageAdapter(
+        PreparedArtifactSet(recipe, paths),
+        dependency_loader=lambda _base, _adapter: Backend(),
+        image_decoder=lambda content: FakeImage(),
+    )
+    adapter.bind_sealed_image(content=b"image", media_type="image/png")
+    response = adapter.create_response(
+        build_openai_request(
+            model=recipe.model_id,
+            messages=[OpenAIMessage("user", "vectorize")],
+            max_tokens=1024,
+        )
+    )
+
+    assert response.content == '{"walls":[]}'
+    assert calls[0][0] == "vectorize"
+    assert isinstance(calls[0][1], FakeImage)
+    assert calls[0][2] == 1024
+    assert adapter._sealed_image is None
+    with pytest.raises(ModelExecutionError, match="sealed image"):
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id, messages=[OpenAIMessage("user", "x")]
+            )
+        )
+
+
+def test_generic_runner_rejects_invalid_media_and_limits(tmp_path: Path) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TransformersPeftSingleImageAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.filename for artifact in recipe.artifacts
+    }
+    adapter = TransformersPeftSingleImageAdapter(
+        PreparedArtifactSet(recipe, paths), image_decoder=lambda content: FakeImage()
+    )
+
+    with pytest.raises(ModelExecutionError, match="sealed image"):
+        adapter.bind_sealed_image(content=b"x", media_type="image/gif")
+    with pytest.raises(ModelExecutionError, match="sealed image"):
+        adapter.bind_sealed_image(
+            content=b"x" * (8 * 1024 * 1024 + 1), media_type="image/png"
+        )
+
+    adapter.bind_sealed_image(content=b"jpeg", media_type="image/jpeg")
+    with pytest.raises(ModelExecutionError, match="sealed image"):
+        adapter.bind_sealed_image(content=b"second", media_type="image/jpeg")
+    adapter.clear_sealed_image()
+
+
+def test_generic_runner_rejects_bad_decodes_and_generation_limits(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TransformersPeftSingleImageAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    loader_calls = 0
+
+    def load(_base, _adapter):
+        nonlocal loader_calls
+        loader_calls += 1
+        raise AssertionError("invalid input must not load a model")
+
+    oversized = SimpleNamespace(width=32_000_001, height=1)
+    adapter = TransformersPeftSingleImageAdapter(
+        PreparedArtifactSet(recipe, paths),
+        dependency_loader=load,
+        image_decoder=lambda _: oversized,
+    )
+    with pytest.raises(ModelExecutionError, match="sealed image"):
+        adapter.bind_sealed_image(content=b"image", media_type="image/png")
+    assert loader_calls == 0
+
+    adapter = TransformersPeftSingleImageAdapter(
+        PreparedArtifactSet(recipe, paths),
+        dependency_loader=load,
+        image_decoder=lambda _: FakeImage(),
+    )
+    adapter.bind_sealed_image(content=b"image", media_type="image/png")
+    with pytest.raises(ModelExecutionError, match="generation limit"):
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id,
+                messages=[OpenAIMessage("user", "vectorize")],
+                max_tokens=1025,
+            )
+        )
+    assert adapter._sealed_image is None
+    assert loader_calls == 0
+
+    adapter = TransformersPeftSingleImageAdapter(
+        PreparedArtifactSet(recipe, paths),
+        dependency_loader=load,
+        image_decoder=lambda _: (_ for _ in ()).throw(ValueError("malformed")),
+    )
+    with pytest.raises(ModelExecutionError, match="sealed image"):
+        adapter.bind_sealed_image(content=b"not-a-png", media_type="image/png")
+    assert loader_calls == 0
+
+    adapter = TransformersPeftSingleImageAdapter(
+        PreparedArtifactSet(recipe, paths),
+        dependency_loader=load,
+        image_decoder=lambda _: FakeImage(),
+    )
+    adapter.bind_sealed_image(content=b"image", media_type="image/png")
+    with pytest.raises(ModelExecutionError, match="generation limit"):
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id,
+                messages=[OpenAIMessage("user", "vectorize")],
+                max_tokens=0,
+            )
+        )
+    assert adapter._sealed_image is None
+    assert loader_calls == 0
+
+
+def test_default_loader_uses_only_local_nonremote_framework_arguments(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import dynamic_agent_runner.workflow_host.transformers_peft_model as runner
+
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        _load_default_backend,
+    )
+
+    calls: list[tuple[str, Path, dict[str, object]]] = []
+
+    class Processor:
+        @classmethod
+        def from_pretrained(cls, path: Path, **kwargs: object) -> object:
+            calls.append(("processor", path, kwargs))
+            return object()
+
+    class Model:
+        @classmethod
+        def from_pretrained(cls, path: Path, **kwargs: object) -> object:
+            calls.append(("model", path, kwargs))
+            return object()
+
+    class Peft:
+        @classmethod
+        def from_pretrained(cls, model: object, path: Path, **kwargs: object) -> object:
+            calls.append(("adapter", path, {"model": model, **kwargs}))
+            return object()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "transformers",
+        SimpleNamespace(AutoModelForImageTextToText=Model, AutoProcessor=Processor),
+    )
+    monkeypatch.setitem(sys.modules, "peft", SimpleNamespace(PeftModel=Peft))
+    monkeypatch.setattr(runner, "_mps_available", lambda: False)
+
+    base = tmp_path / "base"
+    adapter = tmp_path / "adapter"
+    _load_default_backend(base, adapter)
+
+    assert calls[0] == (
+        "processor",
+        base,
+        {"local_files_only": True, "trust_remote_code": False},
+    )
+    assert calls[1] == (
+        "model",
+        base,
+        {
+            "local_files_only": True,
+            "trust_remote_code": False,
+            "device_map": "auto",
+            "torch_dtype": "auto",
+        },
+    )
+    assert calls[2][0:2] == ("adapter", adapter)
+    assert calls[2][2]["is_trainable"] is False
+    assert calls[2][2]["local_files_only"] is True
+
+
+def test_default_loader_places_the_base_on_mps_before_attaching_peft(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import dynamic_agent_runner.workflow_host.transformers_peft_model as runner
+
+    calls: list[tuple[str, object, object]] = []
+
+    class Processor:
+        @classmethod
+        def from_pretrained(cls, path: Path, **kwargs: object) -> object:
+            calls.append(("processor", path, kwargs))
+            return object()
+
+    class Model:
+        @classmethod
+        def from_pretrained(cls, path: Path, **kwargs: object) -> "Model":
+            calls.append(("model", path, kwargs))
+            return cls()
+
+        def to(self, device: str) -> "Model":
+            calls.append(("move", device, self))
+            return self
+
+    class Peft:
+        @classmethod
+        def from_pretrained(cls, model: object, path: Path, **kwargs: object) -> object:
+            calls.append(("adapter", model, {"path": path, **kwargs}))
+            return SimpleNamespace(device="mps")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "transformers",
+        SimpleNamespace(AutoModelForImageTextToText=Model, AutoProcessor=Processor),
+    )
+    monkeypatch.setitem(sys.modules, "peft", SimpleNamespace(PeftModel=Peft))
+    monkeypatch.setattr(runner, "_mps_available", lambda: True)
+
+    runner._load_default_backend(tmp_path / "base", tmp_path / "adapter")
+
+    assert calls[1] == (
+        "model",
+        tmp_path / "base",
+        {
+            "local_files_only": True,
+            "trust_remote_code": False,
+            "torch_dtype": "auto",
+        },
+    )
+    assert calls[2][0:2] == ("move", "mps")
+    assert calls[3][0] == "adapter"
+    assert calls[3][1] is calls[2][2]
+
+
+def test_mps_loader_targets_wrapped_model_device_for_generation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import dynamic_agent_runner.workflow_host.transformers_peft_model as runner
+
+    calls: list[tuple[str, object]] = []
+
+    class Inputs(dict[str, object]):
+        def to(self, device: str) -> "Inputs":
+            calls.append(("inputs", device))
+            return self
+
+    class Processor:
+        @classmethod
+        def from_pretrained(cls, _path: Path, **_kwargs: object) -> "Processor":
+            return cls()
+
+        def apply_chat_template(self, *_args: object, **_kwargs: object) -> Inputs:
+            return Inputs(input_ids=SimpleNamespace(shape=(1, 1)))
+
+        def batch_decode(self, _tokens: object, **_kwargs: object) -> list[str]:
+            return ['{"walls":[]}']
+
+    class Model:
+        @classmethod
+        def from_pretrained(cls, _path: Path, **_kwargs: object) -> "Model":
+            return cls()
+
+        def to(self, device: str) -> "Model":
+            calls.append(("move", device))
+            return self
+
+    class WrappedModel:
+        device = "mps"
+
+        def generate(self, **_kwargs: object) -> object:
+            return Generated()
+
+    class Generated:
+        def __getitem__(self, _index: object) -> object:
+            return object()
+
+    class Peft:
+        @classmethod
+        def from_pretrained(
+            cls, _model: object, _path: Path, **_kwargs: object
+        ) -> WrappedModel:
+            return WrappedModel()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "transformers",
+        SimpleNamespace(AutoModelForImageTextToText=Model, AutoProcessor=Processor),
+    )
+    monkeypatch.setitem(sys.modules, "peft", SimpleNamespace(PeftModel=Peft))
+    monkeypatch.setattr(runner, "_mps_available", lambda: True)
+
+    backend = runner._load_default_backend(tmp_path / "base", tmp_path / "adapter")
+    backend.generate("vectorize", FakeImage(), max_new_tokens=4)
+
+    assert calls == [("move", "mps"), ("inputs", "mps")]
+
+
+@pytest.mark.parametrize("failure_step", ["move", "adapter"])
+def test_mps_loader_failure_clears_sealed_image_and_redacts_errors(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failure_step: str
+) -> None:
+    import dynamic_agent_runner.workflow_host.transformers_peft_model as runner
+
+    class Processor:
+        @classmethod
+        def from_pretrained(cls, _path: Path, **_kwargs: object) -> object:
+            return object()
+
+    class Model:
+        @classmethod
+        def from_pretrained(cls, _path: Path, **_kwargs: object) -> "Model":
+            return cls()
+
+        def to(self, _device: str) -> "Model":
+            if failure_step == "move":
+                raise RuntimeError("vendor MPS move failure")
+            return self
+
+    class Peft:
+        @classmethod
+        def from_pretrained(
+            cls, _model: object, _path: Path, **_kwargs: object
+        ) -> object:
+            if failure_step == "adapter":
+                raise RuntimeError("vendor adapter failure")
+            return object()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "transformers",
+        SimpleNamespace(AutoModelForImageTextToText=Model, AutoProcessor=Processor),
+    )
+    monkeypatch.setitem(sys.modules, "peft", SimpleNamespace(PeftModel=Peft))
+    monkeypatch.setattr(runner, "_mps_available", lambda: True)
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.filename for artifact in recipe.artifacts
+    }
+    adapter = runner.TransformersPeftSingleImageAdapter(
+        PreparedArtifactSet(recipe, paths), image_decoder=lambda _content: FakeImage()
+    )
+    adapter.bind_sealed_image(content=b"image", media_type="image/png")
+
+    with pytest.raises(ModelExecutionError) as error:
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id,
+                messages=[OpenAIMessage("user", "private prompt")],
+            )
+        )
+
+    assert str(error.value) == "local model generation failed"
+    assert "vendor" not in str(error.value)
+    assert "private prompt" not in str(error.value)
+    assert str(tmp_path) not in str(error.value)
+    assert adapter._sealed_image is None
+
+
+def test_generic_runner_rejects_an_invalid_closure_before_loading(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TransformersPeftSingleImageAdapter,
+    )
+
+    recipe = LocalModelPreparationRecipe(
+        model_id="model",
+        adapter_id="adapter",
+        runner_id="transformers-peft-v1",
+        loader_profile=QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE.loader_profile,
+        transformation=None,
+        artifacts=(
+            LocalModelArtifact(
+                "base_config", "repo", "revision", "config.json", "a", "base"
+            ),
+        ),
+    )
+    loader_called = False
+
+    def load(_base, _adapter):
+        nonlocal loader_called
+        loader_called = True
+        raise AssertionError("invalid closure must not load")
+
+    with pytest.raises(ModelExecutionError, match="incompatible"):
+        TransformersPeftSingleImageAdapter(
+            PreparedArtifactSet(recipe, {}), dependency_loader=load
+        )
+    assert loader_called is False
+
+
+def test_loaded_backend_uses_deterministic_template_and_decodes_only_suffix() -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        _LoadedTransformersPeftBackend,
+    )
+
+    calls: dict[str, object] = {}
+    image = FakeImage()
+
+    class Inputs(dict):
+        def to(self, device: object) -> "Inputs":
+            calls["device"] = device
+            return self
+
+    class Generated:
+        def __getitem__(self, item: object) -> object:
+            calls["slice"] = item
+            return "generated-suffix"
+
+    class Model:
+        device = "device"
+
+        def generate(self, **kwargs: object) -> Generated:
+            calls["generate"] = kwargs
+            return Generated()
+
+    class Processor:
+        def apply_chat_template(self, messages, **kwargs: object) -> Inputs:
+            calls["messages"] = messages
+            calls["template"] = kwargs
+            return Inputs(input_ids=SimpleNamespace(shape=(1, 7)))
+
+        def batch_decode(self, tokens: object, **kwargs: object) -> list[str]:
+            calls["decode"] = (tokens, kwargs)
+            return ["  output  "]
+
+    backend = _LoadedTransformersPeftBackend(model=Model(), processor=Processor())
+
+    assert backend.generate("describe", image, max_new_tokens=12) == "output"
+    assert calls["messages"] == [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "image": image},
+                {"type": "text", "text": "describe"},
+            ],
+        }
+    ]
+    assert calls["template"] == {
+        "add_generation_prompt": True,
+        "tokenize": True,
+        "return_dict": True,
+        "return_tensors": "pt",
+    }
+    assert calls["generate"]["do_sample"] is False
+    assert calls["generate"]["max_new_tokens"] == 12
+    assert calls["generate"]["input_ids"].shape == (1, 7)
+    assert calls["slice"] == (slice(None), slice(7, None))
+    assert calls["decode"] == ("generated-suffix", {"skip_special_tokens": True})
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_error"),
+    [
+        (RuntimeError("generation failed"), ModelExecutionError),
+        (asyncio.CancelledError(), asyncio.CancelledError),
+    ],
+)
+def test_generic_runner_clears_sealed_image_after_backend_failures(
+    tmp_path: Path, error: BaseException, expected_error: type[BaseException]
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TransformersPeftSingleImageAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+
+    class FailingBackend:
+        def generate(self, prompt: str, image: object, *, max_new_tokens: int) -> str:
+            raise error
+
+    adapter = TransformersPeftSingleImageAdapter(
+        PreparedArtifactSet(recipe, paths),
+        dependency_loader=lambda _base, _adapter: FailingBackend(),
+        image_decoder=lambda _: FakeImage(),
+    )
+    adapter.bind_sealed_image(content=b"image", media_type="image/png")
+
+    with pytest.raises(expected_error):
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id,
+                messages=[OpenAIMessage("user", "vectorize")],
+            )
+        )
+    assert adapter._sealed_image is None
+
+
+def test_loaded_backend_rejects_empty_generated_output() -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        _LoadedTransformersPeftBackend,
+    )
+
+    class Inputs(dict):
+        def to(self, device: object) -> "Inputs":
+            return self
+
+    class Generated:
+        def __getitem__(self, item: object) -> object:
+            return object()
+
+    class Model:
+        device = "device"
+
+        def generate(self, **kwargs: object) -> Generated:
+            return Generated()
+
+    class Processor:
+        def apply_chat_template(self, messages, **kwargs: object) -> Inputs:
+            return Inputs(input_ids=SimpleNamespace(shape=(1, 1)))
+
+        def batch_decode(self, tokens: object, **kwargs: object) -> list[str]:
+            return ["  "]
+
+    backend = _LoadedTransformersPeftBackend(model=Model(), processor=Processor())
+
+    with pytest.raises(ModelExecutionError, match="empty"):
+        backend.generate("describe", FakeImage(), max_new_tokens=1)
+
+
+def test_generic_runner_clears_sealed_image_after_loader_failure(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TransformersPeftSingleImageAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    adapter = TransformersPeftSingleImageAdapter(
+        PreparedArtifactSet(recipe, paths),
+        dependency_loader=lambda _base, _adapter: (_ for _ in ()).throw(ImportError()),
+        image_decoder=lambda _: FakeImage(),
+    )
+    adapter.bind_sealed_image(content=b"image", media_type="image/png")
+
+    with pytest.raises(ModelExecutionError, match="dependencies unavailable"):
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id,
+                messages=[OpenAIMessage("user", "vectorize")],
+            )
+        )
+    assert adapter._sealed_image is None

@@ -858,6 +858,7 @@ class LlamaCppLocalModelAdapter:
                     if request.response_format is not None
                     else None
                 ),
+                **_llama_cpp_generation_kwargs(request.extra),
             )
         except ModelExecutionError:
             raise
@@ -1376,6 +1377,32 @@ def _read_backend_model_id(backend: LlamaCppLocalBackend) -> str | None:
         if model_id is not None:
             return str(model_id)
     return None
+
+
+def _llama_cpp_generation_kwargs(extra: Mapping[str, object]) -> dict[str, object]:
+    """Forward the small generation-parameter subset shared with llama.cpp."""
+
+    kwargs: dict[str, object] = {}
+    max_tokens = extra.get("max_tokens")
+    if (
+        isinstance(max_tokens, int)
+        and not isinstance(max_tokens, bool)
+        and max_tokens > 0
+    ):
+        kwargs["max_tokens"] = max_tokens
+    temperature = extra.get("temperature")
+    if isinstance(temperature, int | float) and not isinstance(temperature, bool):
+        kwargs["temperature"] = temperature
+    stop = extra.get("stop")
+    if isinstance(stop, str) and stop:
+        kwargs["stop"] = [stop]
+    elif (
+        isinstance(stop, Sequence)
+        and not isinstance(stop, str)
+        and all(isinstance(item, str) and item for item in stop)
+    ):
+        kwargs["stop"] = list(stop)
+    return kwargs
 
 
 def _llama_cpp_chatml_tools(

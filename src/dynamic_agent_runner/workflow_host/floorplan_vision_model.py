@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import base64
 from dataclasses import replace
+from collections.abc import Callable
 from pathlib import Path
 
 from dynamic_agent_runner.errors import ModelExecutionError
+from dynamic_agent_runner.local_model_preparation import (
+    FLOORPLAN_VISION_RECIPE,
+    PreparedArtifactSet,
+)
 from dynamic_agent_runner.local_models import (
     LlamaCppLocalModelAdapter,
     LlamaCppLocalModelConfig,
@@ -18,18 +23,33 @@ FLOORPLAN_VISION_MODEL_ID = "qwen25-vl-3b-floorplan-grpo"
 FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID = "floorplan-vision-llama-cpp-adapter-v1"
 
 
-def create_floorplan_vision_qwen_config() -> LlamaCppLocalModelConfig:
-    """Create the fixed offline model/projector configuration for floorplans."""
+def create_floorplan_vision_qwen_config(
+    prepared_set: PreparedArtifactSet,
+) -> LlamaCppLocalModelConfig:
+    """Create the fixed offline configuration from one verified private set."""
+
+    if prepared_set.recipe != FLOORPLAN_VISION_RECIPE:
+        raise ModelExecutionError("floorplan prepared artifact set is unavailable")
+    try:
+        model_path = prepared_set.paths["base_model"]
+        projector_path = prepared_set.paths["vision_projector"]
+        lora_path = prepared_set.paths["adapter"]
+    except KeyError as error:
+        raise ModelExecutionError(
+            "floorplan prepared artifact set is unavailable"
+        ) from error
 
     return LlamaCppLocalModelConfig(
         model_aliases=(FLOORPLAN_VISION_MODEL_ID,),
-        model_path=Path(".floorplan-vision-qwen-unset.gguf"),
+        model_path=model_path,
         model_filename="qwen25-vl-3b-floorplan-grpo.gguf",
+        huggingface_file=FLOORPLAN_VISION_RECIPE.artifacts[0].reference(),
         expected_model_id=FLOORPLAN_VISION_MODEL_ID,
         allow_network=False,
         model_kwargs={
-            "clip_model_path": ".floorplan-vision-projector-unset.gguf",
-            "n_ctx": 2048,
+            "clip_model_path": str(projector_path),
+            "lora_path": str(lora_path),
+            "n_ctx": 16384,
             "n_gpu_layers": -1,
             "verbose": False,
         },
@@ -104,7 +124,61 @@ class FloorplanVisionLlamaCppAdapter(LlamaCppLocalModelAdapter):
         raise ModelExecutionError("vision request has no user message")
 
 
-def create_floorplan_vision_llama_cpp_adapter() -> FloorplanVisionLlamaCppAdapter:
-    """Create the fixed image-capable llama.cpp adapter."""
+class DeferredFloorplanVisionLlamaCppAdapter:
+    """Resolve a verified set only when a sealed floorplan request is executed."""
 
-    return FloorplanVisionLlamaCppAdapter(create_floorplan_vision_qwen_config())
+    def __init__(self, resolve_prepared_set: Callable[[], PreparedArtifactSet]) -> None:
+        self._resolve_prepared_set = resolve_prepared_set
+        self._adapter: FloorplanVisionLlamaCppAdapter | None = None
+
+    @property
+    def capabilities(self) -> dict[str, bool]:
+        return {"text_generation": True, "multimodal_input": True}
+
+    @property
+    def execution_profile_adapter_id(self) -> str:
+        return FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        return (FLOORPLAN_VISION_MODEL_ID,)
+
+    @property
+    def is_local(self) -> bool:
+        return True
+
+    def resolved_model_id(self, model_id: str) -> str:
+        return (
+            FLOORPLAN_VISION_MODEL_ID
+            if model_id == FLOORPLAN_VISION_MODEL_ID
+            else model_id
+        )
+
+    def bind_sealed_image(self, *, content: bytes, media_type: str) -> None:
+        self._resolved_adapter().bind_sealed_image(
+            content=content, media_type=media_type
+        )
+
+    def clear_sealed_image(self) -> None:
+        if self._adapter is not None:
+            self._adapter.clear_sealed_image()
+
+    def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        return self._resolved_adapter().create_response(request)
+
+    def _resolved_adapter(self) -> FloorplanVisionLlamaCppAdapter:
+        if self._adapter is None:
+            self._adapter = create_floorplan_vision_llama_cpp_adapter(
+                self._resolve_prepared_set()
+            )
+        return self._adapter
+
+
+def create_floorplan_vision_llama_cpp_adapter(
+    prepared_set: PreparedArtifactSet,
+) -> FloorplanVisionLlamaCppAdapter:
+    """Create the fixed image-capable adapter from a verified private set."""
+
+    return FloorplanVisionLlamaCppAdapter(
+        create_floorplan_vision_qwen_config(prepared_set)
+    )

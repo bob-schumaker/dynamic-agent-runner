@@ -1,6 +1,6 @@
 [project]
 name = "dynamic-agent-runner"
-version = "0.2.1"
+version = "0.1.17"
 description = ""
 authors = [
     {name = "Bob Schumaker",email = "bob.schumaker@oracle.com"}
@@ -23,6 +23,13 @@ huggingface = ["huggingface-hub>=1.18.0,<2.0.0"]
 llamacpp = ["llama-cpp-python>=0.3.29,<0.4.0"]
 apple-foundation-models = ["apple-fm-sdk>=0.2.0"]
 mlx = ["mlx-lm>=0.31.3,<0.32.0"]
+transformers-peft = [
+    "transformers>=5.0.0,<6.0.0",
+    "peft>=0.19.1,<0.20.0",
+    "torch>=2.9.0,<3.0.0",
+    "Pillow>=11.0.0,<12.0.0",
+    "torchvision>=0.24.0,<0.29.0",
+]
 
 [tool.poetry]
 packages = [
@@ -44,6 +51,11 @@ llama-cpp-python = {version = "^0.3.29", optional = true}
 huggingface-hub = {version = "^1.18.0", optional = true}
 apple-fm-sdk = {version = ">=0.2.0", optional = true}
 mlx-lm = {version = ">=0.31.3,<0.32.0", optional = true}
+transformers = {version = ">=5.0.0,<6.0.0", optional = true}
+peft = {version = ">=0.19.1,<0.20.0", optional = true}
+torch = {version = ">=2.9.0,<3.0.0", optional = true}
+Pillow = {version = ">=11.0.0,<12.0.0", optional = true}
+torchvision = {version = ">=0.24.0,<0.29.0", optional = true}
 
 [tool.poetry.group.dev]
 optional = true
@@ -58,6 +70,7 @@ llama-cpp-python = "^0.3.29"
 huggingface-hub = "^1.18.0"
 apple-fm-sdk = ">=0.2.0"
 mlx-lm = ">=0.31.3,<0.32.0"
+marketplace-installer = "0.1.2"
 
 [tool.poetry.group.docs]
 optional = true

@@ -139,6 +139,59 @@ def test_version_json_redacts_an_internal_failure(
     assert "/private/state" not in stderr.getvalue()
 
 
+def test_prepare_local_model_accepts_only_logical_model_and_redacts_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Host:
+        def prepare_local_model(self, *, model_id: str) -> object:
+            assert model_id == "qwen25-vl-3b-floorplan-grpo"
+            return type(
+                "Result",
+                (),
+                {"model_id": model_id, "status": "ready"},
+            )()
+
+    monkeypatch.setattr(dar_package_cli.LocalWorkflowHost, "open", lambda _root: Host())
+    stdout = StringIO()
+    stderr = StringIO()
+
+    assert (
+        dar_package_cli.main(
+            ["prepare", "--model", "qwen25-vl-3b-floorplan-grpo"],
+            stdout=stdout,
+            stderr=stderr,
+        )
+        == 0
+    )
+    assert json.loads(stdout.getvalue()) == {
+        "format_version": 1,
+        "model_id": "qwen25-vl-3b-floorplan-grpo",
+        "status": "ready",
+    }
+    assert stderr.getvalue() == ""
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["prepare"],
+        ["prepare", "--model-path", "/private/model.gguf"],
+        ["prepare", "--model", "/private/model.gguf"],
+    ],
+)
+def test_prepare_local_model_rejects_paths_and_invalid_usage(argv: list[str]) -> None:
+    stdout = StringIO()
+    stderr = StringIO()
+
+    assert dar_package_cli.main(argv, stdout=stdout, stderr=stderr) == 2
+    assert stdout.getvalue() == ""
+    assert json.loads(stderr.getvalue()) == {
+        "error_code": "usage",
+        "format_version": 1,
+        "status": "error",
+    }
+
+
 def test_select_package_returns_only_an_opaque_handle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -951,7 +1004,7 @@ def test_invoke_dry_run_returns_a_resolved_registration_receipt(
     assert stderr.getvalue() == ""
 
 
-def test_invoke_passes_workspace_files_only_to_saved_host_composition(
+def test_invoke_passes_a_floorplan_image_to_saved_host_composition(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class Host:
@@ -961,7 +1014,7 @@ def test_invoke_passes_workspace_files_only_to_saved_host_composition(
             workspace_files: tuple[Path, ...],
             **_kwargs: object,
         ) -> object:
-            assert workspace_files == (Path("/private/input/document.txt"),)
+            assert workspace_files == (Path("/private/input/floorplan.png"),)
             return type(
                 "Result",
                 (),
@@ -981,12 +1034,12 @@ def test_invoke_passes_workspace_files_only_to_saved_host_composition(
             [
                 "invoke",
                 "--package-name",
-                "document-summary",
+                "floorplan-from-image",
                 "--prompt-stdin",
                 "--workspace-file",
-                "/private/input/document.txt",
+                "/private/input/floorplan.png",
             ],
-            stdin=StringIO("Summarize this document."),
+            stdin=StringIO("Turn this image into a floorplan."),
             stdout=stdout,
             stderr=stderr,
         )

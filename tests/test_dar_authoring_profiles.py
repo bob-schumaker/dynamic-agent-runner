@@ -128,6 +128,24 @@ def test_control_plane_creates_the_pinned_floorplan_vision_profile(
     assert profile.model_id == "qwen25-vl-3b-floorplan-grpo"
     assert profile.execution_model_id == "qwen25-vl-3b-floorplan-grpo"
     assert profile.adapter_id == "floorplan-vision-llama-cpp-adapter-v1"
+    assert profile.runner_id == "llama-cpp-v1"
+    assert profile.capabilities == frozenset({"text_generation", "multimodal_input"})
+
+
+def test_control_plane_creates_the_generic_qwen25_vl_floorplan_profile(
+    tmp_path: Path,
+) -> None:
+    control_plane = LocalModelProfileControlPlane(
+        store=PrivateStateStore(tmp_path / "state")
+    )
+
+    profile = control_plane.create_qwen25_vl_3b_floorplan_grpo_transformers_peft()
+
+    assert profile.model_id == "qwen25-vl-3b-floorplan-grpo"
+    assert (
+        profile.adapter_id == "qwen25-vl-3b-floorplan-grpo-transformers-peft-adapter-v1"
+    )
+    assert profile.runner_id == "transformers-peft-v1"
     assert profile.capabilities == frozenset({"text_generation", "multimodal_input"})
 
 

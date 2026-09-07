@@ -26,6 +26,7 @@ from dynamic_agent_runner.workflow_host.host import (  # noqa: E402
     LocalWorkflowHost,
     attach_mcp_client,
     configure_apple_local_host,
+    configure_qwen25_vl_3b_floorplan_grpo_transformers_peft_host,
     configure_hosted_openai_host,
     configure_mcp_api_token,
     create_mcp_connection,
@@ -56,6 +57,24 @@ TEMPLATE_ROOT = (
     / "legacy-dar-authoring"
     / "templates"
 )
+
+
+def test_configure_qwen_transformers_peft_host_uses_the_builtin_profile(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    package_root.mkdir()
+
+    configuration = configure_qwen25_vl_3b_floorplan_grpo_transformers_peft_host(
+        root=root,
+        package_root=package_root,
+    )
+    host = LocalWorkflowHost.open(root)
+
+    assert configuration.profile_id == host._profile.profile_id
+    assert host._profile.runner_id == "transformers-peft-v1"
+    assert host._runner._model_adapter.models == ("qwen25-vl-3b-floorplan-grpo",)
 
 
 def _write_portable_manifest(source: Path) -> None:

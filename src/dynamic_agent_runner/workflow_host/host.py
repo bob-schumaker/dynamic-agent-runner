@@ -16,6 +16,14 @@ from dynamic_agent_runner.apple_foundation_models import (
     AppleFoundationModelConfig,
     create_apple_foundation_model_async_adapter,
 )
+from dynamic_agent_runner.local_model_preparation import (
+    FLOORPLAN_VISION_RECIPE,
+    QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE,
+    LocalModelPreparationCatalog,
+    LocalModelPreparationResult,
+    LocalModelPreparationService,
+    PinnedLlamaCppLoraConverter,
+)
 from dynamic_agent_runner.workflow_host.catalog import (
     PackageCatalog,
     PackageCatalogError,
@@ -67,6 +75,10 @@ from dynamic_agent_runner.workflow_host.mcp_surfaces import (
 )
 from dynamic_agent_runner.workflow_host.local_tools import (
     execute_macos_sandbox_exec,
+)
+from dynamic_agent_runner.workflow_host.local_model_runners import (
+    LocalModelRunner,
+    LocalModelRunnerCatalog,
 )
 from dynamic_agent_runner.workflow_host.artifact_tools import (
     ReviewedArtifactToolExecutor,
@@ -122,6 +134,7 @@ from dynamic_agent_runner.workflow_host.profiles import (
     LocalModelProfileControlPlane,
     LocalModelProfileError,
     FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+    FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
     create_floorplan_vision_llama_cpp_adapter,
     create_fastmail_triage_llama_cpp_adapter,
     create_hosted_openai_adapter,
@@ -158,9 +171,6 @@ from dynamic_agent_runner.workflow_host.workflow_authoring_registration import (
     UnavailableAuthoredWorkflow,
     validate_definition,
 )
-from dynamic_agent_runner.workflow_host.floorplan_vision_model import (
-    FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
-)
 from dynamic_agent_runner.errors import ModelExecutionError
 
 
@@ -176,6 +186,14 @@ class LocalWorkflowHostError(ValueError):
     """Raised when required human-owned host configuration is unavailable."""
 
 
+class LocalModelPreparationRequired(LocalWorkflowHostError):
+    """Raised when invocation needs the separately authorized model preparation."""
+
+    def __init__(self, result: LocalModelPreparationResult) -> None:
+        self.status = result.status
+        super().__init__("local model preparation is required")
+
+
 class DiscoveredOAuthSetupError(LocalWorkflowHostError):
     """One stable redacted status for a discovered OAuth setup failure."""
 
@@ -184,7 +202,12 @@ class DiscoveredOAuthSetupError(LocalWorkflowHostError):
         super().__init__(status)
 
 
-def _create_model_adapter(profile: LocalModelProfile):
+def _create_model_adapter(
+    profile: LocalModelProfile,
+    *,
+    resolve_prepared_set: Callable[[], object] | None = None,
+    runners: LocalModelRunnerCatalog | None = None,
+):
     if profile.adapter_id == "strict-local-adapter-v1":
         return create_local_adapter(profile)
     if profile.adapter_id == "apple-foundation-models-adapter-v1":
@@ -194,9 +217,27 @@ def _create_model_adapter(profile: LocalModelProfile):
     if profile.adapter_id == FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID:
         return create_fastmail_triage_llama_cpp_adapter(profile)
     if profile.adapter_id == FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID:
-        return create_floorplan_vision_llama_cpp_adapter(profile)
+        if resolve_prepared_set is None:
+            raise LocalWorkflowHostError("local model preparation is unavailable")
+        return create_floorplan_vision_llama_cpp_adapter(
+            profile, resolve_prepared_set=resolve_prepared_set
+        )
+    if profile.runner_id == "transformers-peft-v1":
+        if resolve_prepared_set is None:
+            raise LocalWorkflowHostError("local model preparation is unavailable")
+        from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+            DeferredTransformersPeftSingleImageAdapter,
+        )
+
+        return DeferredTransformersPeftSingleImageAdapter(
+            model_id=profile.model_id,
+            adapter_id=profile.adapter_id,
+            resolve_prepared_set=resolve_prepared_set,  # type: ignore[arg-type]
+        )
     if profile.adapter_id == "hosted-openai-adapter-v1":
         return create_hosted_openai_adapter(profile)
+    if resolve_prepared_set is not None and runners is not None:
+        return runners.create_adapter(profile, resolve_prepared_set)  # type: ignore[arg-type]
     raise LocalWorkflowHostError("configured execution profile is unavailable")
 
 
@@ -332,6 +373,60 @@ def configure_fastmail_triage_llama_cpp_host(
         workspace_input_root,
         workspace_input_max_bytes,
         mcp_client_configuration,
+    )
+    _write_configuration(root, configuration)
+    return configuration
+
+
+def configure_floorplan_vision_llama_cpp_host(
+    *,
+    root: Path,
+    package_root: Path,
+    workspace_input_root: Path | None = None,
+    workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES,
+) -> LocalWorkflowHostConfiguration:
+    """Configure the fixed offline Qwen vision profile for floorplans."""
+
+    _validate_root(root)
+    _validate_package_root(package_root)
+    if workspace_input_root is not None:
+        _validate_workspace_input_root(workspace_input_root)
+    _validate_workspace_input_max_bytes(workspace_input_max_bytes)
+    profile = LocalModelProfileControlPlane(
+        store=PrivateStateStore(root)
+    ).create_floorplan_vision_llama_cpp()
+    configuration = LocalWorkflowHostConfiguration(
+        package_root,
+        profile.profile_id,
+        workspace_input_root,
+        workspace_input_max_bytes,
+    )
+    _write_configuration(root, configuration)
+    return configuration
+
+
+def configure_qwen25_vl_3b_floorplan_grpo_transformers_peft_host(
+    *,
+    root: Path,
+    package_root: Path,
+    workspace_input_root: Path | None = None,
+    workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES,
+) -> LocalWorkflowHostConfiguration:
+    """Configure the native closed Transformers + PEFT Qwen profile."""
+
+    _validate_root(root)
+    _validate_package_root(package_root)
+    if workspace_input_root is not None:
+        _validate_workspace_input_root(workspace_input_root)
+    _validate_workspace_input_max_bytes(workspace_input_max_bytes)
+    profile = LocalModelProfileControlPlane(
+        store=PrivateStateStore(root)
+    ).create_qwen25_vl_3b_floorplan_grpo_transformers_peft()
+    configuration = LocalWorkflowHostConfiguration(
+        package_root,
+        profile.profile_id,
+        workspace_input_root,
+        workspace_input_max_bytes,
     )
     _write_configuration(root, configuration)
     return configuration
@@ -642,6 +737,8 @@ class LocalWorkflowHost:
         catalog: PackageCatalog,
         registrations: WorkflowRegistrationService,
         preparation: WorkflowInvocationPreparationService,
+        model_preparation: LocalModelPreparationService,
+        profile: LocalModelProfile,
         runner: WorkflowRunner,
         workspace_ingress: WorkspaceIngressService | None,
         authoring_materials: AuthoringMaterialService,
@@ -657,6 +754,8 @@ class LocalWorkflowHost:
         self._catalog = catalog
         self._registrations = registrations
         self._preparation = preparation
+        self._model_preparation = model_preparation
+        self._profile = profile
         self._runner = runner
         self._workspace_ingress = workspace_ingress
         self._authoring_materials = authoring_materials
@@ -676,6 +775,7 @@ class LocalWorkflowHost:
         mcp_connections: MCPConnectionControlPlane | None = None,
         reviewed_artifact_tool_executors: Mapping[str, ReviewedArtifactToolExecutor]
         | None = None,
+        local_model_runners: Sequence[LocalModelRunner] = (),
     ) -> LocalWorkflowHost:
         """Open a configured local host for the current OS user."""
 
@@ -720,6 +820,19 @@ class LocalWorkflowHost:
             store=store,
             artifact_verifier=workspace_ingress,
         )
+        model_preparation = LocalModelPreparationService(
+            catalog=LocalModelPreparationCatalog(
+                (
+                    FLOORPLAN_VISION_RECIPE,
+                    QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE,
+                )
+            ),
+            cache_root=root / "model-preparation",
+            approved_cache_roots=(Path.home() / ".cache" / "huggingface" / "hub",),
+            converter=PinnedLlamaCppLoraConverter(
+                checkout=root / "model-preparation" / "llama.cpp"
+            ),
+        )
         return cls(
             configuration=configuration,
             sources=PackageSourceSelectionPolicy(
@@ -733,11 +846,21 @@ class LocalWorkflowHost:
             catalog=catalog,
             registrations=registrations,
             preparation=preparation,
+            model_preparation=model_preparation,
+            profile=profile,
             runner=WorkflowRunner(
                 registrations=registrations,
                 catalog=catalog,
                 preparation=preparation,
-                model_adapter=_create_model_adapter(profile),
+                model_adapter=_create_model_adapter(
+                    profile,
+                    resolve_prepared_set=lambda: model_preparation.resolve(
+                        model_id=profile.model_id,
+                        adapter_id=profile.adapter_id,
+                        runner_id=profile.runner_id,
+                    ),
+                    runners=LocalModelRunnerCatalog(local_model_runners),
+                ),
                 configured_profile=profile,
                 mcp_bindings=mcp_bindings if mcp_client is not None else None,
                 mcp_client=mcp_client,
@@ -1186,6 +1309,18 @@ class LocalWorkflowHost:
             registration = self._registrations.resolve(package_name)
         except WorkflowRegistrationError as error:
             raise LocalWorkflowHostError("saved package is unavailable") from error
+        if self._profile.adapter_id in {
+            FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
+            "qwen25-vl-3b-floorplan-grpo-transformers-peft-adapter-v1",
+        }:
+            preparation_status = self._model_preparation.prepare(
+                model_id=self._profile.model_id,
+                adapter_id=self._profile.adapter_id,
+                runner_id=self._profile.runner_id,
+                authorized=False,
+            )
+            if preparation_status.status != "ready":
+                raise LocalModelPreparationRequired(preparation_status)
         artifact_ids = tuple(workspace_artifact_ids) or tuple(
             self.ingress_default_file(
                 workflow_id=registration.workflow_id, path=path, now=now
@@ -1218,6 +1353,18 @@ class LocalWorkflowHost:
             now=now,
             approval_broker=approval_broker,
             guardrail_registry=guardrail_registry,
+        )
+
+    def prepare_local_model(self, *, model_id: str) -> LocalModelPreparationResult:
+        """Prepare the configured reviewed model through this authorized action."""
+
+        if model_id != self._profile.model_id:
+            return LocalModelPreparationResult(model_id, "recipe_unavailable")
+        return self._model_preparation.prepare(
+            model_id=model_id,
+            adapter_id=self._profile.adapter_id,
+            runner_id=self._profile.runner_id,
+            authorized=True,
         )
 
     def ingress_file(
