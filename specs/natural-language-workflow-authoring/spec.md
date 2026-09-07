@@ -78,6 +78,13 @@ workflow-local validator are implemented. Once they exist, a missing or
 text-only configured profile is unavailable; it must not pretend that a
 text-only profile can process an image.
 
+The SVG validator is host post-processing, not a model-callable tool. After
+terminal-output shaping, DAR may pass the bounded terminal message to one
+workflow-declared local validator and accept only its bounded JSON validity
+evidence. DAR does not parse SVG or otherwise interpret domain output; the
+workflow-owned validator owns that semantic check. A failing validator yields
+the workflow's declared redacted failure.
+
 The opaque-binary analysis slice supports an already configured, reviewed tool
 package. It lets that package, rather than the skill or DAR, determine which
 binary encodings it can inspect.

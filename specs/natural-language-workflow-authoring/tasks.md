@@ -149,6 +149,9 @@ authoritative requirements are
     failure without sandbox details; trusted image ingress works through the
     saved workflow name; dry run avoids ingress, local-tool, and model execution.
   - Validation: focused floorplan fixture and `dar-package invoke` tests.
+  - Decision: validate the shaped terminal output through a declared host
+    post-processing validator; do not expose generated SVG as a model tool
+    argument.
 
 ## NLA-4 — Internal Composition and Opaque-Binary Tools
 

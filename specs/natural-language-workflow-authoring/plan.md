@@ -120,6 +120,12 @@ places a caller path or raw bytes in a model prompt. The JSON object is the
 tool's declared evidence result; malformed, oversized, or failed execution is
 a bounded declared failure rather than a host detail.
 
+For terminal-output validation, use the same bounded JSON-evidence shape as a
+separate host post-processing ABI: the declared validator receives the shaped
+terminal message on standard input after model execution. It is not exposed to
+the model and receives no workspace artifact. The first workflow-owned SVG
+validator implements SVG semantics; DAR only dispatches and bounds it.
+
 Do not create a binary-format registry. A workflow input is either a declared
 image artifact or an `opaque_binary_artifact`; ingress keeps its existing
 generic copy-and-hash boundary. A typed host-only consumer rechecks the
