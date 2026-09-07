@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import json
 import stat
+import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,36 @@ class LocalToolSandboxError(ValueError):
 
 
 LocalToolExecutor = Callable[[tuple[str, ...], bytes, int], bytes]
+
+
+def execute_macos_sandbox_exec(
+    command: tuple[str, ...], artifact_bytes: bytes, timeout_seconds: int
+) -> bytes:
+    """Run a reviewed test fixture through macOS ``sandbox-exec`` as-is.
+
+    The permissive profile proves the platform execution handoff only. It is not
+    the untrusted-tool isolation backend specified by local-tool hardening.
+    """
+
+    if not command or not all(isinstance(item, str) and item for item in command):
+        raise LocalToolSandboxError("local tool command is invalid")
+    try:
+        result = subprocess.run(
+            (
+                "sandbox-exec",
+                "-p",
+                "(version 1) (allow default)",
+                *command,
+            ),
+            check=True,
+            input=artifact_bytes,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=timeout_seconds,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise LocalToolSandboxError("local tool execution failed") from error
+    return result.stdout
 
 
 def macos_sandbox_profile(

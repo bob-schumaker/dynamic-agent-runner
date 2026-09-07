@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from dynamic_agent_runner.workflow_host.local_tools import (
+    execute_macos_sandbox_exec,
     create_local_tool_binding,
     LocalToolDefinition,
     LocalToolSandbox,
@@ -43,6 +44,33 @@ def test_local_tool_sandbox_runs_only_a_declared_asset_with_bounded_io(
     )
 
     assert result == {"evidence": "bounded result"}
+
+
+def test_trusted_fixture_runs_through_macos_sandbox_exec(
+    tmp_path: Path,
+) -> None:
+    asset = tmp_path / "tools" / "inspect"
+    asset.parent.mkdir()
+    asset.write_text(
+        '#!/bin/sh\ninput=$(cat)\nprintf \'{"byte_count":%s}\\n\' "${#input}"\n',
+        encoding="utf-8",
+    )
+    asset.chmod(0o700)
+    definition = LocalToolDefinition(
+        "inspect", asset, "opaque_binary_artifact", 1024, 512, 1
+    )
+    sandbox = LocalToolSandbox(
+        package_root=tmp_path,
+        execute=execute_macos_sandbox_exec,
+    )
+
+    result = sandbox.run(
+        definition,
+        artifact_role="opaque_binary_artifact",
+        artifact_bytes=b"sealed",
+    )
+
+    assert result == {"byte_count": 6}
 
 
 def test_local_tool_sandbox_requires_bounded_json_evidence(tmp_path: Path) -> None:
