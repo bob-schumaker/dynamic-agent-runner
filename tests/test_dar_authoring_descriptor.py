@@ -65,6 +65,65 @@ def test_valid_no_tool_descriptor_compiles() -> None:
     )
 
 
+def test_input_converter_manifest_requires_the_exact_runner_contract() -> None:
+    value = _descriptor()
+    value["input_converter"] = {
+        "converter_id": "qwen-floorplan-input-v1",
+        "converter_contract_version": "v1",
+        "compatible_runner_contract_id": "transformers-generate-v1",
+        "entrypoint": "converters/qwen_floorplan.py",
+        "asset_digest": "a" * 64,
+        "declared_resource_limits": {
+            "max_input_bytes": 8 * 1024 * 1024,
+            "max_output_bytes": 1024,
+            "timeout_seconds": 30,
+        },
+    }
+
+    descriptor = WorkflowDescriptor.from_mapping(value)
+
+    assert descriptor.input_converter is not None
+    assert (
+        descriptor.input_converter.compatible_runner_contract_id
+        == "transformers-generate-v1"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda converter: converter.update({"unexpected": True}),
+        lambda converter: converter.update(
+            {"compatible_runner_contract_id": "transformers-peft-v1"}
+        ),
+        lambda converter: converter.update({"entrypoint": "/tmp/converter.py"}),
+        lambda converter: converter.update({"entrypoint": "../converter.py"}),
+        lambda converter: converter.update({"asset_digest": "not-a-digest"}),
+    ],
+)
+def test_input_converter_manifest_rejects_ambiguous_or_runtime_selection(
+    mutation: object,
+) -> None:
+    value = _descriptor()
+    converter = {
+        "converter_id": "qwen-floorplan-input-v1",
+        "converter_contract_version": "v1",
+        "compatible_runner_contract_id": "transformers-generate-v1",
+        "entrypoint": "converters/qwen_floorplan.py",
+        "asset_digest": "a" * 64,
+        "declared_resource_limits": {
+            "max_input_bytes": 8 * 1024 * 1024,
+            "max_output_bytes": 1024,
+            "timeout_seconds": 30,
+        },
+    }
+    mutation(converter)  # type: ignore[operator]
+    value["input_converter"] = converter
+
+    with pytest.raises(WorkflowDescriptorError, match="input converter"):
+        WorkflowDescriptor.from_mapping(value)
+
+
 def test_package_skill_contract_rejects_external_bundled_paths() -> None:
     value = _descriptor()
     value["skills"] = ["document-guidance"]

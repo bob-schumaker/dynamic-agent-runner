@@ -18,6 +18,7 @@ from dynamic_agent_runner.workflow_host.descriptor import (
     DeclaredTool,
     DeclaredLocalTool,
     DeclaredArtifactTool,
+    DeclaredInputConverter,
     DeclaredTerminalOutputValidator,
     InputContract,
     TaskInvocation,
@@ -58,6 +59,7 @@ class WorkflowPolicy:
     declared_local_tools: tuple[DeclaredLocalTool, ...] = ()
     declared_artifact_tools: tuple[DeclaredArtifactTool, ...] = ()
     terminal_output_validator: DeclaredTerminalOutputValidator | None = None
+    input_converter: DeclaredInputConverter | None = None
 
 
 @dataclass(frozen=True)
@@ -82,6 +84,10 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         _validate_terminal_output_validator(
             package_root=revision.package_root,
             validator=descriptor.terminal_output_validator,
+        )
+        _validate_input_converter_asset(
+            package_root=revision.package_root,
+            converter=descriptor.input_converter,
         )
         validate_no_tool_runtime_nodes(descriptor, workflow.runtime_manifest.nodes)
         validate_runtime_tool_contract(descriptor, workflow.runtime_manifest.tools)
@@ -187,6 +193,24 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
                 if descriptor.terminal_output_validator is not None
                 else None
             ),
+            "input_converter": (
+                {
+                    "converter_id": descriptor.input_converter.converter_id,
+                    "converter_contract_version": (
+                        descriptor.input_converter.converter_contract_version
+                    ),
+                    "compatible_runner_contract_id": (
+                        descriptor.input_converter.compatible_runner_contract_id
+                    ),
+                    "entrypoint": descriptor.input_converter.entrypoint,
+                    "asset_digest": descriptor.input_converter.asset_digest,
+                    "max_input_bytes": descriptor.input_converter.max_input_bytes,
+                    "max_output_bytes": descriptor.input_converter.max_output_bytes,
+                    "timeout_seconds": descriptor.input_converter.timeout_seconds,
+                }
+                if descriptor.input_converter is not None
+                else None
+            ),
             "max_steps": descriptor.limits.max_steps,
             "required_capabilities": sorted(required_capabilities),
         }
@@ -207,6 +231,7 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         declared_local_tools=descriptor.declared_local_tools,
         declared_artifact_tools=descriptor.declared_artifact_tools,
         terminal_output_validator=descriptor.terminal_output_validator,
+        input_converter=descriptor.input_converter,
     )
 
 
@@ -279,6 +304,25 @@ def _validate_terminal_output_validator(
             ),
         ),
     )
+
+
+def _validate_input_converter_asset(
+    *, package_root: Path, converter: DeclaredInputConverter | None
+) -> None:
+    if converter is None:
+        return
+    root = package_root.resolve(strict=True)
+    try:
+        asset = (root / converter.entrypoint).resolve(strict=True)
+        asset.relative_to(root)
+        metadata = os.lstat(asset)
+        content = asset.read_bytes()
+    except (OSError, ValueError) as error:
+        raise PolicyCompilationError("input converter asset is unavailable") from error
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise PolicyCompilationError("input converter asset is unavailable")
+    if hashlib.sha256(content).hexdigest() != converter.asset_digest:
+        raise PolicyCompilationError("input converter asset is unavailable")
 
 
 def _deferred_runtime_capabilities(

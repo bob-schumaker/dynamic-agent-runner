@@ -96,6 +96,20 @@ class DeclaredTerminalOutputValidator:
 
 
 @dataclass(frozen=True)
+class DeclaredInputConverter:
+    """One sealed package asset that packs invocation bytes for one runner."""
+
+    converter_id: str
+    converter_contract_version: str
+    compatible_runner_contract_id: str
+    entrypoint: str
+    asset_digest: str
+    max_input_bytes: int
+    max_output_bytes: int
+    timeout_seconds: int
+
+
+@dataclass(frozen=True)
 class WorkflowDescriptor:
     """The immutable authoring-to-runtime handoff for a bounded task workflow."""
 
@@ -113,6 +127,7 @@ class WorkflowDescriptor:
     declared_local_tools: tuple[DeclaredLocalTool, ...] = ()
     declared_artifact_tools: tuple[DeclaredArtifactTool, ...] = ()
     terminal_output_validator: DeclaredTerminalOutputValidator | None = None
+    input_converter: DeclaredInputConverter | None = None
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> WorkflowDescriptor:
@@ -147,6 +162,7 @@ class WorkflowDescriptor:
         output = _mapping(mapping.get("output"), "output")
         output_schema_ref = _text(output.get("schema_ref"), "output.schema_ref")
         terminal_output_validator = _parse_terminal_output_validator(output)
+        input_converter = _parse_input_converter(mapping.get("input_converter"))
         if output_schema_ref != task.terminal_output_schema_ref:
             raise WorkflowDescriptorError(
                 "output.schema_ref must match task_invocation.terminal_output_schema_ref"
@@ -172,6 +188,7 @@ class WorkflowDescriptor:
             declared_local_tools=declared_local_tools,
             declared_artifact_tools=declared_artifact_tools,
             terminal_output_validator=terminal_output_validator,
+            input_converter=input_converter,
         )
 
 
@@ -373,6 +390,54 @@ def _parse_terminal_output_validator(
         ),
         timeout_seconds=_positive_int(
             validator.get("timeout_seconds"), "output.validator.timeout_seconds"
+        ),
+    )
+
+
+def _parse_input_converter(value: object) -> DeclaredInputConverter | None:
+    if value is None:
+        return None
+    converter = _mapping(value, "input converter")
+    if set(converter) != {
+        "converter_id",
+        "converter_contract_version",
+        "compatible_runner_contract_id",
+        "entrypoint",
+        "asset_digest",
+        "declared_resource_limits",
+    }:
+        raise WorkflowDescriptorError("input converter is invalid")
+    entrypoint = _text(converter.get("entrypoint"), "input converter.entrypoint")
+    if entrypoint.startswith("/") or ".." in entrypoint.split("/"):
+        raise WorkflowDescriptorError("input converter is invalid")
+    if converter.get("converter_contract_version") != "v1":
+        raise WorkflowDescriptorError("input converter is invalid")
+    if converter.get("compatible_runner_contract_id") != "transformers-generate-v1":
+        raise WorkflowDescriptorError("input converter is invalid")
+    digest = converter.get("asset_digest")
+    if not _is_digest(digest):
+        raise WorkflowDescriptorError("input converter is invalid")
+    limits = _mapping(
+        converter.get("declared_resource_limits"), "input converter limits"
+    )
+    if set(limits) != {"max_input_bytes", "max_output_bytes", "timeout_seconds"}:
+        raise WorkflowDescriptorError("input converter is invalid")
+    return DeclaredInputConverter(
+        converter_id=_text(
+            converter.get("converter_id"), "input converter.converter_id"
+        ),
+        converter_contract_version="v1",
+        compatible_runner_contract_id="transformers-generate-v1",
+        entrypoint=entrypoint,
+        asset_digest=digest,
+        max_input_bytes=_positive_int(
+            limits.get("max_input_bytes"), "input converter.max_input_bytes"
+        ),
+        max_output_bytes=_positive_int(
+            limits.get("max_output_bytes"), "input converter.max_output_bytes"
+        ),
+        timeout_seconds=_positive_int(
+            limits.get("timeout_seconds"), "input converter.timeout_seconds"
         ),
     )
 
@@ -587,6 +652,14 @@ def _positive_int(value: object, name: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise WorkflowDescriptorError(f"{name} must be a positive integer")
     return value
+
+
+def _is_digest(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 def _string_list(value: object, name: str) -> tuple[str, ...]:

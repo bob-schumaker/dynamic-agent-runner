@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import stat
+from hashlib import sha256
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -49,6 +50,8 @@ def _catalog_revision(
     enable_package_skill_source_resolution: bool = True,
     terminal_output_schema_ref: str | None = None,
     deferred_capability: str | None = None,
+    input_converter_asset: bytes | None = None,
+    input_converter_digest: str | None = None,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -244,6 +247,26 @@ def _catalog_revision(
         )
         descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
         runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
+    if input_converter_asset is not None:
+        converter = source / "converters" / "qwen_floorplan.py"
+        converter.parent.mkdir()
+        converter.write_bytes(input_converter_asset)
+        descriptor = source / "workflow-descriptor.yaml"
+        descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+        descriptor_value["input_converter"] = {
+            "converter_id": "qwen-floorplan-input-v1",
+            "converter_contract_version": "v1",
+            "compatible_runner_contract_id": "transformers-generate-v1",
+            "entrypoint": "converters/qwen_floorplan.py",
+            "asset_digest": input_converter_digest
+            or sha256(input_converter_asset).hexdigest(),
+            "declared_resource_limits": {
+                "max_input_bytes": 8 * 1024 * 1024,
+                "max_output_bytes": 1024,
+                "timeout_seconds": 30,
+            },
+        }
+        descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
         allowed_root=source.parent, store=store
@@ -536,4 +559,30 @@ def test_policy_rejects_unknown_registered_terminal_output_contract(
     )
 
     with pytest.raises(PolicyCompilationError, match="terminal output contract"):
+        compile_workflow_policy(revision)
+
+
+def test_policy_binds_the_exact_staged_input_converter_asset(tmp_path: Path) -> None:
+    revision = _catalog_revision(
+        tmp_path, input_converter_asset=b"def pack():\n    return {}\n"
+    )
+
+    policy = compile_workflow_policy(revision)
+
+    assert policy.input_converter is not None
+    assert policy.input_converter.converter_id == "qwen-floorplan-input-v1"
+    assert (
+        policy.input_converter.compatible_runner_contract_id
+        == "transformers-generate-v1"
+    )
+
+
+def test_policy_rejects_a_stale_input_converter_asset_digest(tmp_path: Path) -> None:
+    revision = _catalog_revision(
+        tmp_path,
+        input_converter_asset=b"def pack():\n    return {}\n",
+        input_converter_digest="a" * 64,
+    )
+
+    with pytest.raises(PolicyCompilationError, match="cataloged package policy"):
         compile_workflow_policy(revision)

@@ -20,13 +20,14 @@ but are not evidence of untrusted-code isolation.
 
 ## T1 — Manifest and Immutable Workflow Binding
 
-- [ ] T1.1 [tests, RED] Add focused package and registration tests for one
+- [x] T1.1 [tests, RED/GREEN] Add focused descriptor and package-policy tests
+  for one
   valid converter manifest and for missing, duplicate, malformed, unknown-field,
   stale-digest, and exact runner-contract-mismatch cases. Assert every invalid
   case fails before worker or model construction, and that prompt, bytes,
   filename, extension, media type, and generated text cannot select a
   converter.
-- [ ] T1.2 [implementation] Define the smallest immutable converter-manifest
+- [x] T1.2 [implementation] Define the smallest immutable converter-manifest
   value and validator: converter ID, converter contract version, compatible
   runner contract ID, entrypoint, asset digest, and declared resource limits.
   Reject a live callable, runtime path, interpreter choice, undeclared asset,
