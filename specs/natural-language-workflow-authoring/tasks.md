@@ -114,7 +114,7 @@ authoritative requirements are
   - RED: `poetry run pytest tests/test_dar_authoring_local_tools.py -q` failed
     during collection with `ModuleNotFoundError` for `workflow_host.local_tools`.
 
-- [ ] NLA-3.2 [GREEN] Implement generic approved sandbox dispatch for an
+- [x] NLA-3.2 [GREEN] Implement generic approved sandbox dispatch for an
       already implemented workflow-local tool.
   - Spec: FR-4, FR-6; Workflow-Local Deterministic Tooling
   - Depends on: NLA-3.1
@@ -138,8 +138,10 @@ authoritative requirements are
     not untrusted-tool isolation, which is deferred to
     `local-tool-sandbox-hardening`. `LocalWorkflowHost.open()` now supplies
     that executor and admits `local_tool_sandbox` only while its runner exposes
-    it. Traces and a workflow-owned implementation asset remain required before
-    this task is complete.
+    it. The existing redacted run trace records completion/failure without input
+    or output content; the floorplan fixture supplies the workflow-owned local
+    validator asset. Focused local-tool, runner, policy, host, and fixture
+    suites pass.
 
 - [ ] NLA-3.3 [GREEN] Add an implementation-owned floorplan fixture with a
       workflow-local SVG validator and invocation coverage.
