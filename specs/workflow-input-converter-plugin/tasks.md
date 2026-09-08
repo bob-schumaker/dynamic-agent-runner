@@ -65,7 +65,7 @@ but are not evidence of untrusted-code isolation.
   Qwen image and empty, oversized, undecodable, and unsupported bytes. Prove
   image decoding and processor conversation/packing occur only in the
   converter, while DAR treats payload bytes as opaque.
-- [ ] T3.2 [implementation] Package one trusted immutable Qwen converter asset that
+- [x] T3.2 [implementation] Package one trusted immutable Qwen converter asset that
   targets exactly `transformers-generate-v1`, decodes its expected image input,
   builds the processor conversation and generation mapping, and returns only
   the private packed value.

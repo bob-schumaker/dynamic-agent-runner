@@ -47,6 +47,12 @@ def test_floorplan_fixture_stages_a_workflow_owned_svg_validator(
     policy = compile_workflow_policy(revision)
 
     assert policy.model_profile_requirement == "local-multimodal-model-v1"
+    assert policy.input_converter is not None
+    assert policy.input_converter.converter_id == "qwen25-vl-3b-grpo-input-v1"
+    assert (
+        policy.input_converter.compatible_runner_contract_id
+        == "transformers-generate-v1"
+    )
     assert policy.terminal_output_validator is not None
     asset = revision.package_root / "tools" / "validate_svg"
     assert asset.stat().st_mode & stat.S_IXUSR

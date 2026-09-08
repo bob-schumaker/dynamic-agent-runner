@@ -29,5 +29,15 @@ output:
     asset_path: tools/validate_svg
     max_output_bytes: 512
     timeout_seconds: 1
+input_converter:
+  converter_id: qwen25-vl-3b-grpo-input-v1
+  converter_contract_version: v1
+  compatible_runner_contract_id: transformers-generate-v1
+  entrypoint: assets/qwen25_vl_3b_grpo_converter.py
+  asset_digest: 8d8c0b1fbb68d39fa98a6ca1257c0e7c7cbae749c9c3eb91e54d88c7c635df21
+  declared_resource_limits:
+    max_input_bytes: 8388608
+    max_output_bytes: 33554432
+    timeout_seconds: 1
 limits:
   max_steps: 2
