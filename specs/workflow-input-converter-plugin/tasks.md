@@ -170,6 +170,15 @@ the standard runner interface. Docker and OS-level isolation are deferred to
       workflow-owned wall/opening SVG renderer. Preserve the original JSON and
       processor report as private diagnostics; emit only SVG after successful
       rendering. DAR remains unaware of floorplan fields and SVG semantics.
+    - [x] T5.4.4.6 [tests, RED/GREEN] Add strict admission coverage for a
+      complete JSON object and the retained truncated completion
+      `sha256:3705485ac5628c30f03e93c1b434097958d9f53b23b68bfb995e96a6825fcd7a`.
+      It must admit only a complete object and must retain/reject, never repair,
+      EOF-truncated output before rendering.
+    - [x] T5.4.4.7 [implementation] Put the strict JSON admission processor
+      before the workflow-owned renderer. Preserve valid bytes exactly, emit no
+      public partial output, and rely on the existing private processor
+      diagnostic for rejected originals.
   - [ ] T5.4.5 [validation] Run focused runner and workflow-local processor
     regressions, then `poetry run pytest -q`, `poetry run ruff check src tests`,
     and `git diff --check`.

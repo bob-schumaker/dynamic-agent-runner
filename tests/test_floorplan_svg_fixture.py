@@ -88,15 +88,33 @@ def test_floorplan_fixture_stages_a_workflow_owned_svg_validator(
         max_output_bytes=32 * 1024,
         timeout_seconds=1,
     )
+    admission = LocalToolDefinition(
+        tool_id="terminal-json-admission",
+        asset_path=Path("tools/admit_floorplan_json"),
+        accepted_artifact_role="terminal_output",
+        max_input_bytes=32 * 1024,
+        max_output_bytes=32 * 1024,
+        timeout_seconds=1,
+    )
+    structured_output = (
+        b'{"walls":[{"id":"wall_1","start":[10,20],"end":[90,20],'
+        b'"thickness":4,"curvature":0,"openings":[{"type":"window",'
+        b'"center":50,"width":20}]}],"rooms":[{"label":"outdoor",'
+        b'"walls":["wall_1"]}]}'
+    )
+    admitted = sandbox.run(
+        admission, artifact_role="terminal_output", artifact_bytes=structured_output
+    )
+    assert base64.b64decode(admitted["output_base64"]) == structured_output
+    assert sandbox.run(
+        admission,
+        artifact_role="terminal_output",
+        artifact_bytes=b'{"walls":[',
+    ) == {"status": "rejected"}
     rendered = sandbox.run(
         renderer,
         artifact_role="terminal_output",
-        artifact_bytes=(
-            b'{"walls":[{"id":"wall_1","start":[10,20],"end":[90,20],'
-            b'"thickness":4,"curvature":0,"openings":[{"type":"window",'
-            b'"center":50,"width":20}]}],"rooms":[{"label":"outdoor",'
-            b'"walls":["wall_1"]}]}'
-        ),
+        artifact_bytes=base64.b64decode(admitted["output_base64"]),
     )
     assert rendered["status"] == "accepted"
     assert b"<svg " in base64.b64decode(rendered["output_base64"])
