@@ -254,8 +254,15 @@ class WorkflowRunner:
                 request.prepared_input_id, registration=registration, now=now
             )
             prompt = _render_prompt(sealed.prompt, sealed.additional_context)
-            image = self._sealed_image_for_run(
+            payload = self._sealed_converter_payload_for_run(
                 policy=policy, sealed=sealed, registration=registration, now=now
+            )
+            image = (
+                None
+                if payload is not None
+                else self._sealed_image_for_run(
+                    policy=policy, sealed=sealed, registration=registration, now=now
+                )
             )
             try:
                 final_result = run_agent_workflow(
@@ -269,6 +276,7 @@ class WorkflowRunner:
                     run_id=run_id,
                 )
             finally:
+                self._clear_sealed_converter_payload(payload)
                 self._clear_sealed_image(image)
             output = _terminal_output(
                 final_result,
@@ -358,12 +366,55 @@ class WorkflowRunner:
         bind(content=images[0].content, media_type=images[0].media_type)
         return images[0]
 
+    def _sealed_converter_payload_for_run(
+        self,
+        *,
+        policy: Any,
+        sealed: SealedWorkflowInput,
+        registration: WorkflowRegistration,
+        now: datetime,
+    ) -> MaterializedWorkspaceBinaryArtifact | None:
+        """Bind opaque bytes only to the workflow's exact converter-capable adapter."""
+
+        converter = policy.input_converter
+        if converter is None:
+            return None
+        if (
+            getattr(self._model_adapter, "input_converter_contract_id", None)
+            != converter.compatible_runner_contract_id
+        ):
+            raise RunDarWorkflowError("configured adapter lacks input converter")
+        try:
+            binaries = self._preparation.materialize_workspace_binaries(
+                sealed, registration=registration, now=now
+            )
+        except PreparedWorkflowInputError as error:
+            raise RunDarWorkflowError(
+                "sealed converter input is unavailable"
+            ) from error
+        if len(binaries) != 1 or len(binaries[0].content) > converter.max_input_bytes:
+            raise RunDarWorkflowError("sealed converter input is unavailable")
+        bind = getattr(self._model_adapter, "bind_sealed_payload", None)
+        if not callable(bind):
+            raise RunDarWorkflowError("configured adapter lacks input converter")
+        bind(content=binaries[0].content)
+        return binaries[0]
+
     def _clear_sealed_image(
         self, image: MaterializedWorkspaceImageArtifact | None
     ) -> None:
         if image is None:
             return
         clear = getattr(self._model_adapter, "clear_sealed_image", None)
+        if callable(clear):
+            clear()
+
+    def _clear_sealed_converter_payload(
+        self, payload: MaterializedWorkspaceBinaryArtifact | None
+    ) -> None:
+        if payload is None:
+            return
+        clear = getattr(self._model_adapter, "clear_sealed_payload", None)
         if callable(clear):
             clear()
 

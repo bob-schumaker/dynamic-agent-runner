@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from hashlib import sha256
 import json
 import shutil
 import socket
@@ -175,6 +176,30 @@ class VisionArtifactVerifier:
         )
 
 
+class ConverterArtifactVerifier(VisionArtifactVerifier):
+    def materialize_binary(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceBinaryArtifact:
+        self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceBinaryArtifact(
+            artifact_id,
+            "sha256:" + "f" * 64,
+            "source_image",
+            "image/png",
+            b"sealed-image-bytes",
+        )
+
+
 class BinaryArtifactVerifier(ArtifactVerifier):
     def materialize_binary(
         self,
@@ -257,6 +282,22 @@ class VisionFakeAdapter(OpenAIClientAdapter):
 
     def clear_sealed_image(self) -> None:
         self.cleared += 1
+
+
+class ConverterFakeAdapter(VisionFakeAdapter):
+    """Test-local adapter that records only the converter payload handoff."""
+
+    def __init__(self, client: FakeClient, *, model: str, adapter_id: str) -> None:
+        super().__init__(client, model=model, adapter_id=adapter_id)
+        self.bound_payloads: list[bytes] = []
+        self.payload_cleared = 0
+        self.input_converter_contract_id = "transformers-generate-v1"
+
+    def bind_sealed_payload(self, *, content: bytes) -> None:
+        self.bound_payloads.append(content)
+
+    def clear_sealed_payload(self) -> None:
+        self.payload_cleared += 1
 
 
 class MemorySecretStore:
@@ -406,6 +447,7 @@ def _runner(
     terminal_required_field: str = "message",
     artifact_verifier: object | None = None,
     vision: bool = False,
+    input_converter: bool = False,
     local_asset: bool = False,
     local_tool_executor: object | None = None,
     terminal_validator: bool = False,
@@ -425,7 +467,7 @@ def _runner(
         asset = source / "tools" / "inspect"
         asset.parent.mkdir()
         asset.write_text("placeholder", encoding="utf-8")
-    if hosted or vision:
+    if hosted or vision or input_converter:
         descriptor_path = source / "workflow-descriptor.yaml"
         descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
         if hosted:
@@ -434,6 +476,22 @@ def _runner(
             descriptor["model"]["profile_requirement"] = "local-multimodal-model-v1"
             descriptor["workspace"]["accepted_input_types"] = ["image/png"]
             descriptor["task_invocation"]["allowed_artifact_roles"] = ["source_image"]
+        if input_converter:
+            converter = source / "assets" / "qwen_converter.py"
+            converter.parent.mkdir()
+            converter.write_text("trusted fixture", encoding="utf-8")
+            descriptor["input_converter"] = {
+                "converter_id": "qwen25-vl-3b-grpo-input-v1",
+                "converter_contract_version": "v1",
+                "compatible_runner_contract_id": "transformers-generate-v1",
+                "entrypoint": "assets/qwen_converter.py",
+                "asset_digest": sha256(converter.read_bytes()).hexdigest(),
+                "declared_resource_limits": {
+                    "max_input_bytes": 8 * 1024 * 1024,
+                    "max_output_bytes": 32 * 1024 * 1024,
+                    "timeout_seconds": 1,
+                },
+            }
         descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
     if terminal_validator:
         descriptor_path = source / "workflow-descriptor.yaml"
@@ -478,6 +536,7 @@ def _runner(
         profiles=profiles,
         configured_profile_id=profile.profile_id,
         root=tmp_path / "registrations",
+        model_recipe_digest_provider=lambda _profile: "a" * 64,
     )
     registration = registrations.register(
         workflow_id="document-helper",
@@ -500,8 +559,14 @@ def _runner(
         else FakeClient(response_content)
     )
     adapter = (
-        VisionFakeAdapter(
-            client, model=profile.execution_model_id, adapter_id=profile.adapter_id
+        (
+            ConverterFakeAdapter(
+                client, model=profile.execution_model_id, adapter_id=profile.adapter_id
+            )
+            if input_converter
+            else VisionFakeAdapter(
+                client, model=profile.execution_model_id, adapter_id=profile.adapter_id
+            )
         )
         if vision
         else (
@@ -1575,6 +1640,44 @@ def test_runner_delivers_one_declared_sealed_image_only_to_the_vision_adapter(
     assert result.output == {"message": "completed locally"}
     assert adapter.bound_images == [(b"sealed-image-bytes", "image/png")]
     assert adapter.cleared == 1
+    assert "sealed-image-bytes" not in repr(client.responses.calls)
+    assert "v1.source-image" not in repr(runner.traces())
+
+
+def test_runner_delivers_converter_payload_without_media_type_routing(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, client = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": registration.workflow_id,
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    assert result.output == {"message": "completed locally"}
+    assert adapter.bound_payloads == [b"sealed-image-bytes"]
+    assert adapter.bound_images == []
+    assert adapter.payload_cleared == 1
     assert "sealed-image-bytes" not in repr(client.responses.calls)
     assert "v1.source-image" not in repr(runner.traces())
 
