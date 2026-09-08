@@ -48,6 +48,12 @@ def test_floorplan_fixture_stages_a_workflow_owned_svg_validator(
     policy = compile_workflow_policy(revision)
 
     assert policy.model_profile_requirement == "local-multimodal-model-v1"
+    runtime = (revision.package_root / "agent-runtime.yaml").read_text(encoding="utf-8")
+    assert "response_format: {type: json_object}" in runtime
+    assert '"start":[x,y]' in runtime
+    assert '"end":[x,y]' in runtime
+    assert '"width":W' in runtime
+    assert "Coordinates normalized so longer image edge = 1024." in runtime
     assert policy.workspace.accepted_input_types == ("image/jpeg", "image/png")
     assert policy.input_converter is not None
     assert policy.input_converter.converter_id == "qwen25-vl-3b-grpo-input-v1"

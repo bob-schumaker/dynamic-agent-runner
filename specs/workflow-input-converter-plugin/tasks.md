@@ -179,6 +179,20 @@ the standard runner interface. Docker and OS-level isolation are deferred to
       before the workflow-owned renderer. Preserve valid bytes exactly, emit no
       public partial output, and rely on the existing private processor
       diagnostic for rejected originals.
+    - [x] T5.4.4.8 [tests, RED/GREEN] Restore the observed floorplan JSON
+      contract in the fixture prompt and declare `response_format:
+      {type: json_object}`. Cover tuple endpoints, opening widths, room wall
+      references, and the coordinate normalization rule so later prompt edits
+      cannot silently weaken the renderer contract.
+    - [ ] T5.4.4.9 [tests, RED/GREEN] When a declared JSON response is
+      incomplete at the end of a generated chunk, request the bounded exact
+      continuation even if the backend did not mark the chunk exhausted.
+      Reject at the continuation limit; never route partial JSON to terminal
+      processing.
+    - [ ] T5.4.4.10 [tests, RED/GREEN] Emit redacted-safe model-generation
+      metadata for chunk count, token counts when available, and each chunk's
+      exhaustion outcome in the existing `model_response` trace event. Do not
+      expose completion fragments or continuation prompts.
   - [ ] T5.4.5 [validation] Run focused runner and workflow-local processor
     regressions, then `poetry run pytest -q`, `poetry run ruff check src tests`,
     and `git diff --check`.

@@ -32,11 +32,14 @@ nodes:
     model_parameters:
       max_tokens: 4096
       max_continuations: 3
+    response_format: {type: json_object}
     prompt:
       system: >-
-        Return only a JSON object with walls and rooms. Each wall must include
-        id, start, end, thickness, curvature, and openings. Each room must
-        include label and walls.
+        You are a floor plan vectorization expert. Extract wall, door, window
+        geometry from floor plan images into structured JSON. Output ONLY valid
+        JSON with this schema:
+        {{"walls":[{{"id":"wall_N","start":[x,y],"end":[x,y],"thickness":T,"curvature":0,"openings":[{{"type":"door"|"window","center":D,"width":W}}]}}],"rooms":[{{"label":"room_type","walls":["wall_N",...]}}]}}.
+        Coordinates normalized so longer image edge = 1024.
       user_template: "{prompt}"
       input_vars: [prompt]
 edges: []
