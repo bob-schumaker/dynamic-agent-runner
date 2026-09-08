@@ -46,5 +46,9 @@ the deterministic tests.
 
 This is platform evidence for the Docker envelope only. It does not complete
 T4.3: DAR has no reviewed converter/model worker image or same-worker control
-protocol, and the remaining timeout, memory, process-count, scratch-exhaustion,
-and output-boundary acceptance cases have not run against such an image.
+protocol. In the same probe image, the repository executor failed closed for a
+one-second CPU loop, 8 KiB output against a 4 KiB boundary, a 2 MiB scratch
+write against a 1 MiB tmpfs, and a 128 MiB allocation against a 64 MiB memory
+limit. The child-process check already proves the one-process bound. These
+envelope results must be repeated against the reviewed worker image before
+generated converter admission can be enabled.
