@@ -9,7 +9,7 @@ import json
 import shutil
 import socket
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Barrier
 
@@ -68,6 +68,7 @@ from dynamic_agent_runner.workflow_host.registration import WorkflowRegistration
 from dynamic_agent_runner.workflow_host.runner import (  # noqa: E402
     RunDarWorkflowError,
     RunDarWorkflowRequest,
+    TerminalProcessorDiagnostic,
     WorkflowRunner,
 )
 from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager  # noqa: E402
@@ -282,6 +283,8 @@ class VisionFakeAdapter(OpenAIClientAdapter):
         self._json_mode = json_mode
         self.bound_images: list[tuple[bytes, str]] = []
         self.cleared = 0
+        self._debug_fragment_recorder: object | None = None
+        self.debug_error: BaseException | None = None
 
     @property
     def capabilities(self) -> dict[str, bool]:
@@ -296,6 +299,28 @@ class VisionFakeAdapter(OpenAIClientAdapter):
 
     def clear_sealed_image(self) -> None:
         self.cleared += 1
+
+    def set_debug_fragment_recorder(self, recorder: object | None) -> None:
+        self._debug_fragment_recorder = recorder
+
+    def create_response(self, request: object) -> ModelResponse:
+        response = super().create_response(request)  # type: ignore[arg-type]
+        recorder = self._debug_fragment_recorder
+        if callable(recorder) and isinstance(response.content, str):
+            recorder(
+                type(
+                    "GeneratedFragment",
+                    (),
+                    {
+                        "content": response.content,
+                        "exhausted": False,
+                        "generated_tokens": len(response.content),
+                    },
+                )()
+            )
+        if self.debug_error is not None:
+            raise self.debug_error
+        return response
 
 
 class ConverterFakeAdapter(VisionFakeAdapter):
@@ -856,6 +881,188 @@ def test_runner_retains_and_loads_debug_fragments_for_the_local_owner(
     assert diagnostic.fragments[0].generated_tokens == 3
     assert diagnostic.terminal is None
     assert diagnostic.retention_limited is False
+
+
+def test_debug_run_retains_fragments_without_exposing_them_normally(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, client = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+        response_format={"type": "json_object"},
+        json_mode=True,
+        response_content='{"message":"debug-only completion"}',
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    debug = runner.run_debug(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": registration.workflow_id,
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    diagnostic = runner.debug_diagnostic(debug.diagnostic_id, now=NOW)
+    assert debug.status == "completed"
+    assert debug.result is not None
+    assert diagnostic.outcome == "completed"
+    assert [
+        (fragment.content, fragment.exhausted, fragment.generated_tokens)
+        for fragment in diagnostic.fragments
+    ] == [('{"message":"debug-only completion"}', False, 35)]
+    assert debug.diagnostic_id not in repr(debug.result)
+    assert "debug-only completion" not in repr(runner.traces())
+    assert "debug-only completion" not in repr(client.responses.calls)
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    assert adapter._debug_fragment_recorder is None
+
+
+def test_debug_run_retains_post_generation_failure_without_trace_leakage(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+        response_content='{"malformed":',
+    )
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    adapter.debug_error = TimeoutError("debug-only completion")
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    debug = runner.run_debug(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": registration.workflow_id,
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    diagnostic = runner.debug_diagnostic(debug.diagnostic_id, now=NOW)
+    assert debug.status == diagnostic.outcome == "failed"
+    assert diagnostic.fragments[0].content == '{"malformed":'
+    assert "malformed" not in repr(runner.traces())
+    assert debug.diagnostic_id not in repr(runner.traces())
+
+
+def test_debug_run_retains_post_generation_cancellation(tmp_path: Path) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+        response_content='{"cancelled":true}',
+    )
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    adapter.debug_error = asyncio.CancelledError()
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        runner.run_debug(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    records = runner._terminal_diagnostic_store.active_records(  # type: ignore[attr-defined]
+        kind="debug_workflow_diagnostic", owner="test-local-user", now=NOW
+    )
+    diagnostic_id = records[0][1].payload["diagnostic_id"]
+    diagnostic = runner.debug_diagnostic(diagnostic_id, now=NOW)
+    assert diagnostic.outcome == "cancelled"
+    assert diagnostic.fragments[0].content == '{"cancelled":true}'
+
+
+def test_debug_diagnostic_is_revoked_for_its_local_owner(tmp_path: Path) -> None:
+    from dynamic_agent_runner.workflow_host.runner import _DebugDiagnosticCollector
+
+    runner, _, _, _, _ = _runner(tmp_path)
+    collector = _DebugDiagnosticCollector("debug-run-1")
+    runner._retain_debug_diagnostic(  # type: ignore[attr-defined]
+        collector, outcome="failed", now=NOW
+    )
+
+    runner.delete_debug_diagnostic("debug-run-1", now=NOW)
+
+    with pytest.raises(RunDarWorkflowError, match="debug diagnostic is unavailable"):
+        runner.debug_diagnostic("debug-run-1", now=NOW)
+
+
+def test_debug_diagnostic_expires_after_its_retention_window(tmp_path: Path) -> None:
+    from dynamic_agent_runner.workflow_host.runner import _DebugDiagnosticCollector
+
+    runner, _, _, _, _ = _runner(tmp_path)
+    runner._retain_debug_diagnostic(  # type: ignore[attr-defined]
+        _DebugDiagnosticCollector("debug-run-1"), outcome="failed", now=NOW
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="debug diagnostic is unavailable"):
+        runner.debug_diagnostic("debug-run-1", now=NOW + timedelta(days=8))
+
+
+def test_debug_diagnostic_marks_aggregate_retention_limit(tmp_path: Path) -> None:
+    from dynamic_agent_runner.workflow_host.runner import (
+        _DebugDiagnosticCollector,
+        _MAX_DEBUG_DIAGNOSTIC_BYTES,
+    )
+
+    collector = _DebugDiagnosticCollector("debug-run-1")
+
+    class Generated:
+        content = "x" * _MAX_DEBUG_DIAGNOSTIC_BYTES
+        exhausted = False
+        generated_tokens = None
+
+    collector.record_fragment(Generated())
+    collector.record_terminal(
+        TerminalProcessorDiagnostic(
+            original=b"terminal",
+            original_digest="a" * 64,
+            admitted=None,
+            admitted_digest=None,
+            repair_categories=(),
+        )
+    )
+
+    assert len(collector.fragments) == 1
+    assert collector.terminal is None
+    assert collector.retention_limited is True
 
 
 def test_runner_binds_reviewed_tool_to_an_opaque_binary_artifact(

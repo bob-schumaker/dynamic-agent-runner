@@ -1517,6 +1517,11 @@ class LocalWorkflowHost:
 
         return self._runner.debug_diagnostic(diagnostic_id, now=now)
 
+    def delete_debug_diagnostic(self, diagnostic_id: str, *, now: datetime) -> None:
+        """Revoke one current-principal debug diagnostic."""
+
+        self._runner.delete_debug_diagnostic(diagnostic_id, now=now)
+
     def run_traces(self) -> tuple[RedactedRunTrace, ...]:
         """Return redaction-safe traces for completed or failed local runs."""
 

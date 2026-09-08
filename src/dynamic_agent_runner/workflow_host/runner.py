@@ -216,6 +216,7 @@ class _DebugDiagnosticCollector:
         self.diagnostic_id = diagnostic_id
         self.run_id: str | None = None
         self.fragments: list[DebugGeneratedFragment] = []
+        self.terminal: TerminalProcessorDiagnostic | None = None
         self.retention_limited = False
         self._bytes = 0
 
@@ -241,6 +242,18 @@ class _DebugDiagnosticCollector:
         self.fragments.append(
             DebugGeneratedFragment(content, exhausted, generated_tokens)
         )
+
+    def record_terminal(self, terminal: TerminalProcessorDiagnostic | None) -> None:
+        """Retain terminal diagnostics only when they fit this run's byte cap."""
+
+        if terminal is None:
+            return
+        byte_count = len(terminal.original) + len(terminal.admitted or b"")
+        if self._bytes + byte_count > _MAX_DEBUG_DIAGNOSTIC_BYTES:
+            self.retention_limited = True
+            return
+        self._bytes += byte_count
+        self.terminal = terminal
 
 
 class _SealedArtifactReader:
@@ -728,6 +741,34 @@ class WorkflowRunner:
             raise RunDarWorkflowError("debug diagnostic is unavailable")
         return _debug_diagnostic(matches[0].payload)
 
+    def delete_debug_diagnostic(self, diagnostic_id: str, *, now: datetime) -> None:
+        """Revoke one active local-principal debug diagnostic."""
+
+        if (
+            not isinstance(diagnostic_id, str)
+            or not diagnostic_id
+            or self._terminal_diagnostic_store is None
+        ):
+            raise RunDarWorkflowError("debug diagnostic is unavailable")
+        try:
+            records = self._terminal_diagnostic_store.active_records(
+                kind="debug_workflow_diagnostic",
+                owner=self._terminal_diagnostic_owner,
+                now=now,
+            )
+            matches = [
+                handle
+                for handle, record in records
+                if record.payload.get("diagnostic_id") == diagnostic_id
+            ]
+            if len(matches) != 1:
+                raise RunDarWorkflowError("debug diagnostic is unavailable")
+            self._terminal_diagnostic_store.revoke(
+                matches[0], owner=self._terminal_diagnostic_owner, now=now
+            )
+        except OpaqueRecordError as error:
+            raise RunDarWorkflowError("debug diagnostic is unavailable") from error
+
     def _retain_terminal_processor_diagnostic(
         self,
         *,
@@ -778,6 +819,7 @@ class WorkflowRunner:
                 terminal = self.terminal_processor_diagnostic(collector.run_id, now=now)
             except RunDarWorkflowError:
                 pass
+        collector.record_terminal(terminal)
         try:
             self._terminal_diagnostic_store.issue(
                 kind="debug_workflow_diagnostic",
@@ -797,7 +839,7 @@ class WorkflowRunner:
                         }
                         for fragment in collector.fragments
                     ],
-                    "terminal": _terminal_diagnostic_payload(terminal),
+                    "terminal": _terminal_diagnostic_payload(collector.terminal),
                 },
                 expires_at=now.astimezone(UTC) + timedelta(days=7),
                 now=now,
