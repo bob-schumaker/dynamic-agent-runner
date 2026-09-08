@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import ANY
 
 import pytest
 
+from dynamic_agent_runner import load_agent_package_workflow
 from dynamic_agent_runner.errors import ModelExecutionError
 
 
@@ -36,26 +38,45 @@ def test_qwen_converter_packs_one_valid_sealed_image() -> None:
 
     converter = Qwen25Vl3bGrpoInputConverter(image_decoder=lambda content: FakeImage())
     packed = converter.pack(
-        prompt="turn this site plan into an SVG floorplan",
+        messages=(
+            {"role": "system", "content": "Return only structured JSON."},
+            {"role": "user", "content": "Vectorize this floor plan."},
+        ),
         payload=b"png-bytes",
         context=TransformersGenerateInputContext(Processor()),
     )
 
     assert packed.take()["input_ids"].shape == (1, 4)
     assert calls["messages"] == [
+        {"role": "system", "content": "Return only structured JSON."},
         {
             "role": "user",
             "content": [
                 {"type": "image", "image": ANY},
-                {"type": "text", "text": "turn this site plan into an SVG floorplan"},
+                {"type": "text", "text": "Vectorize this floor plan."},
             ],
-        }
+        },
     ]
     assert calls["kwargs"] == {
         "add_generation_prompt": True,
         "tokenize": True,
         "return_dict": True,
         "return_tensors": "pt",
+    }
+
+
+def test_floorplan_package_sets_the_qwen_generation_ceiling() -> None:
+    package = (
+        Path(__file__).resolve().parent
+        / "fixtures"
+        / "natural-language-workflow-authoring"
+        / "floorplan-svg"
+    )
+
+    workflow = load_agent_package_workflow(str(package))
+
+    assert workflow.runtime_manifest.nodes[0].raw["model_parameters"] == {
+        "max_tokens": 4096
     }
 
 
@@ -91,7 +112,7 @@ def test_qwen_converter_rejects_invalid_or_unsupported_image_bytes(
 
     with pytest.raises(ModelExecutionError, match="sealed image input"):
         converter.pack(
-            prompt="vectorize",
+            messages=({"role": "user", "content": "vectorize"},),
             payload=payload,
             context=TransformersGenerateInputContext(Processor()),
         )

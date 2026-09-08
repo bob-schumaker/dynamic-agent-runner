@@ -46,7 +46,7 @@ class PackedInputConverter(Protocol):
     def pack(
         self,
         *,
-        prompt: str,
+        messages: tuple[Mapping[str, object], ...],
         payload: bytes,
         context: TransformersGenerateInputContext,
     ) -> PackedModelInput:
@@ -230,7 +230,7 @@ class TransformersPeftPackedInputAdapter:
                 supported=bool(getattr(self._runner, "supports_json_mode", False)),
             )
             packed = self._converter.pack(
-                prompt=_user_prompt(request),
+                messages=tuple(request.messages),
                 payload=payload,
                 context=self._runner.input_context,
             )

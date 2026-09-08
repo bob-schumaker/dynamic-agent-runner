@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from io import BytesIO
 
 from dynamic_agent_runner.errors import ModelExecutionError
@@ -26,7 +26,7 @@ class Qwen25Vl3bGrpoInputConverter:
     def pack(
         self,
         *,
-        prompt: str,
+        messages: Sequence[Mapping[str, object]],
         payload: bytes,
         context: TransformersGenerateInputContext,
     ) -> PackedModelInput:
@@ -35,15 +35,7 @@ class Qwen25Vl3bGrpoInputConverter:
         image = self._decode_payload(payload)
         try:
             inputs = context.processor.apply_chat_template(  # type: ignore[attr-defined]
-                [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "image", "image": image},
-                            {"type": "text", "text": prompt},
-                        ],
-                    }
-                ],
+                _qwen_chat_messages(messages, image),
                 add_generation_prompt=True,
                 tokenize=True,
                 return_dict=True,
@@ -81,3 +73,35 @@ def _decode_image(payload: bytes) -> object:
     image = Image.open(BytesIO(payload))
     image.load()
     return image
+
+
+def _qwen_chat_messages(
+    messages: Sequence[Mapping[str, object]], image: object
+) -> list[dict[str, object]]:
+    """Preserve system instructions and bind the sealed image to one user turn."""
+
+    rendered: list[dict[str, object]] = []
+    user_count = 0
+    for message in messages:
+        role = message.get("role")
+        content = message.get("content")
+        if not isinstance(role, str) or not isinstance(content, str):
+            raise ModelExecutionError("sealed image input is unavailable")
+        if role == "system":
+            rendered.append({"role": role, "content": content})
+            continue
+        if role != "user" or user_count:
+            raise ModelExecutionError("sealed image input is unavailable")
+        rendered.append(
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": image},
+                    {"type": "text", "text": content},
+                ],
+            }
+        )
+        user_count += 1
+    if user_count != 1:
+        raise ModelExecutionError("sealed image input is unavailable")
+    return rendered

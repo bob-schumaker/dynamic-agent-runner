@@ -120,9 +120,9 @@ def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
 
     class Converter:
         def pack(
-            self, *, prompt: str, payload: bytes, context: object
+            self, *, messages: tuple[object, ...], payload: bytes, context: object
         ) -> PackedModelInput:
-            calls["converter"] = (prompt, payload, context)
+            calls["converter"] = (messages, payload, context)
             return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
 
     adapter = TransformersPeftPackedInputAdapter(
@@ -143,7 +143,14 @@ def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
 
     assert adapter.input_converter_contract_id == "transformers-generate-v1"
     assert response.content == "generated floorplan"
-    assert calls["converter"] == ("vectorize", b"sealed image", Runner.input_context)
+    assert calls["converter"] == (
+        (
+            {"role": "system", "content": "Return only SVG."},
+            {"role": "user", "content": "vectorize"},
+        ),
+        b"sealed image",
+        Runner.input_context,
+    )
     assert calls["max_new_tokens"] == 12
     assert adapter._sealed_payload is None
 
