@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `workflow-input-converter-plugin`
-- Status: planned; generated assets gated on isolation backend evidence
+- Status: planned; sealed Python converter packages use the standard runner
 - Owner: dynamic-agent-runner workflow-host and local-model boundaries
 - Related specifications:
   - `specs/model-execution-plugin-interface/spec.md`
@@ -20,10 +20,10 @@ do not select a media format, converter, processor, model path, or tensor
 shape.
 
 The converter may be generated while authoring a workflow. It is immutable for
-that registered workflow instance and runs as untrusted code. DAR validates its
-identity and execution contract, confines it to an isolated model worker, and
-never needs format-specific knowledge such as JPEG, TIFF, GIF, PCAP, or
-protobuf.
+that registered workflow instance. DAR validates its identity and execution
+contract, loads its fixed Python-package entry point through the standard
+runner, and never needs format-specific knowledge such as JPEG, TIFF, GIF,
+PCAP, or protobuf.
 
 ## Problem Statement
 
@@ -46,8 +46,8 @@ This feature defines:
 2. registration of a converter as an immutable asset of one workflow instance;
 3. a private graph edge from sealed payload to a compatible standard model
    runner;
-4. isolation, lifecycle, resource, and failure requirements for generated
-   converter code; and
+4. lifecycle, resource, and failure requirements for a sealed converter
+   package; and
 5. the first runner execution contract, `transformers-generate-v1`, for which a
    converter creates processor-produced generation inputs.
 
@@ -61,8 +61,8 @@ This feature does not:
   arbitrary function at invocation time;
 - make a converter result a workflow artifact, tool result, user-visible value,
   reusable handle, or cross-worker serialization format;
-- grant converter code network access, caller workspace access, credentials,
-  ambient environment access, or host callbacks;
+- expose converter code with caller paths, model paths, host callbacks, or
+  mutable invocation-time configuration;
 - make model-generated converter code trusted, portable across workflow
   instances, or automatically promotable to a host-wide plugin; or
 - move output validation or domain semantics into DAR.
@@ -83,7 +83,7 @@ payload bytes cannot select or replace them.
 
 ### Private conversion edge
 
-Inside the isolated model worker, the execution shape is:
+Inside the existing standard model-runner process, the execution shape is:
 
 ```text
 sealed payload bytes + prompt
@@ -93,14 +93,15 @@ sealed payload bytes + prompt
   -> normalized text result
 ```
 
-`PackedModelInput` is private to the worker and to the declared runner
+`PackedModelInput` is private to the converter package and the declared runner
 execution contract. It can be a mapping of framework tensors for
 `transformers-generate-v1`, but DAR neither inspects nor serializes it. There is
 no universal tensor schema.
 
 The converter is a private graph node. The package can declare it for
 validation and trace identity, but a workflow user cannot invoke it directly
-and no graph edge exposes decoded input or packed state outside the worker.
+and no graph edge exposes decoded input or packed state outside the standard
+runner.
 
 ### Contract identifiers
 
@@ -112,8 +113,8 @@ are not aliases and have no fallback matching.
 
 ### Converter contract
 
-The implementation language and ABI are deliberately open. Every converter
-must be adapted to this conceptual contract:
+A converter is a Python package asset with the manifest-declared entry point.
+That entry point implements this standard contract:
 
 ```python
 class InputConverterPlugin(Protocol):
@@ -130,12 +131,12 @@ class InputConverterPlugin(Protocol):
 ```
 
 `SealedPayload` supplies the bounded bytes for this invocation only. It does
-not expose a source path, filename, URL, caller metadata, or capability to
-retain the input. `RestrictedRunnerInputContext` exposes only the
-processor/model-input facilities defined by the selected execution contract;
-it exposes neither arbitrary model files nor a host filesystem. A converter may
-decode, identify, transform, normalize, tokenize, or pack its bytes in any way
-that its compatible runner can consume.
+not expose a source path, filename, URL, or caller metadata.
+`RestrictedRunnerInputContext` exposes only the processor/model-input
+facilities defined by the selected execution contract; it exposes neither
+arbitrary model files nor model-selection controls. A converter may decode,
+identify, transform, normalize, tokenize, or pack its bytes in any way that its
+compatible runner can consume.
 
 The first execution contract is `transformers-generate-v1`. Its runner loads
 the reviewed base model and PEFT adapter, provides the reviewed processor in the
@@ -182,36 +183,34 @@ route based on file format. Format recognition and validation belong to the
 converter. A converter's successful decode is its evidence that the bytes are
 usable for its selected model contract.
 
-### FR-3: Isolated generated-code execution
+### FR-3: Sealed Python-package execution
 
-Converter and compatible runner shall execute in an isolated worker selected by
-the host. The worker receives only read-only verified model material, the
-sealed payload, the prompt, the converter asset, and host-issued limits. It
-shall have no network, inherited credentials, ambient writable directory,
-caller workspace visibility, arbitrary process execution, or authority to load
-undeclared code.
+DAR shall load only the exact package-local Python entry point named by the
+registered manifest, after digest and runner-contract verification. It shall
+invoke that entry point through the standard converter interface with the
+sealed payload, prompt, and restricted runner context. The converter cannot
+select a different package, interpreter, model, runner, or invocation-time
+callable.
 
-The platform isolation backend must meet the enforcement requirements of
-`specs/local-tool-sandbox-hardening/spec.md`. An opaque Python interface or a
-same-process callback is not isolation. Until that backend exists, this feature
-may have trusted development fixtures only; it is not production-ready for
-generated converter assets.
+This feature does not claim OS isolation from malicious converter code. Full
+isolation is deferred to
+[`../local-tool-sandbox-hardening/spec.md`](../local-tool-sandbox-hardening/spec.md)
+and must not be represented as a current converter admission requirement.
 
 ### FR-4: Private packed-input handoff
 
 The converter may return only a value accepted by its compatible runner. DAR
-shall pass that value directly inside the same isolated worker and shall not
+shall pass that value directly to the compatible standard runner and shall not
 persist, trace, expose, reuse, or serialize it. The runner shall reject a
 packed value that violates its contract without falling back to a different
 converter, model, or remote execution path.
 
 ### FR-5: Host-owned limits and cleanup
 
-DAR shall issue authoritative timeout, memory, CPU/GPU, input-size, output-size,
-and cancellation limits. A converter cannot increase them. On success, failure,
-timeout, cancellation, worker crash, or runner rejection, the host shall clear
-the sealed payload and terminate/dispose of worker-local packed state before
-returning a result.
+DAR shall issue authoritative input-size, output-size, generation, and
+cancellation limits. A converter cannot increase them. On success, failure,
+timeout, cancellation, or runner rejection, the host shall clear the sealed
+payload and dispose of packed state before returning a result.
 
 ### FR-6: Redacted lifecycle and failures
 
@@ -228,7 +227,7 @@ Stable outward outcomes shall distinguish at least:
 - converter resource limit or timeout;
 - converter input rejected;
 - packed input rejected by the runner; and
-- isolated worker unavailable or failed.
+- converter package load or execution failed.
 
 ### FR-7: Authoring and packaging boundary
 
@@ -236,29 +235,25 @@ An authoring system may emit a converter asset only in the fixed package form
 validated by DAR. It cannot submit a live callable, install a dependency,
 select an arbitrary interpreter, or grant itself additional capabilities. The
 authoring system must declare the converter's compatible runner contract and
-resource needs; DAR supplies the actual isolation policy.
+resource needs; DAR supplies the fixed standard runner context.
 
 If no converter satisfies the required runner contract, the workflow authoring
 result must identify that missing implementation rather than registering a
 partial workflow. A future `agent-converter-designer` guidance asset may create
 contract-conforming converter packages, but it must not bypass package
-validation or isolation.
+validation.
 
 ## Acceptance Criteria
 
-- Fake-only contract tests prove a registered converter receives prompt and
-  sealed bytes but no paths, ambient environment, network, credentials, or
-  arbitrary callback capability.
+- Fake-only contract tests prove DAR loads only the manifest-bound Python
+  package entry point and gives it prompt, sealed bytes, and the restricted
+  runner context.
 - Fake-only tests prove an opaque packed value reaches only its exact compatible
   runner and is never persisted or returned through a DAR API, trace, or
   workflow artifact.
 - Fake-only tests prove invalid manifests, digest mismatch, duplicate IDs,
-  runner mismatch, malformed packed input, worker failure, timeout,
-  cancellation, and resource exhaustion produce stable redacted outcomes and
-  clear worker state.
-- A capability-enforcement acceptance proves generated converter code cannot
-  read an undeclared host file, write outside its ephemeral boundary, access the
-  network, inherit a credential, or spawn an undeclared process.
+  runner mismatch, malformed packed input, package-load failure, timeout, and
+  cancellation produce stable redacted outcomes and clear package state.
 - A real, manually authorized acceptance packages the Qwen floorplan converter,
   invokes the workflow through prompt plus sealed bytes, and returns a bounded
   normalized result without exposing conversion or model implementation details
@@ -273,16 +268,16 @@ the sealed-payload-to-packed-input step for a compatible standard runner.
 
 When a model needs both a custom execution plugin and a workflow converter, the
 converter must target that execution plugin's declared runner contract. The two
-assets remain separately identified and isolated; neither may silently broaden
-the other's capabilities.
+assets remain separately identified; neither may silently broaden the other's
+contract.
 
 ## Deferred Decisions
 
-- Select the first portable isolated-worker transport and define how the
-  compatible runner and converter share in-memory packed data without a public
-  tensor serialization format.
-- Specify dependency packaging and allowlisted runtime libraries for converter
-  assets without enabling dynamic installation or arbitrary imports.
+- Define OS-level isolation for malicious local-tool or converter-package code
+  in `local-tool-sandbox-hardening`; Docker and other full-isolation backends
+  are future work and do not gate this package contract.
+- Specify dependency packaging for converter packages when a second concrete
+  package proves the existing standard runtime insufficient.
 - Define promotion policy for an instance-sealed converter that a host wishes
   to review and make reusable.
 - Decide whether a converter may receive an advisory caller-declared content

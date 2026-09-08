@@ -72,9 +72,9 @@ covers tool-backed opaque-binary analysis. It:
 6. returns a concise user-facing registered workflow, implementation
    specification, or availability result.
 
-When the workflow input converter plugin capability and its isolation gate are
-implemented, authoring may include one contract-conforming, workflow-sealed
-converter asset. That exception is limited to
+When the workflow input converter plugin capability is implemented, authoring
+may include one contract-conforming, workflow-sealed Python converter package.
+That exception is limited to
 `specs/workflow-input-converter-plugin/spec.md`; it does not authorize generic
 local-tool code or host-wide executable installation.
 
@@ -210,8 +210,8 @@ Its internal input is the Agent Engineering skill's completed canonical
 workflow contract plus a declarative workflow definition. Neither contains
 executable local-tool code, a host path, profile ID, manifest, receipt, or
 opaque handle. A converter-backed definition may additionally contain one
-sealed converter asset only when it satisfies the converter-plugin contract and
-the required isolation capability. DAR validates the contract and definition,
+sealed converter package only when it satisfies the converter-plugin contract.
+DAR validates the contract and definition,
 then persists, stages, binds, registers, and selects it. DAR does not interpret
 natural language or ask the user clarifying questions.
 
@@ -242,9 +242,9 @@ The Agent Engineering `agent-development` skill owns the user conversation:
 it asks the minimum clarification, builds the canonical contract, determines
 whether it has unmet implementation requirements, creates the corresponding
 repository specification when needed, and otherwise calls the transaction. It
-shall not generate executable local-tool code. After the converter-plugin
-feature's isolation gate is available, it may generate only a sealed
-contract-conforming converter asset for that transaction; it must not direct a
+shall not generate executable local-tool code. Under the converter-plugin
+contract, it may generate only a sealed contract-conforming Python converter
+package for that transaction; it must not direct a
 user to create a manifest, configure an authoring model, or provide a
 `material_set_id`.
 
@@ -263,8 +263,8 @@ workflow selection. The authoring model cannot introduce tools, credentials,
 external destinations, or side effects absent from the request and an existing
 reviewed host capability. It may identify a deterministic local-tool
 requirement only under the host's approved sandbox contract; it does not
-implement that tool. A converter asset is not a local tool and is permitted
-only after the converter-specific isolation gate validates it.
+implement that tool. A converter package is not a local tool and is permitted
+only through the converter-plugin contract.
 
 ### FR-7: Tool-backed opaque-binary analysis
 

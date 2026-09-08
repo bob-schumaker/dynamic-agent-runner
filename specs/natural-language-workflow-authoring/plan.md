@@ -58,7 +58,7 @@ requirements:
 4. If an implementation requirement is unmet, Agent Engineering creates a
    repository work-item specification that says what must be implemented for
    the workflow to be complete. It does not write executable code, except for
-   a sealed converter asset after the converter-plugin isolation gate exists.
+   a sealed Python converter package under the converter-plugin contract.
 5. Otherwise Agent Engineering creates the completed canonical contract and
    declarative workflow definition, then submits both to DAR internally.
 6. DAR performs the registration transaction and returns `ready` or
@@ -103,8 +103,8 @@ Engineering model supplies one internal fixed canonical contract and
 declarative workflow definition after clarification and requirement checking.
 The definition contains no executable local-tool code, path, host
 configuration, profile ID, manifest, receipt, or opaque handle. A future
-converter-backed definition may contain a sealed converter asset only under the
-workflow input converter plugin contract and its isolation gate. Tests supply
+converter-backed definition may contain a sealed Python converter package only
+under the workflow input converter plugin contract. Tests supply
 the same values as fixtures. The host rejects a definition that does not match
 its supplied canonical contract.
 
@@ -281,8 +281,8 @@ artifact, binding, result, and budget boundaries.
    contract plus declarative workflow definition to
    `register_authored_workflow`. It must
    never generate executable local-tool code or a local-tool asset. It may
-   generate only a contract-conforming sealed converter asset after the
-   converter-plugin isolation gate is available. Remove any instruction
+   generate only a contract-conforming sealed Python converter package under
+   the converter-plugin contract. Remove any instruction
    to ask for a manifest, material set, authoring-model setup, output handle, or
    manual select/register handoff for this path.
 2. Add a fresh-session fixture/regression in

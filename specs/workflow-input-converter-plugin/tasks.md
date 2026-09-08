@@ -7,9 +7,9 @@ Each implementation task requires its preceding RED test to fail for the
 intended reason. Unit tests use fakes only: they must not download models,
 execute a live converter, load a real model, or depend on a GPU.
 
-Generated converter admission is blocked until T4.3 has passed. Trusted,
-implementation-owned fixtures may exercise the private handoff before then,
-but are not evidence of untrusted-code isolation.
+The current delivery path is a sealed Python converter package loaded through
+the standard runner interface. Docker and OS-level isolation are deferred to
+`../local-tool-sandbox-hardening/spec.md` and do not gate package admission.
 
 ## Identifier Rules
 
@@ -79,25 +79,19 @@ but are not evidence of untrusted-code isolation.
   rejection, runner rejection, cancellation, timeout, or worker failure. Run
   focused ingress, converter, runner, registration, and trace regressions.
 
-## T4 — Isolated Worker Admission Gate
+## T4 — Sealed Python Converter Package Loading
 
-- [ ] T4.1 [tests, RED] Add deterministic adversarial tests for the candidate
-  worker backend: caller-workspace and credential reads, inherited environment,
-  network access, child-process execution, writes outside ephemeral scratch,
-  symlink traversal, and timeout, output, memory, process-count, and
-  scratch-space exhaustion.
-- [ ] T4.2 [implementation] Implement or select the isolation backend required
-  by [`local-tool-sandbox-hardening`](../local-tool-sandbox-hardening/spec.md)
-  and its same-worker control protocol. Give a worker only verified read-only
-  model material, reviewed converter dependencies and asset, prompt, sealed
-  bytes, ephemeral scratch, and host-issued limits. Its external result is
-  bounded normalized text or a classified redacted failure; `PackedModelInput`
-  remains private. Do not use a same-process callback or the current permissive
-  test `sandbox-exec` profile as the admission boundary.
-- [ ] T4.3 [validation] Run positive and adversarial real-platform evidence
-  for every supported backend platform. Enable generated converter admission
-  only when the evidence satisfies every sandbox-hardening requirement;
-  otherwise preserve refusal and record the backend as unavailable.
+- [ ] T4.1 [tests, RED] Add fake-only tests for manifest-bound package entry
+  point loading: exact asset and entrypoint, contract attributes, restricted
+  runner context, package-load failure, and no fallback module or callable.
+- [ ] T4.2 [implementation] Load and invoke the manifest-bound Python package
+  entry point through the standard converter interface. Pass only prompt,
+  sealed bytes, and `RestrictedRunnerInputContext`; preserve direct private
+  `PackedModelInput` handoff to `transformers-generate-v1`.
+- [ ] T4.3 [tests, GREEN] Prove package, payload, and packed-state cleanup plus
+  classified redacted outcomes on load failure, converter rejection, runner
+  rejection, timeout, and cancellation. Run focused package, runner, ingress,
+  registration, and trace regressions.
 
 ## T5 — Authoring, Acceptance, and Release
 
@@ -107,15 +101,15 @@ but are not evidence of untrusted-code isolation.
   package selection, and format-registry guidance.
 - [ ] T5.2 [implementation] Update Agent Engineering guidance only to author
   the fixed package form and declare the compatible runner contract/resource
-  needs. It cannot grant capabilities or bypass package validation and T4
-  admission. Regenerate and validate the packaged plugin payload.
+  needs. It cannot bypass package validation or choose runtime configuration.
+  Regenerate and validate the packaged plugin payload.
 - [ ] T5.3 [validation] Run all focused suites, then `poetry run pytest -q`,
   `poetry run ruff check src tests`, and `git diff --check`.
-- [ ] T5.4 [manual gate] With explicit authorization and only after T4.3,
+- [ ] T5.4 [manual gate] With explicit authorization and after T4.3,
   execute the durable prepared Qwen closure with a sealed site-plan image.
   Verify a bounded normalized response reaches workflow-local JSON-to-SVG
   tooling. Record only redacted identities, contract versions, and outcomes;
   DAR must neither parse that JSON nor validate SVG.
 - [ ] T5.5 [release] Update validation evidence and feature status, then
-  package/release only after every prior task is complete. Do not mark the
-  feature production-ready while generated converter admission is disabled.
+  package/release only after every prior task is complete. Record OS isolation
+  as deferred future hardening rather than a release blocker.

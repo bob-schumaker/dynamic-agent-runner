@@ -33,7 +33,7 @@ network, and process permissions.
 ## Scope
 
 This future slice shall define and implement an isolation backend for untrusted
-local-tool assets. It shall:
+local-tool or converter-package assets. It shall:
 
 1. provide a per-invocation execution environment with no caller workspace
    path, host credential, inherited secret, or ambient writable directory;
@@ -116,5 +116,7 @@ This feature is complete only when DAR can distinguish trusted
 implementation-owned fixtures from untrusted executable assets, refuses the
 latter without the approved backend, and has the required positive and
 adversarial evidence for every supported platform. The workflow input converter
-plugin feature separately defines the only generated executable asset it may
-admit.
+plugin feature currently uses a sealed Python package contract without claiming
+OS isolation; this hardening feature is not its release gate. See
+[`validation.md`](validation.md) for experimental Docker and `sandbox-exec`
+evidence.
