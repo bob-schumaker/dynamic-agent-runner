@@ -13,6 +13,7 @@ from dynamic_agent_runner.local_model_preparation import (
     _valid_loader_profile,
 )
 from dynamic_agent_runner.openai_client import ModelResponse, OpenAIModelRequest
+from dynamic_agent_runner.workflow_host.descriptor import DeclaredInputConverter
 
 
 TRANSFORMERS_GENERATE_V1 = "transformers-generate-v1"
@@ -464,6 +465,7 @@ class DeferredTransformersPeftSingleImageAdapter:
         self._resolve_prepared_set = resolve_prepared_set
         self._adapter: TransformersPeftSingleImageAdapter | None = None
         self._packed_adapter: TransformersPeftPackedInputAdapter | None = None
+        self._converter: PackedInputConverter | None = None
         self._payload_bound = False
 
     @property
@@ -498,6 +500,32 @@ class DeferredTransformersPeftSingleImageAdapter:
         if self._adapter is not None:
             self._adapter.clear_sealed_image()
 
+    def bind_input_converter(
+        self, *, package_root: Path, converter: DeclaredInputConverter
+    ) -> None:
+        """Load the exact manifest-bound converter before accepting payload bytes."""
+
+        if (
+            self._payload_bound
+            or converter.compatible_runner_contract_id != TRANSFORMERS_GENERATE_V1
+        ):
+            raise ModelExecutionError("sealed converter input is unavailable")
+        from dynamic_agent_runner.workflow_host.input_converter_loader import (
+            InputConverterLoadError,
+            load_input_converter,
+        )
+
+        try:
+            loaded = load_input_converter(
+                package_root=package_root, converter=converter
+            )
+        except InputConverterLoadError as error:
+            raise ModelExecutionError(
+                "sealed converter input is unavailable"
+            ) from error
+        self._converter = loaded  # type: ignore[assignment]
+        self._packed_adapter = None
+
     def bind_sealed_payload(self, *, content: bytes) -> None:
         if self._payload_bound:
             raise ModelExecutionError("sealed converter input is unavailable")
@@ -526,11 +554,9 @@ class DeferredTransformersPeftSingleImageAdapter:
 
     def _resolved_packed_adapter(self) -> TransformersPeftPackedInputAdapter:
         if self._packed_adapter is None:
-            from dynamic_agent_runner.workflow_host.qwen25_vl_3b_grpo_converter import (
-                Qwen25Vl3bGrpoInputConverter,
-            )
-
+            if self._converter is None:
+                raise ModelExecutionError("sealed converter input is unavailable")
             self._packed_adapter = TransformersPeftPackedInputAdapter(
-                self._resolve_prepared_set(), converter=Qwen25Vl3bGrpoInputConverter()
+                self._resolve_prepared_set(), converter=self._converter
             )
         return self._packed_adapter

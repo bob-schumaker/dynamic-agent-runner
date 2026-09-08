@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned. Complete slices in this dependency order: T1, T2, T3, T4, then T5.
+T1 through T4 are complete. T5 remains in this dependency order.
 Each implementation task requires its preceding RED test to fail for the
 intended reason. Unit tests use fakes only: they must not download models,
 execute a live converter, load a real model, or depend on a GPU.
@@ -81,14 +81,14 @@ the standard runner interface. Docker and OS-level isolation are deferred to
 
 ## T4 — Sealed Python Converter Package Loading
 
-- [ ] T4.1 [tests, RED] Add fake-only tests for manifest-bound package entry
+- [x] T4.1 [tests, RED/GREEN] Add fake-only tests for manifest-bound package entry
   point loading: exact asset and entrypoint, contract attributes, restricted
   runner context, package-load failure, and no fallback module or callable.
-- [ ] T4.2 [implementation] Load and invoke the manifest-bound Python package
+- [x] T4.2 [implementation] Load and invoke the manifest-bound Python package
   entry point through the standard converter interface. Pass only prompt,
   sealed bytes, and `RestrictedRunnerInputContext`; preserve direct private
   `PackedModelInput` handoff to `transformers-generate-v1`.
-- [ ] T4.3 [tests, GREEN] Prove package, payload, and packed-state cleanup plus
+- [x] T4.3 [tests, GREEN] Prove package, payload, and packed-state cleanup plus
   classified redacted outcomes on load failure, converter rejection, runner
   rejection, timeout, and cancellation. Run focused package, runner, ingress,
   registration, and trace regressions.

@@ -291,8 +291,15 @@ class ConverterFakeAdapter(VisionFakeAdapter):
     def __init__(self, client: FakeClient, *, model: str, adapter_id: str) -> None:
         super().__init__(client, model=model, adapter_id=adapter_id)
         self.bound_payloads: list[bytes] = []
+        self.bound_converters: list[tuple[Path, object]] = []
+        self.converter_error: Exception | None = None
         self.payload_cleared = 0
         self.input_converter_contract_id = "transformers-generate-v1"
+
+    def bind_input_converter(self, *, package_root: Path, converter: object) -> None:
+        if self.converter_error is not None:
+            raise self.converter_error
+        self.bound_converters.append((package_root, converter))
 
     def bind_sealed_payload(self, *, content: bytes) -> None:
         self.bound_payloads.append(content)
@@ -1676,11 +1683,49 @@ def test_runner_delivers_converter_payload_without_media_type_routing(
     adapter = runner._model_adapter
     assert isinstance(adapter, ConverterFakeAdapter)
     assert result.output == {"message": "completed locally"}
+    assert len(adapter.bound_converters) == 1
+    assert adapter.bound_converters[0][1].converter_id == "qwen25-vl-3b-grpo-input-v1"
     assert adapter.bound_payloads == [b"sealed-image-bytes"]
     assert adapter.bound_images == []
     assert adapter.payload_cleared == 1
     assert "sealed-image-bytes" not in repr(client.responses.calls)
     assert "v1.source-image" not in repr(runner.traces())
+
+
+def test_runner_redacts_converter_package_load_failure(tmp_path: Path) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+    )
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    adapter.converter_error = ValueError("package path leaked")
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="sealed converter package"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    assert adapter.bound_payloads == []
+    assert adapter.payload_cleared == 0
+    assert "package path leaked" not in repr(runner.traces())
+    assert runner.traces()[-1].status == "failed"
 
 
 @pytest.mark.parametrize("failure", [RuntimeError("worker failed"), TimeoutError()])

@@ -256,7 +256,11 @@ class WorkflowRunner:
             )
             prompt = _render_prompt(sealed.prompt, sealed.additional_context)
             payload = self._sealed_converter_payload_for_run(
-                policy=policy, sealed=sealed, registration=registration, now=now
+                policy=policy,
+                package_root=Path(package_root),
+                sealed=sealed,
+                registration=registration,
+                now=now,
             )
             image = (
                 None
@@ -376,6 +380,7 @@ class WorkflowRunner:
         self,
         *,
         policy: Any,
+        package_root: Path,
         sealed: SealedWorkflowInput,
         registration: WorkflowRegistration,
         now: datetime,
@@ -390,6 +395,15 @@ class WorkflowRunner:
             != converter.compatible_runner_contract_id
         ):
             raise RunDarWorkflowError("configured adapter lacks input converter")
+        bind_converter = getattr(self._model_adapter, "bind_input_converter", None)
+        if not callable(bind_converter):
+            raise RunDarWorkflowError("configured adapter lacks input converter")
+        try:
+            bind_converter(package_root=package_root, converter=converter)
+        except Exception as error:  # noqa: BLE001 - adapter package loaders vary.
+            raise RunDarWorkflowError(
+                "sealed converter package is unavailable"
+            ) from error
         try:
             binaries = self._preparation.materialize_workspace_binaries(
                 sealed, registration=registration, now=now

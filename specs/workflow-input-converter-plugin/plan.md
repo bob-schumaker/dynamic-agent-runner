@@ -2,11 +2,10 @@
 
 ## Status
 
-Planned. The contract and delivery order are ready for implementation. DAR
-loads a sealed Python converter package through the standard runner interface.
-OS-level isolation is future hardening owned by
-`../local-tool-sandbox-hardening/spec.md`, not a converter-package admission
-gate. The executable checklist is [`tasks.md`](tasks.md).
+S1 through S4 are delivered. DAR loads a sealed Python converter package
+through the standard runner interface. OS-level isolation is future hardening
+owned by `../local-tool-sandbox-hardening/spec.md`, not a converter-package
+admission gate. S5 remains in [`tasks.md`](tasks.md).
 
 ## Execution Order
 

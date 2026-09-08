@@ -15,7 +15,15 @@ Their existing probe evidence is recorded in
 
 ## Remaining feature validation
 
-T4 validates exact Python-package entry-point loading and private
-converter-to-runner handoff. T5 then validates authoring guidance, the complete
-test and lint gates, and the authorized floorplan workflow run. Neither step
-depends on a container runtime or OS-level sandbox.
+T4 is complete. Fake-only loader tests prove that DAR loads only the
+digest-bound manifest entry point, requires the exact contract attributes and
+`converter` object, and rejects stale assets with no fallback module or callable.
+Deferred Transformers adapter tests prove a package must be bound before it can
+accept bytes and that packed input reaches the standard runner. Runner tests
+prove redacted package-load failure, payload cleanup on worker failure and
+cancellation, and trace redaction. Focused package, runner, ingress,
+registration, and trace regressions passed on 2026-09-07.
+
+T5 now validates authoring guidance, the complete test and lint gates, and the
+authorized floorplan workflow run. Neither step depends on a container runtime
+or OS-level sandbox.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
 import sys
@@ -17,6 +18,7 @@ from dynamic_agent_runner.local_model_preparation import (
     QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE,
 )
 from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+from dynamic_agent_runner.workflow_host.descriptor import DeclaredInputConverter
 
 
 class FakeImage:
@@ -43,9 +45,54 @@ def test_deferred_adapter_exposes_the_converter_payload_contract(
     )
 
     assert adapter.input_converter_contract_id == "transformers-generate-v1"
+
+
+def test_deferred_adapter_requires_a_manifest_bound_converter_package(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    asset = tmp_path / "converter.py"
+    asset.write_text(
+        "converter_contract_version = 'v1'\n"
+        "compatible_runner_contract_id = 'transformers-generate-v1'\n"
+        "class Converter:\n"
+        "    def pack(self, *, prompt, payload, context):\n"
+        "        return context.pack({})\n"
+        "converter = Converter\n",
+        encoding="utf-8",
+    )
+    converter = DeclaredInputConverter(
+        converter_id="converter-v1",
+        converter_contract_version="v1",
+        compatible_runner_contract_id="transformers-generate-v1",
+        entrypoint=asset.name,
+        asset_digest=sha256(asset.read_bytes()).hexdigest(),
+        max_input_bytes=1024,
+        max_output_bytes=1024,
+        timeout_seconds=1,
+    )
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id=recipe.model_id,
+        adapter_id=recipe.adapter_id,
+        resolve_prepared_set=lambda: PreparedArtifactSet(recipe, paths),
+    )
+
+    with pytest.raises(ModelExecutionError, match="sealed converter input"):
+        adapter.bind_sealed_payload(content=b"sealed image")
+
+    adapter.bind_input_converter(package_root=tmp_path, converter=converter)
     adapter.bind_sealed_payload(content=b"sealed image")
+
+    assert adapter._payload_bound is True
     adapter.clear_sealed_payload()
-    assert adapter._payload_bound is False
 
 
 def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
