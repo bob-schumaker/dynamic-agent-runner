@@ -16,3 +16,9 @@ repository. T4.1 through T4.3 remain incomplete. DAR must not dynamically load
 or execute a workflow-provided converter asset until a backend has passed every
 required adversarial and real-platform check in
 [`../local-tool-sandbox-hardening/spec.md`](../local-tool-sandbox-hardening/spec.md).
+
+The local real-platform probe on 2026-09-07 attempted to launch `/bin/echo`
+under the existing deny-by-default profile with only literal read, metadata, and
+process-exec allowances for that binary. `sandbox-exec` rejected the profile
+before launch with `sandbox_apply: Operation not permitted`. This platform
+cannot provide the required backend through the installed `sandbox-exec`.
