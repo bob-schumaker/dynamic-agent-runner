@@ -74,7 +74,7 @@ but are not evidence of untrusted-code isolation.
   bounded bytes delivered to the selected converter. Preserve generic
   byte-count and lifecycle limits; do not add DAR format detection or a media
   registry.
-- [ ] T3.4 [tests, GREEN] Prove payload and packed-state disposal, classified
+- [x] T3.4 [tests, GREEN] Prove payload and packed-state disposal, classified
   redacted outcomes, and no trace/API/workflow artifact exposure after converter
   rejection, runner rejection, cancellation, timeout, or worker failure. Run
   focused ingress, converter, runner, registration, and trace regressions.
