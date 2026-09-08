@@ -146,6 +146,8 @@ from dynamic_agent_runner.workflow_host.registration import (
     WorkflowRegistrationService,
 )
 from dynamic_agent_runner.workflow_host.runner import (
+    DebugRunWorkflowResult,
+    DebugWorkflowDiagnostic,
     DryRunDarWorkflowResult,
     RedactedRunTrace,
     RunDarWorkflowRequest,
@@ -1488,6 +1490,32 @@ class LocalWorkflowHost:
             approval_broker=approval_broker,
             guardrail_registry=guardrail_registry,
         )
+
+    def run_debug(
+        self,
+        *,
+        workflow_id: str,
+        prepared_input_id: str,
+        now: datetime,
+        approval_broker: LocalActionApprovalBroker | None = None,
+        guardrail_registry: InMemoryGuardrailRegistry | None = None,
+    ) -> DebugRunWorkflowResult:
+        """Run one sealed workflow with authenticated local diagnostics."""
+
+        self._ensure_mcp_client_for_workflow(workflow_id)
+        return self._runner.run_debug(
+            _request(workflow_id, prepared_input_id),
+            now=now,
+            approval_broker=approval_broker,
+            guardrail_registry=guardrail_registry,
+        )
+
+    def debug_diagnostic(
+        self, diagnostic_id: str, *, now: datetime
+    ) -> DebugWorkflowDiagnostic:
+        """Return one current-principal debug diagnostic by its opaque identifier."""
+
+        return self._runner.debug_diagnostic(diagnostic_id, now=now)
 
     def run_traces(self) -> tuple[RedactedRunTrace, ...]:
         """Return redaction-safe traces for completed or failed local runs."""

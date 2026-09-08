@@ -10,7 +10,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 from uuid import uuid4
 
 from dynamic_agent_runner import (
@@ -176,6 +176,73 @@ class TerminalProcessorDiagnostic:
     repair_categories: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class DebugGeneratedFragment:
+    """One authenticated local-only generated fragment from a debug run."""
+
+    content: str
+    exhausted: bool
+    generated_tokens: int | None
+
+
+@dataclass(frozen=True)
+class DebugWorkflowDiagnostic:
+    """One local-principal debug record without ordinary trace exposure."""
+
+    diagnostic_id: str
+    run_id: str | None
+    outcome: str
+    fragments: tuple[DebugGeneratedFragment, ...]
+    terminal: TerminalProcessorDiagnostic | None
+    retention_limited: bool
+
+
+@dataclass(frozen=True)
+class DebugRunWorkflowResult:
+    """The debug-only result surface with no retained content."""
+
+    status: str
+    diagnostic_id: str
+    result: RunDarWorkflowResult | None
+
+
+_MAX_DEBUG_DIAGNOSTIC_BYTES = 8 * 1024 * 1024
+
+
+class _DebugDiagnosticCollector:
+    """Bounded in-memory collector attached only for one debug invocation."""
+
+    def __init__(self, diagnostic_id: str) -> None:
+        self.diagnostic_id = diagnostic_id
+        self.run_id: str | None = None
+        self.fragments: list[DebugGeneratedFragment] = []
+        self.retention_limited = False
+        self._bytes = 0
+
+    def set_run_id(self, run_id: str) -> None:
+        self.run_id = run_id
+
+    def record_fragment(self, value: object) -> None:
+        content = getattr(value, "content", None)
+        exhausted = getattr(value, "exhausted", None)
+        generated_tokens = getattr(value, "generated_tokens", None)
+        if (
+            not isinstance(content, str)
+            or not isinstance(exhausted, bool)
+            or (generated_tokens is not None and not isinstance(generated_tokens, int))
+        ):
+            self.retention_limited = True
+            return
+        byte_count = len(content.encode("utf-8"))
+        if self._bytes + byte_count > _MAX_DEBUG_DIAGNOSTIC_BYTES:
+            self.retention_limited = True
+            return
+        self._bytes += byte_count
+        self.fragments.append(
+            DebugGeneratedFragment(content, exhausted, generated_tokens)
+        )
+
+
 class _SealedArtifactReader:
     """Expose one already verified private binary only to its host tool binding."""
 
@@ -251,10 +318,13 @@ class WorkflowRunner:
         now: datetime,
         approval_broker: LocalActionApprovalBroker | None = None,
         guardrail_registry: InMemoryGuardrailRegistry | None = None,
+        _on_run_id: Callable[[str], None] | None = None,
     ) -> RunDarWorkflowResult:
         """Preflight, consume, and execute one sealed saved workflow."""
 
         run_id = str(uuid4())
+        if _on_run_id is not None:
+            _on_run_id(run_id)
         try:
             (
                 registration,
@@ -356,6 +426,42 @@ class WorkflowRunner:
             )
         )
         return RunDarWorkflowResult("completed", run_id, output)
+
+    def run_debug(
+        self,
+        request: RunDarWorkflowRequest,
+        *,
+        now: datetime,
+        approval_broker: LocalActionApprovalBroker | None = None,
+        guardrail_registry: InMemoryGuardrailRegistry | None = None,
+    ) -> DebugRunWorkflowResult:
+        """Run once with authenticated local-only intermediate retention."""
+
+        collector = _DebugDiagnosticCollector(str(uuid4()))
+        setter = getattr(self._model_adapter, "set_debug_fragment_recorder", None)
+        if not callable(setter):
+            raise RunDarWorkflowError("debug diagnostic is unavailable")
+        setter(collector.record_fragment)
+        outcome = "failed"
+        result: RunDarWorkflowResult | None = None
+        try:
+            result = self.run(
+                request,
+                now=now,
+                approval_broker=approval_broker,
+                guardrail_registry=guardrail_registry,
+                _on_run_id=collector.set_run_id,
+            )
+            outcome = "completed"
+        except asyncio.CancelledError:
+            outcome = "cancelled"
+            raise
+        except RunDarWorkflowError:
+            pass
+        finally:
+            setter(None)
+            self._retain_debug_diagnostic(collector, outcome=outcome, now=now)
+        return DebugRunWorkflowResult(outcome, collector.diagnostic_id, result)
 
     def traces(self) -> tuple[RedactedRunTrace, ...]:
         """Return copy-safe redacted run metadata for the host audit surface."""
@@ -594,6 +700,34 @@ class WorkflowRunner:
             raise RunDarWorkflowError("terminal processor diagnostic is unavailable")
         return _terminal_processor_diagnostic(matches[0].payload)
 
+    def debug_diagnostic(
+        self, diagnostic_id: str, *, now: datetime
+    ) -> DebugWorkflowDiagnostic:
+        """Load one authenticated local-user debug diagnostic by its opaque ID."""
+
+        if (
+            not isinstance(diagnostic_id, str)
+            or not diagnostic_id
+            or self._terminal_diagnostic_store is None
+        ):
+            raise RunDarWorkflowError("debug diagnostic is unavailable")
+        try:
+            records = self._terminal_diagnostic_store.active_records(
+                kind="debug_workflow_diagnostic",
+                owner=self._terminal_diagnostic_owner,
+                now=now,
+            )
+        except OpaqueRecordError as error:
+            raise RunDarWorkflowError("debug diagnostic is unavailable") from error
+        matches = [
+            record
+            for _, record in records
+            if record.payload.get("diagnostic_id") == diagnostic_id
+        ]
+        if len(matches) != 1:
+            raise RunDarWorkflowError("debug diagnostic is unavailable")
+        return _debug_diagnostic(matches[0].payload)
+
     def _retain_terminal_processor_diagnostic(
         self,
         *,
@@ -628,6 +762,48 @@ class WorkflowRunner:
             )
         except OpaqueRecordError as error:
             raise RunDarWorkflowError("terminal output processing failed") from error
+
+    def _retain_debug_diagnostic(
+        self,
+        collector: _DebugDiagnosticCollector,
+        *,
+        outcome: str,
+        now: datetime,
+    ) -> None:
+        if self._terminal_diagnostic_store is None:
+            raise RunDarWorkflowError("debug diagnostic is unavailable")
+        terminal: TerminalProcessorDiagnostic | None = None
+        if collector.run_id is not None:
+            try:
+                terminal = self.terminal_processor_diagnostic(collector.run_id, now=now)
+            except RunDarWorkflowError:
+                pass
+        try:
+            self._terminal_diagnostic_store.issue(
+                kind="debug_workflow_diagnostic",
+                owner=self._terminal_diagnostic_owner,
+                payload={
+                    "diagnostic_id": collector.diagnostic_id,
+                    "run_id": collector.run_id,
+                    "outcome": outcome,
+                    "retention_limited": collector.retention_limited,
+                    "fragments": [
+                        {
+                            "content_base64": base64.b64encode(
+                                fragment.content.encode("utf-8")
+                            ).decode("ascii"),
+                            "exhausted": fragment.exhausted,
+                            "generated_tokens": fragment.generated_tokens,
+                        }
+                        for fragment in collector.fragments
+                    ],
+                    "terminal": _terminal_diagnostic_payload(terminal),
+                },
+                expires_at=now.astimezone(UTC) + timedelta(days=7),
+                now=now,
+            )
+        except OpaqueRecordError as error:
+            raise RunDarWorkflowError("debug diagnostic is unavailable") from error
 
     def dry_run(
         self, request: RunDarWorkflowRequest, *, now: datetime
@@ -1117,6 +1293,75 @@ def _terminal_processor_diagnostic(
         admitted=admitted,
         admitted_digest=admitted_digest if isinstance(admitted_digest, str) else None,
         repair_categories=tuple(categories),
+    )
+
+
+def _terminal_diagnostic_payload(
+    diagnostic: TerminalProcessorDiagnostic | None,
+) -> dict[str, object] | None:
+    if diagnostic is None:
+        return None
+    return {
+        "original_base64": base64.b64encode(diagnostic.original).decode("ascii"),
+        "original_digest": diagnostic.original_digest,
+        "admitted_base64": (
+            base64.b64encode(diagnostic.admitted).decode("ascii")
+            if diagnostic.admitted is not None
+            else None
+        ),
+        "admitted_digest": diagnostic.admitted_digest,
+        "repair_categories": list(diagnostic.repair_categories),
+    }
+
+
+def _debug_diagnostic(payload: Mapping[str, object]) -> DebugWorkflowDiagnostic:
+    diagnostic_id = payload.get("diagnostic_id")
+    run_id = payload.get("run_id")
+    outcome = payload.get("outcome")
+    limited = payload.get("retention_limited")
+    fragments = payload.get("fragments")
+    terminal_payload = payload.get("terminal")
+    if (
+        not isinstance(diagnostic_id, str)
+        or not diagnostic_id
+        or run_id is not None
+        and not isinstance(run_id, str)
+        or not isinstance(outcome, str)
+        or outcome not in {"completed", "failed", "cancelled"}
+        or not isinstance(limited, bool)
+        or not isinstance(fragments, list)
+        or terminal_payload is not None
+        and not isinstance(terminal_payload, Mapping)
+    ):
+        raise RunDarWorkflowError("debug diagnostic is unavailable")
+    parsed: list[DebugGeneratedFragment] = []
+    for fragment in fragments:
+        if not isinstance(fragment, Mapping):
+            raise RunDarWorkflowError("debug diagnostic is unavailable")
+        content = _diagnostic_bytes(fragment.get("content_base64"))
+        exhausted = fragment.get("exhausted")
+        generated_tokens = fragment.get("generated_tokens")
+        if (
+            not isinstance(exhausted, bool)
+            or generated_tokens is not None
+            and not isinstance(generated_tokens, int)
+        ):
+            raise RunDarWorkflowError("debug diagnostic is unavailable")
+        try:
+            parsed.append(
+                DebugGeneratedFragment(
+                    content.decode("utf-8"), exhausted, generated_tokens
+                )
+            )
+        except UnicodeDecodeError as error:
+            raise RunDarWorkflowError("debug diagnostic is unavailable") from error
+    terminal = (
+        _terminal_processor_diagnostic(terminal_payload)
+        if isinstance(terminal_payload, Mapping)
+        else None
+    )
+    return DebugWorkflowDiagnostic(
+        diagnostic_id, run_id, outcome, tuple(parsed), terminal, limited
     )
 
 

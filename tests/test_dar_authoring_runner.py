@@ -827,6 +827,37 @@ def test_runner_rejects_a_terminal_processor_envelope_without_bounded_output(
     assert diagnostic.repair_categories == ()
 
 
+def test_runner_retains_and_loads_debug_fragments_for_the_local_owner(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.runner import _DebugDiagnosticCollector
+
+    runner, _, _, _, _ = _runner(tmp_path)
+    collector = _DebugDiagnosticCollector("debug-run-1")
+    collector.set_run_id("workflow-run-1")
+
+    class Generated:
+        content = '{"walls":['
+        exhausted = True
+        generated_tokens = 3
+
+    collector.record_fragment(Generated())
+    runner._retain_debug_diagnostic(  # type: ignore[attr-defined]
+        collector, outcome="failed", now=NOW
+    )
+
+    diagnostic = runner.debug_diagnostic("debug-run-1", now=NOW)
+
+    assert diagnostic.diagnostic_id == "debug-run-1"
+    assert diagnostic.run_id == "workflow-run-1"
+    assert diagnostic.outcome == "failed"
+    assert diagnostic.fragments[0].content == '{"walls":['
+    assert diagnostic.fragments[0].exhausted is True
+    assert diagnostic.fragments[0].generated_tokens == 3
+    assert diagnostic.terminal is None
+    assert diagnostic.retention_limited is False
+
+
 def test_runner_binds_reviewed_tool_to_an_opaque_binary_artifact(
     tmp_path: Path,
 ) -> None:

@@ -783,6 +783,7 @@ class DeferredTransformersPeftSingleImageAdapter:
         self._packed_adapter: TransformersPeftPackedInputAdapter | None = None
         self._converter: PackedInputConverter | None = None
         self._payload_bound = False
+        self._debug_fragment_recorder: Callable[[GeneratedText], None] | None = None
 
     @property
     def input_converter_contract_id(self) -> str:
@@ -853,6 +854,15 @@ class DeferredTransformersPeftSingleImageAdapter:
             self._packed_adapter.clear_sealed_payload()
         self._payload_bound = False
 
+    def set_debug_fragment_recorder(
+        self, recorder: Callable[[GeneratedText], None] | None
+    ) -> None:
+        """Set the host-private recorder for a converter-backed debug run."""
+
+        self._debug_fragment_recorder = recorder
+        if self._packed_adapter is not None:
+            self._packed_adapter.set_debug_fragment_recorder(recorder)
+
     def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         if self._payload_bound:
             try:
@@ -874,5 +884,8 @@ class DeferredTransformersPeftSingleImageAdapter:
                 raise ModelExecutionError("sealed converter input is unavailable")
             self._packed_adapter = TransformersPeftPackedInputAdapter(
                 self._resolve_prepared_set(), converter=self._converter
+            )
+            self._packed_adapter.set_debug_fragment_recorder(
+                self._debug_fragment_recorder
             )
         return self._packed_adapter
