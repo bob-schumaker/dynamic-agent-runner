@@ -26,3 +26,11 @@ installed state, model-created context, or a local path/ZIP alone does not load
 this profile. An explicit DAR request with a path/ZIP loads it only to return
 the documented `source_selection_required` refusal; it must not run a DAR CLI
 command.
+
+For a workflow that declares a reviewed local model, keep the workflow
+declarative. An authorized host composition may request preparation with
+`dar-package prepare --model <logical-model-requirement>`; it then invokes the
+saved workflow with
+`dar-package invoke --package-name <saved-workflow> --prompt-stdin`.
+Do not request, generate, or retain model, projector, or LoRA paths, converter
+commands, or any preparation handoff value.

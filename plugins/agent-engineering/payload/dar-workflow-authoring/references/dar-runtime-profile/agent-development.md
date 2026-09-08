@@ -19,7 +19,7 @@ CLI directly through this pinned command:
 <!-- rumdl-disable MD013 -->
 
 ```sh
-uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package version --json
+uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.1.17 dar-package version --json
 ```
 
 <!-- rumdl-enable MD013 -->
@@ -64,7 +64,7 @@ purpose, and the local-model system prompt needed for the defined task. The
 runtime must retain `format_version: 1`, `package_type:
 dynamic_agent_design`, `entrypoint: answer_request`, a single `llm_step` node
 named `answer_request`, no tools, and the `final_answer` output contract. The
-descriptor must retain `required_version: 0.2.1`, `allowed_tool_ids: []`, and
+descriptor must retain `required_version: 0.1.17`, `allowed_tool_ids: []`, and
 `max_total_tool_calls: 0`.
 
 Do not invent an alternative runtime or descriptor schema for a simple
@@ -115,39 +115,65 @@ If the explicit request needs a reviewed tool but its matching host capability
 or template is absent, return `authoring_runtime_unavailable`; never fabricate
 a tool contract.
 
-## Author a package
+## Design-first registration
 
-A human must first select the material files and issue the host-owned manifest.
-Accept only the resulting opaque `material_set_id`; do not issue material, pass
-a local path, or provide raw material content. The project command is the sole
-command that may return approved material content; use that content transiently
-and do not repeat it in the handoff.
+Ask only for facts that cannot be inferred safely. For the floorplan request,
+ask only the desired output format; `SVG` requires no further question. For a
+named reviewed opaque-binary tool package, default analysis output to text and
+do not ask for a binary encoding. Never expose a material-set ID, output ID,
+source handle, profile ID, path, credential, or registration receipt.
+
+When an image runtime, local validator, or named reviewed tool package is
+missing, return repository-appropriate implementation guidance instead of code
+or a partial workflow. State the workflow contract, missing boundary, sealed
+I/O, execution limits, redacted failure result, and acceptance tests. Do not
+create a package or ask an extra question.
+
+## Workflow input converter package
+
+When an existing standard runner needs model-specific input packing, author
+exactly one workflow-sealed Python converter package asset and bind it in the
+workflow descriptor. The descriptor declares its package-relative entry point,
+digest, compatible runner contract, and bounded input, output, and timeout
+resource needs. For the built-in Transformers runner, the compatible contract
+is exactly `transformers-generate-v1`.
+
+The declared entry point exports only this fixed package form:
+
+```python
+converter_contract_version = "v1"
+compatible_runner_contract_id = "transformers-generate-v1"
+converter = Converter
+```
+
+`Converter` implements the standard `pack(prompt, payload, context)` operation
+and returns the runner-private packed value. It receives only the prompt,
+sealed bytes, and restricted runner context; it must not retain the bytes or
+return them as a workflow artifact. DAR verifies the package digest and exact
+entry point before loading it, then passes the packed value only to the declared
+runner.
+
+Do not submit a live callable, dependency installation, arbitrary path, runtime
+package selection, interpreter choice, or format registry. Do not add media-type
+routing to DAR. If the required standard runner or converter behavior is
+missing, return repository-appropriate implementation guidance instead of a
+partial workflow or placeholder converter.
+
+When every requirement already exists, submit the completed canonical contract
+and declarative definition once through the host façade:
 
 <!-- rumdl-disable MD013 -->
 
 ```sh
-uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package project-authoring-materials --material-set-id <opaque-id>
-uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package create-authored-package --package-name <user-requested-name>
-uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package write-authored-package-file --authoring-output-id <opaque-id> --relative-path <package-relative-path> --content-stdin
-uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package finalize-authored-package --authoring-output-id <opaque-id> --material-set-id <opaque-id>
+dar-package register-authored-workflow --definition-stdin
 ```
 
 <!-- rumdl-enable MD013 -->
 
-Create the output once, write only `agent-design.md`, `agent-runtime.yaml`,
-`agent-graph.mmd`, `workflow-descriptor.yaml`, and declared package assets, and
-finalize with the same material-set ID. Do not pass paths, credentials, model
-profiles, connection settings, source handles, or registration IDs. Finalizing
-validates the package but does not select or register it; report any required
-human host handoff separately.
-
-## Handoff
-
-Return the finalized package name and redacted finalization receipt, its
-input/output contract, required model profile, and any host-owned capability
-setup. Explain that the human host must select and register the finalized
-package before a later request can invoke its saved name. Do not turn the
-package into a general-purpose interactive tool.
+The definition contains only declarative package artifacts. The façade owns
+material handling, validation, staging, capability binding, registration, and
+redaction. Return only its `ready` or `unavailable` result. A ready result
+contains the saved workflow name, input/output contract, and invocation action.
 
 ## Invoke a saved package
 

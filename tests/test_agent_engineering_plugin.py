@@ -145,6 +145,25 @@ def test_generated_router_preserves_the_public_plugin_interface_and_receipts() -
     }
 
 
+def test_plugin_payload_pins_the_released_dar_runtime_version() -> None:
+    expected = "0.1.17"
+    source_payload = PLUGIN_ROOT / "payload" / "dar-workflow-authoring"
+    generated_payload = (
+        GENERATED_ROOT / "references" / "modules" / "dar-workflow-authoring"
+    )
+
+    for root in (source_payload, generated_payload):
+        payload = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in sorted(root.rglob("*"))
+            if path.is_file()
+        )
+        assert "dynamic-agent-runner==0.2.1" not in payload
+        assert "required_version: 0.2.1" not in payload
+        assert f"dynamic-agent-runner=={expected}" in payload
+        assert f"required_version: {expected}" in payload
+
+
 def test_router_source_has_no_support_subtree_and_private_members_own_guidance() -> (
     None
 ):
@@ -220,6 +239,69 @@ def test_private_dar_guidance_keeps_artifact_workflows_on_the_no_tool_template()
     assert "only YAML fields that may change" in guidance
     assert "Do not normalize artifact role names" in guidance
     assert "OAuth reconnect workflow" in guidance
+
+
+def test_dar_guidance_uses_closed_design_first_registration() -> None:
+    guidance = (
+        PLUGIN_ROOT
+        / "payload"
+        / "dar-workflow-authoring"
+        / "references"
+        / "dar-runtime-profile"
+        / "agent-development.md"
+    ).read_text(encoding="utf-8")
+
+    assert "dar-package register-authored-workflow --definition-stdin" in guidance
+    assert "ask only the desired output format" in guidance
+    assert "`SVG` requires no further question" in guidance
+    assert "do not ask for a binary encoding" in guidance
+    assert "material_set_id" not in guidance
+    assert "project-authoring-materials" not in guidance
+    assert "create-authored-package" not in guidance
+
+
+def test_dar_guidance_requires_the_fixed_converter_package_contract() -> None:
+    roots = (
+        PLUGIN_ROOT / "payload" / "dar-workflow-authoring",
+        GENERATED_ROOT / "references" / "modules" / "dar-workflow-authoring",
+    )
+
+    for root in roots:
+        guidance = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in sorted(root.rglob("*"))
+            if path.is_file()
+        )
+        normalized_guidance = " ".join(guidance.split())
+        assert "workflow-sealed Python converter package" in guidance
+        assert "transformers-generate-v1" in guidance
+        assert 'converter_contract_version = "v1"' in guidance
+        assert 'compatible_runner_contract_id = "transformers-generate-v1"' in guidance
+        assert "converter =" in guidance
+        assert "live callable" in guidance
+        assert "dependency installation" in guidance
+        assert "arbitrary path" in guidance
+        assert "runtime package selection" in normalized_guidance
+        assert "format registry" in guidance
+
+
+def test_dar_guidance_requests_host_owned_local_model_preparation_only() -> None:
+    guidance = (
+        PLUGIN_ROOT
+        / "payload"
+        / "dar-workflow-authoring"
+        / "references"
+        / "dar-runtime-profile.md"
+    ).read_text(encoding="utf-8")
+
+    assert "dar-package prepare --model <logical-model-requirement>" in guidance
+    assert "dar-package invoke --package-name <saved-workflow> --prompt-stdin" in (
+        guidance
+    )
+    assert "--model-path" not in guidance
+    assert "--projector-path" not in guidance
+    assert "--lora-path" not in guidance
+    assert "prepared-artifact identifier" not in guidance
 
 
 def test_marketplace_exposes_only_the_successor_plugin() -> None:
