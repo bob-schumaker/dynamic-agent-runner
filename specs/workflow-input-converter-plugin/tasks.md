@@ -196,12 +196,16 @@ the standard runner interface. Docker and OS-level isolation are deferred to
   - [ ] T5.4.5 [validation] Run focused runner and workflow-local processor
     regressions, then `poetry run pytest -q`, `poetry run ruff check src tests`,
     and `git diff --check`.
-- [ ] T5.5 [manual gate] With explicit authorization and after T5.4,
+- [x] T5.5 [manual gate] With explicit authorization and after T5.4,
   execute the durable prepared Qwen closure with a sealed site-plan image.
   Verify the retained raw completion and any declared repair result first pass
   strict JSON admission, then verify the admitted JSON reaches workflow-local
   JSON-to-SVG tooling. Record only redacted identities, contract versions, and
   outcomes; DAR must neither parse floorplan semantics nor validate SVG.
+  Recorded 2026-09-08: run `22a6d05c-5fc9-4f73-a55d-65ff82510672` completed;
+  retained raw digest `542480e5b328509e60c0552c01806cc2afb8769bff63c4f3f6a0babc8409f57f`
+  was admitted as `189d07a5449fe548c2ad7559f93f541e79d92be2807e72eef1eafbed8a3f41e0`
+  with `none,none` processor reports, then returned validated SVG.
 - [ ] T5.6 [release] Update validation evidence and feature status, then
   package/release only after every prior task is complete. Record OS isolation
   as deferred future hardening rather than a release blocker.
