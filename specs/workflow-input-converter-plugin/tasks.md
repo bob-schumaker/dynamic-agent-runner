@@ -137,6 +137,10 @@ the standard runner interface. Docker and OS-level isolation are deferred to
     digests and a repair report; accept only strict JSON after processing. The
     processor must reject incomplete or semantically ambiguous output rather
     than invent structure.
+    The implementation uses a fixed private terminal-processor edge, not the
+    existing boolean terminal validator: it passes bounded bytes only between
+    declared package assets, retains authenticated local-user diagnostics, and
+    exposes only final rendered output plus redacted admission metadata.
   - [ ] T5.4.5 [validation] Run focused runner and workflow-local processor
     regressions, then `poetry run pytest -q`, `poetry run ruff check src tests`,
     and `git diff --check`.

@@ -129,6 +129,39 @@ enable repair implicitly, interpret the JSON's fields, or expose either text in
 traces or public API results. A failed postprocessor is a declared terminal
 failure, not a retry through unconstrained generation.
 
+When a workflow must render admitted JSON into a terminal representation such
+as SVG, that renderer follows the JSON-admission processor on the same private
+workflow-local output edge. DAR passes bounded bytes between the fixed,
+package-declared processors; it does not parse the intermediate JSON or expose
+it as a terminal result. Only the final processor output is shaped against the
+declared terminal output contract. The existing boolean terminal validator is
+not a processor and cannot stand in for this edge.
+
+### Private terminal processor contract
+
+A terminal processor is a fixed package asset with declared byte and time
+limits. It receives one private byte sequence on standard input and returns a
+bounded JSON envelope on standard output:
+
+```json
+{
+  "status": "accepted",
+  "output_base64": "...",
+  "repair_report": {
+    "category": "none"
+  }
+}
+```
+
+`status` is exactly `accepted`; `output_base64` decodes to the next private
+byte sequence. A JSON-admission processor's decoded output must be one strict
+JSON object. A later renderer may consume those bytes and emit the final
+terminal representation. The repair report is bounded, contains no completion
+text, and names only the declared deterministic repair category. DAR retains
+the original and admitted bytes in an authenticated, local-user diagnostic
+record; public results and traces receive only their digests and the repair
+category. No processor is discovered or selected at invocation time.
+
 ### Contract identifiers
 
 `transformers-peft-single-image-v1` remains the preparation loader profile and

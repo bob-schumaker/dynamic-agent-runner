@@ -142,8 +142,11 @@ binding and runs through the standard interface without exposing packed input.
    an incompatible runner fails before consuming sealed input. Any bounded,
    deterministic JSON repair is workflow-owned, preserves raw and repaired
    text, digests, and a repair report as user-only diagnostics, and rejects
-   truncation or invented structure. DAR owns neither floorplan JSON semantics
-   nor repair as a default execution behavior.
+   truncation or invented structure. A package-declared private terminal
+   processor edge carries admitted JSON directly to any workflow-local
+   renderer; the boolean terminal validator cannot carry bytes or replace that
+   edge. DAR owns neither floorplan JSON semantics nor repair as a default
+   execution behavior.
 4. Run a manually authorized floorplan acceptance with the durable prepared
    Qwen closure and sealed site-plan image. Verify strict JSON admission before
    sending the result to workflow-local JSON-to-SVG tooling; DAR neither parses
