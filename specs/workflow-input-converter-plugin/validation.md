@@ -11,10 +11,16 @@ T4 file, environment, credential, network, child-process, scratch, memory, or
 process-count boundaries. It is therefore evidence only for the trusted-fixture
 handoff and is not a candidate admission backend.
 
-No alternate strict worker backend or reviewed profile is present in the
-repository. T4.1 through T4.3 remain incomplete. DAR must not dynamically load
-or execute a workflow-provided converter asset until a backend has passed every
-required adversarial and real-platform check in
+`DockerSandboxExecutor` is a candidate strict worker envelope. It requires a
+host-configured digest-pinned image and uses a read-only root filesystem,
+network denial, dropped capabilities, no-new-privileges, a non-root worker,
+one bounded process, bounded memory and stdout, a bounded scratch tmpfs, a
+single read-only asset mount, and a sanitized environment. Deterministic unit
+tests cover those fixed controls and symlink rejection. It is not selected for
+generated converter execution and T4 remains incomplete until its same-worker
+converter/model protocol and real-platform acceptance are complete. DAR must
+not dynamically load or execute a workflow-provided converter asset until a
+backend has passed every required adversarial and real-platform check in
 [`../local-tool-sandbox-hardening/spec.md`](../local-tool-sandbox-hardening/spec.md).
 
 The real host-terminal probe on 2026-09-07, run in a temporary Herdr
@@ -27,3 +33,9 @@ result was consequently a Codex-launch limitation, not evidence about the
 host terminal. The strict candidate has failed to launch and is not an
 admission backend; no conclusion about every possible macOS profile follows
 from this probe.
+
+The same Herdr workspace confirmed on 2026-09-07 that the `docker` CLI is
+installed, but its configured OrbStack socket is absent; `docker version`
+cannot connect to an engine. No reviewed worker image or live Docker acceptance
+evidence is available on this host. This is a host-environment blocker for
+T4.3, not evidence that the candidate's controls work.
