@@ -651,6 +651,8 @@ def _runner(
             local_tool_executor=local_tool_executor,  # type: ignore[arg-type]
             reviewed_tool_packages=reviewed_tool_packages,
             reviewed_artifact_tool_executors=reviewed_artifact_tool_executors,  # type: ignore[arg-type]
+            terminal_diagnostic_store=store,
+            terminal_diagnostic_owner="test-local-user",
         ),
         preparation,
         registration,
@@ -777,11 +779,20 @@ def test_runner_passes_terminal_bytes_only_between_declared_processors(
     )
 
     result = runner._process_terminal_output(  # type: ignore[attr-defined]
-        policy=policy, package_root=revision.package_root, value='{"rooms":[]}'
+        policy=policy,
+        package_root=revision.package_root,
+        value='{"rooms":[]}',
+        run_id="processor-run",
+        now=NOW,
     )
 
     assert result == "<svg/>"
     assert observed == [b'{"rooms":[]}', b'{"rooms":[]}']
+    diagnostic = runner.terminal_processor_diagnostic("processor-run", now=NOW)
+    assert diagnostic.original == b'{"rooms":[]}'
+    assert diagnostic.admitted == b"<svg/>"
+    assert diagnostic.repair_categories == ("none", "none")
+    assert diagnostic.original_digest != diagnostic.admitted_digest
 
 
 def test_runner_rejects_a_terminal_processor_envelope_without_bounded_output(
@@ -803,8 +814,17 @@ def test_runner_rejects_a_terminal_processor_envelope_without_bounded_output(
 
     with pytest.raises(RunDarWorkflowError, match="terminal output processing failed"):
         runner._process_terminal_output(  # type: ignore[attr-defined]
-            policy=policy, package_root=revision.package_root, value='{"rooms":[]}'
+            policy=policy,
+            package_root=revision.package_root,
+            value='{"rooms":[]}',
+            run_id="rejected-processor-run",
+            now=NOW,
         )
+
+    diagnostic = runner.terminal_processor_diagnostic("rejected-processor-run", now=NOW)
+    assert diagnostic.original == b'{"rooms":[]}'
+    assert diagnostic.admitted is None
+    assert diagnostic.repair_categories == ()
 
 
 def test_runner_binds_reviewed_tool_to_an_opaque_binary_artifact(

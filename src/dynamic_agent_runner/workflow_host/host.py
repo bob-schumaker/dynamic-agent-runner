@@ -886,6 +886,8 @@ class LocalWorkflowHost:
                 local_tool_executor=execute_macos_sandbox_exec,
                 reviewed_tool_packages=reviewed_tool_packages,
                 reviewed_artifact_tool_executors=reviewed_artifact_tool_executors,
+                terminal_diagnostic_store=store,
+                terminal_diagnostic_owner=InstallationIdentityProvider().principal,
             ),
             workspace_ingress=workspace_ingress,
             authoring_materials=AuthoringMaterialService(

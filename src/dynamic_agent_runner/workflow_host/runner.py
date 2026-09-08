@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
+import hashlib
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Mapping
 from uuid import uuid4
@@ -91,12 +92,17 @@ from dynamic_agent_runner.workflow_host.workspace_ingress import (
 )
 from dynamic_agent_runner.workflow_host.profiles import (
     FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+    InstallationIdentityProvider,
     LocalModelProfile,
 )
 from dynamic_agent_runner.workflow_host.registration import (
     WorkflowRegistration,
     WorkflowRegistrationError,
     WorkflowRegistrationService,
+)
+from dynamic_agent_runner.workflow_host.state import (
+    OpaqueRecordError,
+    PrivateStateStore,
 )
 
 
@@ -159,6 +165,17 @@ class RedactedRunTrace:
     output_byte_count: int
 
 
+@dataclass(frozen=True)
+class TerminalProcessorDiagnostic:
+    """Authenticated local-only retained processor input and admitted output."""
+
+    original: bytes
+    original_digest: str
+    admitted: bytes | None
+    admitted_digest: str | None
+    repair_categories: tuple[str, ...]
+
+
 class _SealedArtifactReader:
     """Expose one already verified private binary only to its host tool binding."""
 
@@ -203,6 +220,8 @@ class WorkflowRunner:
         reviewed_tool_packages: ReviewedToolPackageControlPlane | None = None,
         reviewed_artifact_tool_executors: Mapping[str, ReviewedArtifactToolExecutor]
         | None = None,
+        terminal_diagnostic_store: PrivateStateStore | None = None,
+        terminal_diagnostic_owner: str | None = None,
     ) -> None:
         self._registrations = registrations
         self._catalog = catalog
@@ -218,6 +237,10 @@ class WorkflowRunner:
         self._reviewed_tool_packages = reviewed_tool_packages
         self._reviewed_artifact_tool_executors = dict(
             reviewed_artifact_tool_executors or {}
+        )
+        self._terminal_diagnostic_store = terminal_diagnostic_store
+        self._terminal_diagnostic_owner = (
+            terminal_diagnostic_owner or InstallationIdentityProvider().principal
         )
         self._traces: list[RedactedRunTrace] = []
 
@@ -287,7 +310,11 @@ class WorkflowRunner:
                 self._clear_sealed_converter_payload(payload)
                 self._clear_sealed_image(image)
             processed_result = self._process_terminal_output(
-                policy=policy, package_root=Path(package_root), value=final_result
+                policy=policy,
+                package_root=Path(package_root),
+                value=final_result,
+                run_id=run_id,
+                now=now,
             )
             output = _terminal_output(
                 processed_result,
@@ -475,7 +502,13 @@ class WorkflowRunner:
             raise RunDarWorkflowError("terminal output validation failed")
 
     def _process_terminal_output(
-        self, *, policy: Any, package_root: Path, value: object
+        self,
+        *,
+        policy: Any,
+        package_root: Path,
+        value: object,
+        run_id: str,
+        now: datetime,
     ) -> str:
         """Pass private terminal bytes through the package-declared processor chain."""
 
@@ -484,9 +517,15 @@ class WorkflowRunner:
             if not isinstance(value, str):
                 raise RunDarWorkflowError("workflow terminal output is not a message")
             return value
-        if self._local_tool_executor is None or not isinstance(value, str):
+        if (
+            self._local_tool_executor is None
+            or self._terminal_diagnostic_store is None
+            or not isinstance(value, str)
+        ):
             raise RunDarWorkflowError("terminal output processing failed")
-        current = value.encode("utf-8")
+        original = value.encode("utf-8")
+        current = original
+        repair_categories: list[str] = []
         sandbox = LocalToolSandbox(
             package_root=package_root, execute=self._local_tool_executor
         )
@@ -504,12 +543,90 @@ class WorkflowRunner:
                     artifact_role="terminal_output",
                     artifact_bytes=current,
                 )
+                repair_categories.append(_terminal_processor_category(evidence))
                 current = _terminal_processor_output(evidence)
         except (LocalToolSandboxError, ValueError, UnicodeError) as error:
+            self._retain_terminal_processor_diagnostic(
+                run_id=run_id,
+                original=original,
+                admitted=None,
+                repair_categories=tuple(repair_categories),
+                now=now,
+            )
             raise RunDarWorkflowError("terminal output processing failed") from error
+        self._retain_terminal_processor_diagnostic(
+            run_id=run_id,
+            original=original,
+            admitted=current,
+            repair_categories=tuple(repair_categories),
+            now=now,
+        )
         try:
             return current.decode("utf-8")
         except UnicodeDecodeError as error:
+            raise RunDarWorkflowError("terminal output processing failed") from error
+
+    def terminal_processor_diagnostic(
+        self, run_id: str, *, now: datetime
+    ) -> TerminalProcessorDiagnostic:
+        """Load one authenticated local-user diagnostic by its run identity."""
+
+        if (
+            not isinstance(run_id, str)
+            or not run_id
+            or self._terminal_diagnostic_store is None
+        ):
+            raise RunDarWorkflowError("terminal processor diagnostic is unavailable")
+        try:
+            records = self._terminal_diagnostic_store.active_records(
+                kind="terminal_processor_diagnostic",
+                owner=self._terminal_diagnostic_owner,
+                now=now,
+            )
+        except OpaqueRecordError as error:
+            raise RunDarWorkflowError(
+                "terminal processor diagnostic is unavailable"
+            ) from error
+        matches = [
+            record for _, record in records if record.payload.get("run_id") == run_id
+        ]
+        if len(matches) != 1:
+            raise RunDarWorkflowError("terminal processor diagnostic is unavailable")
+        return _terminal_processor_diagnostic(matches[0].payload)
+
+    def _retain_terminal_processor_diagnostic(
+        self,
+        *,
+        run_id: str,
+        original: bytes,
+        admitted: bytes | None,
+        repair_categories: tuple[str, ...],
+        now: datetime,
+    ) -> None:
+        if self._terminal_diagnostic_store is None:
+            raise RunDarWorkflowError("terminal output processing failed")
+        try:
+            self._terminal_diagnostic_store.issue(
+                kind="terminal_processor_diagnostic",
+                owner=self._terminal_diagnostic_owner,
+                payload={
+                    "run_id": run_id,
+                    "original_base64": base64.b64encode(original).decode("ascii"),
+                    "original_digest": _digest_bytes(original),
+                    "admitted_base64": (
+                        base64.b64encode(admitted).decode("ascii")
+                        if admitted is not None
+                        else None
+                    ),
+                    "admitted_digest": _digest_bytes(admitted)
+                    if admitted is not None
+                    else None,
+                    "repair_categories": list(repair_categories),
+                },
+                expires_at=now.astimezone(UTC) + timedelta(days=7),
+                now=now,
+            )
+        except OpaqueRecordError as error:
             raise RunDarWorkflowError("terminal output processing failed") from error
 
     def dry_run(
@@ -959,3 +1076,60 @@ def _terminal_processor_output(evidence: Mapping[str, object]) -> bytes:
     if not output:
         raise ValueError("terminal processor evidence is invalid")
     return output
+
+
+def _terminal_processor_category(evidence: Mapping[str, object]) -> str:
+    report = evidence.get("repair_report")
+    if not isinstance(report, dict) or set(report) != {"category"}:
+        raise ValueError("terminal processor evidence is invalid")
+    category = report.get("category")
+    if not isinstance(category, str) or not category:
+        raise ValueError("terminal processor evidence is invalid")
+    return category
+
+
+def _terminal_processor_diagnostic(
+    payload: Mapping[str, object],
+) -> TerminalProcessorDiagnostic:
+    original = _diagnostic_bytes(payload.get("original_base64"))
+    admitted_value = payload.get("admitted_base64")
+    admitted = _diagnostic_bytes(admitted_value) if admitted_value is not None else None
+    original_digest = payload.get("original_digest")
+    admitted_digest = payload.get("admitted_digest")
+    categories = payload.get("repair_categories")
+    if (
+        not isinstance(original_digest, str)
+        or original_digest != _digest_bytes(original)
+        or admitted is not None
+        and (
+            not isinstance(admitted_digest, str)
+            or admitted_digest != _digest_bytes(admitted)
+        )
+        or admitted is None
+        and admitted_digest is not None
+        or not isinstance(categories, list)
+        or any(not isinstance(category, str) or not category for category in categories)
+    ):
+        raise RunDarWorkflowError("terminal processor diagnostic is unavailable")
+    return TerminalProcessorDiagnostic(
+        original=original,
+        original_digest=original_digest,
+        admitted=admitted,
+        admitted_digest=admitted_digest if isinstance(admitted_digest, str) else None,
+        repair_categories=tuple(categories),
+    )
+
+
+def _diagnostic_bytes(value: object) -> bytes:
+    if not isinstance(value, str):
+        raise RunDarWorkflowError("terminal processor diagnostic is unavailable")
+    try:
+        return base64.b64decode(value, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise RunDarWorkflowError(
+            "terminal processor diagnostic is unavailable"
+        ) from error
+
+
+def _digest_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
