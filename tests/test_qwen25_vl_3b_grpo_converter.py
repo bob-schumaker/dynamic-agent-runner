@@ -129,9 +129,12 @@ def test_floorplan_package_sets_the_qwen_generation_ceiling() -> None:
         "max_continuations": 3,
     }
     assert workflow.runtime_manifest.nodes[0].raw["prompt"]["system"] == (
-        "Return only a JSON object with walls and rooms. Each wall must include "
-        "id, start, end, thickness, curvature, and openings. Each room must "
-        "include label and walls."
+        "You are a floor plan vectorization expert. Extract wall, door, window "
+        "geometry from floor plan images into structured JSON. Output ONLY valid "
+        'JSON with this schema: {{"walls":[{{"id":"wall_N","start":[x,y],"end":[x,y],'
+        '"thickness":T,"curvature":0,"openings":[{{"type":"door"|"window",'
+        '"center":D,"width":W}}]}}],"rooms":[{{"label":"room_type",'
+        '"walls":["wall_N",...]}}]}}. Coordinates normalized so longer image edge = 1024.'
     )
 
 

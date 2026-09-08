@@ -2,10 +2,14 @@
 
 ## Status
 
-S1 through S4 are delivered. DAR loads a sealed Python converter package
-through the standard runner interface. OS-level isolation is future hardening
-owned by `../local-tool-sandbox-hardening/spec.md`, not a converter-package
-admission gate. S5 remains in [`tasks.md`](tasks.md).
+S1 through S4 and the S5 JSON boundary, manually authorized floorplan gate, and
+regression evidence are delivered. T5.6 has a verified local package build, but
+an explicit unreleased version and publish target remain in
+[`tasks.md`](tasks.md). DAR loads a sealed Python converter package through the
+standard runner interface. OS-level isolation is future hardening owned by
+`../local-tool-sandbox-hardening/spec.md`, not a converter-package admission
+gate. The Apple Metal addendum implementation, fake-test slice, and authorized
+warm benchmark are delivered.
 
 ## Execution Order
 
@@ -53,6 +57,61 @@ format or the resulting framework objects.
   marketplace, or generic cross-worker RPC.
 - Full OS-level isolation remains deferred; this delivery path does not claim
   to constrain a sealed Python package beyond its standard interface.
+
+## Apple Metal Execution Addendum
+
+The existing `transformers-peft-v1` runner already selects PyTorch MPS when it
+is available on macOS. The optimization slice remains inside that runner:
+attach the PEFT adapter, place the complete inference model on MPS, set
+evaluation mode, and use an inference-only generation context. Keep the
+existing non-MPS `device_map="auto"` path unchanged. MPS unavailability or
+failure must not select a remote model, change the prepared artifact set, or
+change the terminal output contract.
+
+Extend only the existing redacted model-generation metadata with MPS selection
+and measured generation outcome for both direct and continuation responses;
+never expose model tensors, sealed payloads, prompts, or completion fragments.
+The outcome is limited to generated-token count when available and declared
+chunk exhaustion, never timing or content. Fake-only tests must prove MPS
+selection, adapter-before-placement ordering, evaluation mode, inference-only
+generation, packed-input disposal, JSON/continuation preservation, direct and
+continuation metadata redaction, and unchanged non-MPS loading behavior.
+
+Do not add a workflow-visible device switch, MPS CPU fallback, MLX backend,
+model conversion, quantized artifact, or `torch.compile` default. Retain the
+existing dtype by default. Any optional Mac-only dtype or compilation experiment
+requires a fixed-prepared-model, fixed-sealed-image, fixed-generation-limit warm
+baseline and candidate. Retain only device selection, wall-clock duration,
+generated-token count, and tokens per second; accept the experiment only with
+identical terminal-contract behavior and a measured improvement.
+
+## S6 — Apple Metal execution and benchmark
+
+1. Add fake-only RED coverage for MPS availability, the unchanged non-MPS
+   loader path, adapter-before-placement ordering, evaluation mode,
+   inference-only generation, and redacted outcome metadata on direct and
+   continuation responses. Do not load a model or require a GPU in these tests.
+2. Make the MPS path Mac-only within the existing runner. It must attach the
+   verified adapter before moving the completed model to MPS, retain the
+   existing dtype, set evaluation mode, and generate under inference mode. It
+   must neither add a workflow-visible execution choice nor introduce fallback,
+   MLX, conversion, quantization, or compilation behavior.
+3. With explicit authorization, benchmark a fixed prepared model, fixed sealed
+   image, and fixed generation limit. The baseline uses the prior base-model
+   MPS placement before PEFT attachment; the candidate attaches PEFT before
+   placing the completed model on MPS. The benchmark limit must be independently
+   fixed before either measurement and must produce the terminal contract; do
+   not use the production `4096`-token ceiling after its five-minute warm-pass
+   non-completion. Retain only device, duration, token count, and tokens per
+   second. Adopt a dtype or compilation candidate only after the identical
+   terminal contract and improved warm-run metric are both demonstrated. The
+   fixed `1024`-token, zero-continuation floorplan benchmark reached the
+   terminal contract. The candidate recorded 6.362699 tokens/sec for 994
+   tokens, compared with 5.941363 tokens/sec for the prior loader order (a 7.1%
+   improvement). No dtype or compilation candidate was introduced.
+
+Exit: non-Mac and unavailable-MPS behavior is unchanged; the MPS path preserves
+the sealed workflow contract and has a redacted, reproducible benchmark record.
 
 ## S1 — Closed contract, manifest, and registration binding
 
@@ -167,26 +226,38 @@ Panel: architecture triad — Aristotle (boundary classification), Ada (contract
 invariants), and Feynman (minimal observable execution). Execution mode:
 sequential fallback with reduced independence; no parallel reviewers were used.
 
-The panel agrees that the converter is a workflow-scoped Python package, not a
-DAR media capability or a general model-execution plugin. The necessary
+The panel confirms that the converter remains a workflow-scoped Python package,
+not a DAR media capability or general model-execution plugin. Its necessary
 invariants are exact package/runner binding, private packed state, and
-host-owned limits. Full OS-level isolation is a separate hardening decision;
-it is not an S4 admission gate for the standard package interface.
+host-owned limits. Full OS-level isolation remains separate future hardening,
+not an admission gate. The panel found the prior staged-implementation
+conclusion obsolete: task and validation records conflicted after the successful
+manual floorplan run, and the full suite initially exposed one stale prompt
+assertion. The assertion now matches the declared contract and the full suite
+passes. The current plan audit also found the two completed JSON task parents
+unchecked and the Metal metadata requirement absent from its task wording; both
+are now reconciled. MPS execution implementation is bounded to the existing
+runner; the remaining review item is the authorized benchmark protocol.
 
 ### Ponytail Review
 
-Keep one converter contract and one Qwen converter first. Reuse the existing
-prepared-set, adapter, package-validation, and worker seams. Do not build a
-universal tensor serialization, converter marketplace, dependency resolver,
-format detector, promotion workflow, or separate model-runner interface in
-this feature. Add those only when a second concrete runner or converter proves
-the first closed contract insufficient.
+Keep one converter contract and one Qwen converter. Reuse the existing
+prepared-set, adapter, package-validation, worker, and redacted-metadata seams.
+Do not build a universal tensor serialization, converter marketplace, dependency
+resolver, format detector, promotion workflow, separate model-runner interface,
+or second Metal backend. Keep the MPS work limited to loader placement,
+inference mode, redacted response metadata, and its fixed-input benchmark.
 
 ### Readiness Conclusion
 
-The design is ready for staged implementation. S1, S2, and S3 are bounded
-against existing code; S4 completes exact sealed-package loading before
-authoring and acceptance. OS-level isolation remains future work.
+The feature has passed T5.6 local package preparation but is not released. The
+sealed converter boundary, strict JSON admission, terminal processor chain,
+manual floorplan gate, regression evidence, and package integrity checks are
+complete. Publication requires an explicit unreleased version and publish
+target; the current `0.1.17` version is behind existing `0.1.31` repository
+tags. The Apple Metal addendum is complete: its MPS placement-order benchmark
+preserved the terminal contract and improved warm generation by 7.1%, without
+introducing dtype or compilation changes.
 
 ## Deferred Decisions
 

@@ -13,46 +13,59 @@ Docker, `sandbox-exec`, and other full-isolation backends are future work under
 Their existing probe evidence is recorded in
 [`../local-tool-sandbox-hardening/validation.md`](../local-tool-sandbox-hardening/validation.md).
 
-## Remaining feature validation
+## Validation evidence and remaining work
 
-T4 is complete. Fake-only loader tests prove that DAR loads only the
-digest-bound manifest entry point, requires the exact contract attributes and
-`converter` object, and rejects stale assets with no fallback module or callable.
-Deferred Transformers adapter tests prove a package must be bound before it can
-accept bytes and that packed input reaches the standard runner. Runner tests
-prove redacted package-load failure, payload cleanup on worker failure and
-cancellation, and trace redaction. Focused package, runner, ingress,
-registration, and trace regressions passed on 2026-09-07.
+T1 through T4 and T5.1--T5.4.4 are implemented. The focused fake-only suites
+cover manifest binding, exact package entry-point loading, opaque packed-input
+handoff and disposal, redacted failures, JSON constraint capability checks,
+bounded continuation, and workflow-local JSON admission and SVG rendering.
 
-## T5 evidence — 2026-09-07
+On 2026-09-08, the explicitly authorized floorplan run
+`22a6d05c-5fc9-4f73-a55d-65ff82510672` completed. Its retained raw completion
+digest `542480e5b328509e60c0552c01806cc2afb8769bff63c4f3f6a0babc8409f57f`
+was admitted as `189d07a5449fe548c2ad7559f93f541e79d92be2807e72eef1eafbed8a3f41e0`
+with `none,none` processor reports, then returned validated SVG. This satisfies
+the manual T5.5 gate without exposing the completion content.
 
-- T5.1 was RED until Agent Engineering guidance stated the fixed
-  workflow-sealed Python converter package form, exact
-  `transformers-generate-v1` contract, and rejection of live callables,
-  dependency installation, arbitrary paths, runtime package selection, and a
-  format registry. The focused plugin suite is green: `11 passed`.
-- T5.2 regenerated the native-routed Agent Engineering payload from the source
-  manifest. The pre-regeneration output was retained separately after its
-  recorded digest did not match the dirty local tree.
-- T5.3 passed `1900 passed, 1 skipped, 7 deselected`; the seven warnings are
-  the existing unregistered `live_matrix` marks. Ruff and `git diff --check`
-  passed.
-- T5.4 used the durable prepared logical Qwen closure, the fixed
-  `transformers-generate-v1` converter contract, and one sealed JPEG site-plan
-  input. The runner completed model generation, but the workflow-local strict
-  SVG validator rejected the incomplete model result. This is not successful
-  acceptance: no bounded normalized JSON reached workflow-local JSON-to-SVG
-  tooling.
-- A follow-up local probe used the model card's role-separated JSON schema and
-  deterministic 4,096-token generation pattern against the same sealed image.
-  It produced nonempty output but no parseable JSON. The probe emitted only the
-  parse outcome and output byte count; it retained no generated content.
+The 2026-09-08 readiness validation ran:
 
-T5.4 remains blocked. The reviewed model's documented output is structured
-floorplan JSON, while repeated authorized runs—including the published
-inference pattern—have not produced a complete parseable instance. DAR has no
-JSON parser or SVG renderer by design; a corrected model/inference path and a
-workflow-local JSON-to-SVG package are required before rerunning the gate. T5.5
-release is therefore not authorized.
-Neither the blocked acceptance nor the completed T5.1--T5.3 work depends on a
-container runtime or OS-level sandbox.
+- `poetry run pytest tests/test_qwen25_vl_3b_grpo_converter.py -q`: passed —
+  `7 passed`; the floorplan package prompt assertion now locks the declared
+  detailed JSON contract.
+- `poetry run pytest -q`: passed — `1915 passed, 1 skipped, 7 deselected`;
+  the seven warnings are the existing unregistered `live_matrix` marks.
+- `poetry run ruff check src tests`: passed.
+- `git diff --check`: passed.
+
+T5.4.5 is complete. T5.6 may update feature status and prepare a release when
+its release requirements are satisfied. On 2026-09-08, `poetry build` produced
+the `0.1.17` sdist and wheel; archive and wheel integrity checks passed. This is
+local package evidence only. Publication remains blocked until an explicit
+unreleased version and publish target are selected: repository tags already
+reach `0.1.31`, so the current `0.1.17` must not be published. `pyproject.toml`
+declares `global-release-pypi` and `global-dev-pypi`, but no release policy
+selects either target. The Mac-only T5.7.1--T5.7.2 fake-only verification passed
+on 2026-09-08:
+`poetry run pytest tests/test_transformers_peft_model.py -q` reported
+`35 passed`. It covers unchanged non-MPS loading, adapter-before-MPS placement,
+evaluation mode, inference-only generation, and redacted MPS generation metadata
+for direct and continuation responses. The corresponding full suite then passed:
+`1917 passed, 1 skipped, 7 deselected`; the seven warnings remain the existing
+unregistered `live_matrix` marks. This Apple M3 Pro host is MPS-capable. Inside
+the Codex-restricted shell, PyTorch 2.13.0 reports MPS unavailable and emits a
+misleading macOS-version error; the same environment outside that shell reports
+`mps_built=True`, `mps_available=True`, and successfully allocates an MPS tensor.
+The benchmark must therefore execute outside the restricted shell. No fallback
+was enabled during this diagnosis. A current-MPS workflow attempt loaded the
+prepared model but did not complete its first warm pass at the production
+`4096`-token limit within five minutes, so it was terminated without retaining
+benchmark metrics. The authorized replacement used a fixed `1024`-token,
+zero-continuation limit and reached the terminal contract. With the same
+prepared model, sealed image, and prompt, resident warm MPS measurement recorded
+the prior loader order at 994 generated tokens in 167.301665 seconds (5.941363
+tokens/sec), and the adapter-before-placement candidate at 994 tokens in
+156.223020 seconds (6.362699 tokens/sec). The candidate is a 7.1% improvement
+and preserves the terminal contract. No dtype or compilation experiment was
+adopted; the current MPS configuration remains. OS-level isolation remains
+deferred future hardening, not a converter-admission or release-validation
+blocker.

@@ -2,10 +2,9 @@
 
 ## Status
 
-T1 through T4 and T5.1--T5.3 are complete. T5.4 must establish a generic,
-strict JSON output boundary before the floorplan acceptance can resume. T5.5
-remains blocked by the documented floorplan model/inference result; T5.6 cannot
-start before it.
+T1 through T5.5 are complete. T5.6 has a verified local package build but
+requires a release-version and publish-target decision before publication. T5.7
+is the bounded Mac-only Metal addendum.
 Each implementation task requires its preceding RED test to fail for the
 intended reason. Unit tests use fakes only: they must not download models,
 execute a live converter, load a real model, or depend on a GPU.
@@ -109,7 +108,7 @@ the standard runner interface. Docker and OS-level isolation are deferred to
   Regenerate and validate the packaged plugin payload.
 - [x] T5.3 [validation] Run all focused suites, then `poetry run pytest -q`,
   `poetry run ruff check src tests`, and `git diff --check`.
-- [ ] T5.4 [JSON output boundary] Establish a generic syntax-only JSON path
+- [x] T5.4 [JSON output boundary] Establish a generic syntax-only JSON path
   before floorplan-specific rendering. It may constrain decoding through the
   already-rendered `response_format` contract when the selected runner supports
   it, but it must fail closed when that runner cannot honor the contract. DAR
@@ -131,7 +130,7 @@ the standard runner interface. Docker and OS-level isolation are deferred to
     capability binding required by T5.4.2. Reuse `response_format`; do not add
     a floorplan branch, a general schema language, or a model-specific prompt
     rewrite.
-  - [ ] T5.4.4 [tests, RED/GREEN] Add workflow-owned post-processing tests for
+  - [x] T5.4.4 [tests, RED/GREEN] Add workflow-owned post-processing tests for
     strict JSON validation and the declared bounded repair policy. Retain the
     original and repaired completion as user-only diagnostic artifacts with
     digests and a repair report; accept only strict JSON after processing. The
@@ -193,9 +192,13 @@ the standard runner interface. Docker and OS-level isolation are deferred to
       metadata for chunk count, token counts when available, and each chunk's
       exhaustion outcome in the existing `model_response` trace event. Do not
       expose completion fragments or continuation prompts.
-  - [ ] T5.4.5 [validation] Run focused runner and workflow-local processor
+  - [x] T5.4.5 [validation] Run focused runner and workflow-local processor
     regressions, then `poetry run pytest -q`, `poetry run ruff check src tests`,
     and `git diff --check`.
+    - [x] T5.4.5.1 [test maintenance] Align the floorplan package prompt
+      assertion with the declared detailed JSON contract, then rerun the full
+      validation commands. Do not weaken the fixture prompt or remove the
+      contract assertion to make the suite pass.
 - [x] T5.5 [manual gate] With explicit authorization and after T5.4,
   execute the durable prepared Qwen closure with a sealed site-plan image.
   Verify the retained raw completion and any declared repair result first pass
@@ -209,3 +212,52 @@ the standard runner interface. Docker and OS-level isolation are deferred to
 - [ ] T5.6 [release] Update validation evidence and feature status, then
   package/release only after every prior task is complete. Record OS isolation
   as deferred future hardening rather than a release blocker.
+  - [x] T5.6.1 [local package] Build `dynamic-agent-runner==0.1.17` with
+    `poetry build` and verify the generated sdist and wheel. This proves only
+    local package integrity; it does not authorize a publish.
+  - [ ] T5.6.2 [release decision] Select an unreleased PEP 440 runtime version
+    and explicit publish target before publication. The checked-out `0.1.17`
+    version is already behind repository tag `0.1.31`; do not publish it or
+    infer a version bump from this task. The configured candidates are
+    `global-release-pypi` and `global-dev-pypi`; this task does not choose
+    between them.
+  - [ ] T5.6.3 [publish] Publish only the approved version to the explicit
+    target, then record the immutable artifact identity and release receipt.
+
+## T5.7 — Apple Metal Execution Addendum
+
+- [x] T5.7.1 [tests, RED/GREEN] Add fake-only loader tests proving MPS is
+  selected only when PyTorch reports it available; preserve the current
+  non-MPS `device_map="auto"` behavior exactly. Prove PEFT attachment precedes
+  MPS placement, evaluation mode is set, and generation uses an inference-only
+  context without changing JSON, continuation, cleanup, or redaction behavior.
+  Prove direct and continuation responses expose only MPS selection and measured
+  generation outcome metadata, never tensors, sealed payloads, prompts, or
+  completion fragments.
+- [x] T5.7.2 [implementation] Make the existing `transformers-peft-v1` MPS
+  path explicit and Mac-only: attach the verified PEFT adapter, place the
+  completed model on MPS, set evaluation mode, and use inference-only
+  generation. Extend only the existing redacted model-generation metadata with
+  MPS selection and measured generation outcome on direct and continuation
+  responses. Do not add a workflow-controlled device option, CPU fallback, MLX
+  backend, model conversion, quantized artifact, or compilation default.
+- [x] T5.7.3 [benchmark] With explicit authorization, run a fixed-input warm
+  baseline and candidate on an eligible Mac. Retain only device selection,
+  wall-clock duration, generated-token count, and tokens per second. Adopt a
+  Mac-only dtype or compilation experiment only if it preserves the terminal
+  contract and improves the measured warm-run result; otherwise retain the
+  current MPS configuration. The baseline is the prior loader order that moves
+  the base model to MPS before PEFT attachment; the candidate attaches PEFT
+  before moving the completed model to MPS. Both use the same prepared model,
+  sealed image, prompt, and declared generation limit.
+  - [x] T5.7.3.1 [benchmark fixture] Select a fixed benchmark generation limit
+    that reaches the terminal contract for the simple floorplan image. The
+    production `4096`-token workflow did not complete its MPS warm pass within
+    five minutes on 2026-09-08, so it is not a practical warm benchmark limit.
+    Use the selected limit unchanged for baseline and candidate; do not infer it
+    from partial output or change it during a measurement. The selected limit
+    was `1024` tokens with zero continuations. It reached the terminal contract
+    in the authorized floorplan run, then produced warm MPS measurements of
+    994 generated tokens in 167.301665 seconds (5.941363 tokens/sec) for the
+    prior loader order and 994 in 156.223020 seconds (6.362699 tokens/sec) for
+    the candidate. No dtype or compilation experiment was adopted.

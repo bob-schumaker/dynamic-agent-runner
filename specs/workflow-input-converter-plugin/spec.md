@@ -3,7 +3,8 @@
 ## Metadata
 
 - Feature slug: `workflow-input-converter-plugin`
-- Status: planned; sealed Python converter packages use the standard runner
+- Status: implemented and validated through the manual floorplan gate; release
+  task T5.6 and the Apple Metal addendum remain pending
 - Owner: dynamic-agent-runner workflow-host and local-model boundaries
 - Related specifications:
   - `specs/model-execution-plugin-interface/spec.md`
@@ -308,7 +309,7 @@ requiring invented structure. Raw and repaired text remain private diagnostic
 artifacts; DAR traces and public results contain only classified outcome,
 bounded repair category, and digests.
 
-### FR-7: Authoring and packaging boundary
+### FR-9: Authoring and packaging boundary
 
 An authoring system may emit a converter asset only in the fixed package form
 validated by DAR. It cannot submit a live callable, install a dependency,
@@ -322,6 +323,55 @@ partial workflow. A future `agent-converter-designer` guidance asset may create
 contract-conforming converter packages, but it must not bypass package
 validation.
 
+## Addendum — Apple Metal Execution for `transformers-peft-v1`
+
+### Scope and selection
+
+This addendum optimizes only the existing built-in `transformers-peft-v1`
+runner on macOS hosts where PyTorch reports that MPS is available. It neither
+changes the `transformers-generate-v1` converter contract nor exposes device,
+precision, or compilation selection to a workflow package or caller.
+
+On an eligible host, the runner may use the `mps` device. On every other host,
+or when MPS is unavailable, it shall preserve the current loader behavior
+unchanged. No MPS failure may select a remote model, change the prepared
+artifact set, or silently change a workflow's output contract.
+
+### Required execution behavior
+
+The MPS path shall:
+
+1. attach the verified PEFT adapter before placing the complete inference model
+   on `mps`;
+2. set the inference model to evaluation mode and execute generation inside an
+   inference-only context;
+3. use the existing prepared base model, adapter, processor, input converter,
+   generation limits, JSON constraint, continuation, and redaction behavior;
+4. retain the existing dtype unless a Mac-only precision change passes the
+   required correctness and performance canary; and
+5. emit only redaction-safe execution metadata identifying MPS selection and
+   the measured generation outcome, never model tensors, payloads, prompts, or
+   private completion fragments.
+
+`PYTORCH_ENABLE_MPS_FALLBACK`, `torch.compile`, an MLX runtime, quantized model
+artifacts, and model conversion are outside this addendum. They alter the
+execution or artifact architecture and require a separate specification.
+
+### Acceptance criteria
+
+- Fake-only tests prove MPS is selected only when available and that the
+  non-MPS loader call and placement behavior are unchanged.
+- Fake-only tests prove adapter attachment, evaluation mode, inference-only
+  generation, packed-input disposal, and existing JSON/continuation behavior
+  remain intact on MPS.
+- A manually authorized warm-run benchmark uses one fixed prepared model, one
+  fixed sealed image, and the same generation limit for baseline and candidate.
+  It records only device selection, wall-clock duration, generated-token count,
+  and tokens per second.
+- A Mac-only dtype or compilation optimization is accepted only if the canary
+  returns the same terminal contract and improves the measured warm-run metric;
+  otherwise the current MPS path remains selected.
+
 ## Acceptance Criteria
 
 - Fake-only contract tests prove DAR loads only the manifest-bound Python
@@ -334,9 +384,9 @@ validation.
   runner mismatch, malformed packed input, package-load failure, timeout, and
   cancellation produce stable redacted outcomes and clear package state.
 - A real, manually authorized acceptance packages the Qwen floorplan converter,
-  invokes the workflow through prompt plus sealed bytes, and returns a bounded
-  normalized result without exposing conversion or model implementation details
-  to the workflow user.
+  invokes the workflow through prompt plus sealed bytes, and returns its bounded
+  terminal result without exposing conversion or model implementation details to
+  the workflow user.
 
 ## Relationship to Existing Model Execution Plugins
 
