@@ -65,6 +65,55 @@ def test_qwen_converter_packs_one_valid_sealed_image() -> None:
     }
 
 
+def test_qwen_converter_replays_the_initial_image_for_continuation() -> None:
+    from dynamic_agent_runner.workflow_host.qwen25_vl_3b_grpo_converter import (
+        Qwen25Vl3bGrpoInputConverter,
+    )
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TransformersGenerateInputContext,
+    )
+
+    calls: dict[str, object] = {}
+
+    class Processor:
+        def apply_chat_template(self, messages, **_kwargs: object) -> object:
+            calls["messages"] = messages
+            return {"input_ids": SimpleNamespace(shape=(1, 4))}
+
+    converter = Qwen25Vl3bGrpoInputConverter(image_decoder=lambda _content: FakeImage())
+    converter.pack(
+        messages=(
+            {"role": "system", "content": "Return JSON."},
+            {"role": "user", "content": "Vectorize this floor plan."},
+            {"role": "assistant", "content": '{"walls":'},
+            {
+                "role": "user",
+                "content": "Continue the exact response from where it stopped. "
+                "Return only the remaining text.",
+            },
+        ),
+        payload=b"png-bytes",
+        context=TransformersGenerateInputContext(Processor()),
+    )
+
+    assert calls["messages"] == [
+        {"role": "system", "content": "Return JSON."},
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "image": ANY},
+                {"type": "text", "text": "Vectorize this floor plan."},
+            ],
+        },
+        {"role": "assistant", "content": '{"walls":'},
+        {
+            "role": "user",
+            "content": "Continue the exact response from where it stopped. "
+            "Return only the remaining text.",
+        },
+    ]
+
+
 def test_floorplan_package_sets_the_qwen_generation_ceiling() -> None:
     package = (
         Path(__file__).resolve().parent
@@ -76,7 +125,8 @@ def test_floorplan_package_sets_the_qwen_generation_ceiling() -> None:
     workflow = load_agent_package_workflow(str(package))
 
     assert workflow.runtime_manifest.nodes[0].raw["model_parameters"] == {
-        "max_tokens": 4096
+        "max_tokens": 4096,
+        "max_continuations": 3,
     }
 
 

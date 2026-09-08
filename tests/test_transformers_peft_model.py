@@ -211,6 +211,134 @@ def test_converter_adapter_passes_json_mode_to_a_capable_runner(
     assert adapter._sealed_payload is None
 
 
+def test_converter_adapter_assembles_bounded_json_continuations(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        GeneratedText,
+        PackedModelInput,
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    calls: list[tuple[tuple[object, ...], bytes]] = []
+    chunks = iter(
+        (
+            GeneratedText('{"walls":', exhausted=True),
+            GeneratedText("[]}", exhausted=False),
+        )
+    )
+
+    class Runner:
+        input_context = object()
+        supports_json_mode = True
+
+        def generate_chunk(
+            self,
+            _packed: PackedModelInput,
+            *,
+            max_new_tokens: int,
+            json_mode: bool,
+        ) -> GeneratedText:
+            assert max_new_tokens == 4
+            assert json_mode is True
+            return next(chunks)
+
+    class Converter:
+        def pack(
+            self, *, messages: tuple[object, ...], payload: bytes, context: object
+        ) -> PackedModelInput:
+            assert context is Runner.input_context
+            calls.append((messages, payload))
+            return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
+
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    )
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    response = adapter.create_response(
+        build_openai_request(
+            model=recipe.model_id,
+            messages=[OpenAIMessage("user", "vectorize")],
+            response_format={"type": "json_object"},
+            max_tokens=4,
+            max_continuations=1,
+        )
+    )
+
+    assert response.content == '{"walls":[]}'
+    assert calls == [
+        (({"role": "user", "content": "vectorize"},), b"sealed image"),
+        (
+            (
+                {"role": "user", "content": "vectorize"},
+                {"role": "assistant", "content": '{"walls":'},
+                {
+                    "role": "user",
+                    "content": "Continue the exact response from where it stopped. "
+                    "Return only the remaining text.",
+                },
+            ),
+            b"sealed image",
+        ),
+    ]
+    assert adapter._sealed_payload is None
+
+
+def test_converter_adapter_rejects_an_exhausted_continuation_budget(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        GeneratedText,
+        PackedModelInput,
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    generated = 0
+
+    class Runner:
+        input_context = object()
+
+        def generate_chunk(
+            self, _packed: PackedModelInput, **_kwargs: object
+        ) -> GeneratedText:
+            nonlocal generated
+            generated += 1
+            return GeneratedText('{"walls":', exhausted=True)
+
+    class Converter:
+        def pack(self, **_kwargs: object) -> PackedModelInput:
+            return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
+
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    )
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    with pytest.raises(ModelExecutionError, match="continuation limit") as error:
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id,
+                messages=[OpenAIMessage("user", "vectorize")],
+                max_continuations=1,
+            )
+        )
+
+    assert generated == 2
+    assert '{"walls":' not in str(error.value)
+    assert adapter._sealed_payload is None
+
+
 def test_converter_adapter_rejects_json_mode_before_packing_for_incapable_runner(
     tmp_path: Path,
 ) -> None:
@@ -987,14 +1115,13 @@ def test_loaded_backend_adds_json_prefix_filter_only_for_json_mode(  # noqa: C90
 
     backend = _LoadedTransformersPeftBackend(model=Model(), processor=Processor())
 
-    assert (
-        backend.generate_packed(
-            Inputs(input_ids=SimpleNamespace(shape=(1, 2))),
-            max_new_tokens=12,
-            json_mode=True,
-        )
-        == "{}"
+    generated = backend.generate_packed(
+        Inputs(input_ids=SimpleNamespace(shape=(1, 2))),
+        max_new_tokens=12,
+        json_mode=True,
     )
+    assert generated.content == "{}"
+    assert generated.exhausted is False
     assert calls["schema"] is None
     assert calls["token_data"][-2:] == (False, 2)
     assert calls["generate"]["prefix_allowed_tokens_fn"](
@@ -1034,10 +1161,47 @@ def test_loaded_backend_generates_from_private_packed_inputs() -> None:
     backend = _LoadedTransformersPeftBackend(model=Model(), processor=Processor())
     packed = Inputs(input_ids=SimpleNamespace(shape=(1, 3)))
 
-    assert backend.generate_packed(packed, max_new_tokens=7) == "output"
+    generated = backend.generate_packed(packed, max_new_tokens=7)
+    assert generated.content == " output "
+    assert generated.exhausted is False
     assert calls["device"] == "private-device"
     assert calls["generate"]["max_new_tokens"] == 7
     assert calls["slice"] == (slice(None), slice(3, None))
+
+
+def test_loaded_backend_reports_when_generation_reaches_its_token_ceiling() -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        _LoadedTransformersPeftBackend,
+    )
+
+    class Inputs(dict):
+        def to(self, _device: object) -> "Inputs":
+            return self
+
+    class Generated:
+        shape = (1, 7)
+
+        def __getitem__(self, _item: object) -> object:
+            return "suffix"
+
+    class Model:
+        device = "private-device"
+
+        def generate(self, **_kwargs: object) -> Generated:
+            return Generated()
+
+    class Processor:
+        def batch_decode(self, _tokens: object, **_kwargs: object) -> list[str]:
+            return [" output "]
+
+    backend = _LoadedTransformersPeftBackend(model=Model(), processor=Processor())
+
+    generated = backend.generate_packed(
+        Inputs(input_ids=SimpleNamespace(shape=(1, 3))), max_new_tokens=4
+    )
+
+    assert generated.content == " output "
+    assert generated.exhausted is True
 
 
 def test_loaded_backend_exposes_only_its_reviewed_processor() -> None:

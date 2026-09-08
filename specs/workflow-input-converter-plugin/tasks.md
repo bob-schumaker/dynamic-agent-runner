@@ -141,6 +141,19 @@ the standard runner interface. Docker and OS-level isolation are deferred to
     existing boolean terminal validator: it passes bounded bytes only between
     declared package assets, retains authenticated local-user diagnostics, and
     exposes only final rendered output plus redacted admission metadata.
+    - [x] T5.4.4.1 [tests, RED/GREEN] Add fake-only standard-runner tests for
+      bounded continuation generation when a JSON completion exhausts its
+      declared chunk ceiling. Prove fragments are concatenated exactly,
+      continuation stops on a non-exhausted chunk, the declared continuation
+      budget fails closed, and neither fragments nor continuation prompts enter
+      traces or API results.
+    - [x] T5.4.4.2 [implementation] Extend the selected standard runner and
+      its fixed converter contract with bounded, deterministic continuation
+      generation. Preserve the original conversation and image ingress, append
+      only the model's exact prior fragment for each continuation request, and
+      return the assembled completion solely to the existing private
+      post-processing edge. Do not add schema-specific stitching, semantic
+      repair, or a public partial-output path.
   - [ ] T5.4.5 [validation] Run focused runner and workflow-local processor
     regressions, then `poetry run pytest -q`, `poetry run ruff check src tests`,
     and `git diff --check`.

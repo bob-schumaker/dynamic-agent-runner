@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
@@ -18,6 +19,10 @@ from dynamic_agent_runner.workflow_host.descriptor import DeclaredInputConverter
 
 
 TRANSFORMERS_GENERATE_V1 = "transformers-generate-v1"
+_CONTINUATION_INSTRUCTION = (
+    "Continue the exact response from where it stopped. Return only the remaining text."
+)
+_MAX_CONTINUATIONS = 3
 
 
 class TransformersPeftBackend(Protocol):
@@ -36,7 +41,7 @@ class TransformersGenerateBackend(Protocol):
 
     def generate_packed(
         self, inputs: object, *, max_new_tokens: int, json_mode: bool = False
-    ) -> str:
+    ) -> str | GeneratedText:
         """Generate one response from converter-packed framework inputs."""
 
 
@@ -51,6 +56,14 @@ class PackedInputConverter(Protocol):
         context: TransformersGenerateInputContext,
     ) -> PackedModelInput:
         """Return one private packed input for the compatible runner."""
+
+
+@dataclass(frozen=True)
+class GeneratedText:
+    """One private generated fragment with its token-ceiling outcome."""
+
+    content: str
+    exhausted: bool
 
 
 DependencyLoader = Callable[[Path, Path], TransformersPeftBackend]
@@ -138,6 +151,23 @@ class TransformersGenerateRunner:
     ) -> str:
         """Consume one packed input and clear it on every exit path."""
 
+        generated = self.generate_chunk(
+            packed_input,
+            max_new_tokens=max_new_tokens,
+            json_mode=json_mode,
+        )
+        completion = generated.content.strip()
+        return _validated_json_object(completion) if json_mode else completion
+
+    def generate_chunk(
+        self,
+        packed_input: PackedModelInput,
+        *,
+        max_new_tokens: int,
+        json_mode: bool = False,
+    ) -> GeneratedText:
+        """Generate one private fragment and report whether it hit its ceiling."""
+
         try:
             _validate_max_new_tokens(max_new_tokens)
             backend = self._get_backend()
@@ -151,7 +181,7 @@ class TransformersGenerateRunner:
                 generated = backend.generate_packed(
                     packed_input.take(), max_new_tokens=max_new_tokens
                 )
-            return _validated_json_object(generated) if json_mode else generated
+            return _generated_text(generated)
         except ModelExecutionError:
             raise
         except Exception as error:  # noqa: BLE001 - backend errors vary.
@@ -229,16 +259,27 @@ class TransformersPeftPackedInputAdapter:
                 request.response_format,
                 supported=bool(getattr(self._runner, "supports_json_mode", False)),
             )
-            packed = self._converter.pack(
-                messages=tuple(request.messages),
-                payload=payload,
-                context=self._runner.input_context,
-            )
             generation_kwargs: dict[str, object] = {
                 "max_new_tokens": _max_new_tokens(request)
             }
             if json_mode:
                 generation_kwargs["json_mode"] = True
+            messages = tuple(request.messages)
+            max_continuations = _max_continuations(request)
+            if max_continuations:
+                return ModelResponse(
+                    content=self._generate_with_continuations(
+                        messages=messages,
+                        payload=payload,
+                        max_continuations=max_continuations,
+                        **generation_kwargs,
+                    )
+                )
+            packed = self._converter.pack(
+                messages=messages,
+                payload=payload,
+                context=self._runner.input_context,
+            )
             return ModelResponse(
                 content=self._runner.generate(packed, **generation_kwargs)
             )
@@ -248,6 +289,41 @@ class TransformersPeftPackedInputAdapter:
             raise ModelExecutionError("local model generation failed") from error
         finally:
             self.clear_sealed_payload()
+
+    def _generate_with_continuations(
+        self,
+        *,
+        messages: tuple[Mapping[str, object], ...],
+        payload: bytes,
+        max_new_tokens: int,
+        max_continuations: int,
+        json_mode: bool = False,
+    ) -> str:
+        fragments: list[str] = []
+        continuation_messages = messages
+        for continuation in range(max_continuations + 1):
+            packed = self._converter.pack(
+                messages=continuation_messages,
+                payload=payload,
+                context=self._runner.input_context,
+            )
+            generated = self._runner.generate_chunk(
+                packed,
+                max_new_tokens=max_new_tokens,
+                json_mode=json_mode,
+            )
+            fragments.append(generated.content)
+            if not generated.exhausted:
+                completion = "".join(fragments).strip()
+                return _validated_json_object(completion) if json_mode else completion
+            if continuation == max_continuations:
+                raise ModelExecutionError("local model continuation limit exceeded")
+            continuation_messages = (
+                *continuation_messages,
+                {"role": "assistant", "content": generated.content},
+                {"role": "user", "content": _CONTINUATION_INSTRUCTION},
+            )
+        raise AssertionError("continuation loop must return or raise")
 
 
 class TransformersPeftSingleImageAdapter:
@@ -351,6 +427,13 @@ def _max_new_tokens(request: OpenAIModelRequest) -> int:
     return value
 
 
+def _max_continuations(request: OpenAIModelRequest) -> int:
+    value = request.extra.get("max_continuations", 0)
+    if not isinstance(value, int) or not 0 <= value <= _MAX_CONTINUATIONS:
+        raise ModelExecutionError("model continuation limit is invalid")
+    return value
+
+
 def _validate_max_new_tokens(value: object) -> None:
     if not isinstance(value, int) or not 1 <= value <= 4096:
         raise ModelExecutionError("model generation limit is invalid")
@@ -376,6 +459,24 @@ def _validated_json_object(value: str) -> str:
     if not isinstance(parsed, dict):
         raise ModelExecutionError("local model returned invalid JSON")
     return value
+
+
+def _generated_text(value: str | GeneratedText) -> GeneratedText:
+    if isinstance(value, GeneratedText):
+        return value
+    if not isinstance(value, str):
+        raise ModelExecutionError("local model returned an invalid response")
+    return GeneratedText(value, exhausted=False)
+
+
+def _generation_exhausted(
+    generated: object, prefix_length: int, max_new_tokens: int
+) -> bool:
+    shape = getattr(generated, "shape", None)
+    try:
+        return shape[1] - prefix_length >= max_new_tokens
+    except (IndexError, TypeError):
+        return False
 
 
 def _json_mode_prefix_filter(processor: object) -> object:
@@ -524,11 +625,13 @@ class _LoadedTransformersPeftBackend:
             return_dict=True,
             return_tensors="pt",
         )
-        return self.generate_packed(inputs, max_new_tokens=max_new_tokens)
+        return self.generate_packed(
+            inputs, max_new_tokens=max_new_tokens
+        ).content.strip()
 
     def generate_packed(
         self, inputs: object, *, max_new_tokens: int, json_mode: bool = False
-    ) -> str:
+    ) -> GeneratedText:
         """Generate from converter-owned processor inputs within one worker."""
 
         move = getattr(inputs, "to", None)
@@ -555,7 +658,10 @@ class _LoadedTransformersPeftBackend:
         )
         if not decoded or not isinstance(decoded[0], str) or not decoded[0].strip():
             raise ModelExecutionError("local model returned an empty response")
-        return decoded[0].strip()
+        return GeneratedText(
+            decoded[0],
+            exhausted=_generation_exhausted(generated, prefix_length, max_new_tokens),
+        )
 
 
 class DeferredTransformersPeftSingleImageAdapter:

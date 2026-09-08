@@ -31,6 +31,7 @@ nodes:
     model: qwen25-vl-3b-floorplan-grpo
     model_parameters:
       max_tokens: 4096
+      max_continuations: 3
     prompt:
       system: Return only an SVG floorplan.
       user_template: "{prompt}"

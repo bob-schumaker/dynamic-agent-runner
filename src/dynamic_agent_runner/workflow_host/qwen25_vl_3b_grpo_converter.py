@@ -78,30 +78,39 @@ def _decode_image(payload: bytes) -> object:
 def _qwen_chat_messages(
     messages: Sequence[Mapping[str, object]], image: object
 ) -> list[dict[str, object]]:
-    """Preserve system instructions and bind the sealed image to one user turn."""
+    """Bind the image to the initial user turn and preserve continuations."""
 
     rendered: list[dict[str, object]] = []
-    user_count = 0
+    state = "system_or_initial_user"
     for message in messages:
         role = message.get("role")
         content = message.get("content")
         if not isinstance(role, str) or not isinstance(content, str):
             raise ModelExecutionError("sealed image input is unavailable")
-        if role == "system":
+        if role == "system" and state == "system_or_initial_user":
             rendered.append({"role": role, "content": content})
             continue
-        if role != "user" or user_count:
-            raise ModelExecutionError("sealed image input is unavailable")
-        rendered.append(
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image", "image": image},
-                    {"type": "text", "text": content},
-                ],
-            }
-        )
-        user_count += 1
-    if user_count != 1:
+        if role == "user" and state == "system_or_initial_user":
+            rendered.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "image": image},
+                        {"type": "text", "text": content},
+                    ],
+                }
+            )
+            state = "assistant_or_end"
+            continue
+        if role == "assistant" and state == "assistant_or_end":
+            rendered.append({"role": role, "content": content})
+            state = "continuation_user"
+            continue
+        if role == "user" and state == "continuation_user":
+            rendered.append({"role": role, "content": content})
+            state = "assistant_or_end"
+            continue
+        raise ModelExecutionError("sealed image input is unavailable")
+    if state != "assistant_or_end":
         raise ModelExecutionError("sealed image input is unavailable")
     return rendered
