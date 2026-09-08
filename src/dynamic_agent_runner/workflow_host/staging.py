@@ -491,9 +491,7 @@ def _mark_declared_local_tool_assets_executable(root: Path) -> None:
             for tool in tools
             if isinstance(tool, Mapping) and tool.get("kind") == "local"
         )
-    output = descriptor.get("output")
-    if isinstance(output, Mapping) and isinstance(output.get("validator"), Mapping):
-        assets.append(output["validator"].get("asset_path"))
+    assets.extend(_terminal_output_assets(descriptor.get("output")))
     for asset_path in assets:
         if not isinstance(asset_path, str) or not asset_path:
             continue
@@ -507,6 +505,23 @@ def _mark_declared_local_tool_assets_executable(root: Path) -> None:
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
             raise PackageStagingError("local tool asset is unavailable")
         os.chmod(resolved, 0o700)
+
+
+def _terminal_output_assets(output: object) -> list[object]:
+    """Return validator and processor assets declared at the output boundary."""
+
+    assets: list[object] = []
+    if isinstance(output, Mapping):
+        if isinstance(output.get("validator"), Mapping):
+            assets.append(output["validator"].get("asset_path"))
+        processors = output.get("processors")
+        if isinstance(processors, list):
+            assets.extend(
+                processor.get("asset_path")
+                for processor in processors
+                if isinstance(processor, Mapping)
+            )
+    return assets
 
 
 def _positive_int(value: object) -> bool:
