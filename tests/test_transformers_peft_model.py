@@ -133,7 +133,10 @@ def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
     response = adapter.create_response(
         build_openai_request(
             model=recipe.model_id,
-            messages=[OpenAIMessage("user", "vectorize")],
+            messages=[
+                OpenAIMessage("system", "Return only SVG."),
+                OpenAIMessage("user", "vectorize"),
+            ],
             max_tokens=12,
         )
     )
@@ -323,14 +326,14 @@ def test_generic_runner_uses_verified_groups_and_clears_sealed_image(
         build_openai_request(
             model=recipe.model_id,
             messages=[OpenAIMessage("user", "vectorize")],
-            max_tokens=1024,
+            max_tokens=4096,
         )
     )
 
     assert response.content == '{"walls":[]}'
     assert calls[0][0] == "vectorize"
     assert isinstance(calls[0][1], FakeImage)
-    assert calls[0][2] == 1024
+    assert calls[0][2] == 4096
     assert adapter._sealed_image is None
     with pytest.raises(ModelExecutionError, match="sealed image"):
         adapter.create_response(
@@ -406,7 +409,7 @@ def test_generic_runner_rejects_bad_decodes_and_generation_limits(
             build_openai_request(
                 model=recipe.model_id,
                 messages=[OpenAIMessage("user", "vectorize")],
-                max_tokens=1025,
+                max_tokens=4097,
             )
         )
     assert adapter._sealed_image is None

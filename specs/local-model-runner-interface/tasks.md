@@ -18,7 +18,7 @@
   `AutoModelForImageTextToText`, and `PeftModel` local-only/remote-code-disabled
   arguments; assert no loader call for rejected profiles or sets.
 - [x] T2.2 [tests, RED] Add fake-only tests for one PNG/JPEG image, 8 MiB and
-  32-megapixel limits, malformed media, 1..1024 `max_new_tokens`, deterministic
+  32-megapixel limits, malformed media, 1..4096 `max_new_tokens`, deterministic
   generation, prompt-token suffix slicing, empty output, and cleanup on every
   exception/cancellation path.
 - [x] T2.3 [implementation] Add a framework-named generic runner/adapter that

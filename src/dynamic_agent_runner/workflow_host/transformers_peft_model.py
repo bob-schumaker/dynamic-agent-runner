@@ -304,10 +304,12 @@ class TransformersPeftSingleImageAdapter:
 
 
 def _user_prompt(request: OpenAIModelRequest) -> str:
-    if len(request.messages) != 1:
+    user_messages = [
+        message for message in request.messages if message.get("role") == "user"
+    ]
+    if len(user_messages) != 1:
         raise ModelExecutionError("model request must contain one user message")
-    message = request.messages[0]
-    prompt = message.get("content") if message.get("role") == "user" else None
+    prompt = user_messages[0].get("content")
     if not isinstance(prompt, str) or not prompt.strip():
         raise ModelExecutionError("model request has no user message")
     return prompt
@@ -320,7 +322,7 @@ def _max_new_tokens(request: OpenAIModelRequest) -> int:
 
 
 def _validate_max_new_tokens(value: object) -> None:
-    if not isinstance(value, int) or not 1 <= value <= 1024:
+    if not isinstance(value, int) or not 1 <= value <= 4096:
         raise ModelExecutionError("model generation limit is invalid")
 
 

@@ -55,7 +55,7 @@ the following are true:
 | Adapter API | `PeftModel.from_pretrained` against the verified adapter group, `is_trainable=False`, and local-only loading. |
 | Image runtime | The optional runtime includes a Torchvision release compatible with the locked Torch release; Qwen's processor requires it even for one image. |
 | Input | One nonempty user text prompt and exactly one sealed PNG or JPEG image no larger than 8 MiB or 32 megapixels. |
-| Generation | `model.generate` with `max_new_tokens` in `1..1024`; sampling is disabled. |
+| Generation | `model.generate` with `max_new_tokens` in `1..4096`; sampling is disabled. |
 | Decode | Remove the prompt-token prefix, batch-decode the generated suffix with special tokens skipped, and reject an empty result. |
 
 The standard multimodal chat-template flow receives only an in-memory decoded
