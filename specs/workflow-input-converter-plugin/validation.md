@@ -17,8 +17,13 @@ or execute a workflow-provided converter asset until a backend has passed every
 required adversarial and real-platform check in
 [`../local-tool-sandbox-hardening/spec.md`](../local-tool-sandbox-hardening/spec.md).
 
-The local real-platform probe on 2026-09-07 attempted to launch `/bin/echo`
-under the existing deny-by-default profile with only literal read, metadata, and
-process-exec allowances for that binary. `sandbox-exec` rejected the profile
-before launch with `sandbox_apply: Operation not permitted`. This platform
-cannot provide the required backend through the installed `sandbox-exec`.
+The real host-terminal probe on 2026-09-07, run in a temporary Herdr
+workspace, established that `sandbox-exec` itself launches: `/bin/echo` exits
+successfully under `(version 1) (allow default)`. A deny-by-default candidate
+for that same executable aborts with exit status 134, both when it allows only
+the executable and when it additionally permits reads under `/System` and
+`/usr/lib`. The earlier direct-Codex `sandbox_apply: Operation not permitted`
+result was consequently a Codex-launch limitation, not evidence about the
+host terminal. The strict candidate has failed to launch and is not an
+admission backend; no conclusion about every possible macOS profile follows
+from this probe.
