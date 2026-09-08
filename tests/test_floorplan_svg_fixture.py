@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import shutil
 import stat
 from datetime import UTC, datetime
@@ -78,3 +79,38 @@ def test_floorplan_fixture_stages_a_workflow_owned_svg_validator(
     assert sandbox.run(
         definition, artifact_role="terminal_output", artifact_bytes=b"<svg>"
     ) == {"valid": False}
+
+    renderer = LocalToolDefinition(
+        tool_id="terminal-output-renderer",
+        asset_path=Path("tools/render_floorplan_json"),
+        accepted_artifact_role="terminal_output",
+        max_input_bytes=32 * 1024,
+        max_output_bytes=32 * 1024,
+        timeout_seconds=1,
+    )
+    rendered = sandbox.run(
+        renderer,
+        artifact_role="terminal_output",
+        artifact_bytes=(
+            b'{"walls":[{"id":"wall_1","start":[10,20],"end":[90,20],'
+            b'"thickness":4,"curvature":0,"openings":[{"type":"window",'
+            b'"center":50,"width":20}]}],"rooms":[{"label":"outdoor",'
+            b'"walls":["wall_1"]}]}'
+        ),
+    )
+    assert rendered["status"] == "accepted"
+    assert b"<svg " in base64.b64decode(rendered["output_base64"])
+    assert sandbox.run(
+        renderer,
+        artifact_role="terminal_output",
+        artifact_bytes=b'{"walls":[],"rooms":[],"extra":true}',
+    ) == {"status": "rejected"}
+    assert sandbox.run(
+        renderer,
+        artifact_role="terminal_output",
+        artifact_bytes=(
+            b'{"walls":[{"id":"wall_1","start":[10,20],"end":[90,20],'
+            b'"thickness":4,"curvature":0,"openings":[{"type":"arch",'
+            b'"center":50,"width":20}]}],"rooms":[]}'
+        ),
+    ) == {"status": "rejected"}

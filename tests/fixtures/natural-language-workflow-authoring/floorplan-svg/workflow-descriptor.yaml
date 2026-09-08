@@ -25,6 +25,10 @@ task_invocation:
   terminal_output_schema_ref: svg_floorplan
 output:
   schema_ref: svg_floorplan
+  processors:
+    - asset_path: tools/render_floorplan_json
+      max_output_bytes: 32768
+      timeout_seconds: 1
   validator:
     asset_path: tools/validate_svg
     max_output_bytes: 512

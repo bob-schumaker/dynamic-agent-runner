@@ -154,6 +154,22 @@ the standard runner interface. Docker and OS-level isolation are deferred to
       return the assembled completion solely to the existing private
       post-processing edge. Do not add schema-specific stitching, semantic
       repair, or a public partial-output path.
+    - [x] T5.4.4.3 [evidence] Evaluate the retained simple-floorplan completion
+      `sha256:4db4b642a049a28c42c9bd1d1187b6596ea343ea5d4580ba20b139bd7b721734`.
+      Record only the observed contract: a strict JSON object with `walls` and
+      `rooms`; walls have `id`, `start`, `end`, `thickness`, `curvature`, and
+      `openings`; rooms have `label` and wall IDs. Do not infer room polygons:
+      the observed room references are not complete topology.
+    - [x] T5.4.4.4 [tests, RED/GREEN] Add workflow-local processor tests for
+      strict JSON-object admission and a deterministic JSON-to-SVG renderer.
+      Cover the observed wall/opening fields, malformed or incomplete JSON,
+      unknown opening types, and non-geometric room labels. Assert rendering
+      never invents walls, room polygons, or semantic repair.
+    - [x] T5.4.4.5 [implementation] Package a fixed terminal-processor chain
+      for the floorplan workflow: strict JSON admission followed by a
+      workflow-owned wall/opening SVG renderer. Preserve the original JSON and
+      processor report as private diagnostics; emit only SVG after successful
+      rendering. DAR remains unaware of floorplan fields and SVG semantics.
   - [ ] T5.4.5 [validation] Run focused runner and workflow-local processor
     regressions, then `poetry run pytest -q`, `poetry run ruff check src tests`,
     and `git diff --check`.
