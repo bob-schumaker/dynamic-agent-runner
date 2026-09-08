@@ -69,3 +69,19 @@ and preserves the terminal contract. No dtype or compilation experiment was
 adopted; the current MPS configuration remains. OS-level isolation remains
 deferred future hardening, not a converter-admission or release-validation
 blocker.
+
+T5.8 is complete. The host-owned diagnostic surface uses the authenticated
+local principal, a separate diagnostic ID, an 8 MiB aggregate retained-artifact
+limit, seven-day TTL, and owner-only revocation. Focused fake-only diagnostics
+tests cover ordered fragment capture, post-generation failure and cancellation,
+normal-trace redaction, aggregate limiting, revocation, and expiry; the adapter
+test covers recording a malformed chunk before strict JSON rejection. On
+2026-09-08 the explicitly authorized cleaned Japan-home MPS debug run retained
+diagnostic `37196299-5c25-45de-bbe5-08abb15a6957` and classified it as failed:
+three chunks reported generated-token counts `1024,19,19`, exhaustion states
+`true,false,false`, malformed assembled JSON, no terminal processor reached,
+and no retention-limit flag. The ordinary trace remained failed with zero output
+bytes. No retained fragment content is recorded here. Final verification:
+`poetry run pytest -q` reported `1926 passed, 1 skipped, 7 deselected`; `poetry
+run ruff check src tests` and `git diff --check` passed. The seven warnings are
+the existing unregistered `live_matrix` marks.

@@ -4,7 +4,8 @@
 
 T1 through T5.5 are complete. T5.6 has a verified local package build but
 requires a release-version and publish-target decision before publication. T5.7
-is the bounded Mac-only Metal addendum.
+is the bounded Mac-only Metal addendum. T5.8 specifies host-owned debug
+diagnostic retention for sealed converter runs.
 Each implementation task requires its preceding RED test to fail for the
 intended reason. Unit tests use fakes only: they must not download models,
 execute a live converter, load a real model, or depend on a GPU.
@@ -261,3 +262,41 @@ the standard runner interface. Docker and OS-level isolation are deferred to
     994 generated tokens in 167.301665 seconds (5.941363 tokens/sec) for the
     prior loader order and 994 in 156.223020 seconds (6.362699 tokens/sec) for
     the candidate. No dtype or compilation experiment was adopted.
+
+## T5.8 — Host-owned Debug Diagnostic Retention
+
+- [x] T5.8.1 [design] Define one explicit local-principal debug invocation
+  capability, separate debug-run/retrieval surface, and authenticated diagnostic
+  run identifier distinct from the ordinary run ID. It must not be a workflow
+  manifest field, converter parameter, model parameter, or normal workflow
+  result option. Define fixed aggregate retention and expiration limits,
+  authenticated retrieval and deletion behavior, and the classified outcome
+  when the retention limit is reached for both completed and failed runs.
+- [x] T5.8.2 [tests, RED] Add fake-only runner and host tests proving a debug
+  run retains every model-output fragment in order, per-chunk token/exhaustion
+  metadata, reached terminal-processor artifacts, and the classified final
+  outcome. Cover strict-JSON success, EOF continuation, malformed JSON,
+  terminal-processor rejection, timeout, and cancellation. Prove normal runs
+  retain none of these artifacts, and no trace, API result, workflow-visible
+  output, or exception text exposes the debug identifier or content. Prove the
+  recorder observes a generated fragment before strict JSON rejection and before
+  deciding whether to request a continuation.
+- [x] T5.8.3 [implementation] Add the smallest host-owned diagnostic store and
+  explicit debug-run/retrieval seam. Reuse the existing authenticated local
+  terminal-diagnostic ownership and lifecycle pattern where possible. Install a
+  per-run recorder at the standard runner/adapter boundary only for an active
+  debug run, before JSON validation and continuation branching. Enforce
+  aggregate byte and TTL limits, retain no sealed payload, decoded media,
+  tensors, arbitrary process output, or environment data, and preserve existing
+  payload/packed-state cleanup on every path.
+- [x] T5.8.4 [tests, GREEN] Prove authentication, isolation between local
+  principals and run IDs, expiry, aggregate-limit failure, ordered fragment
+  retention, and ordinary redaction/cleanup regressions. Run focused tests,
+  then `poetry run pytest -q`, `poetry run ruff check src tests`, and
+  `git diff --check`.
+- [x] T5.8.5 [manual gate] With explicit authorization, run the cleaned
+  Japan-home floorplan under the debug capability. Verify retained fragments
+  explain whether continuation stopped because of EOF truncation, malformed
+  JSON, or the declared continuation limit, while the normal run result and
+  traces remain redacted. Record only diagnostic identity, declared limits, and
+  classified outcome in validation evidence.

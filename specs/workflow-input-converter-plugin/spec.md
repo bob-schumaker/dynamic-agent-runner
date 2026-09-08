@@ -323,6 +323,32 @@ partial workflow. A future `agent-converter-designer` guidance asset may create
 contract-conforming converter packages, but it must not bypass package
 validation.
 
+### FR-10: Host-owned debug diagnostic retention
+
+DAR shall offer an explicit host-owned, local-principal debug invocation mode
+for a registered workflow. It is not a workflow manifest field, converter
+capability, model parameter, or standard workflow-result/API option. A separate
+host-only debug-run/retrieval surface shall issue an authenticated diagnostic
+identifier distinct from the ordinary run identifier. A debug invocation shall
+retain bounded intermediate model-output fragments in order, each chunk's
+generated-token and exhaustion outcome, terminal-processor input/output
+artifacts when reached, and the classified terminal outcome. The adapter shall
+record each generated fragment before JSON validation or continuation branching,
+so malformed and EOF-truncated first chunks remain reviewable. It shall retain
+the diagnostic when a run fails, is cancelled, or times out after an artifact
+has been produced.
+
+The host shall apply an 8 MiB aggregate retained-artifact limit and a seven-day
+expiration to those diagnostics, preserve the ordinary sealed-payload and
+packed-input cleanup rules, and retain no tensor data, decoded media, arbitrary
+process output, or ambient environment data. Only the authenticated local
+principal that requested the debug invocation may retrieve or revoke the
+retained artifacts. Standard workflow results, API responses, traces, and
+workflow-visible outputs remain redacted and must not contain the debug
+identifier or intermediate content. If the aggregate diagnostic limit is
+reached, retention shall stop with a classified retention-limit flag without
+weakening ordinary run execution or redaction.
+
 ## Addendum — Apple Metal Execution for `transformers-peft-v1`
 
 ### Scope and selection

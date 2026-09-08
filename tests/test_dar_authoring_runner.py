@@ -60,6 +60,7 @@ from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
     DeclaredTerminalOutputProcessor,
     DeclaredTerminalOutputValidator,
 )
+from dynamic_agent_runner.workflow_host.host import LocalWorkflowHost  # noqa: E402
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa: E402
     ReviewedToolPackageBinding,
     ReviewedToolPackageControlPlane,
@@ -1063,6 +1064,41 @@ def test_debug_diagnostic_marks_aggregate_retention_limit(tmp_path: Path) -> Non
     assert len(collector.fragments) == 1
     assert collector.terminal is None
     assert collector.retention_limited is True
+
+
+def test_local_host_exposes_only_the_debug_diagnostic_surface() -> None:
+    class FakeRunner:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        def run_debug(self, request: object, **_kwargs: object) -> str:
+            self.calls.append(("run", request))
+            return "debug-result"
+
+        def debug_diagnostic(self, diagnostic_id: str, **_kwargs: object) -> str:
+            self.calls.append(("load", diagnostic_id))
+            return "diagnostic"
+
+        def delete_debug_diagnostic(
+            self, diagnostic_id: str, **_kwargs: object
+        ) -> None:
+            self.calls.append(("delete", diagnostic_id))
+
+    host = object.__new__(LocalWorkflowHost)
+    runner = FakeRunner()
+    host._runner = runner  # type: ignore[attr-defined]
+    host._ensure_mcp_client_for_workflow = lambda _workflow_id: None  # type: ignore[method-assign]
+
+    assert (
+        host.run_debug(  # type: ignore[arg-type]
+            workflow_id="workflow-1", prepared_input_id="prepared-1", now=NOW
+        )
+        == "debug-result"
+    )
+    assert host.debug_diagnostic("diagnostic-1", now=NOW) == "diagnostic"
+    host.delete_debug_diagnostic("diagnostic-1", now=NOW)
+
+    assert [kind for kind, _ in runner.calls] == ["run", "load", "delete"]
 
 
 def test_runner_binds_reviewed_tool_to_an_opaque_binary_artifact(
