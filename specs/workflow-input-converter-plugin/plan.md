@@ -136,11 +136,18 @@ binding and runs through the standard interface without exposing packed input.
 2. Run focused contract, worker, runner, ingress, registration, and authoring
    tests; then run `poetry run pytest -q`, `poetry run ruff check src tests`,
    and `git diff --check`.
-3. Run a manually authorized floorplan acceptance with the durable prepared
-   Qwen closure and sealed site-plan image. Verify a bounded normalized model
-   response reaches the workflow-local JSON-to-SVG tooling; DAR neither parses
-   that JSON nor validates SVG.
-4. Record only redacted identities, contract versions, and outcomes in release
+3. Establish a generic JSON syntax boundary before the manual floorplan gate.
+   A compatible runner may honor the existing `response_format` contract with
+   constrained decoding; an incompatible runner fails closed. Any bounded,
+   deterministic JSON repair is workflow-owned, preserves the raw completion
+   and repair report as user-only diagnostics, and rejects truncation or
+   invented structure. DAR owns neither floorplan JSON semantics nor repair as
+   a default execution behavior.
+4. Run a manually authorized floorplan acceptance with the durable prepared
+   Qwen closure and sealed site-plan image. Verify strict JSON admission before
+   sending the result to workflow-local JSON-to-SVG tooling; DAR neither parses
+   floorplan JSON semantics nor validates SVG.
+5. Record only redacted identities, contract versions, and outcomes in release
    evidence. Keep Docker and other full-isolation work in its future hardening
    specification.
 

@@ -2,7 +2,10 @@
 
 ## Status
 
-T1 through T4 are complete. T5 remains in this dependency order.
+T1 through T4 and T5.1--T5.3 are complete. T5.4 must establish a generic,
+strict JSON output boundary before the floorplan acceptance can resume. T5.5
+remains blocked by the documented floorplan model/inference result; T5.6 cannot
+start before it.
 Each implementation task requires its preceding RED test to fail for the
 intended reason. Unit tests use fakes only: they must not download models,
 execute a live converter, load a real model, or depend on a GPU.
@@ -95,21 +98,54 @@ the standard runner interface. Docker and OS-level isolation are deferred to
 
 ## T5 — Authoring, Acceptance, and Release
 
-- [ ] T5.1 [tests, RED] Add Agent Engineering guidance tests that require a
-  fixed converter asset for a standard runner or report the missing converter.
+- [x] T5.1 [tests, RED/GREEN] Add Agent Engineering guidance tests that
+  require a fixed converter asset for a standard runner or report the missing
+  converter.
   Reject live callables, dependency installation, arbitrary paths, runtime
   package selection, and format-registry guidance.
-- [ ] T5.2 [implementation] Update Agent Engineering guidance only to author
+- [x] T5.2 [implementation] Update Agent Engineering guidance only to author
   the fixed package form and declare the compatible runner contract/resource
   needs. It cannot bypass package validation or choose runtime configuration.
   Regenerate and validate the packaged plugin payload.
-- [ ] T5.3 [validation] Run all focused suites, then `poetry run pytest -q`,
+- [x] T5.3 [validation] Run all focused suites, then `poetry run pytest -q`,
   `poetry run ruff check src tests`, and `git diff --check`.
-- [ ] T5.4 [manual gate] With explicit authorization and after T4.3,
+- [ ] T5.4 [JSON output boundary] Establish a generic syntax-only JSON path
+  before floorplan-specific rendering. It may constrain decoding through the
+  already-rendered `response_format` contract when the selected runner supports
+  it, but it must fail closed when that runner cannot honor the contract. DAR
+  must not acquire a floorplan schema, inspect floorplan fields, or repair
+  semantic content.
+  - [ ] T5.4.1 [design] Define the exact declared JSON constraint and its
+    supported-runner capability check. Define the workflow-owned bounded repair
+    fallback separately: it may make only deterministic syntax repairs, must
+    preserve the original completion and an auditable repair report, and must
+    reject truncated or structurally invented output. Do not make repair a DAR
+    default or a substitute for a runner that cannot honor a required JSON
+    constraint.
+  - [ ] T5.4.2 [tests, RED] Add fake-only standard-runner tests proving an
+    exact JSON constraint reaches a capable backend, is rejected before
+    generation by an incapable backend, and leaves unstructured generation
+    unchanged. Prove no prompt text, sealed payload, raw completion, or repair
+    artifact is exposed in DAR traces or API results.
+  - [ ] T5.4.3 [implementation] Implement only the generic runner seam and
+    capability binding required by T5.4.2. Reuse `response_format`; do not add
+    a floorplan branch, a general schema language, or a model-specific prompt
+    rewrite.
+  - [ ] T5.4.4 [tests, RED/GREEN] Add workflow-owned post-processing tests for
+    strict JSON validation and the declared bounded repair policy. Retain the
+    original and repaired completion as user-only diagnostic artifacts with
+    digests and a repair report; accept only strict JSON after processing. The
+    processor must reject incomplete or semantically ambiguous output rather
+    than invent structure.
+  - [ ] T5.4.5 [validation] Run focused runner and workflow-local processor
+    regressions, then `poetry run pytest -q`, `poetry run ruff check src tests`,
+    and `git diff --check`.
+- [ ] T5.5 [manual gate] With explicit authorization and after T5.4,
   execute the durable prepared Qwen closure with a sealed site-plan image.
-  Verify a bounded normalized response reaches workflow-local JSON-to-SVG
-  tooling. Record only redacted identities, contract versions, and outcomes;
-  DAR must neither parse that JSON nor validate SVG.
-- [ ] T5.5 [release] Update validation evidence and feature status, then
+  Verify the retained raw completion and any declared repair result first pass
+  strict JSON admission, then verify the admitted JSON reaches workflow-local
+  JSON-to-SVG tooling. Record only redacted identities, contract versions, and
+  outcomes; DAR must neither parse floorplan semantics nor validate SVG.
+- [ ] T5.6 [release] Update validation evidence and feature status, then
   package/release only after every prior task is complete. Record OS isolation
   as deferred future hardening rather than a release blocker.
