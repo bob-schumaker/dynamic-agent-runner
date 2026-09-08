@@ -9,7 +9,7 @@ model:
 skills: []
 tools: []
 workspace:
-  accepted_input_types: [image/png]
+  accepted_input_types: [image/jpeg, image/png]
   scratch_access: none
 input_contract:
   mode: hybrid
