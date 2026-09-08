@@ -128,6 +128,11 @@ def test_floorplan_package_sets_the_qwen_generation_ceiling() -> None:
         "max_tokens": 4096,
         "max_continuations": 3,
     }
+    assert workflow.runtime_manifest.nodes[0].raw["prompt"]["system"] == (
+        "Return only a JSON object with walls and rooms. Each wall must include "
+        "id, start, end, thickness, curvature, and openings. Each room must "
+        "include label and walls."
+    )
 
 
 @pytest.mark.parametrize(

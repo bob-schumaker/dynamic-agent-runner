@@ -27,13 +27,16 @@ tools: []
 nodes:
   - id: answer_request
     kind: llm_step
-    label: Generate SVG floorplan
+    label: Generate structured floorplan
     model: qwen25-vl-3b-floorplan-grpo
     model_parameters:
       max_tokens: 4096
       max_continuations: 3
     prompt:
-      system: Return only an SVG floorplan.
+      system: >-
+        Return only a JSON object with walls and rooms. Each wall must include
+        id, start, end, thickness, curvature, and openings. Each room must
+        include label and walls.
       user_template: "{prompt}"
       input_vars: [prompt]
 edges: []
