@@ -344,6 +344,55 @@ def test_converter_adapter_emits_redacted_mps_metadata_for_direct_response(
     assert adapter._sealed_payload is None
 
 
+def test_converter_adapter_records_a_malformed_chunk_before_json_rejection(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        GeneratedText,
+        PackedModelInput,
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    recorded: list[GeneratedText] = []
+
+    class Runner:
+        input_context = object()
+        supports_json_mode = True
+        uses_mps = True
+
+        def generate_chunk(
+            self, _packed: PackedModelInput, **_kwargs: object
+        ) -> GeneratedText:
+            return GeneratedText('{"walls":[', exhausted=True, generated_tokens=3)
+
+    class Converter:
+        def pack(self, **_kwargs: object) -> PackedModelInput:
+            return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
+
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    )
+    adapter.set_debug_fragment_recorder(recorded.append)
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    with pytest.raises(ModelExecutionError, match="invalid JSON"):
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id,
+                messages=[OpenAIMessage("user", "vectorize")],
+                response_format={"type": "json_object"},
+            )
+        )
+
+    assert recorded == [GeneratedText('{"walls":[', exhausted=True, generated_tokens=3)]
+    assert adapter._sealed_payload is None
+
+
 def test_converter_adapter_continues_an_incomplete_json_chunk(
     tmp_path: Path,
 ) -> None:

@@ -233,6 +233,7 @@ class TransformersPeftPackedInputAdapter:
         self._converter = converter
         self._runner = runner or TransformersGenerateRunner(prepared_set)
         self._sealed_payload: bytes | None = None
+        self._debug_fragment_recorder: Callable[[GeneratedText], None] | None = None
 
     @property
     def models(self) -> tuple[str, ...]:
@@ -264,6 +265,13 @@ class TransformersPeftPackedInputAdapter:
 
     def clear_sealed_payload(self) -> None:
         self._sealed_payload = None
+
+    def set_debug_fragment_recorder(
+        self, recorder: Callable[[GeneratedText], None] | None
+    ) -> None:
+        """Set the host-private observer for generated fragments in a debug run."""
+
+        self._debug_fragment_recorder = recorder
 
     def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         if self._sealed_payload is None:
@@ -297,22 +305,27 @@ class TransformersPeftPackedInputAdapter:
                 payload=payload,
                 context=self._runner.input_context,
             )
-            if bool(getattr(self._runner, "uses_mps", False)):
+            if bool(getattr(self._runner, "uses_mps", False)) or (
+                self._debug_fragment_recorder is not None
+            ):
                 generated = self._runner.generate_chunk(packed, **generation_kwargs)
+                self._record_generated_fragment(generated)
                 content = generated.content.strip()
                 if json_mode:
                     content = _validated_json_object(content)
-                return ModelResponse(
-                    content=content,
-                    metadata={
-                        "generation": {
-                            "device": "mps",
-                            "chunk_count": 1,
-                            "chunk_exhausted": [generated.exhausted],
-                            "generated_tokens": [generated.generated_tokens],
-                        }
-                    },
-                )
+                if bool(getattr(self._runner, "uses_mps", False)):
+                    return ModelResponse(
+                        content=content,
+                        metadata={
+                            "generation": {
+                                "device": "mps",
+                                "chunk_count": 1,
+                                "chunk_exhausted": [generated.exhausted],
+                                "generated_tokens": [generated.generated_tokens],
+                            }
+                        },
+                    )
+                return ModelResponse(content=content)
             return ModelResponse(
                 content=self._runner.generate(packed, **generation_kwargs)
             )
@@ -347,6 +360,7 @@ class TransformersPeftPackedInputAdapter:
                 max_new_tokens=max_new_tokens,
                 json_mode=json_mode,
             )
+            self._record_generated_fragment(generated)
             fragments.append(generated.content)
             chunk_exhausted.append(generated.exhausted)
             generated_tokens.append(generated.generated_tokens)
@@ -374,6 +388,10 @@ class TransformersPeftPackedInputAdapter:
                 {"role": "user", "content": _CONTINUATION_INSTRUCTION},
             )
         raise AssertionError("continuation loop must return or raise")
+
+    def _record_generated_fragment(self, generated: GeneratedText) -> None:
+        if self._debug_fragment_recorder is not None:
+            self._debug_fragment_recorder(generated)
 
 
 class TransformersPeftSingleImageAdapter:
