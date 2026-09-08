@@ -32,6 +32,8 @@ def test_docker_sandbox_executor_has_no_ambient_capabilities(tmp_path: Path) -> 
     executor = DockerSandboxExecutor(
         DockerSandboxConfiguration(
             image="example.invalid/dar/converter@sha256:" + "a" * 64,
+            docker_executable=Path("/usr/local/bin/docker"),
+            docker_host="unix:///private/tmp/dar-docker.sock",
             memory_bytes=64 * 1024 * 1024,
             max_processes=1,
             scratch_bytes=1024 * 1024,
@@ -44,20 +46,25 @@ def test_docker_sandbox_executor_has_no_ambient_capabilities(tmp_path: Path) -> 
 
     command = observed["command"]
     assert isinstance(command, tuple)
-    assert command[:3] == ("docker", "run", "--rm")
+    assert command[:3] == ("/usr/local/bin/docker", "run", "--rm")
     assert "--network=none" in command
     assert "--read-only" in command
     assert "--cap-drop=ALL" in command
     assert "--security-opt=no-new-privileges:true" in command
     assert "--pids-limit=1" in command
     assert "--memory=67108864" in command
-    assert "--tmpfs=/dar/scratch:rw,noexec,nosuid,size=1048576" in command
+    assert "--tmpfs=/dar/scratch:rw,noexec,nosuid,size=1048576,mode=1777" in command
     assert f"--mount=type=bind,src={asset},dst=/dar/asset,readonly" in command
-    assert command[-1:] == ("/dar/asset",)
+    assert "--entrypoint=/dar/asset" in command
+    assert command[-1:] == ("example.invalid/dar/converter@sha256:" + "a" * 64,)
     kwargs = observed["kwargs"]
     assert isinstance(kwargs, dict)
     assert kwargs["input"] == b"sealed"
-    assert kwargs["env"] == {"HOME": "/nonexistent", "PATH": "/usr/bin:/bin"}
+    assert kwargs["env"] == {
+        "DOCKER_HOST": "unix:///private/tmp/dar-docker.sock",
+        "HOME": "/nonexistent",
+        "PATH": "/usr/bin:/bin",
+    }
 
 
 def test_docker_sandbox_executor_rejects_unbounded_output(tmp_path: Path) -> None:
@@ -67,6 +74,8 @@ def test_docker_sandbox_executor_rejects_unbounded_output(tmp_path: Path) -> Non
     executor = DockerSandboxExecutor(
         DockerSandboxConfiguration(
             image="example.invalid/dar/converter@sha256:" + "a" * 64,
+            docker_executable=Path("/usr/local/bin/docker"),
+            docker_host="unix:///private/tmp/dar-docker.sock",
             memory_bytes=64 * 1024 * 1024,
             max_processes=1,
             scratch_bytes=1024 * 1024,

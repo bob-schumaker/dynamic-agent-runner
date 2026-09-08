@@ -55,6 +55,8 @@ class DockerSandboxConfiguration:
     """Host-owned fixed limits for one digest-pinned Docker worker image."""
 
     image: str
+    docker_executable: Path
+    docker_host: str
     memory_bytes: int
     max_processes: int
     scratch_bytes: int
@@ -69,6 +71,18 @@ class DockerSandboxConfiguration:
             or any(character not in "0123456789abcdef" for character in digest)
         ):
             raise LocalToolSandboxError("docker sandbox image is invalid")
+        if (
+            not isinstance(self.docker_executable, Path)
+            or not self.docker_executable.is_absolute()
+            or ".." in self.docker_executable.parts
+        ):
+            raise LocalToolSandboxError("docker sandbox executable is invalid")
+        if (
+            not self.docker_host.startswith("unix:///")
+            or "\n" in self.docker_host
+            or "\x00" in self.docker_host
+        ):
+            raise LocalToolSandboxError("docker sandbox endpoint is invalid")
         if any(
             not isinstance(value, int) or isinstance(value, bool) or value <= 0
             for value in (
@@ -114,7 +128,7 @@ class DockerSandboxExecutor:
         if not asset.is_absolute():
             raise LocalToolSandboxError("docker sandbox request is invalid")
         docker_command = (
-            "docker",
+            str(self._configuration.docker_executable),
             "run",
             "--rm",
             "--network=none",
@@ -124,12 +138,12 @@ class DockerSandboxExecutor:
             f"--pids-limit={self._configuration.max_processes}",
             f"--memory={self._configuration.memory_bytes}",
             "--tmpfs="
-            f"/dar/scratch:rw,noexec,nosuid,size={self._configuration.scratch_bytes}",
+            f"/dar/scratch:rw,noexec,nosuid,size={self._configuration.scratch_bytes},mode=1777",
             "--user=65534:65534",
             "--workdir=/dar/scratch",
             f"--mount=type=bind,src={asset},dst=/dar/asset,readonly",
+            "--entrypoint=/dar/asset",
             self._configuration.image,
-            "/dar/asset",
         )
         try:
             result = self._execute(
@@ -139,7 +153,11 @@ class DockerSandboxExecutor:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 timeout=timeout_seconds,
-                env={"HOME": "/nonexistent", "PATH": "/usr/bin:/bin"},
+                env={
+                    "DOCKER_HOST": self._configuration.docker_host,
+                    "HOME": "/nonexistent",
+                    "PATH": "/usr/bin:/bin",
+                },
             )
             output = result.stdout  # type: ignore[attr-defined]
         except (AttributeError, OSError, subprocess.SubprocessError) as error:
