@@ -52,3 +52,10 @@ write against a 1 MiB tmpfs, and a 128 MiB allocation against a 64 MiB memory
 limit. The child-process check already proves the one-process bound. These
 envelope results must be repeated against the reviewed worker image before
 generated converter admission can be enabled.
+
+The cached probe image has Python but no `transformers` or `peft`. No other
+locally cached image advertises a suitable runtime. Pulling `alpine:3.20` to
+build a new worker failed Docker's certificate validation, so DAR has neither
+a reviewed runtime image nor a trusted dependency acquisition path for one.
+Do not bypass TLS verification or substitute the probe image; this blocks the
+same-worker worker-image and protocol acceptance portion of T4.
