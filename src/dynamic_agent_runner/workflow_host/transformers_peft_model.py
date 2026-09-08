@@ -36,6 +36,19 @@ class TransformersGenerateBackend(Protocol):
         """Generate one response from converter-packed framework inputs."""
 
 
+class PackedInputConverter(Protocol):
+    """One workflow-bound converter compatible with the standard runner."""
+
+    def pack(
+        self,
+        *,
+        prompt: str,
+        payload: bytes,
+        context: TransformersGenerateInputContext,
+    ) -> PackedModelInput:
+        """Return one private packed input for the compatible runner."""
+
+
 DependencyLoader = Callable[[Path, Path], TransformersPeftBackend]
 PackedDependencyLoader = Callable[[Path, Path], TransformersGenerateBackend]
 ImageDecoder = Callable[[bytes], object]
@@ -135,6 +148,75 @@ class TransformersGenerateRunner:
                     "Transformers + PEFT dependencies unavailable"
                 ) from error
         return self._backend
+
+
+class TransformersPeftPackedInputAdapter:
+    """Expose one converter-bound Transformers generation runner as an adapter."""
+
+    input_converter_contract_id = TRANSFORMERS_GENERATE_V1
+
+    def __init__(
+        self,
+        prepared_set: PreparedArtifactSet,
+        *,
+        converter: PackedInputConverter,
+        runner: TransformersGenerateRunner | None = None,
+    ) -> None:
+        _verified_prepared_paths(prepared_set)
+        self._model_id = prepared_set.recipe.model_id
+        self._adapter_id = prepared_set.recipe.adapter_id
+        self._converter = converter
+        self._runner = runner or TransformersGenerateRunner(prepared_set)
+        self._sealed_payload: bytes | None = None
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        return (self._model_id,)
+
+    @property
+    def is_local(self) -> bool:
+        return True
+
+    @property
+    def capabilities(self) -> dict[str, bool]:
+        return {"text_generation": True, "multimodal_input": True}
+
+    @property
+    def execution_profile_adapter_id(self) -> str:
+        return self._adapter_id
+
+    def resolved_model_id(self, model_id: str) -> str:
+        return self._model_id if model_id == self._model_id else model_id
+
+    def bind_sealed_payload(self, *, content: bytes) -> None:
+        if not content or self._sealed_payload is not None:
+            raise ModelExecutionError("sealed converter input is unavailable")
+        self._sealed_payload = content
+
+    def clear_sealed_payload(self) -> None:
+        self._sealed_payload = None
+
+    def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        if self._sealed_payload is None:
+            raise ModelExecutionError("sealed converter input is unavailable")
+        payload = self._sealed_payload
+        try:
+            packed = self._converter.pack(
+                prompt=_user_prompt(request),
+                payload=payload,
+                context=self._runner.input_context,
+            )
+            return ModelResponse(
+                content=self._runner.generate(
+                    packed, max_new_tokens=_max_new_tokens(request)
+                )
+            )
+        except ModelExecutionError:
+            raise
+        except Exception as error:  # noqa: BLE001 - converter errors vary.
+            raise ModelExecutionError("local model generation failed") from error
+        finally:
+            self.clear_sealed_payload()
 
 
 class TransformersPeftSingleImageAdapter:
@@ -381,6 +463,12 @@ class DeferredTransformersPeftSingleImageAdapter:
         self._adapter_id = adapter_id
         self._resolve_prepared_set = resolve_prepared_set
         self._adapter: TransformersPeftSingleImageAdapter | None = None
+        self._packed_adapter: TransformersPeftPackedInputAdapter | None = None
+        self._payload_bound = False
+
+    @property
+    def input_converter_contract_id(self) -> str:
+        return TRANSFORMERS_GENERATE_V1
 
     @property
     def capabilities(self) -> dict[str, bool]:
@@ -410,7 +498,23 @@ class DeferredTransformersPeftSingleImageAdapter:
         if self._adapter is not None:
             self._adapter.clear_sealed_image()
 
+    def bind_sealed_payload(self, *, content: bytes) -> None:
+        if self._payload_bound:
+            raise ModelExecutionError("sealed converter input is unavailable")
+        self._resolved_packed_adapter().bind_sealed_payload(content=content)
+        self._payload_bound = True
+
+    def clear_sealed_payload(self) -> None:
+        if self._packed_adapter is not None:
+            self._packed_adapter.clear_sealed_payload()
+        self._payload_bound = False
+
     def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        if self._payload_bound:
+            try:
+                return self._resolved_packed_adapter().create_response(request)
+            finally:
+                self._payload_bound = False
         return self._resolved_adapter().create_response(request)
 
     def _resolved_adapter(self) -> TransformersPeftSingleImageAdapter:
@@ -419,3 +523,14 @@ class DeferredTransformersPeftSingleImageAdapter:
                 self._resolve_prepared_set()
             )
         return self._adapter
+
+    def _resolved_packed_adapter(self) -> TransformersPeftPackedInputAdapter:
+        if self._packed_adapter is None:
+            from dynamic_agent_runner.workflow_host.qwen25_vl_3b_grpo_converter import (
+                Qwen25Vl3bGrpoInputConverter,
+            )
+
+            self._packed_adapter = TransformersPeftPackedInputAdapter(
+                self._resolve_prepared_set(), converter=Qwen25Vl3bGrpoInputConverter()
+            )
+        return self._packed_adapter

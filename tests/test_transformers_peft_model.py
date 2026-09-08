@@ -24,6 +24,116 @@ class FakeImage:
     height = 1
 
 
+def test_deferred_adapter_exposes_the_converter_payload_contract(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id=recipe.model_id,
+        adapter_id=recipe.adapter_id,
+        resolve_prepared_set=lambda: PreparedArtifactSet(recipe, paths),
+    )
+
+    assert adapter.input_converter_contract_id == "transformers-generate-v1"
+    adapter.bind_sealed_payload(content=b"sealed image")
+    adapter.clear_sealed_payload()
+    assert adapter._payload_bound is False
+
+
+def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        PackedModelInput,
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    calls: dict[str, object] = {}
+
+    class Runner:
+        input_context = object()
+
+        def generate(self, packed: PackedModelInput, *, max_new_tokens: int) -> str:
+            calls["packed"] = packed
+            calls["max_new_tokens"] = max_new_tokens
+            return "generated floorplan"
+
+    class Converter:
+        def pack(
+            self, *, prompt: str, payload: bytes, context: object
+        ) -> PackedModelInput:
+            calls["converter"] = (prompt, payload, context)
+            return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
+
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    )
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    response = adapter.create_response(
+        build_openai_request(
+            model=recipe.model_id,
+            messages=[OpenAIMessage("user", "vectorize")],
+            max_tokens=12,
+        )
+    )
+
+    assert adapter.input_converter_contract_id == "transformers-generate-v1"
+    assert response.content == "generated floorplan"
+    assert calls["converter"] == ("vectorize", b"sealed image", Runner.input_context)
+    assert calls["max_new_tokens"] == 12
+    assert adapter._sealed_payload is None
+
+
+def test_converter_adapter_clears_payload_after_converter_failure(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+
+    class Runner:
+        input_context = object()
+
+    class Converter:
+        def pack(self, **_kwargs: object) -> object:
+            raise ValueError("bad image")
+
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    )
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    with pytest.raises(ModelExecutionError, match="local model generation failed"):
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id,
+                messages=[OpenAIMessage("user", "vectorize")],
+            )
+        )
+
+    assert adapter._sealed_payload is None
+
+
 def test_standard_runner_consumes_and_clears_private_packed_input(
     tmp_path: Path,
 ) -> None:
