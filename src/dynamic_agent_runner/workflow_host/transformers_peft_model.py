@@ -66,6 +66,24 @@ class PackedModelInput:
         self._inputs = None
 
 
+class TransformersGenerateInputContext:
+    """Restricted processor and packing facilities for a compatible converter."""
+
+    def __init__(self, processor: object) -> None:
+        self._processor = processor
+
+    @property
+    def processor(self) -> object:
+        """Return the reviewed processor for this exact prepared model set."""
+
+        return self._processor
+
+    def pack(self, inputs: object) -> PackedModelInput:
+        """Wrap one processor-produced value for the standard runner."""
+
+        return PackedModelInput(inputs)
+
+
 class TransformersGenerateRunner:
     """Run one verified Transformers + PEFT set from private packed inputs."""
 
@@ -86,6 +104,12 @@ class TransformersGenerateRunner:
         """Expose the reviewed processor and no model-loading controls."""
 
         return self._get_backend().processor
+
+    @property
+    def input_context(self) -> TransformersGenerateInputContext:
+        """Return the restricted converter context for this runner."""
+
+        return TransformersGenerateInputContext(self.processor)
 
     def generate(self, packed_input: PackedModelInput, *, max_new_tokens: int) -> str:
         """Consume one packed input and clear it on every exit path."""

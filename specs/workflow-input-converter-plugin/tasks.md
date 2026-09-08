@@ -61,7 +61,7 @@ but are not evidence of untrusted-code isolation.
 
 ## T3 — Qwen Floorplan Converter and Opaque Ingress
 
-- [ ] T3.1 [tests, RED] Add fake-only converter tests for one valid sealed
+- [x] T3.1 [tests, RED/GREEN] Add fake-only converter tests for one valid sealed
   Qwen image and empty, oversized, undecodable, and unsupported bytes. Prove
   image decoding and processor conversation/packing occur only in the
   converter, while DAR treats payload bytes as opaque.
