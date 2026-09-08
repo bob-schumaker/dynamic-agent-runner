@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
 from datetime import datetime
@@ -286,6 +287,11 @@ class WorkflowRunner:
             self._validate_terminal_output(
                 policy=policy, package_root=Path(package_root), output=output
             )
+        except asyncio.CancelledError:
+            self._traces.append(
+                RedactedRunTrace(run_id, request.workflow_id, "failed", 0)
+            )
+            raise
         except (
             WorkflowRegistrationError,
             PackageCatalogError,

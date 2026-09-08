@@ -69,7 +69,7 @@ but are not evidence of untrusted-code isolation.
   targets exactly `transformers-generate-v1`, decodes its expected image input,
   builds the processor conversation and generation mapping, and returns only
   the private packed value.
-- [ ] T3.3 [implementation] Migrate the floorplan workflow ingress from the
+- [x] T3.3 [implementation] Migrate the floorplan workflow ingress from the
   direct JPEG/PNG media-type switch and `bind_sealed_image` path to sealed
   bounded bytes delivered to the selected converter. Preserve generic
   byte-count and lifecycle limits; do not add DAR format detection or a media

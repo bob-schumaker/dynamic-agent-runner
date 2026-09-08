@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 from hashlib import sha256
 import json
@@ -1680,6 +1681,88 @@ def test_runner_delivers_converter_payload_without_media_type_routing(
     assert adapter.payload_cleared == 1
     assert "sealed-image-bytes" not in repr(client.responses.calls)
     assert "v1.source-image" not in repr(runner.traces())
+
+
+@pytest.mark.parametrize("failure", [RuntimeError("worker failed"), TimeoutError()])
+def test_runner_clears_converter_payload_and_redacts_worker_failures(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failure: Exception
+) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+    )
+    monkeypatch.setattr(
+        workflow_runner_module,
+        "run_agent_workflow",
+        lambda **_kwargs: (_ for _ in ()).throw(failure),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="DAR workflow execution failed"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    assert adapter.payload_cleared == 1
+    assert "sealed-image-bytes" not in repr(runner.traces())
+    assert runner.traces()[-1].status == "failed"
+
+
+def test_runner_clears_converter_payload_and_records_cancellation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+    )
+    monkeypatch.setattr(
+        workflow_runner_module,
+        "run_agent_workflow",
+        lambda **_kwargs: (_ for _ in ()).throw(asyncio.CancelledError()),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    assert adapter.payload_cleared == 1
+    assert runner.traces()[-1].status == "failed"
 
 
 def test_floorplan_run_validates_shaped_terminal_output_after_image_delivery(
