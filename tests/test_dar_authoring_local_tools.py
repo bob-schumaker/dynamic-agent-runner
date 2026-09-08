@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 
 from dynamic_agent_runner.workflow_host.local_tools import (
+    DockerSandboxConfiguration,
+    DockerSandboxExecutor,
     execute_macos_sandbox_exec,
     create_local_tool_binding,
     LocalToolDefinition,
@@ -14,6 +16,69 @@ from dynamic_agent_runner.workflow_host.local_tools import (
     LocalToolSandboxError,
     macos_sandbox_profile,
 )
+
+
+def test_docker_sandbox_executor_has_no_ambient_capabilities(tmp_path: Path) -> None:
+    asset = tmp_path / "package" / "tools" / "validate"
+    asset.parent.mkdir(parents=True)
+    asset.write_text("placeholder", encoding="utf-8")
+    observed: dict[str, object] = {}
+
+    def execute(command: tuple[str, ...], **kwargs: object) -> object:
+        observed["command"] = command
+        observed["kwargs"] = kwargs
+        return type("Result", (), {"stdout": b'{"valid":true}'})()
+
+    executor = DockerSandboxExecutor(
+        DockerSandboxConfiguration(
+            image="example.invalid/dar/converter@sha256:" + "a" * 64,
+            memory_bytes=64 * 1024 * 1024,
+            max_processes=1,
+            scratch_bytes=1024 * 1024,
+            max_output_bytes=4096,
+        ),
+        execute=execute,
+    )
+
+    assert executor((str(asset),), b"sealed", 5) == b'{"valid":true}'
+
+    command = observed["command"]
+    assert isinstance(command, tuple)
+    assert command[:3] == ("docker", "run", "--rm")
+    assert "--network=none" in command
+    assert "--read-only" in command
+    assert "--cap-drop=ALL" in command
+    assert "--security-opt=no-new-privileges:true" in command
+    assert "--pids-limit=1" in command
+    assert "--memory=67108864" in command
+    assert "--tmpfs=/dar/scratch:rw,noexec,nosuid,size=1048576" in command
+    assert f"--mount=type=bind,src={asset},dst=/dar/asset,readonly" in command
+    assert command[-1:] == ("/dar/asset",)
+    kwargs = observed["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert kwargs["input"] == b"sealed"
+    assert kwargs["env"] == {"HOME": "/nonexistent", "PATH": "/usr/bin:/bin"}
+
+
+def test_docker_sandbox_executor_rejects_unbounded_output(tmp_path: Path) -> None:
+    asset = tmp_path / "package" / "tools" / "validate"
+    asset.parent.mkdir(parents=True)
+    asset.write_text("placeholder", encoding="utf-8")
+    executor = DockerSandboxExecutor(
+        DockerSandboxConfiguration(
+            image="example.invalid/dar/converter@sha256:" + "a" * 64,
+            memory_bytes=64 * 1024 * 1024,
+            max_processes=1,
+            scratch_bytes=1024 * 1024,
+            max_output_bytes=4,
+        ),
+        execute=lambda _command, **_kwargs: type(
+            "Result", (), {"stdout": b"overflow"}
+        )(),
+    )
+
+    with pytest.raises(LocalToolSandboxError, match="output"):
+        executor((str(asset),), b"sealed", 5)
 
 
 def test_local_tool_sandbox_runs_only_a_declared_asset_with_bounded_io(
@@ -46,8 +111,8 @@ def test_local_tool_sandbox_runs_only_a_declared_asset_with_bounded_io(
     assert result == {"evidence": "bounded result"}
 
 
-def test_trusted_fixture_runs_through_macos_sandbox_exec(
-    tmp_path: Path,
+def test_trusted_fixture_builds_macos_sandbox_exec_handoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     asset = tmp_path / "tools" / "inspect"
     asset.parent.mkdir()
@@ -63,6 +128,16 @@ def test_trusted_fixture_runs_through_macos_sandbox_exec(
         package_root=tmp_path,
         execute=execute_macos_sandbox_exec,
     )
+    observed: dict[str, object] = {}
+
+    def execute(command: tuple[str, ...], **kwargs: object) -> object:
+        observed["command"] = command
+        observed["kwargs"] = kwargs
+        return type("Result", (), {"stdout": b'{"byte_count":6}'})()
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.local_tools.subprocess.run", execute
+    )
 
     result = sandbox.run(
         definition,
@@ -71,6 +146,12 @@ def test_trusted_fixture_runs_through_macos_sandbox_exec(
     )
 
     assert result == {"byte_count": 6}
+    assert observed["command"] == (
+        "sandbox-exec",
+        "-p",
+        "(version 1) (allow default)",
+        str(asset),
+    )
 
 
 def test_local_tool_sandbox_requires_bounded_json_evidence(tmp_path: Path) -> None:
@@ -144,6 +225,24 @@ def test_local_tool_sandbox_rejects_undeclared_access_and_oversized_input(
 
     with pytest.raises(LocalToolSandboxError):
         sandbox.run(definition, artifact_role=role, artifact_bytes=body)
+
+
+def test_local_tool_sandbox_rejects_a_package_internal_symlink(tmp_path: Path) -> None:
+    package_root = tmp_path / "package"
+    tools = package_root / "tools"
+    tools.mkdir(parents=True)
+    target = tools / "target"
+    target.write_text("placeholder", encoding="utf-8")
+    asset = tools / "validate"
+    asset.symlink_to(target)
+    definition = LocalToolDefinition("validate", asset, "source_image", 1024, 512, 1)
+    sandbox = LocalToolSandbox(
+        package_root=package_root,
+        execute=lambda _command, _input, _timeout: b"{}",
+    )
+
+    with pytest.raises(LocalToolSandboxError, match="asset"):
+        sandbox.run(definition, artifact_role="source_image", artifact_bytes=b"x")
 
 
 def test_macos_sandbox_profile_denies_network_and_allows_only_declared_paths(

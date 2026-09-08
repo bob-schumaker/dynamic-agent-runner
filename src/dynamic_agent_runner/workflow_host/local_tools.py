@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import os
 import json
+import os
 import stat
 import subprocess
 from collections.abc import Callable
@@ -48,6 +48,110 @@ def execute_macos_sandbox_exec(
     except (OSError, subprocess.SubprocessError) as error:
         raise LocalToolSandboxError("local tool execution failed") from error
     return result.stdout
+
+
+@dataclass(frozen=True)
+class DockerSandboxConfiguration:
+    """Host-owned fixed limits for one digest-pinned Docker worker image."""
+
+    image: str
+    memory_bytes: int
+    max_processes: int
+    scratch_bytes: int
+    max_output_bytes: int
+
+    def __post_init__(self) -> None:
+        repository, separator, digest = self.image.partition("@sha256:")
+        if (
+            not repository
+            or not separator
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+        ):
+            raise LocalToolSandboxError("docker sandbox image is invalid")
+        if any(
+            not isinstance(value, int) or isinstance(value, bool) or value <= 0
+            for value in (
+                self.memory_bytes,
+                self.max_processes,
+                self.scratch_bytes,
+                self.max_output_bytes,
+            )
+        ):
+            raise LocalToolSandboxError("docker sandbox limits are invalid")
+
+
+class DockerSandboxExecutor:
+    """Execute one declared asset in a capability-reduced Docker worker."""
+
+    def __init__(
+        self,
+        configuration: DockerSandboxConfiguration,
+        *,
+        execute: Callable[..., object] = subprocess.run,
+    ) -> None:
+        if not isinstance(configuration, DockerSandboxConfiguration) or not callable(
+            execute
+        ):
+            raise LocalToolSandboxError("docker sandbox executor is unavailable")
+        self._configuration = configuration
+        self._execute = execute
+
+    def __call__(
+        self, command: tuple[str, ...], artifact_bytes: bytes, timeout_seconds: int
+    ) -> bytes:
+        if (
+            len(command) != 1
+            or not isinstance(command[0], str)
+            or not command[0]
+            or not isinstance(artifact_bytes, bytes)
+            or not isinstance(timeout_seconds, int)
+            or isinstance(timeout_seconds, bool)
+            or timeout_seconds <= 0
+        ):
+            raise LocalToolSandboxError("docker sandbox request is invalid")
+        asset = Path(command[0])
+        if not asset.is_absolute():
+            raise LocalToolSandboxError("docker sandbox request is invalid")
+        docker_command = (
+            "docker",
+            "run",
+            "--rm",
+            "--network=none",
+            "--read-only",
+            "--cap-drop=ALL",
+            "--security-opt=no-new-privileges:true",
+            f"--pids-limit={self._configuration.max_processes}",
+            f"--memory={self._configuration.memory_bytes}",
+            "--tmpfs="
+            f"/dar/scratch:rw,noexec,nosuid,size={self._configuration.scratch_bytes}",
+            "--user=65534:65534",
+            "--workdir=/dar/scratch",
+            f"--mount=type=bind,src={asset},dst=/dar/asset,readonly",
+            self._configuration.image,
+            "/dar/asset",
+        )
+        try:
+            result = self._execute(
+                docker_command,
+                check=True,
+                input=artifact_bytes,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                timeout=timeout_seconds,
+                env={"HOME": "/nonexistent", "PATH": "/usr/bin:/bin"},
+            )
+            output = result.stdout  # type: ignore[attr-defined]
+        except (AttributeError, OSError, subprocess.SubprocessError) as error:
+            raise LocalToolSandboxError("docker sandbox execution failed") from error
+        if (
+            not isinstance(output, bytes)
+            or len(output) > self._configuration.max_output_bytes
+        ):
+            raise LocalToolSandboxError(
+                "docker sandbox output exceeds the declared limit"
+            )
+        return output
 
 
 def macos_sandbox_profile(
@@ -188,10 +292,16 @@ def _directory(path: Path) -> Path:
 def _asset_path(asset_path: Path, *, package_root: Path) -> Path:
     candidate = asset_path if asset_path.is_absolute() else package_root / asset_path
     try:
+        relative = candidate.relative_to(package_root)
+        current = package_root
+        for part in relative.parts:
+            current /= part
+            if stat.S_ISLNK(os.lstat(current).st_mode):
+                raise LocalToolSandboxError("local tool asset is unavailable")
         resolved = candidate.resolve(strict=True)
         resolved.relative_to(package_root)
         metadata = os.lstat(resolved)
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, LocalToolSandboxError) as error:
         raise LocalToolSandboxError("local tool asset is unavailable") from error
     if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
         raise LocalToolSandboxError("local tool asset is unavailable")
