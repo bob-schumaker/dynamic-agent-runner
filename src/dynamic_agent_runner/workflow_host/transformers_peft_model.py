@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import json
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Protocol
 
@@ -33,7 +34,9 @@ class TransformersGenerateBackend(Protocol):
     def processor(self) -> object:
         """Return the reviewed processor used by the compatible converter."""
 
-    def generate_packed(self, inputs: object, *, max_new_tokens: int) -> str:
+    def generate_packed(
+        self, inputs: object, *, max_new_tokens: int, json_mode: bool = False
+    ) -> str:
         """Generate one response from converter-packed framework inputs."""
 
 
@@ -102,6 +105,7 @@ class TransformersGenerateRunner:
     """Run one verified Transformers + PEFT set from private packed inputs."""
 
     contract_id = TRANSFORMERS_GENERATE_V1
+    supports_json_mode = True
 
     def __init__(
         self,
@@ -125,14 +129,29 @@ class TransformersGenerateRunner:
 
         return TransformersGenerateInputContext(self.processor)
 
-    def generate(self, packed_input: PackedModelInput, *, max_new_tokens: int) -> str:
+    def generate(
+        self,
+        packed_input: PackedModelInput,
+        *,
+        max_new_tokens: int,
+        json_mode: bool = False,
+    ) -> str:
         """Consume one packed input and clear it on every exit path."""
 
         try:
             _validate_max_new_tokens(max_new_tokens)
-            return self._get_backend().generate_packed(
-                packed_input.take(), max_new_tokens=max_new_tokens
-            )
+            backend = self._get_backend()
+            if json_mode:
+                generated = backend.generate_packed(
+                    packed_input.take(),
+                    max_new_tokens=max_new_tokens,
+                    json_mode=True,
+                )
+            else:
+                generated = backend.generate_packed(
+                    packed_input.take(), max_new_tokens=max_new_tokens
+                )
+            return _validated_json_object(generated) if json_mode else generated
         except ModelExecutionError:
             raise
         except Exception as error:  # noqa: BLE001 - backend errors vary.
@@ -180,7 +199,11 @@ class TransformersPeftPackedInputAdapter:
 
     @property
     def capabilities(self) -> dict[str, bool]:
-        return {"text_generation": True, "multimodal_input": True}
+        return {
+            "text_generation": True,
+            "multimodal_input": True,
+            "json_mode": bool(getattr(self._runner, "supports_json_mode", False)),
+        }
 
     @property
     def execution_profile_adapter_id(self) -> str:
@@ -202,15 +225,22 @@ class TransformersPeftPackedInputAdapter:
             raise ModelExecutionError("sealed converter input is unavailable")
         payload = self._sealed_payload
         try:
+            json_mode = _json_mode_requested(
+                request.response_format,
+                supported=bool(getattr(self._runner, "supports_json_mode", False)),
+            )
             packed = self._converter.pack(
                 prompt=_user_prompt(request),
                 payload=payload,
                 context=self._runner.input_context,
             )
+            generation_kwargs: dict[str, object] = {
+                "max_new_tokens": _max_new_tokens(request)
+            }
+            if json_mode:
+                generation_kwargs["json_mode"] = True
             return ModelResponse(
-                content=self._runner.generate(
-                    packed, max_new_tokens=_max_new_tokens(request)
-                )
+                content=self._runner.generate(packed, **generation_kwargs)
             )
         except ModelExecutionError:
             raise
@@ -248,7 +278,7 @@ class TransformersPeftSingleImageAdapter:
 
     @property
     def capabilities(self) -> dict[str, bool]:
-        return {"text_generation": True, "multimodal_input": True}
+        return {"text_generation": True, "multimodal_input": True, "json_mode": False}
 
     @property
     def execution_profile_adapter_id(self) -> str:
@@ -324,6 +354,73 @@ def _max_new_tokens(request: OpenAIModelRequest) -> int:
 def _validate_max_new_tokens(value: object) -> None:
     if not isinstance(value, int) or not 1 <= value <= 4096:
         raise ModelExecutionError("model generation limit is invalid")
+
+
+def _json_mode_requested(
+    response_format: Mapping[str, object] | None, *, supported: bool
+) -> bool:
+    if response_format is None:
+        return False
+    if dict(response_format) != {"type": "json_object"}:
+        raise ModelExecutionError("local model response format is unsupported")
+    if not supported:
+        raise ModelExecutionError("local model runner does not support JSON mode")
+    return True
+
+
+def _validated_json_object(value: str) -> str:
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError) as error:
+        raise ModelExecutionError("local model returned invalid JSON") from error
+    if not isinstance(parsed, dict):
+        raise ModelExecutionError("local model returned invalid JSON")
+    return value
+
+
+def _json_mode_prefix_filter(processor: object) -> object:
+    try:
+        from lmformatenforcer import JsonSchemaParser
+        from lmformatenforcer.tokenenforcer import (
+            TokenEnforcer,
+            TokenEnforcerTokenizerData,
+        )
+
+        tokenizer = processor.tokenizer  # type: ignore[attr-defined]
+        token_zero = tokenizer.encode("0")[-1]
+        regular_tokens = []
+        for token_id in range(len(tokenizer)):
+            if token_id in tokenizer.all_special_ids:
+                continue
+            after_zero = tokenizer.decode([token_zero, token_id])[1:]
+            decoded = tokenizer.decode([token_id])
+            regular_tokens.append(
+                (token_id, after_zero, len(after_zero) > len(decoded))
+            )
+        token_data = TokenEnforcerTokenizerData(
+            regular_tokens,
+            lambda tokens: tokenizer.decode(tokens).rstrip("�"),
+            tokenizer.eos_token_id,
+            False,
+            len(tokenizer),
+        )
+        return _TransformersPrefixAllowedTokensFn(
+            TokenEnforcer(token_data, JsonSchemaParser(None))
+        )
+    except (AttributeError, ImportError, TypeError, ValueError) as error:
+        raise ModelExecutionError("local model JSON mode is unavailable") from error
+
+
+class _TransformersPrefixAllowedTokensFn:
+    """Adapt lm-format-enforcer to Transformers' public tokenizer API."""
+
+    def __init__(self, token_enforcer: object) -> None:
+        self._token_enforcer = token_enforcer
+
+    def __call__(self, _batch_id: int, sent: object) -> list[int]:
+        tokens = sent.tolist()  # type: ignore[attr-defined]
+        allowed = self._token_enforcer.get_allowed_tokens(tokens)
+        return list(allowed.allowed_tokens)
 
 
 def _verified_prepared_paths(prepared_set: PreparedArtifactSet) -> tuple[Path, Path]:
@@ -429,7 +526,9 @@ class _LoadedTransformersPeftBackend:
         )
         return self.generate_packed(inputs, max_new_tokens=max_new_tokens)
 
-    def generate_packed(self, inputs: object, *, max_new_tokens: int) -> str:
+    def generate_packed(
+        self, inputs: object, *, max_new_tokens: int, json_mode: bool = False
+    ) -> str:
         """Generate from converter-owned processor inputs within one worker."""
 
         move = getattr(inputs, "to", None)
@@ -439,10 +538,17 @@ class _LoadedTransformersPeftBackend:
             prefix_length = input_ids.shape[1]
         except (AttributeError, KeyError, TypeError, IndexError) as error:
             raise ModelExecutionError("packed model input is invalid") from error
+        generation_kwargs: dict[str, object] = {
+            "do_sample": False,
+            "max_new_tokens": max_new_tokens,
+        }
+        if json_mode:
+            generation_kwargs["prefix_allowed_tokens_fn"] = _json_mode_prefix_filter(
+                self._processor
+            )
         generated = self._model.generate(
             **packed,
-            do_sample=False,
-            max_new_tokens=max_new_tokens,
+            **generation_kwargs,
         )
         decoded = self._processor.batch_decode(
             generated[:, prefix_length:], skip_special_tokens=True
@@ -476,7 +582,7 @@ class DeferredTransformersPeftSingleImageAdapter:
 
     @property
     def capabilities(self) -> dict[str, bool]:
-        return {"text_generation": True, "multimodal_input": True}
+        return {"text_generation": True, "multimodal_input": True, "json_mode": True}
 
     @property
     def execution_profile_adapter_id(self) -> str:

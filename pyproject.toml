@@ -29,6 +29,7 @@ transformers-peft = [
     "torch>=2.9.0,<3.0.0",
     "Pillow>=11.0.0,<12.0.0",
     "torchvision>=0.24.0,<0.29.0",
+    "lm-format-enforcer>=0.11.3,<0.12.0",
 ]
 
 [tool.poetry]
@@ -56,6 +57,7 @@ peft = {version = ">=0.19.1,<0.20.0", optional = true}
 torch = {version = ">=2.9.0,<3.0.0", optional = true}
 Pillow = {version = ">=11.0.0,<12.0.0", optional = true}
 torchvision = {version = ">=0.24.0,<0.29.0", optional = true}
+lm-format-enforcer = {version = ">=0.11.3,<0.12.0", optional = true}
 
 [tool.poetry.group.dev]
 optional = true

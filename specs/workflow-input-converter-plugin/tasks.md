@@ -122,12 +122,12 @@ the standard runner interface. Docker and OS-level isolation are deferred to
     reject truncated or structurally invented output. Do not make repair a DAR
     default or a substitute for a runner that cannot honor a required JSON
     constraint.
-  - [ ] T5.4.2 [tests, RED] Add fake-only standard-runner tests proving an
+  - [x] T5.4.2 [tests, RED] Add fake-only standard-runner tests proving an
     exact JSON constraint reaches a capable backend, is rejected before
     generation by an incapable backend, and leaves unstructured generation
     unchanged. Prove no prompt text, sealed payload, raw completion, or repair
     artifact is exposed in DAR traces or API results.
-  - [ ] T5.4.3 [implementation] Implement only the generic runner seam and
+  - [x] T5.4.3 [implementation] Implement only the generic runner seam and
     capability binding required by T5.4.2. Reuse `response_format`; do not add
     a floorplan branch, a general schema language, or a model-specific prompt
     rewrite.

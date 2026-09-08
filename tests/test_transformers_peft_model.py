@@ -148,6 +148,140 @@ def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
     assert adapter._sealed_payload is None
 
 
+def test_converter_adapter_passes_json_mode_to_a_capable_runner(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        PackedModelInput,
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    calls: dict[str, object] = {}
+
+    class Runner:
+        input_context = object()
+        supports_json_mode = True
+
+        def generate(
+            self,
+            packed: PackedModelInput,
+            *,
+            max_new_tokens: int,
+            json_mode: bool,
+        ) -> str:
+            calls["packed"] = packed
+            calls["max_new_tokens"] = max_new_tokens
+            calls["json_mode"] = json_mode
+            return "{}"
+
+    class Converter:
+        def pack(self, **_kwargs: object) -> PackedModelInput:
+            return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
+
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    )
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    response = adapter.create_response(
+        build_openai_request(
+            model=recipe.model_id,
+            messages=[OpenAIMessage("user", "vectorize")],
+            response_format={"type": "json_object"},
+            max_tokens=12,
+        )
+    )
+
+    assert adapter.capabilities["json_mode"] is True
+    assert response.content == "{}"
+    assert calls["max_new_tokens"] == 12
+    assert calls["json_mode"] is True
+    assert adapter._sealed_payload is None
+
+
+def test_converter_adapter_rejects_json_mode_before_packing_for_incapable_runner(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+
+    class Runner:
+        input_context = object()
+        supports_json_mode = False
+
+    class Converter:
+        def pack(self, **_kwargs: object) -> object:
+            pytest.fail("an incapable runner must reject before converter packing")
+
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    )
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    with pytest.raises(ModelExecutionError, match="does not support JSON"):
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id,
+                messages=[OpenAIMessage("user", "vectorize")],
+                response_format={"type": "json_object"},
+            )
+        )
+
+    assert adapter.capabilities["json_mode"] is False
+    assert adapter._sealed_payload is None
+
+
+def test_standard_runner_rejects_non_json_output_without_exposing_it(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        PackedModelInput,
+        TransformersGenerateRunner,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths: dict[str, Path] = {}
+    for artifact in recipe.artifacts:
+        path = tmp_path / artifact.group / artifact.filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"fixture")
+        paths[artifact.role] = path
+
+    class Backend:
+        processor = object()
+
+        def generate_packed(
+            self, _packed: object, *, max_new_tokens: int, json_mode: bool
+        ) -> str:
+            assert max_new_tokens == 12
+            assert json_mode is True
+            return "not-json"
+
+    packed = PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
+    runner = TransformersGenerateRunner(
+        PreparedArtifactSet(recipe, paths),
+        dependency_loader=lambda _base, _adapter: Backend(),
+    )
+
+    with pytest.raises(ModelExecutionError, match="invalid JSON") as error:
+        runner.generate(packed, max_new_tokens=12, json_mode=True)
+
+    assert "not-json" not in str(error.value)
+    assert packed.is_cleared is True
+
+
 def test_converter_adapter_clears_payload_after_converter_failure(
     tmp_path: Path,
 ) -> None:
@@ -772,6 +906,93 @@ def test_loaded_backend_uses_deterministic_template_and_decodes_only_suffix() ->
     assert calls["generate"]["input_ids"].shape == (1, 7)
     assert calls["slice"] == (slice(None), slice(7, None))
     assert calls["decode"] == ("generated-suffix", {"skip_special_tokens": True})
+
+
+def test_loaded_backend_adds_json_prefix_filter_only_for_json_mode(  # noqa: C901
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        _LoadedTransformersPeftBackend,
+    )
+
+    calls: dict[str, object] = {}
+
+    class Parser:
+        def __init__(self, schema: object) -> None:
+            calls["schema"] = schema
+
+    class TokenData:
+        def __init__(self, *args: object) -> None:
+            calls["token_data"] = args
+
+    class Enforcer:
+        def __init__(self, token_data: object, parser: object) -> None:
+            calls["token_data_instance"] = token_data
+            calls["parser"] = parser
+
+        def get_allowed_tokens(self, _tokens: object) -> object:
+            return SimpleNamespace(allowed_tokens=(1, 2))
+
+    monkeypatch.setitem(
+        sys.modules, "lmformatenforcer", SimpleNamespace(JsonSchemaParser=Parser)
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "lmformatenforcer.tokenenforcer",
+        SimpleNamespace(TokenEnforcer=Enforcer, TokenEnforcerTokenizerData=TokenData),
+    )
+
+    class Inputs(dict):
+        def to(self, _device: object) -> "Inputs":
+            return self
+
+    class Generated:
+        def __getitem__(self, _item: object) -> object:
+            return "generated-suffix"
+
+    class Model:
+        device = "device"
+
+        def generate(self, **kwargs: object) -> Generated:
+            calls["generate"] = kwargs
+            return Generated()
+
+    class Tokenizer:
+        all_special_ids = ()
+        eos_token_id = 3
+
+        @staticmethod
+        def encode(_value: str) -> list[int]:
+            return [0]
+
+        @staticmethod
+        def decode(tokens: list[int]) -> str:
+            return "0" if tokens == [0] else "a"
+
+        def __len__(self) -> int:
+            return 2
+
+    class Processor:
+        tokenizer = Tokenizer()
+
+        def batch_decode(self, _tokens: object, **_kwargs: object) -> list[str]:
+            return ["{}"]
+
+    backend = _LoadedTransformersPeftBackend(model=Model(), processor=Processor())
+
+    assert (
+        backend.generate_packed(
+            Inputs(input_ids=SimpleNamespace(shape=(1, 2))),
+            max_new_tokens=12,
+            json_mode=True,
+        )
+        == "{}"
+    )
+    assert calls["schema"] is None
+    assert calls["token_data"][-2:] == (False, 2)
+    assert calls["generate"]["prefix_allowed_tokens_fn"](
+        0, SimpleNamespace(tolist=lambda: [0])
+    ) == [1, 2]
 
 
 def test_loaded_backend_generates_from_private_packed_inputs() -> None:

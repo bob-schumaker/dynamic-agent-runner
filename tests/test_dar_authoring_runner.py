@@ -263,7 +263,14 @@ class ReviewedPacketExecutor:
 class VisionFakeAdapter(OpenAIClientAdapter):
     """Test-local adapter that records only DAR's sealed image handoff."""
 
-    def __init__(self, client: FakeClient, *, model: str, adapter_id: str) -> None:
+    def __init__(
+        self,
+        client: FakeClient,
+        *,
+        model: str,
+        adapter_id: str,
+        json_mode: bool = False,
+    ) -> None:
         super().__init__(
             client,
             models=(model,),
@@ -271,12 +278,17 @@ class VisionFakeAdapter(OpenAIClientAdapter):
             execution_profile_adapter_id=adapter_id,
             model_id_mapping={model: model},
         )
+        self._json_mode = json_mode
         self.bound_images: list[tuple[bytes, str]] = []
         self.cleared = 0
 
     @property
     def capabilities(self) -> dict[str, bool]:
-        return {"text_generation": True, "multimodal_input": True}
+        return {
+            "text_generation": True,
+            "multimodal_input": True,
+            "json_mode": self._json_mode,
+        }
 
     def bind_sealed_image(self, *, content: bytes, media_type: str) -> None:
         self.bound_images.append((content, media_type))
@@ -288,8 +300,17 @@ class VisionFakeAdapter(OpenAIClientAdapter):
 class ConverterFakeAdapter(VisionFakeAdapter):
     """Test-local adapter that records only the converter payload handoff."""
 
-    def __init__(self, client: FakeClient, *, model: str, adapter_id: str) -> None:
-        super().__init__(client, model=model, adapter_id=adapter_id)
+    def __init__(
+        self,
+        client: FakeClient,
+        *,
+        model: str,
+        adapter_id: str,
+        json_mode: bool = False,
+    ) -> None:
+        super().__init__(
+            client, model=model, adapter_id=adapter_id, json_mode=json_mode
+        )
         self.bound_payloads: list[bytes] = []
         self.bound_converters: list[tuple[Path, object]] = []
         self.converter_error: Exception | None = None
@@ -459,6 +480,8 @@ def _runner(
     local_asset: bool = False,
     local_tool_executor: object | None = None,
     terminal_validator: bool = False,
+    response_format: dict[str, object] | None = None,
+    json_mode: bool = False,
     response_content: str = "completed locally",
     reviewed_tool_packages: ReviewedToolPackageControlPlane | None = None,
     reviewed_artifact_tool_executors: object | None = None,
@@ -469,6 +492,8 @@ def _runner(
     runtime = yaml.safe_load(runtime_path.read_text(encoding="utf-8"))
     runtime["runtime"]["execution_policy"]["model"] = package_model
     runtime["nodes"][0]["model"] = package_model
+    if response_format is not None:
+        runtime["nodes"][0]["response_format"] = response_format
     runtime["output_contracts"][0]["required_fields"] = [terminal_required_field]
     runtime_path.write_text(yaml.safe_dump(runtime), encoding="utf-8")
     if local_asset or terminal_validator:
@@ -569,11 +594,17 @@ def _runner(
     adapter = (
         (
             ConverterFakeAdapter(
-                client, model=profile.execution_model_id, adapter_id=profile.adapter_id
+                client,
+                model=profile.execution_model_id,
+                adapter_id=profile.adapter_id,
+                json_mode=json_mode,
             )
             if input_converter
             else VisionFakeAdapter(
-                client, model=profile.execution_model_id, adapter_id=profile.adapter_id
+                client,
+                model=profile.execution_model_id,
+                adapter_id=profile.adapter_id,
+                json_mode=json_mode,
             )
         )
         if vision
@@ -1690,6 +1721,45 @@ def test_runner_delivers_converter_payload_without_media_type_routing(
     assert adapter.payload_cleared == 1
     assert "sealed-image-bytes" not in repr(client.responses.calls)
     assert "v1.source-image" not in repr(runner.traces())
+
+
+def test_runner_rejects_declared_json_before_binding_sealed_payload(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+        response_format={"type": "json_object"},
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="lacks json_mode"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    assert adapter.bound_converters == []
+    assert adapter.bound_payloads == []
+    assert adapter.payload_cleared == 0
+    assert "Create a floorplan." not in repr(runner.traces())
+    assert "sealed-image-bytes" not in repr(runner.traces())
 
 
 def test_runner_redacts_converter_package_load_failure(tmp_path: Path) -> None:

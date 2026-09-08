@@ -238,6 +238,7 @@ class WorkflowRunner:
                 terminal_output_contract,
             ) = self._preflight(request.workflow_id)
             self._validate_adapter(registration)
+            self._validate_declared_response_formats(package_root)
             self._validate_guardrail_registry(package_root, guardrail_registry)
             sealed = self._preparation.load(
                 request.prepared_input_id, registration=registration, now=now
@@ -476,6 +477,7 @@ class WorkflowRunner:
         try:
             registration, package_root, policy, _ = self._preflight(request.workflow_id)
             self._validate_adapter(registration)
+            self._validate_declared_response_formats(package_root)
             sealed = self._preparation.load(
                 request.prepared_input_id, registration=registration, now=now
             )
@@ -541,6 +543,21 @@ class WorkflowRunner:
                 raise RunDarWorkflowError(
                     "registered workflow guardrail is unavailable"
                 )
+
+    def _validate_declared_response_formats(self, package_root: Any) -> None:
+        """Reject unavailable response constraints before sealed-input binding."""
+
+        workflow = load_agent_package_workflow(str(package_root))
+        for node in workflow.runtime_manifest.nodes:
+            response_format = node.raw.get("response_format")
+            if response_format is None:
+                continue
+            if not isinstance(response_format, Mapping):
+                raise RunDarWorkflowError("registered response format is unsupported")
+            if dict(response_format) != {"type": "json_object"}:
+                raise RunDarWorkflowError("registered response format is unsupported")
+            if not _adapter_supports(self._model_adapter, "json_mode"):
+                raise RunDarWorkflowError("configured adapter lacks json_mode")
 
     def _tool_registry(
         self,
