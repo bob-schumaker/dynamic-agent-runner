@@ -34,8 +34,17 @@ host terminal. The strict candidate has failed to launch and is not an
 admission backend; no conclusion about every possible macOS profile follows
 from this probe.
 
-The same Herdr workspace confirmed on 2026-09-07 that the `docker` CLI is
-installed, but its configured OrbStack socket is absent; `docker version`
-cannot connect to an engine. No reviewed worker image or live Docker acceptance
-evidence is available on this host. This is a host-environment blocker for
-T4.3, not evidence that the candidate's controls work.
+The same Herdr workspace confirmed on 2026-09-07 that OrbStack's Docker engine
+is available (`29.4.0`) through its configured Unix socket. A probe through
+the repository's `DockerSandboxExecutor`, using a locally cached, digest-pinned
+Python image that is not a reviewed DAR worker image, returned these outcomes:
+environment denied, caller host file denied, network denied, child process
+denied, scratch allowed, and outside write denied. The probe also confirmed
+the executor needs an explicit Docker CLI path, Unix endpoint, entrypoint
+override, and writable scratch mount mode; those controls are now covered by
+the deterministic tests.
+
+This is platform evidence for the Docker envelope only. It does not complete
+T4.3: DAR has no reviewed converter/model worker image or same-worker control
+protocol, and the remaining timeout, memory, process-count, scratch-exhaustion,
+and output-boundary acceptance cases have not run against such an image.
