@@ -208,6 +208,12 @@ class TransformersGenerateRunner:
                 ) from error
         return self._backend
 
+    @property
+    def uses_mps(self) -> bool:
+        """Return whether the loaded backend selected the Apple MPS device."""
+
+        return bool(getattr(self._get_backend(), "uses_mps", False))
+
 
 class TransformersPeftPackedInputAdapter:
     """Expose one converter-bound Transformers generation runner as an adapter."""
@@ -291,6 +297,22 @@ class TransformersPeftPackedInputAdapter:
                 payload=payload,
                 context=self._runner.input_context,
             )
+            if bool(getattr(self._runner, "uses_mps", False)):
+                generated = self._runner.generate_chunk(packed, **generation_kwargs)
+                content = generated.content.strip()
+                if json_mode:
+                    content = _validated_json_object(content)
+                return ModelResponse(
+                    content=content,
+                    metadata={
+                        "generation": {
+                            "device": "mps",
+                            "chunk_count": 1,
+                            "chunk_exhausted": [generated.exhausted],
+                            "generated_tokens": [generated.generated_tokens],
+                        }
+                    },
+                )
             return ModelResponse(
                 content=self._runner.generate(packed, **generation_kwargs)
             )
@@ -334,15 +356,15 @@ class TransformersPeftPackedInputAdapter:
                 content = (
                     _validated_json_object(completion) if json_mode else completion
                 )
+                generation: dict[str, object] = {
+                    "chunk_count": len(fragments),
+                    "chunk_exhausted": chunk_exhausted,
+                    "generated_tokens": generated_tokens,
+                }
+                if bool(getattr(self._runner, "uses_mps", False)):
+                    generation["device"] = "mps"
                 return GeneratedCompletion(
-                    content=content,
-                    metadata={
-                        "generation": {
-                            "chunk_count": len(fragments),
-                            "chunk_exhausted": chunk_exhausted,
-                            "generated_tokens": generated_tokens,
-                        }
-                    },
+                    content=content, metadata={"generation": generation}
                 )
             if continuation == max_continuations:
                 raise ModelExecutionError("local model continuation limit exceeded")
@@ -618,17 +640,21 @@ def _load_default_backend(base: Path, adapter: Path) -> TransformersPeftBackend:
         "trust_remote_code": False,
         "torch_dtype": "auto",
     }
-    if _mps_available():
+    mps = _mps_available()
+    if mps:
         model = AutoModelForImageTextToText.from_pretrained(base, **model_arguments)
-        model.to("mps")
     else:
         model = AutoModelForImageTextToText.from_pretrained(
             base, device_map="auto", **model_arguments
         )
+    model = PeftModel.from_pretrained(
+        model, adapter, is_trainable=False, local_files_only=True
+    )
+    if mps:
+        model.to("mps")
+        model.eval()
     return _LoadedTransformersPeftBackend(
-        model=PeftModel.from_pretrained(
-            model, adapter, is_trainable=False, local_files_only=True
-        ),
+        model=model,
         processor=processor,
     )
 
@@ -654,6 +680,12 @@ class _LoadedTransformersPeftBackend:
         """Expose only the reviewed processor to the converter contract."""
 
         return self._processor
+
+    @property
+    def uses_mps(self) -> bool:
+        """Return whether this loaded model is executing on Apple MPS."""
+
+        return str(getattr(self._model, "device", "")).split(":", 1)[0] == "mps"
 
     def generate(self, prompt: str, image: object, *, max_new_tokens: int) -> str:
         messages = [
@@ -696,10 +728,13 @@ class _LoadedTransformersPeftBackend:
             generation_kwargs["prefix_allowed_tokens_fn"] = _json_mode_prefix_filter(
                 self._processor
             )
-        generated = self._model.generate(
-            **packed,
-            **generation_kwargs,
-        )
+        import torch
+
+        with torch.inference_mode():
+            generated = self._model.generate(
+                **packed,
+                **generation_kwargs,
+            )
         decoded = self._processor.batch_decode(
             generated[:, prefix_length:], skip_special_tokens=True
         )

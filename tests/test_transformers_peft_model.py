@@ -290,6 +290,60 @@ def test_converter_adapter_assembles_bounded_json_continuations(
     assert adapter._sealed_payload is None
 
 
+def test_converter_adapter_emits_redacted_mps_metadata_for_direct_response(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        GeneratedText,
+        PackedModelInput,
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+
+    class Runner:
+        input_context = object()
+        supports_json_mode = True
+        uses_mps = True
+
+        def generate_chunk(
+            self, _packed: PackedModelInput, **_kwargs: object
+        ) -> GeneratedText:
+            return GeneratedText("{}", exhausted=False, generated_tokens=2)
+
+    class Converter:
+        def pack(self, **_kwargs: object) -> PackedModelInput:
+            return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
+
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    )
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    response = adapter.create_response(
+        build_openai_request(
+            model=recipe.model_id,
+            messages=[OpenAIMessage("user", "vectorize")],
+            response_format={"type": "json_object"},
+        )
+    )
+
+    assert response.content == "{}"
+    assert response.metadata == {
+        "generation": {
+            "device": "mps",
+            "chunk_count": 1,
+            "chunk_exhausted": [False],
+            "generated_tokens": [2],
+        }
+    }
+    assert adapter._sealed_payload is None
+
+
 def test_converter_adapter_continues_an_incomplete_json_chunk(
     tmp_path: Path,
 ) -> None:
@@ -314,6 +368,7 @@ def test_converter_adapter_continues_an_incomplete_json_chunk(
     class Runner:
         input_context = object()
         supports_json_mode = True
+        uses_mps = True
 
         def generate_chunk(
             self, _packed: PackedModelInput, **_kwargs: object
@@ -341,6 +396,7 @@ def test_converter_adapter_continues_an_incomplete_json_chunk(
     assert response.content == '{"walls":[]}'
     assert response.metadata == {
         "generation": {
+            "device": "mps",
             "chunk_count": 2,
             "chunk_exhausted": [False, False],
             "generated_tokens": [4, 3],
@@ -830,7 +886,7 @@ def test_default_loader_uses_only_local_nonremote_framework_arguments(
     assert calls[2][2]["local_files_only"] is True
 
 
-def test_default_loader_places_the_base_on_mps_before_attaching_peft(
+def test_default_loader_attaches_peft_before_placing_the_complete_model_on_mps(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     import dynamic_agent_runner.workflow_host.transformers_peft_model as runner
@@ -857,7 +913,19 @@ def test_default_loader_places_the_base_on_mps_before_attaching_peft(
         @classmethod
         def from_pretrained(cls, model: object, path: Path, **kwargs: object) -> object:
             calls.append(("adapter", model, {"path": path, **kwargs}))
-            return SimpleNamespace(device="mps")
+
+            class WrappedModel:
+                device = "mps"
+
+                def to(self, device: str) -> "WrappedModel":
+                    calls.append(("move", device, self))
+                    return self
+
+                def eval(self) -> "WrappedModel":
+                    calls.append(("eval", self, None))
+                    return self
+
+            return WrappedModel()
 
     monkeypatch.setitem(
         sys.modules,
@@ -878,12 +946,15 @@ def test_default_loader_places_the_base_on_mps_before_attaching_peft(
             "torch_dtype": "auto",
         },
     )
-    assert calls[2][0:2] == ("move", "mps")
-    assert calls[3][0] == "adapter"
-    assert calls[3][1] is calls[2][2]
+    assert calls[2][0] == "adapter"
+    assert calls[2][1] is not None
+    assert calls[3][0:2] == ("move", "mps")
+    assert calls[3][2] is not calls[2][1]
+    assert calls[4][0] == "eval"
+    assert calls[4][1] is calls[3][2]
 
 
-def test_mps_loader_targets_wrapped_model_device_for_generation(
+def test_mps_loader_targets_wrapped_model_device_for_generation(  # noqa: C901
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     import dynamic_agent_runner.workflow_host.transformers_peft_model as runner
@@ -918,6 +989,14 @@ def test_mps_loader_targets_wrapped_model_device_for_generation(
     class WrappedModel:
         device = "mps"
 
+        def to(self, device: str) -> "WrappedModel":
+            calls.append(("move", device))
+            return self
+
+        def eval(self) -> "WrappedModel":
+            calls.append(("eval", "mps"))
+            return self
+
         def generate(self, **_kwargs: object) -> object:
             return Generated()
 
@@ -943,7 +1022,72 @@ def test_mps_loader_targets_wrapped_model_device_for_generation(
     backend = runner._load_default_backend(tmp_path / "base", tmp_path / "adapter")
     backend.generate("vectorize", FakeImage(), max_new_tokens=4)
 
-    assert calls == [("move", "mps"), ("inputs", "mps")]
+    assert calls == [("move", "mps"), ("eval", "mps"), ("inputs", "mps")]
+
+
+def test_loaded_backend_generates_inside_torch_inference_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        _LoadedTransformersPeftBackend,
+    )
+
+    state = {"active": False, "entered": 0, "exited": 0}
+
+    class InferenceMode:
+        def __enter__(self) -> None:
+            state["active"] = True
+            state["entered"] += 1
+
+        def __exit__(self, *_args: object) -> None:
+            state["active"] = False
+            state["exited"] += 1
+
+    class Inputs(dict[str, object]):
+        def to(self, _device: object) -> "Inputs":
+            return self
+
+    class Generated:
+        shape = (1, 2)
+
+        def __getitem__(self, _item: object) -> object:
+            return object()
+
+    class Model:
+        device = "mps"
+
+        def generate(self, **_kwargs: object) -> Generated:
+            assert state["active"] is True
+            return Generated()
+
+    class Processor:
+        def batch_decode(self, _tokens: object, **_kwargs: object) -> list[str]:
+            return ['{"walls":[]}']
+
+    monkeypatch.setitem(
+        sys.modules,
+        "torch",
+        SimpleNamespace(inference_mode=lambda: InferenceMode()),
+    )
+
+    result = _LoadedTransformersPeftBackend(
+        model=Model(), processor=Processor()
+    ).generate_packed(Inputs(input_ids=SimpleNamespace(shape=(1, 1))), max_new_tokens=4)
+
+    assert result.content == '{"walls":[]}'
+    assert state == {"active": False, "entered": 1, "exited": 1}
+
+
+def test_loaded_backend_recognizes_the_indexed_mps_device() -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        _LoadedTransformersPeftBackend,
+    )
+
+    backend = _LoadedTransformersPeftBackend(
+        model=SimpleNamespace(device="mps:0"), processor=object()
+    )
+
+    assert backend.uses_mps is True
 
 
 @pytest.mark.parametrize("failure_step", ["move", "adapter"])
