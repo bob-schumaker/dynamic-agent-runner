@@ -96,6 +96,15 @@ class DeclaredTerminalOutputValidator:
 
 
 @dataclass(frozen=True)
+class DeclaredTerminalOutputProcessor:
+    """One fixed package asset in the private terminal-output chain."""
+
+    asset_path: str
+    max_output_bytes: int
+    timeout_seconds: int
+
+
+@dataclass(frozen=True)
 class DeclaredInputConverter:
     """One sealed package asset that packs invocation bytes for one runner."""
 
@@ -127,6 +136,7 @@ class WorkflowDescriptor:
     declared_local_tools: tuple[DeclaredLocalTool, ...] = ()
     declared_artifact_tools: tuple[DeclaredArtifactTool, ...] = ()
     terminal_output_validator: DeclaredTerminalOutputValidator | None = None
+    terminal_output_processors: tuple[DeclaredTerminalOutputProcessor, ...] = ()
     input_converter: DeclaredInputConverter | None = None
 
     @classmethod
@@ -162,6 +172,7 @@ class WorkflowDescriptor:
         output = _mapping(mapping.get("output"), "output")
         output_schema_ref = _text(output.get("schema_ref"), "output.schema_ref")
         terminal_output_validator = _parse_terminal_output_validator(output)
+        terminal_output_processors = _parse_terminal_output_processors(output)
         input_converter = _parse_input_converter(mapping.get("input_converter"))
         if output_schema_ref != task.terminal_output_schema_ref:
             raise WorkflowDescriptorError(
@@ -188,6 +199,7 @@ class WorkflowDescriptor:
             declared_local_tools=declared_local_tools,
             declared_artifact_tools=declared_artifact_tools,
             terminal_output_validator=terminal_output_validator,
+            terminal_output_processors=terminal_output_processors,
             input_converter=input_converter,
         )
 
@@ -392,6 +404,37 @@ def _parse_terminal_output_validator(
             validator.get("timeout_seconds"), "output.validator.timeout_seconds"
         ),
     )
+
+
+def _parse_terminal_output_processors(
+    output: Mapping[str, Any],
+) -> tuple[DeclaredTerminalOutputProcessor, ...]:
+    value = output.get("processors", [])
+    if not isinstance(value, list) or not value:
+        return ()
+    processors = []
+    for raw in value:
+        processor = _mapping(raw, "output processor")
+        if set(processor) != {"asset_path", "max_output_bytes", "timeout_seconds"}:
+            raise WorkflowDescriptorError("output processor is invalid")
+        asset_path = _text(processor.get("asset_path"), "output processor.asset_path")
+        if asset_path.startswith("/") or ".." in asset_path.split("/"):
+            raise WorkflowDescriptorError(
+                "output processor asset_path must be package-relative"
+            )
+        processors.append(
+            DeclaredTerminalOutputProcessor(
+                asset_path=asset_path,
+                max_output_bytes=_positive_int(
+                    processor.get("max_output_bytes"),
+                    "output processor.max_output_bytes",
+                ),
+                timeout_seconds=_positive_int(
+                    processor.get("timeout_seconds"), "output processor.timeout_seconds"
+                ),
+            )
+        )
+    return tuple(processors)
 
 
 def _parse_input_converter(value: object) -> DeclaredInputConverter | None:

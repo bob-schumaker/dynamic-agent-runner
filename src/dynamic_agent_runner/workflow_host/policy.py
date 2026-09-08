@@ -20,6 +20,7 @@ from dynamic_agent_runner.workflow_host.descriptor import (
     DeclaredArtifactTool,
     DeclaredInputConverter,
     DeclaredTerminalOutputValidator,
+    DeclaredTerminalOutputProcessor,
     InputContract,
     TaskInvocation,
     WorkflowDescriptor,
@@ -59,6 +60,7 @@ class WorkflowPolicy:
     declared_local_tools: tuple[DeclaredLocalTool, ...] = ()
     declared_artifact_tools: tuple[DeclaredArtifactTool, ...] = ()
     terminal_output_validator: DeclaredTerminalOutputValidator | None = None
+    terminal_output_processors: tuple[DeclaredTerminalOutputProcessor, ...] = ()
     input_converter: DeclaredInputConverter | None = None
 
 
@@ -84,6 +86,10 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         _validate_terminal_output_validator(
             package_root=revision.package_root,
             validator=descriptor.terminal_output_validator,
+        )
+        _validate_terminal_output_processors(
+            package_root=revision.package_root,
+            processors=descriptor.terminal_output_processors,
         )
         _validate_input_converter_asset(
             package_root=revision.package_root,
@@ -193,6 +199,14 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
                 if descriptor.terminal_output_validator is not None
                 else None
             ),
+            "terminal_output_processors": [
+                {
+                    "asset_path": processor.asset_path,
+                    "max_output_bytes": processor.max_output_bytes,
+                    "timeout_seconds": processor.timeout_seconds,
+                }
+                for processor in descriptor.terminal_output_processors
+            ],
             "input_converter": (
                 {
                     "converter_id": descriptor.input_converter.converter_id,
@@ -231,6 +245,7 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         declared_local_tools=descriptor.declared_local_tools,
         declared_artifact_tools=descriptor.declared_artifact_tools,
         terminal_output_validator=descriptor.terminal_output_validator,
+        terminal_output_processors=descriptor.terminal_output_processors,
         input_converter=descriptor.input_converter,
     )
 
@@ -302,6 +317,27 @@ def _validate_terminal_output_validator(
                 max_output_bytes=validator.max_output_bytes,
                 timeout_seconds=validator.timeout_seconds,
             ),
+        ),
+    )
+
+
+def _validate_terminal_output_processors(
+    *,
+    package_root: Path,
+    processors: tuple[DeclaredTerminalOutputProcessor, ...],
+) -> None:
+    _validate_local_tool_assets(
+        package_root=package_root,
+        tools=tuple(
+            DeclaredLocalTool(
+                tool_id=f"terminal-output-processor-{index}",
+                asset_path=processor.asset_path,
+                accepted_artifact_role="terminal_output",
+                max_input_bytes=32 * 1024,
+                max_output_bytes=processor.max_output_bytes,
+                timeout_seconds=processor.timeout_seconds,
+            )
+            for index, processor in enumerate(processors)
         ),
     )
 

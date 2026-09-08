@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import json
 from dataclasses import dataclass
 from datetime import datetime
@@ -284,8 +286,11 @@ class WorkflowRunner:
             finally:
                 self._clear_sealed_converter_payload(payload)
                 self._clear_sealed_image(image)
+            processed_result = self._process_terminal_output(
+                policy=policy, package_root=Path(package_root), value=final_result
+            )
             output = _terminal_output(
-                final_result,
+                processed_result,
                 terminal_output_contract,
                 adapter_id=self._configured_profile.adapter_id,
             )
@@ -468,6 +473,44 @@ class WorkflowRunner:
             raise RunDarWorkflowError("terminal output validation failed") from error
         if evidence.get("valid") is not True:
             raise RunDarWorkflowError("terminal output validation failed")
+
+    def _process_terminal_output(
+        self, *, policy: Any, package_root: Path, value: object
+    ) -> str:
+        """Pass private terminal bytes through the package-declared processor chain."""
+
+        processors = policy.terminal_output_processors
+        if not processors:
+            if not isinstance(value, str):
+                raise RunDarWorkflowError("workflow terminal output is not a message")
+            return value
+        if self._local_tool_executor is None or not isinstance(value, str):
+            raise RunDarWorkflowError("terminal output processing failed")
+        current = value.encode("utf-8")
+        sandbox = LocalToolSandbox(
+            package_root=package_root, execute=self._local_tool_executor
+        )
+        try:
+            for index, processor in enumerate(processors):
+                evidence = sandbox.run(
+                    LocalToolDefinition(
+                        tool_id=f"terminal-output-processor-{index}",
+                        asset_path=Path(processor.asset_path),
+                        accepted_artifact_role="terminal_output",
+                        max_input_bytes=32 * 1024,
+                        max_output_bytes=processor.max_output_bytes,
+                        timeout_seconds=processor.timeout_seconds,
+                    ),
+                    artifact_role="terminal_output",
+                    artifact_bytes=current,
+                )
+                current = _terminal_processor_output(evidence)
+        except (LocalToolSandboxError, ValueError, UnicodeError) as error:
+            raise RunDarWorkflowError("terminal output processing failed") from error
+        try:
+            return current.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise RunDarWorkflowError("terminal output processing failed") from error
 
     def dry_run(
         self, request: RunDarWorkflowRequest, *, now: datetime
@@ -889,4 +932,30 @@ def _terminal_output(
         raise RunDarWorkflowError(
             "terminal output does not satisfy registered contract"
         )
+    return output
+
+
+def _terminal_processor_output(evidence: Mapping[str, object]) -> bytes:
+    """Validate one sealed processor envelope without interpreting its payload."""
+
+    if set(evidence) != {"status", "output_base64", "repair_report"}:
+        raise ValueError("terminal processor evidence is invalid")
+    if evidence["status"] != "accepted":
+        raise ValueError("terminal processor evidence is invalid")
+    encoded = evidence["output_base64"]
+    report = evidence["repair_report"]
+    if (
+        not isinstance(encoded, str)
+        or not isinstance(report, dict)
+        or set(report) != {"category"}
+        or not isinstance(report["category"], str)
+        or not report["category"]
+    ):
+        raise ValueError("terminal processor evidence is invalid")
+    try:
+        output = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise ValueError("terminal processor evidence is invalid") from error
+    if not output:
+        raise ValueError("terminal processor evidence is invalid")
     return output

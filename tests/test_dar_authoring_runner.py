@@ -57,6 +57,7 @@ from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
     DeclaredArtifactTool,
     DeclaredLocalTool,
+    DeclaredTerminalOutputProcessor,
     DeclaredTerminalOutputValidator,
 )
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa: E402
@@ -746,6 +747,64 @@ def test_runner_postprocesses_terminal_output_with_declared_validator(
     )
 
     assert observed == [b"<svg/>"]
+
+
+def test_runner_passes_terminal_bytes_only_between_declared_processors(
+    tmp_path: Path,
+) -> None:
+    observed: list[bytes] = []
+    responses = iter(
+        (
+            b'{"status":"accepted","output_base64":"eyJyb29tcyI6W119",'
+            b'"repair_report":{"category":"none"}}',
+            b'{"status":"accepted","output_base64":"PHN2Zy8+",'
+            b'"repair_report":{"category":"none"}}',
+        )
+    )
+    runner, _, _, revision, _ = _runner(
+        tmp_path,
+        local_asset=True,
+        local_tool_executor=lambda _command, content, _timeout: (
+            observed.append(content) or next(responses)
+        ),
+    )
+    policy = replace(
+        compile_workflow_policy(revision),
+        terminal_output_processors=(
+            DeclaredTerminalOutputProcessor("tools/inspect", 512, 1),
+            DeclaredTerminalOutputProcessor("tools/inspect", 512, 1),
+        ),
+    )
+
+    result = runner._process_terminal_output(  # type: ignore[attr-defined]
+        policy=policy, package_root=revision.package_root, value='{"rooms":[]}'
+    )
+
+    assert result == "<svg/>"
+    assert observed == [b'{"rooms":[]}', b'{"rooms":[]}']
+
+
+def test_runner_rejects_a_terminal_processor_envelope_without_bounded_output(
+    tmp_path: Path,
+) -> None:
+    runner, _, _, revision, _ = _runner(
+        tmp_path,
+        local_asset=True,
+        local_tool_executor=lambda _command, _content, _timeout: (
+            b'{"status":"accepted"}'
+        ),
+    )
+    policy = replace(
+        compile_workflow_policy(revision),
+        terminal_output_processors=(
+            DeclaredTerminalOutputProcessor("tools/inspect", 512, 1),
+        ),
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="terminal output processing failed"):
+        runner._process_terminal_output(  # type: ignore[attr-defined]
+            policy=policy, package_root=revision.package_root, value='{"rooms":[]}'
+        )
 
 
 def test_runner_binds_reviewed_tool_to_an_opaque_binary_artifact(
