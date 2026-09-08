@@ -366,6 +366,64 @@ def workflow_from(data: dict[str, object]) -> LoadedAgentWorkflow:
     return LoadedAgentWorkflow(runtime_manifest=load_runtime_manifest(data))
 
 
+def test_execute_workflow_emits_safe_generation_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "generation-metadata",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    async def fake_create_model_response(_adapter: object, _request: object):
+        return ModelResponse(
+            content="private completion",
+            metadata={
+                "generation": {
+                    "chunk_count": 2,
+                    "chunk_exhausted": [True, False],
+                    "generated_tokens": [4096, 7],
+                }
+            },
+        )
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.executor._create_model_response_async",
+        fake_create_model_response,
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="Trace this",
+        model_adapter=make_named_adapter([], models=["gpt-test"]),
+    )
+
+    response_event = next(
+        event
+        for event in result.state.trace_events
+        if event.event_type == "model_response"
+    )
+    assert response_event.payload["generation"] == {
+        "chunk_count": 2,
+        "chunk_exhausted": [True, False],
+        "generated_tokens": [4096, 7],
+    }
+    assert response_event.sensitive_fields == ("content",)
+
+
 class _RecordingEmbeddingProducer:
     def __init__(self, result: object) -> None:
         self.result = result

@@ -1162,7 +1162,11 @@ async def _execute_llm_step_async(
     tracer.emit(
         "model_response",
         node_id=str(node.id),
-        payload={"response_id": response.response_id, "content": response.content},
+        payload={
+            "response_id": response.response_id,
+            "content": response.content,
+            **response.metadata,
+        },
         sensitive_fields=("content",),
     )
     await invoke_lifecycle_hook_async(
@@ -1714,7 +1718,11 @@ async def _request_loop_model_response_async(
     tracer.emit(
         "model_response",
         node_id=str(node.id),
-        payload={"response_id": response.response_id, "content": response.content},
+        payload={
+            "response_id": response.response_id,
+            "content": response.content,
+            **response.metadata,
+        },
         sensitive_fields=("content",),
     )
     await invoke_lifecycle_hook_async(

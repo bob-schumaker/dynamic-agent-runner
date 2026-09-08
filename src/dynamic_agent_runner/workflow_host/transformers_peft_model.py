@@ -64,6 +64,15 @@ class GeneratedText:
 
     content: str
     exhausted: bool
+    generated_tokens: int | None = None
+
+
+@dataclass(frozen=True)
+class GeneratedCompletion:
+    """One assembled completion with safe generation metadata."""
+
+    content: str
+    metadata: Mapping[str, object]
 
 
 DependencyLoader = Callable[[Path, Path], TransformersPeftBackend]
@@ -267,13 +276,15 @@ class TransformersPeftPackedInputAdapter:
             messages = tuple(request.messages)
             max_continuations = _max_continuations(request)
             if max_continuations:
+                completion = self._generate_with_continuations(
+                    messages=messages,
+                    payload=payload,
+                    max_continuations=max_continuations,
+                    **generation_kwargs,
+                )
                 return ModelResponse(
-                    content=self._generate_with_continuations(
-                        messages=messages,
-                        payload=payload,
-                        max_continuations=max_continuations,
-                        **generation_kwargs,
-                    )
+                    content=completion.content,
+                    metadata=completion.metadata,
                 )
             packed = self._converter.pack(
                 messages=messages,
@@ -298,8 +309,10 @@ class TransformersPeftPackedInputAdapter:
         max_new_tokens: int,
         max_continuations: int,
         json_mode: bool = False,
-    ) -> str:
+    ) -> GeneratedCompletion:
         fragments: list[str] = []
+        chunk_exhausted: list[bool] = []
+        generated_tokens: list[int | None] = []
         continuation_messages = messages
         for continuation in range(max_continuations + 1):
             packed = self._converter.pack(
@@ -313,9 +326,24 @@ class TransformersPeftPackedInputAdapter:
                 json_mode=json_mode,
             )
             fragments.append(generated.content)
-            if not generated.exhausted:
-                completion = "".join(fragments).strip()
-                return _validated_json_object(completion) if json_mode else completion
+            chunk_exhausted.append(generated.exhausted)
+            generated_tokens.append(generated.generated_tokens)
+            completion = "".join(fragments).strip()
+            incomplete_json = json_mode and _is_incomplete_json_object(completion)
+            if not generated.exhausted and not incomplete_json:
+                content = (
+                    _validated_json_object(completion) if json_mode else completion
+                )
+                return GeneratedCompletion(
+                    content=content,
+                    metadata={
+                        "generation": {
+                            "chunk_count": len(fragments),
+                            "chunk_exhausted": chunk_exhausted,
+                            "generated_tokens": generated_tokens,
+                        }
+                    },
+                )
             if continuation == max_continuations:
                 raise ModelExecutionError("local model continuation limit exceeded")
             continuation_messages = (
@@ -461,6 +489,17 @@ def _validated_json_object(value: str) -> str:
     return value
 
 
+def _is_incomplete_json_object(value: str) -> bool:
+    """Return whether a JSON object prefix ends only because it is incomplete."""
+
+    normalized = value.rstrip()
+    try:
+        json.loads(normalized)
+    except json.JSONDecodeError as error:
+        return error.pos == len(normalized)
+    return False
+
+
 def _generated_text(value: str | GeneratedText) -> GeneratedText:
     if isinstance(value, GeneratedText):
         return value
@@ -477,6 +516,14 @@ def _generation_exhausted(
         return shape[1] - prefix_length >= max_new_tokens
     except (IndexError, TypeError):
         return False
+
+
+def _generated_token_count(generated: object, prefix_length: int) -> int | None:
+    shape = getattr(generated, "shape", None)
+    try:
+        return shape[1] - prefix_length
+    except (IndexError, TypeError):
+        return None
 
 
 def _json_mode_prefix_filter(processor: object) -> object:
@@ -658,9 +705,11 @@ class _LoadedTransformersPeftBackend:
         )
         if not decoded or not isinstance(decoded[0], str) or not decoded[0].strip():
             raise ModelExecutionError("local model returned an empty response")
+        generated_tokens = _generated_token_count(generated, prefix_length)
         return GeneratedText(
             decoded[0],
             exhausted=_generation_exhausted(generated, prefix_length, max_new_tokens),
+            generated_tokens=generated_tokens,
         )
 
 

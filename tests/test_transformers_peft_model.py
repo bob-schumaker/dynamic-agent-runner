@@ -290,6 +290,64 @@ def test_converter_adapter_assembles_bounded_json_continuations(
     assert adapter._sealed_payload is None
 
 
+def test_converter_adapter_continues_an_incomplete_json_chunk(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        GeneratedText,
+        PackedModelInput,
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    chunks = iter(
+        (
+            GeneratedText('{"walls":', exhausted=False, generated_tokens=4),
+            GeneratedText("[]}", exhausted=False, generated_tokens=3),
+        )
+    )
+
+    class Runner:
+        input_context = object()
+        supports_json_mode = True
+
+        def generate_chunk(
+            self, _packed: PackedModelInput, **_kwargs: object
+        ) -> GeneratedText:
+            return next(chunks)
+
+    class Converter:
+        def pack(self, **_kwargs: object) -> PackedModelInput:
+            return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
+
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    )
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    response = adapter.create_response(
+        build_openai_request(
+            model=recipe.model_id,
+            messages=[OpenAIMessage("user", "vectorize")],
+            response_format={"type": "json_object"},
+            max_continuations=1,
+        )
+    )
+
+    assert response.content == '{"walls":[]}'
+    assert response.metadata == {
+        "generation": {
+            "chunk_count": 2,
+            "chunk_exhausted": [False, False],
+            "generated_tokens": [4, 3],
+        }
+    }
+
+
 def test_converter_adapter_rejects_an_exhausted_continuation_budget(
     tmp_path: Path,
 ) -> None:
