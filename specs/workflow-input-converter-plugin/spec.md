@@ -103,6 +103,32 @@ validation and trace identity, but a workflow user cannot invoke it directly
 and no graph edge exposes decoded input or packed state outside the standard
 runner.
 
+### JSON output admission
+
+The generic syntax-only response contract is exactly:
+
+```yaml
+response_format:
+  type: json_object
+```
+
+It requests one JSON object, not a JSON Schema, a floorplan schema, or a
+model-specific prompt rewrite. A runner may accept it only when its adapter
+advertises `json_mode: true`; otherwise it must reject the request before it
+loads a model or consumes sealed input. A runner that advertises `json_mode`
+must constrain generation so that its returned completion is strict JSON. A
+prompt instruction alone does not satisfy this capability.
+
+An optional workflow-owned output postprocessor may run after generation and
+before terminal validation. It receives the original bounded text privately and
+returns strict JSON only when a declared deterministic repair policy can prove
+that it did not invent a missing value, array item, object member, or closing
+structure. It retains the original text, repaired text when any, their digests,
+and a bounded repair report as user-only diagnostic artifacts. DAR does not
+enable repair implicitly, interpret the JSON's fields, or expose either text in
+traces or public API results. A failed postprocessor is a declared terminal
+failure, not a retry through unconstrained generation.
+
 ### Contract identifiers
 
 `transformers-peft-single-image-v1` remains the preparation loader profile and
@@ -228,6 +254,26 @@ Stable outward outcomes shall distinguish at least:
 - converter input rejected;
 - packed input rejected by the runner; and
 - converter package load or execution failed.
+
+### FR-7: Strict JSON constraint and admission
+
+When a workflow declares exactly `response_format: {type: json_object}`, DAR
+shall route that existing response-format request only to an adapter that
+advertises `json_mode: true`. An adapter without that capability shall fail
+before model loading, payload binding, or generation. A capable adapter shall
+return strict JSON or fail the run; it shall not downgrade the request to prompt
+guidance. JSON Schema support, domain-schema interpretation, and semantic
+validation are outside this requirement.
+
+### FR-8: Workflow-owned bounded repair
+
+Any repair is a workflow-declared terminal output postprocessor with an exact
+package asset and bounded input/output/time limits. It may make only
+deterministic syntax repairs specified by its registered policy. It shall
+strictly parse the result and reject truncation, ambiguous text, or any repair
+requiring invented structure. Raw and repaired text remain private diagnostic
+artifacts; DAR traces and public results contain only classified outcome,
+bounded repair category, and digests.
 
 ### FR-7: Authoring and packaging boundary
 

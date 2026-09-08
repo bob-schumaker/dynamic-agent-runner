@@ -115,7 +115,7 @@ the standard runner interface. Docker and OS-level isolation are deferred to
   it, but it must fail closed when that runner cannot honor the contract. DAR
   must not acquire a floorplan schema, inspect floorplan fields, or repair
   semantic content.
-  - [ ] T5.4.1 [design] Define the exact declared JSON constraint and its
+  - [x] T5.4.1 [design] Define the exact declared JSON constraint and its
     supported-runner capability check. Define the workflow-owned bounded repair
     fallback separately: it may make only deterministic syntax repairs, must
     preserve the original completion and an auditable repair report, and must
