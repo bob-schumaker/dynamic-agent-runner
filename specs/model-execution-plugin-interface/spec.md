@@ -7,6 +7,7 @@
 - Owner: dynamic-agent-runner local-model and workflow-host boundaries
 - Related specifications:
   - `specs/local-model-preparation/spec.md`
+  - `specs/workflow-model-materials/spec.md`
   - `specs/local-model-runner-interface/spec.md`
   - `specs/model-adapter-coverage/spec.md`
   - `specs/workflow-input-converter-plugin/spec.md`
@@ -38,7 +39,7 @@ This feature defines:
 
 1. declarative built-in compatibility profiles for standard model families;
 2. a narrow client-supplied plugin contract for nonstandard execution behavior;
-3. exact plugin/recipe/profile identity and compatibility validation;
+3. exact plugin/material-lock/profile identity and compatibility validation;
 4. a verified installation and isolation model for plugin code; and
 5. DAR-owned lifecycle, resource, ingress, tracing, and result boundaries.
 
@@ -60,7 +61,8 @@ This feature does not:
 ### Declarative profiles first
 
 DAR shall prefer built-in, declarative compatibility profiles such as
-`transformers-peft-v1`. A recipe selects one only when its loader, media,
+`transformers-peft-v1`. A material declaration selects one only when its loader,
+media,
 prompting, generation, and output behavior are within that profile's explicitly
 documented limits. Unsupported behavior fails closed instead of invoking a
 similarly named profile.
@@ -68,7 +70,8 @@ similarly named profile.
 ### Client plugin for exceptions
 
 A client plugin is an installed package or executable registered by the host,
-not content fetched or selected by a model recipe. Its registration binds:
+not content fetched or selected by a workflow material declaration. Its
+registration binds:
 
 ```text
 plugin_id
@@ -77,10 +80,10 @@ plugin_distribution_digest
 supported_execution_profiles
 ```
 
-A reviewed model recipe names one supported execution profile and carries an
-immutable artifact closure. The host validates the exact
-`(recipe_id, runner_id, plugin_id, plugin_version)` binding before loading a
-model.
+A sealed workflow model-material declaration names one supported execution
+profile and carries an immutable artifact closure. DAR validates the exact
+`(material_lock_digest, runner_id, plugin_id, plugin_version)` binding before
+loading a model.
 
 ### Plugin contract
 
@@ -100,7 +103,7 @@ class ModelExecutionPlugin(Protocol):
 ```
 
 `VerifiedPreparedArtifacts` exposes only the exact read-only artifact members
-declared by the prepared recipe. `SealedModelRequest` exposes bounded approved
+declared by the sealed material lock. `SealedModelRequest` exposes bounded approved
 text and media bytes/types, not arbitrary filesystem paths or URLs.
 `GenerationLimits` is host-issued and authoritative. A plugin returns only a
 bounded normalized result or a package-owned classified error.
@@ -116,8 +119,8 @@ validation.
 
 DAR shall load a plugin only when the host has explicitly registered its
 identity, version, distribution digest, and declared execution profiles. A
-recipe cannot introduce a plugin identifier, package location, or dependency
-at invocation time.
+material declaration cannot introduce a plugin identifier, package location, or
+dependency at invocation time.
 
 ### FR-2: Least-privilege execution boundary
 
@@ -136,7 +139,7 @@ plugin's model instance.
 
 ### FR-4: Exact compatibility and fail-closed behavior
 
-DAR validates the plugin, execution profile, recipe identity, prepared artifact
+DAR validates the plugin, execution profile, material-lock identity, prepared artifact
 closure, declared media contract, and model profile before loading. Missing,
 duplicate, stale, incompatible, or disabled bindings fail before generation
 and without fallback to remote code or a different plugin.
@@ -150,9 +153,11 @@ or plugin-private exception text.
 
 ## Acceptance Criteria
 
-- A standard recipe remains on a declarative DAR-owned runner and does not load
+- A standard material declaration remains on a declarative DAR-owned runner and
+  does not load
   a plugin.
-- A nonstandard recipe resolves only an explicitly registered plugin with an
+- A nonstandard material declaration resolves only an explicitly registered
+  plugin with an
   exact compatible profile and verified prepared artifact closure.
 - Fake-only tests prove plugins cannot receive arbitrary paths, network access,
   or raw credentials through the DAR contract.

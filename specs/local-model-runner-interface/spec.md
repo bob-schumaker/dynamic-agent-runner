@@ -10,6 +10,7 @@
 - Tasks: `tasks.md`
 - Validation: `validation.md`
 - Related: `specs/local-model-preparation/spec.md`
+- Related: `specs/workflow-model-materials/spec.md`
 - Future extension: `specs/workflow-input-converter-plugin/spec.md`
 
 ## Objective
@@ -20,17 +21,18 @@ generic optional `transformers-peft-v1` compatibility runner alongside its
 existing llama.cpp support. A client runner remains an explicit escape hatch
 only for a model outside that closed compatibility profile.
 
-`qwen25-vl-3b-floorplan-grpo` is the first native recipe. It uses the generic
-runner; DAR contains no floorplan prompt, output schema, SVG rule, or
+`qwen25-vl-3b-floorplan-grpo` is the first native material declaration. It uses
+the generic runner; DAR contains no floorplan prompt, output schema, SVG rule, or
 model-specific generation branch.
 
 ## Boundaries
 
-DAR owns recipe/profile resolution, verified artifact materialization, optional
-runtime dependencies, local model loading, sealed text/image translation,
-generation limits, cleanup, tracing, and normalized model responses. The model
-recipe owns immutable base/adapter closures and the closed loader-profile ID.
-The workflow owns floorplan prompting, JSON/SVG contracts, and domain tooling.
+DAR owns material-lock/profile resolution, verified artifact materialization,
+optional runtime dependencies, local model loading, sealed text/image
+translation, generation limits, cleanup, tracing, and normalized model
+responses. The sealed workflow model-material declaration owns immutable
+base/adapter closures and the closed loader-profile ID. The workflow owns
+floorplan prompting, JSON/SVG contracts, and domain tooling.
 
 The first slice deliberately does not add a plugin ABI, a model scheduler, a
 GPU allocator, user-configurable placement, remote code support, or support for
@@ -42,8 +44,8 @@ a concrete model requires them.
 ## Closed `transformers-peft-v1` Profile
 
 The only built-in native profile in this slice is
-`transformers-peft-single-image-v1`. A recipe may select it only when all of
-the following are true:
+`transformers-peft-single-image-v1`. A material declaration may select it only
+when all of the following are true:
 
 | Concern | Required v1 behavior |
 | --- | --- |
@@ -72,20 +74,22 @@ Transformers/PEFT runner then receives only private packed model inputs. That
 future path is governed by `specs/workflow-input-converter-plugin/spec.md`; it
 does not broaden the current built-in profile or change its recorded evidence.
 
-The recipe digest includes the runner ID, loader-profile ID, all group/role
-members, immutable revisions and hashes, and transformation (if any). Unknown
+The material-lock digest includes the runner ID, loader-profile ID, all
+group/role members, immutable revisions and hashes, and transformation (if
+any). Unknown
 loader-profile fields, missing roles, duplicate roles, a base/adapter mismatch,
-or a prepared-set recipe/digest mismatch are incompatible before any framework
+or a prepared-set material-lock/digest mismatch are incompatible before any framework
 import or loader call.
 
 ## Requirements
 
 ### FR-1: Exact built-in selection
 
-DAR selects `transformers-peft-v1` only for a recipe with the closed profile.
+DAR selects `transformers-peft-v1` only for a material declaration with the
+closed profile.
 The built-in ID is reserved: a client cannot register it, and a nonstandard
-recipe cannot use it. The catalog must not infer a runner from extensions,
-imports, filenames, or fallback ordering.
+material declaration cannot use it. The catalog must not infer a runner from
+extensions, imports, filenames, or fallback ordering.
 
 ### FR-2: Offline, verified loading
 
@@ -139,7 +143,8 @@ not retry through CPU/disk offload.
 - Fake-only tests prove an MPS move or adapter-attachment failure clears sealed
   input, yields a package-owned redacted error, and never retries through
   CPU/disk offload.
-- The Qwen recipe/profile use `transformers-peft-v1`, its digest changes when
+- The Qwen material declaration/profile use `transformers-peft-v1`, its digest
+  changes when
   its loader profile or any closure member changes, and no floorplan-specific
   branch exists in the runner.
 - With explicit authorization, one pinned Qwen closure processes one sealed

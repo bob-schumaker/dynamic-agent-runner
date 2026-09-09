@@ -2,9 +2,11 @@
 
 ## Status
 
-Implementation is underway. Complete slices in order. Every implementation task
-requires its preceding RED test task to have failed for the intended reason.
-No unit test may call Hugging Face, load a live model, or run a real converter.
+Historical host-catalog implementation record. Its completed tasks remain
+evidence for DAR preparation mechanics, but its recipe-ownership direction is
+superseded by [`../workflow-model-materials/spec.md`](../workflow-model-materials/spec.md).
+Any successor implementation requires a new TDD task list. No unit test may
+call Hugging Face, load a live model, or run a real converter.
 
 Current release blockers are recorded in `validation.md`: native-routed plugin
 payload regeneration fails in the available packager, and the real floorplan

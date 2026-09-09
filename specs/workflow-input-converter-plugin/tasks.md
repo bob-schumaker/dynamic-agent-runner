@@ -37,7 +37,7 @@ the standard runner interface. Docker and OS-level isolation are deferred to
   or arbitrary manifest extension.
 - [x] T1.3 [implementation] Extend existing package validation and workflow
   registration to bind the converter manifest/asset digest, selected
-  `transformers-generate-v1` contract, prepared-model recipe digest, and
+  `transformers-generate-v1` contract, sealed model-material-lock digest, and
   package digest. Reuse the current exact source and digest-validation pattern;
   do not create a plugin registry or discovery mechanism.
 - [x] T1.4 [tests, GREEN] Prove a registered workflow cannot replace its

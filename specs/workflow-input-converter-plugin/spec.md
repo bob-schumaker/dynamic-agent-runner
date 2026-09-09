@@ -9,6 +9,7 @@
 - Related specifications:
   - `specs/model-execution-plugin-interface/spec.md`
   - `specs/local-model-runner-interface/spec.md`
+  - `specs/workflow-model-materials/spec.md`
   - `specs/local-tool-sandbox-hardening/spec.md`
   - `specs/natural-language-workflow-authoring/spec.md`
 
@@ -219,9 +220,10 @@ asset_digest
 declared_resource_limits
 ```
 
-The converter asset digest, selected runner contract, model recipe digest, and
-workflow package digest form the immutable binding for that registered workflow
-instance. A generated converter becomes durable only through this binding. It
+The converter asset digest, selected runner contract, sealed model-material-lock
+digest, and workflow package digest form the immutable binding for that
+registered workflow instance. A generated converter becomes durable only
+through this binding. It
 is not a host-wide installed plugin and cannot be reused by a different
 workflow without a separate host registration decision.
 

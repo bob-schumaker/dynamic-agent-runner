@@ -41,7 +41,7 @@ format or the resulting framework objects.
 | Sealed JPEG/PNG decode and generation | `workflow_host/transformers_peft_model.py` | Move image-specific decode and processor packing behind the first converter; retain model loading and bounded generation in the runner. |
 | Prepared base and PEFT artifacts | `local_model_preparation.py` | Reuse verified, host-private prepared-set resolution. Do not add paths to a workflow invocation. |
 | Sealed workspace ingress | `workflow_host/runner.py` | Generalize the private handoff from one sealed image to opaque bounded bytes; remove DAR media-type routing from this execution path. |
-| Package binding and digest checks | package and registration control-plane modules | Add a package-contained converter manifest and bind its digest to the exact workflow, runner contract, and model recipe. |
+| Package binding and digest checks | package and registration control-plane modules | Add a package-contained converter manifest and bind its digest to the exact workflow, runner contract, and sealed model-material lock. |
 | OS-level executable isolation | `local-tool-sandbox-hardening` | Future hardening for malicious package code; it is separate from sealed Python package loading. |
 
 ## Delivery Rules
@@ -123,8 +123,9 @@ the sealed workflow contract and has a redacted, reproducible benchmark record.
    and declared resource limits. Reject extra selection mechanisms such as a
    payload media type, filename, prompt directive, runtime path, or live
    callable.
-3. Bind the validated manifest digest, selected runner contract, model recipe
-   digest, and package digest in the existing workflow registration path.
+3. Bind the validated manifest digest, selected runner contract,
+   model-material-lock digest, and package digest in the existing workflow
+   registration path.
    Preserve the existing package-source and no-fallback validation pattern.
 4. Add package-only tests that prove a converter cannot be replaced after a
    workflow is registered or reused by another workflow without registration.

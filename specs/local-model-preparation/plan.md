@@ -2,16 +2,18 @@
 
 ## Status
 
-Ready for implementation. This plan delivers
-[`spec.md`](spec.md) in test-first, independently shippable slices. The
-executable checklist is [`tasks.md`](tasks.md).
+Historical implementation baseline. This plan's completed host-catalog slices
+remain validation evidence for preparation mechanics. The current ownership
+contract is [`../workflow-model-materials/spec.md`](../workflow-model-materials/spec.md),
+which requires a new plan before implementation changes. The executable
+checklist is [`tasks.md`](tasks.md).
 
 ## Goal
 
-Let a saved workflow name a logical local model once. DAR then resolves its
-reviewed multi-file recipe, prepares it only under host authorization, and
-constructs the matching local adapter without exposing a path, cache layout, or
-generated handoff identifier to the user or model.
+This historical baseline let a saved workflow name a logical local model once.
+The successor contract instead seals an exact material declaration into the
+workflow package; DAR retains the preparation mechanics described here without
+exposing a path, cache layout, or generated handoff identifier to the user.
 
 ## Current-State Anchors
 
@@ -28,10 +30,10 @@ generated handoff identifier to the user or model.
 
 - Every slice starts with focused fake-only RED tests and records the expected
   failure before implementation.
-- Recipe data is host-owned. A workflow descriptor retains only its logical
-  model requirement, adapter, and capabilities.
-- Only the preparation operation may perform network downloads. Invocation
-  resolves and verifies a ready set but remains offline.
+- Historical only: recipe data was host-owned and a workflow descriptor
+  retained only its logical model requirement, adapter, and capabilities.
+- The successor material lock is package-bound. A host policy may authorize
+  materialization during invocation; it still controls every network download.
 - Preparation receives a logical requirement; no public command accepts a base,
   projector, LoRA, or converter path.
 - Existing single-file local-model resolution and callers remain unchanged.

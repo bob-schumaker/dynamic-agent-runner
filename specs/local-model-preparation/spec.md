@@ -8,6 +8,7 @@
 - Implementation plan: `plan.md`
 - Task list: `tasks.md`
 - Related specifications:
+  - `specs/workflow-model-materials/spec.md`
   - `specs/natural-language-workflow-authoring/spec.md`
   - `specs/llama-cpp-local-model/spec.md`
   - `specs/hugging-face-support-layer/spec.md`
@@ -16,21 +17,22 @@
 
 ## Objective
 
-Make a workflow's declared logical local-model requirement executable without
-exposing model paths, cache layout, artifact handles, or conversion steps to the
-workflow author or user.
+Materialize a sealed workflow's declared model-material lock without exposing
+model paths, cache layout, artifact handles, or conversion steps to the
+workflow user.
 
-For a known model/runtime pair, DAR resolves a reviewed, pinned recipe to the
-complete artifact set required by that runtime. It reuses valid cached artifacts,
-downloads missing source artifacts when preparation is authorized, performs any
-declared deterministic transformation, verifies the completed set, and makes it
-available under the original logical model name.
+For a known package/runtime pair, DAR resolves the package-bound, pinned
+material declaration to the complete artifact set required by that runtime. It
+reuses valid cached artifacts, downloads missing source artifacts when
+materialization is authorized, performs any DAR-approved deterministic
+transformation, verifies the completed set, and makes it available privately to
+the locked runner.
 
-A recipe may declare a standard runtime compatibility profile. The first native
-profile is `transformers-peft-v1`: a complete grouped base checkpoint and PEFT
-adapter closure loaded by DAR's generic local runner. The profile is generic;
-the recipe remains model-specific and may be rejected when it requires custom
-code or nonstandard preprocessing.
+A sealed material declaration may select a standard runtime compatibility
+profile. The first native profile is `transformers-peft-v1`: a complete grouped
+base checkpoint and PEFT adapter closure loaded by DAR's generic local runner.
+The profile is generic; the declaration remains model-specific and may be
+rejected when it requires custom code or nonstandard preprocessing.
 
 For example, the requirement `qwen25-vl-3b-floorplan-grpo` with the llama.cpp
 vision adapter resolves to a pinned Qwen2.5-VL base GGUF, its matching vision
@@ -56,14 +58,15 @@ choose a substitute model.
 
 This feature defines:
 
-1. host-owned, reviewed recipes mapping a logical model requirement and adapter
-   to a pinned multi-file artifact set;
+1. DAR-owned verification and preparation mechanics for a workflow-bound,
+   reviewed pinned multi-file material declaration;
 2. preparation-time cache lookup, download, conversion, validation, and
    redacted readiness reporting;
 3. resolution of a prepared artifact set to the exact adapter configuration at
    workflow invocation; and
-4. the first recipe for `qwen25-vl-3b-floorplan-grpo` on llama.cpp vision; and
-5. preparation requirements for its reviewed `transformers-peft-v1` native
+4. the first material declaration for `qwen25-vl-3b-floorplan-grpo` on
+   llama.cpp vision; and
+5. preparation requirements for its locked `transformers-peft-v1` native
    closure, whose execution contract is specified by
    `specs/local-model-runner-interface/spec.md`.
 
@@ -72,10 +75,10 @@ This feature defines:
 This feature does not:
 
 - infer a model requirement from arbitrary prompt text at execution time;
-- put Hub revisions, hashes, cache roots, artifact paths, or conversion commands
-  in a portable workflow package;
-- discover, prepare, or substitute arbitrary Hugging Face models based only on a
-  package-provided repository name;
+- put cache roots, artifact paths, conversion commands, loader code, or runtime
+  deployment settings in a portable workflow package;
+- discover, prepare, or substitute arbitrary Hugging Face models based on an
+  unsealed or incomplete package-provided repository reference;
 - own llama.cpp installation, server lifecycle, GPU selection, or model quality
   evaluation;
 - translate the floorplan model's structured JSON into SVG or validate SVG;
@@ -88,37 +91,38 @@ This feature does not:
 
 ### Logical model requirement
 
-A workflow declares a stable model identifier, required adapter, and required
-capabilities. For the floorplan workflow these are
-`qwen25-vl-3b-floorplan-grpo`, the llama.cpp vision adapter, and
-`multimodal_input`. This declaration is portable and contains no physical
-artifact location.
+A workflow contains a sealed logical model identifier, required adapter,
+capabilities, and the complete model-material declaration defined by
+`specs/workflow-model-materials/spec.md`. For the floorplan workflow these
+include `qwen25-vl-3b-floorplan-grpo`, the selected runner/profile, and
+`multimodal_input`. The declaration contains no physical artifact location.
 
 ### Preparation recipe
 
-A preparation recipe is a host-owned reviewed mapping for one exact logical
-model requirement and adapter. It declares every source artifact by immutable
+A preparation recipe is DAR-owned reviewed implementation configuration for one
+exact, package-declared transformation. It defines how DAR executes an approved
+deterministic transformation with declared input/output roles. The sealed
+workflow material declaration supplies every source artifact's immutable
 repository revision, filename, expected digest, role, and compatible runtime
-format. It may also declare a deterministic transformation with a pinned tool
-version and input/output roles.
+format.
 
-Recipes are implementation configuration, not workflow-authored data. A
-workflow may select only a recipe already known to the host for its exact model
-and adapter. Unknown requirements are unavailable; DAR must not use Hub search
-or a similarly named model as fallback.
+A workflow author may select only a preparation-recipe identifier DAR supports
+at construction. A workflow cannot supply conversion code or commands. DAR must
+not use Hub search, a similarly named model, or a substitute recipe as fallback.
 
 ### Prepared artifact set
 
-A prepared artifact set is the verified, runtime-ready result of one recipe.
+A prepared artifact set is the verified, runtime-ready result of one material
+lock and any selected preparation recipe.
 It may contain multiple files, such as `base_model`, `vision_projector`, and
 `adapter`. Its paths and cache representation remain host-private. The only
 stable user-facing reference is the original logical model requirement.
 
-### Reference floorplan recipe
+### Reference floorplan material declaration
 
-The first reviewed recipe is fixed as follows. The implementation may express
-these values in a host-owned typed catalog or equivalent reviewed configuration,
-but it must not move them into the workflow package.
+The first reviewed material declaration is fixed as follows. It is sealed into
+the constructed floorplan workflow package and validated by DAR; its source
+pins are not a caller-provided invocation input or a mutable host setting.
 
 | Role | Source | Revision | File | SHA-256 |
 | --- | --- | --- | --- | --- |
@@ -134,59 +138,61 @@ uses the llama.cpp converter at commit
 the resulting artifact SHA-256
 `ed95fb7aed5e44d075fe028fc58a5b478019f52960a5bebc1a8dd1d15fa93138`.
 The implementation shall pin the converter's isolated dependency environment
-as part of the reviewed recipe; an ambient Python environment is not a recipe
-input.
+as part of DAR's approved preparation recipe; an ambient Python environment is
+not a workflow-material input.
 
 ### Native Transformers + PEFT closure
 
-The same logical Qwen floorplan model may have a distinct native recipe with
+The same logical Qwen floorplan model may have a distinct native material
+declaration with
 `runner_id` `transformers-peft-v1`. It enumerates the full base checkpoint,
 processor/tokenizer metadata, weight-shard index and shards, and PEFT adapter
 metadata/weights in separate verified groups. It has no conversion output.
 
 Preparation does not infer compatibility from `.safetensors` filenames. The
-recipe declares the reviewed standard loader profile; a set is ready only when
-every declared member validates. A native recipe that requires remote code is
-not eligible for this profile. A recipe that uses standard loading but needs
-custom preprocessing or nonstandard media packing may use a compatible workflow
-input converter plugin; a model that also needs custom loading, generation, or
-output decode requires a separately reviewed model-execution plugin.
+material declaration locks the standard loader profile; a set is ready only
+when every declared member validates. A native declaration that requires remote
+code is not eligible for this profile. A declaration that uses standard loading
+but needs custom preprocessing or nonstandard media packing may use a
+compatible workflow input converter plugin; a model that also needs custom
+loading, generation, or output decode requires a separately reviewed
+model-execution plugin.
 
 ### Reference workflow output boundary
 
 `qwen25-vl-3b-floorplan-grpo` is trained to emit structured floorplan JSON:
 walls with nested openings followed by rooms that reference those walls. DAR's
-acceptance boundary for this recipe is a complete, parseable instance of that
-declared JSON contract. JSON-to-SVG rendering and SVG validation are
-workflow-local deterministic tooling implemented outside DAR; they consume the
-model result after DAR has completed the generic sealed-artifact invocation.
+acceptance boundary for this material declaration is a complete, parseable
+instance of that declared JSON contract. JSON-to-SVG rendering and SVG
+validation are workflow-local deterministic tooling implemented outside DAR;
+they consume the model result after DAR has completed the generic
+sealed-artifact invocation.
 
 ## Functional Requirements
 
 ### FR-1: Resolve declared requirements, not prompt text
 
 Before invoking a local adapter, DAR shall resolve the registered workflow's
-declared model requirement and adapter against the host recipe catalog. The
-model prompt, generated workflow prose, and workspace input must not influence
-recipe selection.
+sealed material declaration and locked adapter/runner binding. The model prompt,
+generated workflow prose, and workspace input must not influence material or
+preparation-recipe selection.
 
 Acceptance criteria:
 
-- A floorplan workflow resolves its declared model and llama.cpp vision adapter
-  to the floorplan recipe.
-- A missing recipe yields a stable unavailable result before model loading or
-  network activity.
+- A floorplan workflow resolves its declared material lock and locked adapter to
+  the floorplan artifact closure.
+- An unsupported material declaration or preparation recipe yields a stable
+  unavailable result before model loading or network activity.
 - A same-named model with a different adapter, revision, or capability is not a
   fallback.
 
 ### FR-2: Prepare a complete pinned artifact set
 
-The host shall provide a preparation operation for a declared logical
-requirement. It shall first reuse already verified artifacts from DAR-owned
-preparation storage or the standard Hugging Face cache. If required sources are
-absent and preparation is authorized, it shall download only the recipe's
-pinned files. It shall not download an entire snapshot when a recipe declares
-specific files.
+DAR shall provide materialization for a sealed material declaration. It shall
+first reuse already verified artifacts from DAR-owned preparation storage or the
+standard Hugging Face cache. If required sources are absent and preparation is
+authorized, it shall download only the declaration's pinned files. It shall not
+download an entire snapshot when the declaration specifies files.
 
 The operation returns readiness or a redacted actionable failure under the same
 logical model name. It does not return a path or a newly minted identifier that
@@ -195,7 +201,7 @@ the caller must retain.
 Acceptance criteria:
 
 - A cache-complete artifact set performs no network operation.
-- A partial artifact set downloads only missing recipe inputs.
+- A partial artifact set downloads only missing declared inputs.
 - An unavailable, gated, or integrity-failing source reports a stable failure
   without leaking credentials, local paths, or raw upstream exceptions.
 - A later invocation of the same declared model resolves the verified set
@@ -203,18 +209,19 @@ Acceptance criteria:
 
 ### FR-3: Execute declared deterministic transformations
 
-When a recipe declares a transformation, DAR shall execute only that reviewed
-operation with its declared inputs and output location. It shall validate input
-digests before conversion and output format and digest after conversion. A
+When a sealed declaration selects a transformation, DAR shall execute only the
+matching DAR-approved operation with its declared inputs and output location.
+It shall validate input digests before conversion and output format and digest
+after conversion. A
 failed or interrupted transformation leaves no artifact eligible for execution.
 
-The first floorplan recipe shall convert its pinned PEFT LoRA into a
-llama.cpp-compatible GGUF using its pinned converter and base configuration
+The first floorplan material declaration shall convert its pinned PEFT LoRA
+into a llama.cpp-compatible GGUF using its pinned converter and base configuration
 metadata. It shall use:
 
 - the pinned Qwen2.5-VL base GGUF and matching projector as runtime inputs;
 - the converted LoRA only with that declared base/model family; and
-- the configured precision recorded by the recipe.
+- the configured precision recorded by the material declaration.
 
 Acceptance criteria:
 
@@ -229,7 +236,7 @@ Acceptance criteria:
 Adapter construction may receive resolved physical paths, but no path may enter
 a workflow descriptor, model prompt, user-facing preparation result, trace, or
 saved workflow metadata. The adapter receives only the exact files declared by
-the selected recipe.
+the selected material lock.
 
 Acceptance criteria:
 
@@ -240,27 +247,26 @@ Acceptance criteria:
 - A caller cannot cause DAR to load an arbitrary path by putting it in a prompt
   or workflow artifact.
 
-### FR-5: Integrate preparation into the simple workflow flow
+### FR-5: Integrate materialization into the sealed workflow flow
 
-Natural-language workflow authoring may determine the logical model requirement
-from the user's explicit request. It remains declarative: it neither downloads
-artifacts nor runs a converter. A host composition with preparation authority
-may request the preparation operation before registration or execution. The
-authoring conversation shall not ask for model filenames, converter choices,
-cache locations, or a handle produced by preparation.
+Workflow construction receives the material declaration from the trusted
+workflow author and seals it after DAR validation. It remains declarative: it
+neither downloads artifacts nor runs a converter. A receiving host with
+materialization authority may resolve it before or during execution. The
+workflow user is never asked for model filenames, converter choices, cache
+locations, or a handle produced by preparation.
 
-Workflow invocation resolves the registered logical requirement automatically.
-It must not silently make a network download. A caller or host policy must
-authorize the separate preparation operation. When the set is not prepared,
-invocation returns a concise ready-to-prepare/unavailable result rather than a
-misleading model-load error.
+Workflow invocation resolves the registered material lock automatically. It may
+download only the locked files when host policy authorizes materialization. When
+the set is unavailable or policy denies materialization, invocation returns a
+concise unavailable result rather than a misleading model-load error.
 
 Acceptance criteria:
 
-- The floorplan authoring request requires no model-location clarification.
-- After preparation, the floorplan workflow can be invoked using its saved
-  workflow name and sealed image input; no artifact paths or preparation ID are
-  supplied by the user.
+- The floorplan user supplies no model-location clarification.
+- The floorplan workflow can be invoked using its saved workflow name and
+  sealed image input; no artifact paths or preparation ID are supplied by the
+  user.
 - A policy that disallows download leaves an incomplete set unavailable without
   attempting Hub access.
 
@@ -272,15 +278,16 @@ local-model resolution boundary. It must not scan arbitrary directories or
 delete source artifacts owned by another cache manager.
 
 Each ready set shall retain enough host-private provenance to revalidate its
-recipe, source digests, transformation inputs, and output digest before use.
-Changing any of those values invalidates readiness for that recipe.
+material-lock digest, source digests, transformation inputs, and output digest
+before use. Changing any of those values invalidates readiness for that lock.
 
 Acceptance criteria:
 
 - Cache lookup is limited to approved roots.
 - A stale or mismatched prepared set is revalidated or rejected before adapter
   construction.
-- Re-preparing one recipe does not modify unrelated cached model artifacts.
+- Re-materializing one material lock does not modify unrelated cached model
+  artifacts.
 
 ## Interface Direction
 
@@ -288,20 +295,20 @@ The exact public API and CLI spelling are implementation-plan decisions. The
 user-facing shape must be equivalent to:
 
 ```text
-prepare <logical-model-requirement>
 invoke <saved-workflow-name>
 ```
 
-The second operation resolves the model requirement already declared by the
-saved workflow. It does not require `--model-path`, `--projector-path`, or
-`--lora-path`. A programmatic host API may expose these values only inside a
-host-private prepared-artifact-set value used to build the adapter.
+Invocation resolves the model material already sealed into the saved workflow.
+It does not require `--model-path`, `--projector-path`, or `--lora-path`. A
+programmatic host API may expose paths only inside a host-private
+prepared-artifact-set value used to build the adapter. A separate prefetch
+operation, if exposed, operates exclusively on the saved workflow's lock.
 
 ## Failure Semantics
 
 Preparation failures shall distinguish, without leaking private details:
 
-- no reviewed recipe for the declared model/runtime;
+- unsupported sealed material declaration or preparation recipe;
 - preparation not authorized by the current host policy;
 - source artifact unavailable or access required;
 - source or output integrity failure;
@@ -313,7 +320,8 @@ credential, access token, or opaque internal receipt.
 
 ## Required Validation
 
-Implementation must add deterministic, fake-only tests for recipe selection,
+Implementation must add deterministic, fake-only tests for material-lock and
+preparation-recipe selection,
 cache hit/miss behavior, download policy, per-file pinning, conversion input and
 output validation, cache invalidation, and path redaction. One manually gated
 acceptance run shall prepare and compose the floorplan base GGUF, projector, and
@@ -324,8 +332,8 @@ outcomes.
 
 ## Completion Criteria
 
-This feature is complete when the floorplan workflow can name only
-`qwen25-vl-3b-floorplan-grpo`, DAR can deterministically prepare and verify its
-complete llama.cpp artifact set under host policy, and saved-workflow invocation
-uses that set without user-provided paths, conversion commands, or opaque
-handoff identifiers.
+This feature is complete when the floorplan workflow carries a sealed material
+lock for `qwen25-vl-3b-floorplan-grpo`, DAR can deterministically materialize
+and verify its complete artifact set under host policy, and saved-workflow
+invocation uses that set without user-provided paths, conversion commands, or
+opaque handoff identifiers.
