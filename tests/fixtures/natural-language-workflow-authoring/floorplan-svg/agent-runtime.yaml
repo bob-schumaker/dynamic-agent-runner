@@ -30,8 +30,8 @@ nodes:
     label: Generate structured floorplan
     model: qwen25-vl-3b-floorplan-grpo
     model_parameters:
-      max_tokens: 4096
-      max_continuations: 3
+      max_tokens: 65536
+      max_continuations: 32
     response_format: {type: json_object}
     prompt:
       system: >-
