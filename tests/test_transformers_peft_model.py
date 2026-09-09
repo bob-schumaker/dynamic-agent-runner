@@ -841,7 +841,7 @@ def test_generic_runner_rejects_bad_decodes_and_generation_limits(
             build_openai_request(
                 model=recipe.model_id,
                 messages=[OpenAIMessage("user", "vectorize")],
-                max_tokens=4097,
+                max_tokens=65_537,
             )
         )
     assert adapter._sealed_image is None
@@ -872,6 +872,40 @@ def test_generic_runner_rejects_bad_decodes_and_generation_limits(
         )
     assert adapter._sealed_image is None
     assert loader_calls == 0
+
+
+def test_standard_runner_accepts_the_extended_generation_limits() -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        _max_continuations,
+        _max_new_tokens,
+    )
+
+    request = build_openai_request(
+        model="qwen25-vl-3b-floorplan-grpo",
+        messages=[OpenAIMessage("user", "vectorize")],
+        max_tokens=65_536,
+        max_continuations=32,
+    )
+
+    assert _max_new_tokens(request) == 65_536
+    assert _max_continuations(request) == 32
+
+    with pytest.raises(ModelExecutionError, match="generation limit"):
+        _max_new_tokens(
+            build_openai_request(
+                model="qwen25-vl-3b-floorplan-grpo",
+                messages=[OpenAIMessage("user", "vectorize")],
+                max_tokens=65_537,
+            )
+        )
+    with pytest.raises(ModelExecutionError, match="continuation limit"):
+        _max_continuations(
+            build_openai_request(
+                model="qwen25-vl-3b-floorplan-grpo",
+                messages=[OpenAIMessage("user", "vectorize")],
+                max_continuations=33,
+            )
+        )
 
 
 def test_default_loader_uses_only_local_nonremote_framework_arguments(
