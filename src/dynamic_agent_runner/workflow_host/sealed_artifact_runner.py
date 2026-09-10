@@ -851,6 +851,12 @@ class SealedArtifactOutputHandleService:
         self._store = store
         self._owner = owner
 
+    @property
+    def owner(self) -> str:
+        """Return the host principal allowed to publish output sets."""
+
+        return self._owner
+
     def publish(
         self,
         *,
