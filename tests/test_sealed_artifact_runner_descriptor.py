@@ -73,6 +73,32 @@ def test_parser_accepts_the_normative_v1_canonicalization_vector() -> None:
     assert parsed.output_roles == ("result",)
 
 
+def test_parser_retains_declared_input_contract() -> None:
+    descriptor = _descriptor()
+    descriptor["inputs"] = [
+        {
+            "max_bytes": 12,
+            "media_type": "application/octet-stream",
+            "required": True,
+            "role": "snapshot",
+            "schema_digest": None,
+        }
+    ]
+    unsigned = dict(descriptor)
+    del unsigned["artifact_runner_digest"]
+    descriptor["artifact_runner_digest"] = hashlib.sha256(
+        _canonical(unsigned)
+    ).hexdigest()
+
+    parsed = parse_sealed_artifact_runner_descriptor(_canonical(descriptor))
+
+    assert parsed.inputs[0].role == "snapshot"
+    assert parsed.inputs[0].media_type == "application/octet-stream"
+    assert parsed.inputs[0].max_bytes == 12
+    assert parsed.inputs[0].required is True
+    assert parsed.inputs[0].schema_digest is None
+
+
 @pytest.mark.parametrize(
     ("mutate", "expected"),
     [

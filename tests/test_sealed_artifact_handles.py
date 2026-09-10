@@ -9,6 +9,8 @@ import pytest
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactHandleError,
     SealedArtifactHandleService,
+    SealedArtifactInput,
+    SealedArtifactRunnerDescriptor,
 )
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 
@@ -22,8 +24,31 @@ def _service(tmp_path) -> SealedArtifactHandleService:
     )
 
 
+def _descriptor() -> SealedArtifactRunnerDescriptor:
+    return SealedArtifactRunnerDescriptor(
+        digest="b" * 64,
+        asset_path="assets/runner.py",
+        asset_digest="c" * 64,
+        capability_requirements_digest="d" * 64,
+        inputs=(
+            SealedArtifactInput(
+                role="snapshot",
+                media_type="application/octet-stream",
+                max_bytes=12,
+                required=True,
+                schema_digest=None,
+            ),
+        ),
+        schema_assets=(),
+        child_contract_digests=(),
+        callbacks=(),
+        output_roles=("result",),
+    )
+
+
 def _prepare(service: SealedArtifactHandleService):
     return service.prepare(
+        descriptor=_descriptor(),
         receiver_id="receiver",
         revision_digest="a" * 64,
         invocation_id="invocation",
@@ -34,6 +59,51 @@ def _prepare(service: SealedArtifactHandleService):
         expires_at=NOW + timedelta(minutes=1),
         now=NOW,
     )
+
+
+def test_handle_preparation_requires_declared_input_contract(tmp_path) -> None:
+    service = _service(tmp_path)
+
+    with pytest.raises(SealedArtifactHandleError, match="invalid"):
+        service.prepare(
+            descriptor=_descriptor(),
+            receiver_id="receiver",
+            revision_digest="a" * 64,
+            invocation_id="invocation",
+            role="other",
+            media_type="application/octet-stream",
+            schema_digest=None,
+            content=b"sealed bytes",
+            expires_at=NOW + timedelta(minutes=1),
+            now=NOW,
+        )
+
+
+@pytest.mark.parametrize(
+    ("media_type", "content"),
+    [
+        ("application/json", b"sealed bytes"),
+        ("application/octet-stream", b"x" * 13),
+    ],
+)
+def test_handle_preparation_enforces_declared_media_and_byte_ceiling(
+    tmp_path, media_type: str, content: bytes
+) -> None:
+    service = _service(tmp_path)
+
+    with pytest.raises(SealedArtifactHandleError, match="invalid"):
+        service.prepare(
+            descriptor=_descriptor(),
+            receiver_id="receiver",
+            revision_digest="a" * 64,
+            invocation_id="invocation",
+            role="snapshot",
+            media_type=media_type,
+            schema_digest=None,
+            content=content,
+            expires_at=NOW + timedelta(minutes=1),
+            now=NOW,
+        )
 
 
 def _binding() -> dict[str, str | None]:
