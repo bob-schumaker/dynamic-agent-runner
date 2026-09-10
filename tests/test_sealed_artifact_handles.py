@@ -113,7 +113,7 @@ def test_mismatched_handle_metadata_never_consumes_bytes(
     )
 
 
-def test_expired_or_revoked_handle_cannot_be_consumed(tmp_path) -> None:
+def test_revoked_handle_cannot_be_consumed(tmp_path) -> None:
     service = _service(tmp_path)
     handle = _prepare(service)
     service.revoke(handle.handle_id, now=NOW)
@@ -128,4 +128,21 @@ def test_expired_or_revoked_handle_cannot_be_consumed(tmp_path) -> None:
             media_type="application/octet-stream",
             schema_digest=None,
             now=NOW,
+        )
+
+
+def test_expired_handle_cannot_be_consumed(tmp_path) -> None:
+    service = _service(tmp_path)
+    handle = _prepare(service)
+
+    with pytest.raises(SealedArtifactHandleError, match="unavailable"):
+        service.consume(
+            handle.handle_id,
+            receiver_id="receiver",
+            revision_digest="a" * 64,
+            invocation_id="invocation",
+            role="snapshot",
+            media_type="application/octet-stream",
+            schema_digest=None,
+            now=NOW + timedelta(minutes=2),
         )
