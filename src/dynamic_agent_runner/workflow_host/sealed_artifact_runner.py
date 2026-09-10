@@ -39,6 +39,10 @@ class SealedArtifactHandleError(ValueError):
     """Raised without disclosing private prepared artifact bytes."""
 
 
+class SealedArtifactOutputCollectorError(ValueError):
+    """Raised after destroying unavailable or invalid output candidates."""
+
+
 @dataclass(frozen=True)
 class SealedArtifactRunnerDescriptor:
     """The validated public identity of one v1 sealed-artifact runner."""
@@ -261,6 +265,68 @@ class SealedArtifactWorkflowReceiver:
             ) from error
 
 
+class SealedArtifactOutputCollector:
+    """Collect declared outputs privately until every slot atomically seals."""
+
+    def __init__(self, *, descriptor: SealedArtifactRunnerDescriptor) -> None:
+        if not isinstance(descriptor, SealedArtifactRunnerDescriptor):
+            raise SealedArtifactOutputCollectorError("output collector is unavailable")
+        self._descriptor = descriptor
+        self._candidates: list[tuple[str, str, bytes]] = []
+        self._state = "collecting"
+
+    def write(self, *, role: str, media_type: str, content: bytes) -> None:
+        """Accept exactly the next declared output slot or destroy candidates."""
+
+        if self._state != "collecting":
+            raise SealedArtifactOutputCollectorError("output collector is unavailable")
+        try:
+            expected = self._descriptor.outputs[len(self._candidates)]
+            if (
+                not isinstance(content, bytes)
+                or role != expected.role
+                or media_type != expected.media_type
+                or len(content) > expected.max_bytes
+            ):
+                self._invalidate()
+            if expected.schema_digest is not None:
+                schema_matches = [
+                    item
+                    for item in self._descriptor.schema_assets
+                    if item.digest == expected.schema_digest
+                ]
+                if len(schema_matches) != 1 or schema_matches[0].document is None:
+                    self._invalidate()
+                _validate_json_against_schema(content, schema_matches[0].document)
+            self._candidates.append((role, media_type, content))
+        except (IndexError, SealedArtifactHandleError):
+            self._invalidate()
+
+    def seal(self) -> tuple[tuple[str, str, bytes], ...]:
+        """Return all outputs only after every declared slot has been collected."""
+
+        if self._state != "collecting" or len(self._candidates) != len(
+            self._descriptor.outputs
+        ):
+            self._destroy()
+            raise SealedArtifactOutputCollectorError("output collector is unavailable")
+        self._state = "sealed"
+        return tuple(self._candidates)
+
+    def abort(self) -> None:
+        """Destroy all candidate bytes without publication."""
+
+        self._destroy()
+
+    def _invalidate(self) -> None:
+        self._destroy()
+        raise SealedArtifactOutputCollectorError("output collector is invalid")
+
+    def _destroy(self) -> None:
+        self._candidates.clear()
+        self._state = "destroyed"
+
+
 class SealedArtifactHandleService:
     """Issue and atomically consume role-bound prepared artifact handles."""
 
@@ -318,7 +384,7 @@ class SealedArtifactHandleService:
             ]
             if len(schema_matches) != 1 or schema_matches[0].document is None:
                 raise SealedArtifactHandleError("artifact handle is invalid")
-            _validate_input_json(content, schema_matches[0].document)
+            _validate_json_against_schema(content, schema_matches[0].document)
         issued_at = _utc(now)
         expiry = _utc(expires_at)
         if expiry <= issued_at:
@@ -772,7 +838,7 @@ def _validate_schema(value: bytes) -> object:
         ) from error
 
 
-def _validate_input_json(content: bytes, schema: object) -> None:
+def _validate_json_against_schema(content: bytes, schema: object) -> None:
     try:
         value = json.loads(
             content.decode("utf-8"), object_pairs_hook=_no_duplicate_object
