@@ -105,10 +105,14 @@
 
 ## E4 — Workflow-local builder
 
-- [ ] E4.1 [tests, RED] Add sentinelled fake-builder tests for the sealed
+- [x] E4.1 [tests, RED] Add sentinelled fake-builder tests for the sealed
   builder descriptor, narrow snapshot/prior-bundle/embedding/result-location
   ABI, and no arbitrary writes.
   - Depends on: E1.3, E2.3, E3.3.
+  - Evidence: `tests/test_embedding_index_builder.py` failed with the expected
+    missing-module error before the experimental bridge existed; it now proves
+    exact owner authorization, data-only ABI, declared output slots, and zero
+    builder calls for rejected admission.
 - [ ] E4.2 [implementation] Route the builder through the approved sandbox and
   artifact boundary; expose no directory, network, subprocess, or storage API.
   - Depends on: E4.1.
