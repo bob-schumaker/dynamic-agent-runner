@@ -48,6 +48,7 @@ class SealedArtifactRunnerDescriptor:
     asset_digest: str
     capability_requirements_digest: str
     inputs: tuple["SealedArtifactInput", ...]
+    outputs: tuple["SealedArtifactOutput", ...]
     schema_assets: tuple["SealedArtifactSchemaAsset", ...]
     child_contract_digests: tuple[str, ...]
     callbacks: tuple["SealedArtifactCallback", ...]
@@ -71,6 +72,16 @@ class SealedArtifactInput:
     media_type: str
     max_bytes: int
     required: bool
+    schema_digest: str | None
+
+
+@dataclass(frozen=True)
+class SealedArtifactOutput:
+    """One declared sealed output role and its byte contract."""
+
+    role: str
+    media_type: str
+    max_bytes: int
     schema_digest: str | None
 
 
@@ -127,9 +138,8 @@ def parse_sealed_artifact_runner_descriptor(
     schema_assets = _schemas(mapping["schemas"])
     schema_digests = frozenset(item.digest for item in schema_assets)
     inputs = _inputs(mapping["inputs"], schema_digests=schema_digests)
-    output_roles = _artifacts(
-        mapping["outputs"], output=True, schema_digests=schema_digests
-    )
+    outputs = _outputs(mapping["outputs"], schema_digests=schema_digests)
+    output_roles = tuple(item.role for item in outputs)
     _limits(mapping["limits"])
     child_digests = _child_digests(mapping["child_contract_digests"])
     callbacks = _callbacks(mapping["callbacks"], child_digests)
@@ -139,6 +149,7 @@ def parse_sealed_artifact_runner_descriptor(
         asset_digest=asset_digest,
         capability_requirements_digest=capability_requirements_digest,
         inputs=inputs,
+        outputs=outputs,
         schema_assets=schema_assets,
         child_contract_digests=child_digests,
         callbacks=callbacks,
@@ -565,6 +576,42 @@ def _inputs(
     if roles != sorted(roles) or len(set(roles)) != len(roles):
         _invalid()
     return tuple(inputs)
+
+
+def _outputs(
+    value: object, *, schema_digests: frozenset[str]
+) -> tuple[SealedArtifactOutput, ...]:
+    items = _list(value)
+    if not items:
+        _invalid()
+    outputs: list[SealedArtifactOutput] = []
+    roles: list[str] = []
+    for item in items:
+        mapping = _mapping(item)
+        _require_exact_keys(
+            mapping, {"max_bytes", "media_type", "role", "schema_digest"}
+        )
+        role = _name(mapping["role"])
+        media_type = _media_type(mapping["media_type"])
+        schema_digest = mapping["schema_digest"]
+        if schema_digest is not None:
+            _digest(schema_digest)
+            if schema_digest not in schema_digests or media_type != "application/json":
+                _invalid()
+        max_bytes = mapping["max_bytes"]
+        _positive(max_bytes)
+        outputs.append(
+            SealedArtifactOutput(
+                role=role,
+                media_type=media_type,
+                max_bytes=max_bytes,
+                schema_digest=schema_digest,
+            )
+        )
+        roles.append(role)
+    if roles != sorted(roles) or len(set(roles)) != len(roles):
+        _invalid()
+    return tuple(outputs)
 
 
 def _limits(value: object) -> None:

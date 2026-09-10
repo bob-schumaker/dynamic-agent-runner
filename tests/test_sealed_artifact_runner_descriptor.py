@@ -99,6 +99,17 @@ def test_parser_retains_declared_input_contract() -> None:
     assert parsed.inputs[0].schema_digest is None
 
 
+def test_parser_retains_declared_output_contract() -> None:
+    descriptor = _descriptor()
+
+    parsed = parse_sealed_artifact_runner_descriptor(_canonical(descriptor))
+
+    assert parsed.outputs[0].role == "result"
+    assert parsed.outputs[0].media_type == "application/octet-stream"
+    assert parsed.outputs[0].max_bytes == 1
+    assert parsed.outputs[0].schema_digest is None
+
+
 @pytest.mark.parametrize(
     ("mutate", "expected"),
     [
