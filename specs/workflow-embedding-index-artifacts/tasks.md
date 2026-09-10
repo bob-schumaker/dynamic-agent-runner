@@ -121,10 +121,14 @@
     and in-memory declared result collector. It parses and validates the bundle
     manifest/report before returning a host-private receipt; the profile makes
     no untrusted-package isolation claim.
-- [ ] E4.3 [tests, GREEN] Add a deterministic toy package fixture proving
+- [x] E4.3 [tests, GREEN] Add a deterministic toy package fixture proving
   initial and incremental identical-byte bundle/report identity, rebuild
   boundaries, aggregate-only report egress, and redaction.
   - Depends on: E4.2.
+  - Evidence: `tests/fixtures/embedding-index-toy-builder/toy_builder.py` is
+    injected only by the fake host. Focused tests prove repeat initial and
+    incremental byte identity, prior-bundle report binding, changed-builder
+    rejection, and absence of source/vector values from host result reprs.
 
 ## E5 — Verification and manual gate
 
