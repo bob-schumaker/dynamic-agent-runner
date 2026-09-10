@@ -30,9 +30,13 @@
   unsupported dialect/value, material/capability mismatch, role/asset escape,
   and every staging/catalog/preflight/registration/preparation/ingress/runner
   route with import/load/provider/result-allocation sentinels.
-- [ ] I2.2 [implementation] Derive a private per-role inference binding and
+- [x] I2.2 [implementation] Derive a private per-role inference binding and
   implement bounded canonical callback execution through a receiver-owned
   provider seam and bounded response reader.
+  - Evidence: `LockedInferenceBinding` binds each declared role to its exact
+    material and capability identity; the receiver-owned execution service
+    applies canonical schema validation, host-minimum limits, quota reservation,
+    revalidation, deadline disposal, and redacted provider failures.
 - [ ] I2.3 [tests, GREEN] Prove exact role isolation, shared-capability
   cardinality, effective host ceilings, atomic quota reservation, cancellation,
   late-response disposal, revalidation, no fallback, and trace/receipt/error
