@@ -147,6 +147,12 @@ class LockedInferenceExecutionService:
         return response_bytes
 
 
+def validate_locked_inference_schema(value: bytes) -> None:
+    """Reject noncanonical or unsupported structured-value-v1 schema bytes."""
+
+    _schema(value)
+
+
 def _effective(
     package: LockedInferenceHostLimits, host: LockedInferenceHostLimits
 ) -> LockedInferenceHostLimits:

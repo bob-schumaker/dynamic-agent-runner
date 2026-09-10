@@ -69,6 +69,7 @@ def _catalog_revision(  # noqa: C901
     model_materials: dict[str, object] | None = None,
     model_material_sets: dict[str, object] | None = None,
     inference_roles: dict[str, object] | None = None,
+    inference_role_assets: dict[str, bytes] | None = None,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -87,6 +88,11 @@ def _catalog_revision(  # noqa: C901
         descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
         descriptor_value["inference_roles"] = inference_roles
         descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
+    if inference_role_assets is not None:
+        for path, content in inference_role_assets.items():
+            asset = source / path
+            asset.parent.mkdir(parents=True, exist_ok=True)
+            asset.write_bytes(content)
     if package_id is not None:
         descriptor = source / "workflow-descriptor.yaml"
         descriptor.write_text(
@@ -468,7 +474,7 @@ def test_policy_binds_the_canonical_model_materials_digest(tmp_path: Path) -> No
 
 
 def test_policy_binds_named_material_sets_to_locked_inference_roles(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     lock = {
         "format_version": 1,
@@ -499,6 +505,13 @@ def test_policy_binds_named_material_sets_to_locked_inference_roles(
         ),
         {"runner": runner.capability_id},
     )
+    instruction = b"sealed instruction"
+    schema = b'{"max_depth":2,"max_items":1,"properties":{"value":{"max_string_bytes":16,"type":"string"}},"required":["value"],"type":"object"}'
+    assets = {
+        "assets/instruction.txt": instruction,
+        "assets/request.json": schema,
+        "assets/response.json": schema,
+    }
     inference_roles = {
         "format_version": 1,
         "roles": [
@@ -508,15 +521,15 @@ def test_policy_binds_named_material_sets_to_locked_inference_roles(
                 "capability_id": "model.generate.v1",
                 "instruction_asset": {
                     "path": "assets/instruction.txt",
-                    "sha256": "a" * 64,
+                    "sha256": sha256(instruction).hexdigest(),
                 },
                 "request_schema_asset": {
                     "path": "assets/request.json",
-                    "sha256": "b" * 64,
+                    "sha256": sha256(schema).hexdigest(),
                 },
                 "response_schema_asset": {
                     "path": "assets/response.json",
-                    "sha256": "c" * 64,
+                    "sha256": sha256(schema).hexdigest(),
                 },
                 "authorized_asset_digests": ["d" * 64],
                 "limits": {
@@ -529,48 +542,64 @@ def test_policy_binds_named_material_sets_to_locked_inference_roles(
             }
         ],
     }
-    policy = compile_workflow_policy(
-        _catalog_revision(
-            tmp_path,
-            model_material_sets={
-                "format_version": 1,
-                "material_sets": [{"role": "suggest", "model_materials": lock}],
-            },
-            inference_roles=inference_roles,
-            capability_requirements={
-                "format_version": 1,
-                "required_capabilities": [
-                    item.to_mapping() for item in requirements.required_capabilities
-                ],
-                "capability_requirements_digest": requirements.digest,
-                "bindings": {"runner": {"capability_id": runner.capability_id}},
-            },
-        ),
-        capability_catalog=CapabilityCatalog(
-            (runner, generate),
-            (
-                CapabilityProvider("private-runner", runner, conformance_passed=True),
-                CapabilityProvider(
-                    "private-generate",
-                    generate,
-                    conformance_passed=True,
-                    conformance_vector_ids=frozenset(
-                        {
-                            "bounded_io",
-                            "deadline",
-                            "structured_value",
-                            "redacted_failure",
-                        }
-                    ),
+    revision = _catalog_revision(
+        tmp_path,
+        model_material_sets={
+            "format_version": 1,
+            "material_sets": [{"role": "suggest", "model_materials": lock}],
+        },
+        inference_roles=inference_roles,
+        inference_role_assets=assets,
+        capability_requirements={
+            "format_version": 1,
+            "required_capabilities": [
+                item.to_mapping() for item in requirements.required_capabilities
+            ],
+            "capability_requirements_digest": requirements.digest,
+            "bindings": {"runner": {"capability_id": runner.capability_id}},
+        },
+    )
+    catalog = CapabilityCatalog(
+        (runner, generate),
+        (
+            CapabilityProvider("private-runner", runner, conformance_passed=True),
+            CapabilityProvider(
+                "private-generate",
+                generate,
+                conformance_passed=True,
+                conformance_vector_ids=frozenset(
+                    {
+                        "bounded_io",
+                        "deadline",
+                        "structured_value",
+                        "redacted_failure",
+                    }
                 ),
             ),
         ),
     )
+    policy = compile_workflow_policy(revision, capability_catalog=catalog)
 
     assert policy.model_materials is None
     assert policy.model_material_sets is not None
     assert policy.inference_roles_digest == policy.inference_roles.digest
     assert policy.locked_inference_bindings[0].role == "suggest"
+
+    revision.package_root.chmod(0o700)
+    asset = revision.package_root / "assets" / "request.json"
+    asset.chmod(0o600)
+    asset.write_bytes(b"tampered")
+    monkeypatch.setattr(
+        policy_module,
+        "load_agent_package_workflow",
+        lambda _path: pytest.fail("runtime manifest was loaded"),
+    )
+
+    with pytest.raises(PolicyCompilationError, match="locked inference binding"):
+        compile_workflow_policy(
+            revision,
+            capability_catalog=catalog,
+        )
 
 
 def test_policy_derives_embedding_binding_before_workflow_import(

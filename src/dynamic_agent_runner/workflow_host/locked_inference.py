@@ -5,10 +5,16 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import stat
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping
 
 from dynamic_agent_runner.workflow_host.capabilities import CapabilityRequirements
+from dynamic_agent_runner.workflow_host.locked_inference_execution import (
+    LockedInferenceExecutionError,
+    validate_locked_inference_schema,
+)
 from dynamic_agent_runner.workflow_host.material_sets import ModelMaterialSets
 from dynamic_agent_runner.workflow_host.model_execution_binding import (
     ModelExecutionBinding,
@@ -38,7 +44,7 @@ class SealedAsset:
             not isinstance(self.path, str)
             or not self.path
             or self.path.startswith("/")
-            or ".." in self.path.split("/")
+            or any(segment in {"", ".", ".."} for segment in self.path.split("/"))
             or not _DIGEST.fullmatch(self.sha256)
         ):
             raise LockedInferenceError("sealed inference asset is invalid")
@@ -217,6 +223,20 @@ def validate_inference_material_roles(
         raise LockedInferenceError("inference material role is unavailable") from error
 
 
+def verify_inference_role_assets(*, root: Path, roles: InferenceRoles) -> None:
+    """Verify declared instruction and schema assets before provider admission."""
+
+    if not isinstance(root, Path):
+        raise LockedInferenceError("inference asset is invalid")
+    try:
+        for role in roles.roles:
+            _verified_asset_bytes(root, role.instruction_asset).decode("utf-8")
+            for schema in (role.request_schema_asset, role.response_schema_asset):
+                validate_locked_inference_schema(_verified_asset_bytes(root, schema))
+    except (OSError, UnicodeError, LockedInferenceExecutionError) as error:
+        raise LockedInferenceError("inference asset is invalid") from error
+
+
 def derive_locked_inference_bindings(
     *,
     roles: InferenceRoles,
@@ -299,6 +319,19 @@ def _asset(value: object) -> SealedAsset:
     if not isinstance(value, Mapping) or set(value) != {"path", "sha256"}:
         raise LockedInferenceError("sealed inference asset is invalid")
     return SealedAsset(value["path"], value["sha256"])
+
+
+def _verified_asset_bytes(root: Path, asset: SealedAsset) -> bytes:
+    path = root / asset.path
+    try:
+        if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):
+            raise OSError("asset is not a regular file")
+        value = path.read_bytes()
+    except OSError as error:
+        raise LockedInferenceError("inference asset is invalid") from error
+    if hashlib.sha256(value).hexdigest() != asset.sha256:
+        raise LockedInferenceError("inference asset is invalid")
+    return value
 
 
 def _canonical_json(value: object) -> bytes:

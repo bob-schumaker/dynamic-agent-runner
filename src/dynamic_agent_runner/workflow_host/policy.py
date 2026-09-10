@@ -55,6 +55,7 @@ from dynamic_agent_runner.workflow_host.locked_inference import (
     LockedInferenceBinding,
     LockedInferenceError,
     derive_locked_inference_bindings,
+    verify_inference_role_assets,
 )
 from dynamic_agent_runner.workflow_host.material_sets import (
     MaterialSetsError,
@@ -160,6 +161,7 @@ def compile_workflow_policy(  # noqa: C901
     )
     locked_inference_bindings = _locked_inference_bindings(
         descriptor=descriptor,
+        package_root=revision.package_root,
         model_material_sets=model_material_sets,
         capability_requirements=capability_requirements,
     )
@@ -494,6 +496,7 @@ def _load_model_materials(package_root: Path) -> ModelDependencyLock | None:
 def _locked_inference_bindings(
     *,
     descriptor: WorkflowDescriptor,
+    package_root: Path,
     model_material_sets: ModelMaterialSets | None,
     capability_requirements: CapabilityRequirements,
 ) -> tuple[LockedInferenceBinding, ...]:
@@ -504,6 +507,9 @@ def _locked_inference_bindings(
     if model_material_sets is None:
         raise PolicyCompilationError("locked inference material sets are unavailable")
     try:
+        verify_inference_role_assets(
+            root=package_root, roles=descriptor.inference_roles
+        )
         return derive_locked_inference_bindings(
             roles=descriptor.inference_roles,
             material_sets=model_material_sets,

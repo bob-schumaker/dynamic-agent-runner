@@ -11,6 +11,7 @@ from dynamic_agent_runner.workflow_host.locked_inference import (
     derive_locked_inference_bindings,
     parse_inference_roles,
     validate_inference_material_roles,
+    verify_inference_role_assets,
 )
 from dynamic_agent_runner.workflow_host.material_sets import parse_model_material_sets
 
@@ -59,6 +60,12 @@ def test_inference_roles_have_canonical_bytes_and_exact_material_relation() -> N
         lambda value: value.update(roles=[_role(), _role()]),
         lambda value: value["roles"][0].update(capability_id="other.generate.v1"),
         lambda value: value["roles"][0]["instruction_asset"].update(path="../escape"),
+        lambda value: value["roles"][0]["instruction_asset"].update(
+            path="assets/./instruction.txt"
+        ),
+        lambda value: value["roles"][0]["instruction_asset"].update(
+            path="assets//instruction.txt"
+        ),
         lambda value: value["roles"][0]["limits"].update(max_calls=0),
     ),
 )
@@ -114,6 +121,29 @@ def test_inference_roles_verify_declared_digest() -> None:
     value["inference_roles_digest"] = "f" * 64
     with pytest.raises(LockedInferenceError, match="digest"):
         parse_inference_roles(value)
+
+
+def test_inference_role_assets_require_exact_regular_bytes_and_schemas(
+    tmp_path,
+) -> None:
+    instruction = b"sealed instruction"
+    schema = b'{"max_depth":2,"max_items":1,"properties":{"value":{"max_string_bytes":16,"type":"string"}},"required":["value"],"type":"object"}'
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "instruction.txt").write_bytes(instruction)
+    (tmp_path / "assets" / "request-schema.json").write_bytes(schema)
+    (tmp_path / "assets" / "response-schema.json").write_bytes(schema)
+    value = _roles()
+    role = value["roles"][0]
+    role["instruction_asset"]["sha256"] = sha256(instruction).hexdigest()
+    role["request_schema_asset"]["sha256"] = sha256(schema).hexdigest()
+    role["response_schema_asset"]["sha256"] = sha256(schema).hexdigest()
+    roles = parse_inference_roles(value)
+
+    verify_inference_role_assets(root=tmp_path, roles=roles)
+
+    (tmp_path / "assets" / "request-schema.json").write_bytes(b"tampered")
+    with pytest.raises(LockedInferenceError, match="asset"):
+        verify_inference_role_assets(root=tmp_path, roles=roles)
 
 
 def test_inference_bindings_keep_each_role_material_and_generation_contract_private() -> (
