@@ -102,9 +102,6 @@ only. Verify that export is an explicit caller action and that no source bytes,
 vectors, paths, or non-aggregate report content appear in standard traces or
 diagnostics.
 
-For E5.2, use `ChristianAzinn/gte-small-gguf` at
-`240acca7b64619cd22093a380dc266c4122d99b2`, file
-`gte-small.Q4_K_M.gguf`, SHA-256
-`2b330c1579bac032397b48f5aa92b7b5ab2b94d72cc43cd15925db3ffd03fd61`.
-Resolve it through DAR's standard Hugging Face cache and verify that file digest
-before constructing the embedding provider.
+The manually maintained test harness selects its own pinned material and uses
+the standard Hugging Face cache. No scenario model identifier, revision, file,
+or file digest is a DAR package or generic-contract value.

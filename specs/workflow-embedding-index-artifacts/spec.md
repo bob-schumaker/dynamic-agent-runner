@@ -139,24 +139,6 @@ contains no receiver provider ID, model path, or execution settings. The
 receiver resolves that binding before ingress and revalidates the selected
 provider immediately before embedding.
 
-### E5.2 reference embedding material
-
-The first authorized manual acceptance uses the following locked, local
-llama.cpp material. This is an E5.2 fixture decision, not a version-1
-requirement on other embedding-index workflow packages:
-
-- repository: `ChristianAzinn/gte-small-gguf`;
-- repository revision: `240acca7b64619cd22093a380dc266c4122d99b2`;
-- file: `gte-small.Q4_K_M.gguf`; and
-- SHA-256: `2b330c1579bac032397b48f5aa92b7b5ab2b94d72cc43cd15925db3ffd03fd61`.
-
-The 29.2 MB Q4_K_M artifact is the upstream project's balanced recommended
-quantization and is sufficient for a bounded functional acceptance run. DAR
-must resolve it through the normal Hugging Face model cache, verify the pinned
-file digest before use, and retain only its material-lock digest in acceptance
-records. A caller may supply an explicit cache root, but this fixture does not
-require a workflow-owned model copy or an invocation-time path.
-
 ### Workflow-local index builder
 
 The package supplies one sealed, versioned index-builder asset and a sealed
