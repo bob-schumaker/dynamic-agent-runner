@@ -4,12 +4,23 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+import yaml
 
+from dynamic_agent_runner.workflow_host.catalog import PackageCatalog
+from dynamic_agent_runner.workflow_host.capabilities import CapabilityRequirements
+from dynamic_agent_runner.workflow_host.package_sources import (
+    PackageSourceSelectionPolicy,
+)
+from dynamic_agent_runner.workflow_host.policy import (
+    compile_workflow_policy,
+    resolve_capabilities,
+)
 from dynamic_agent_runner.workflow_host.sealed_artifact_preparation import (
     SealedArtifactInputPreparationService,
 )
@@ -17,6 +28,12 @@ from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactHandleError,
     SealedArtifactHandleService,
 )
+from dynamic_agent_runner.workflow_host.profiles import (
+    InstallationIdentityProvider,
+    LocalModelProfileControlPlane,
+)
+from dynamic_agent_runner.workflow_host.registration import WorkflowRegistrationService
+from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 
 
@@ -24,6 +41,13 @@ NOW = datetime(2026, 9, 10, tzinfo=UTC)
 _OWNER = "local-os-user-v1:501:tester"
 _REVISION = "a" * 64
 _PROFILE = "b" * 64
+_TEMPLATE_ROOT = (
+    Path(__file__).resolve().parents[1]
+    / "specs"
+    / "agent-engineering-plugin-migration"
+    / "legacy-dar-authoring"
+    / "templates"
+)
 
 
 class _CountingStore(PrivateStateStore):
@@ -178,3 +202,90 @@ def test_preparation_binds_the_registered_revision_before_copying_bytes(
 
     assert handle.handle_id
     assert store.issue_calls == 1
+
+
+def test_real_staged_catalog_tamper_rejects_before_handle_issue(tmp_path: Path) -> None:
+    source = tmp_path / "packages" / "document-helper"
+    shutil.copytree(_TEMPLATE_ROOT, source)
+    store = _CountingStore(tmp_path / "state")
+    profiles = LocalModelProfileControlPlane(store=store)
+    profile = profiles.create(
+        model_id="local-model-v1",
+        adapter_id="strict-local-adapter-v1",
+        base_url="http://127.0.0.1:11434/v1",
+        capabilities={"text_generation"},
+    )
+    requirements = CapabilityRequirements()
+    workflow_descriptor = source / "workflow-descriptor.yaml"
+    workflow = yaml.safe_load(workflow_descriptor.read_text(encoding="utf-8"))
+    workflow["dar_runtime"]["required_version"] = "0.1.17"
+    workflow["capability_requirements"] = {
+        "format_version": 1,
+        "required_capabilities": [],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {},
+    }
+    workflow_descriptor.write_text(yaml.safe_dump(workflow), encoding="utf-8")
+    _package(source, profile_digest=profile.profile_digest)
+    runner_descriptor = json.loads(
+        (source / "sealed-artifact-runner.json").read_text(encoding="utf-8")
+    )
+    runner_descriptor["capability_requirements_digest"] = requirements.digest
+    del runner_descriptor["artifact_runner_digest"]
+    runner_descriptor["artifact_runner_digest"] = hashlib.sha256(
+        json.dumps(runner_descriptor, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    (source / "sealed-artifact-runner.json").write_text(
+        json.dumps(runner_descriptor, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    source_handle = PackageSourceSelectionPolicy(
+        allowed_root=source.parent, store=store
+    ).select_directory(source, now=NOW)
+    catalog = PackageCatalog(tmp_path / "catalog")
+    revision = catalog.import_staged(
+        PrivatePackageStager(store=store, private_root=tmp_path / "staging").stage(
+            source_handle, now=NOW
+        )
+    )
+    policy = compile_workflow_policy(revision)
+    registrations = WorkflowRegistrationService(
+        profiles=profiles,
+        configured_profile_id=profile.profile_id,
+        root=tmp_path / "registrations",
+    )
+    registration = registrations.register(
+        workflow_id="document-helper",
+        policy=policy,
+        capability_resolution=resolve_capabilities(
+            policy, available_capabilities={"text_generation"}
+        ),
+    )
+    revision.package_root.chmod(0o700)
+    asset = revision.package_root / "assets" / "runner.py"
+    asset.chmod(0o600)
+    asset.write_bytes(b"tampered")
+    handles = SealedArtifactHandleService(
+        store=store, owner=InstallationIdentityProvider().principal
+    )
+    service = SealedArtifactInputPreparationService(
+        registrations=registrations,
+        catalog=catalog,
+        handles=handles,
+    )
+    issues_before = store.issue_calls
+
+    with pytest.raises(SealedArtifactHandleError, match="unavailable"):
+        service.prepare(
+            workflow_id=registration.workflow_id,
+            receiver_id=InstallationIdentityProvider().principal,
+            invocation_id="invocation",
+            role="snapshot",
+            media_type="application/octet-stream",
+            schema_digest=None,
+            content=b"sealed bytes",
+            expires_at=NOW + timedelta(minutes=1),
+            now=NOW,
+        )
+
+    assert store.issue_calls == issues_before
