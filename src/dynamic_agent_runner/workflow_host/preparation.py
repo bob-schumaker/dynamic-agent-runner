@@ -10,6 +10,7 @@ from dynamic_agent_runner.workflow_host.catalog import (
     PackageCatalog,
     PackageCatalogError,
 )
+from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
 from dynamic_agent_runner.workflow_host.policy import (
     PolicyCompilationError,
     compile_workflow_policy,
@@ -120,11 +121,13 @@ class WorkflowInvocationPreparationService:
         catalog: PackageCatalog,
         store: PrivateStateStore,
         artifact_verifier: WorkspaceArtifactVerifier | None = None,
+        capability_catalog: CapabilityCatalog | None = None,
     ) -> None:
         self._registrations = registrations
         self._catalog = catalog
         self._store = store
         self._artifact_verifier = artifact_verifier
+        self._capability_catalog = capability_catalog
         self._identity = InstallationIdentityProvider()
 
     def prepare(
@@ -345,7 +348,9 @@ class WorkflowInvocationPreparationService:
             revision = self._catalog.revision(
                 registration.package_id, registration.revision_digest
             )
-            policy = compile_workflow_policy(revision)
+            policy = compile_workflow_policy(
+                revision, capability_catalog=self._capability_catalog
+            )
         except (
             WorkflowRegistrationError,
             PackageCatalogError,
@@ -357,6 +362,21 @@ class WorkflowInvocationPreparationService:
         if policy.policy_digest != registration.policy_digest:
             raise PreparedWorkflowInputError(
                 "workflow registration policy does not match"
+            )
+        if (
+            self._capability_catalog is not None
+            and policy.selected_capability_provider_ids
+            and (
+                registration.selected_capability_provider_ids
+                != policy.selected_capability_provider_ids
+                or self._capability_catalog.revalidate(
+                    registration.selected_capability_provider_ids
+                ).status
+                != "eligible"
+            )
+        ):
+            raise PreparedWorkflowInputError(
+                "package capability requirements are unavailable"
             )
         return registration, policy
 

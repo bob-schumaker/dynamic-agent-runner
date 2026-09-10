@@ -9,7 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 from typing import Mapping
 
 from dynamic_agent_runner.apple_foundation_models import (
@@ -80,6 +80,9 @@ from dynamic_agent_runner.workflow_host.local_model_runners import (
     LocalModelRunner,
     LocalModelRunnerCatalog,
 )
+from dynamic_agent_runner.workflow_host.model_execution_binding import (
+    ModelRunnerRegistry,
+)
 from dynamic_agent_runner.workflow_host.artifact_tools import (
     ReviewedArtifactToolExecutor,
 )
@@ -114,6 +117,7 @@ from dynamic_agent_runner.workflow_host.package_export import (
 from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
 )
+from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
 from dynamic_agent_runner.workflow_host.policy import (
     PolicyCompilationError,
     compile_workflow_policy,
@@ -749,6 +753,7 @@ class LocalWorkflowHost:
         mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
         mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
         reviewed_tool_packages: ReviewedToolPackageControlPlane,
+        capability_catalog: CapabilityCatalog | None = None,
     ) -> None:
         self._configuration = configuration
         self._sources = sources
@@ -766,6 +771,7 @@ class LocalWorkflowHost:
         self._mcp_surfaces = mcp_surfaces
         self._mcp_bindings = mcp_bindings
         self._reviewed_tool_packages = reviewed_tool_packages
+        self._capability_catalog = capability_catalog
 
     @classmethod
     def open(
@@ -778,6 +784,7 @@ class LocalWorkflowHost:
         reviewed_artifact_tool_executors: Mapping[str, ReviewedArtifactToolExecutor]
         | None = None,
         local_model_runners: Sequence[LocalModelRunner] = (),
+        model_runner_registry: ModelRunnerRegistry | None = None,
     ) -> LocalWorkflowHost:
         """Open a configured local host for the current OS user."""
 
@@ -890,6 +897,7 @@ class LocalWorkflowHost:
                 reviewed_artifact_tool_executors=reviewed_artifact_tool_executors,
                 terminal_diagnostic_store=store,
                 terminal_diagnostic_owner=InstallationIdentityProvider().principal,
+                model_runner_registry=model_runner_registry,
             ),
             workspace_ingress=workspace_ingress,
             authoring_materials=AuthoringMaterialService(
@@ -1228,7 +1236,9 @@ class LocalWorkflowHost:
         revision = self._catalog.import_staged(
             self._stager.stage(package_source_handle, now=now)
         )
-        policy = compile_workflow_policy(revision)
+        policy = compile_workflow_policy(
+            revision, capability_catalog=self._capability_catalog
+        )
         self._ensure_mcp_client(policy_requires_mcp=True)
         if self._mcp_client is None or self._mcp_bindings is None:
             raise LocalWorkflowHostError("MCP client is not configured")
@@ -1254,7 +1264,9 @@ class LocalWorkflowHost:
         revision = self._catalog.import_staged(
             self._stager.stage(package_source_handle, now=now)
         )
-        policy = compile_workflow_policy(revision)
+        policy = compile_workflow_policy(
+            revision, capability_catalog=self._capability_catalog
+        )
         self._ensure_mcp_client(policy_requires_mcp=bool(policy.declared_tools))
         profile = self._registrations.configured_profile()
         return self._registrations.register(
@@ -1318,8 +1330,19 @@ class LocalWorkflowHost:
             raise LocalWorkflowHostError("dry run cannot accept workspace files")
         try:
             registration = self._registrations.resolve(package_name)
+            revision = self._catalog.revision(
+                registration.package_id, registration.revision_digest
+            )
+            policy = compile_workflow_policy(
+                revision, capability_catalog=self._capability_catalog
+            )
         except WorkflowRegistrationError as error:
             raise LocalWorkflowHostError("saved package is unavailable") from error
+        except (PackageCatalogError, PolicyCompilationError) as error:
+            raise LocalWorkflowHostError("saved package is unavailable") from error
+        if policy.policy_digest != registration.policy_digest:
+            raise LocalWorkflowHostError("saved package policy does not match")
+        self._revalidate_capability_providers(registration, policy)
         if self._profile.adapter_id in {
             FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
             "qwen25-vl-3b-floorplan-grpo-transformers-peft-adapter-v1",
@@ -1396,7 +1419,9 @@ class LocalWorkflowHost:
             revision = self._catalog.revision(
                 registration.package_id, registration.revision_digest
             )
-            policy = compile_workflow_policy(revision)
+            policy = compile_workflow_policy(
+                revision, capability_catalog=self._capability_catalog
+            )
         except (
             WorkflowRegistrationError,
             PackageCatalogError,
@@ -1407,6 +1432,7 @@ class LocalWorkflowHost:
             ) from error
         if policy.policy_digest != registration.policy_digest:
             raise LocalWorkflowHostError("workflow registration policy does not match")
+        self._revalidate_capability_providers(registration, policy)
         try:
             return self._workspace_ingress.ingress(
                 source_path=path,
@@ -1439,7 +1465,9 @@ class LocalWorkflowHost:
             revision = self._catalog.revision(
                 registration.package_id, registration.revision_digest
             )
-            policy = compile_workflow_policy(revision)
+            policy = compile_workflow_policy(
+                revision, capability_catalog=self._capability_catalog
+            )
         except (
             WorkflowRegistrationError,
             PackageCatalogError,
@@ -1450,6 +1478,7 @@ class LocalWorkflowHost:
             ) from error
         if policy.policy_digest != registration.policy_digest:
             raise LocalWorkflowHostError("workflow registration policy does not match")
+        self._revalidate_capability_providers(registration, policy)
         roles = policy.task_invocation.allowed_artifact_roles
         media_types = policy.workspace.accepted_input_types
         if len(roles) != 1 or len(media_types) != 1:
@@ -1463,6 +1492,23 @@ class LocalWorkflowHost:
             media_type=media_types[0],
             now=now,
         )
+
+    def _revalidate_capability_providers(self, registration: Any, policy: Any) -> None:
+        if (
+            self._capability_catalog is not None
+            and policy.selected_capability_provider_ids
+            and (
+                registration.selected_capability_provider_ids
+                != policy.selected_capability_provider_ids
+                or self._capability_catalog.revalidate(
+                    registration.selected_capability_provider_ids
+                ).status
+                != "eligible"
+            )
+        ):
+            raise LocalWorkflowHostError(
+                "package capability requirements are unavailable"
+            )
 
     def dry_run(
         self, *, workflow_id: str, prepared_input_id: str, now: datetime

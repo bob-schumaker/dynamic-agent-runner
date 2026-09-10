@@ -46,6 +46,10 @@ class WorkflowRegistration:
     profile_id: str
     profile_digest: str
     model_id: str
+    capability_requirements_digest: str | None = None
+    model_materials_digest: str | None = None
+    model_execution_binding_digest: str | None = None
+    selected_capability_provider_ids: tuple[str, ...] = ()
     mcp_binding_id: str | None = None
     model_recipe_digest: str | None = None
 
@@ -100,6 +104,7 @@ class WorkflowRegistrationService:
             policy,
             profile,
             workflow_id,
+            selected_capability_provider_ids=policy.selected_capability_provider_ids,
             mcp_binding_id=bound_mcp_id,
             model_recipe_digest=model_recipe_digest,
         )
@@ -202,7 +207,7 @@ class WorkflowRegistrationService:
             raise WorkflowRegistrationError("model recipe is unavailable")
         return digest
 
-    def _read(self) -> dict[str, dict[str, str]]:
+    def _read(self) -> dict[str, dict[str, object]]:
         try:
             value = json.loads(self._path.read_text(encoding="utf-8"))
         except FileNotFoundError:
@@ -213,7 +218,7 @@ class WorkflowRegistrationService:
             raise WorkflowRegistrationError("registration catalog is invalid")
         return value["registrations"]
 
-    def _write(self, records: Mapping[str, Mapping[str, str]]) -> None:
+    def _write(self, records: Mapping[str, Mapping[str, object]]) -> None:
         temporary = self._path.with_suffix(".tmp")
         temporary.write_text(
             json.dumps(
@@ -230,6 +235,7 @@ def _registration_from(
     profile: LocalModelProfile,
     workflow_id: str,
     *,
+    selected_capability_provider_ids: tuple[str, ...],
     mcp_binding_id: str | None,
     model_recipe_digest: str | None,
 ) -> WorkflowRegistration:
@@ -239,6 +245,10 @@ def _registration_from(
         "package_id": policy.package_id,
         "revision_digest": policy.revision_digest,
         "policy_digest": policy.policy_digest,
+        "capability_requirements_digest": policy.capability_requirements_digest,
+        "model_materials_digest": policy.model_materials_digest,
+        "model_execution_binding_digest": policy.model_execution_binding_digest,
+        "selected_capability_provider_ids": selected_capability_provider_ids,
         "profile_id": profile.profile_id,
         "profile_digest": profile.profile_digest,
         "model_id": profile.model_id,
@@ -259,12 +269,16 @@ def _registration_from(
         profile_id=profile.profile_id,
         profile_digest=profile.profile_digest,
         model_id=profile.model_id,
+        capability_requirements_digest=policy.capability_requirements_digest,
+        model_materials_digest=policy.model_materials_digest,
+        model_execution_binding_digest=policy.model_execution_binding_digest,
+        selected_capability_provider_ids=selected_capability_provider_ids,
         mcp_binding_id=mcp_binding_id,
         model_recipe_digest=model_recipe_digest,
     )
 
 
-def _to_mapping(registration: WorkflowRegistration) -> dict[str, str]:
+def _to_mapping(registration: WorkflowRegistration) -> dict[str, object]:
     result = {
         "workflow_id": registration.workflow_id,
         "registration_digest": registration.registration_digest,
@@ -277,6 +291,20 @@ def _to_mapping(registration: WorkflowRegistration) -> dict[str, str]:
     }
     if registration.mcp_binding_id is not None:
         result["mcp_binding_id"] = registration.mcp_binding_id
+    if registration.capability_requirements_digest is not None:
+        result["capability_requirements_digest"] = (
+            registration.capability_requirements_digest
+        )
+    if registration.model_materials_digest is not None:
+        result["model_materials_digest"] = registration.model_materials_digest
+    if registration.model_execution_binding_digest is not None:
+        result["model_execution_binding_digest"] = (
+            registration.model_execution_binding_digest
+        )
+    if registration.selected_capability_provider_ids:
+        result["selected_capability_provider_ids"] = list(
+            registration.selected_capability_provider_ids
+        )
     if registration.model_recipe_digest is not None:
         result["model_recipe_digest"] = registration.model_recipe_digest
     return result
@@ -289,13 +317,17 @@ def _from_mapping(value: object) -> WorkflowRegistration:
         values = {key: value[key] for key in _RECORD_FIELDS}
     except KeyError as error:
         raise WorkflowRegistrationError("registration catalog is invalid") from error
-    allowed_fields = _RECORD_FIELDS | {"mcp_binding_id", "model_recipe_digest"}
-    if set(value) not in (
-        _RECORD_FIELDS,
-        _RECORD_FIELDS | {"mcp_binding_id"},
-        _RECORD_FIELDS | {"model_recipe_digest"},
-        allowed_fields,
-    ) or any(not isinstance(item, str) or not item for item in values.values()):
+    allowed_fields = _RECORD_FIELDS | {
+        "capability_requirements_digest",
+        "model_materials_digest",
+        "model_execution_binding_digest",
+        "selected_capability_provider_ids",
+        "mcp_binding_id",
+        "model_recipe_digest",
+    }
+    if not set(value).issubset(allowed_fields) or any(
+        not isinstance(item, str) or not item for item in values.values()
+    ):
         raise WorkflowRegistrationError("registration catalog is invalid")
     mcp_binding_id = value.get("mcp_binding_id")
     if mcp_binding_id is not None and (
@@ -305,8 +337,36 @@ def _from_mapping(value: object) -> WorkflowRegistration:
     model_recipe_digest = value.get("model_recipe_digest")
     if model_recipe_digest is not None and not _is_digest(model_recipe_digest):
         raise WorkflowRegistrationError("registration catalog is invalid")
+    capability_requirements_digest = value.get("capability_requirements_digest")
+    if capability_requirements_digest is not None and not _is_digest(
+        capability_requirements_digest
+    ):
+        raise WorkflowRegistrationError("registration catalog is invalid")
+    model_materials_digest = value.get("model_materials_digest")
+    if model_materials_digest is not None and not _is_digest(model_materials_digest):
+        raise WorkflowRegistrationError("registration catalog is invalid")
+    model_execution_binding_digest = value.get("model_execution_binding_digest")
+    if model_execution_binding_digest is not None and not _is_digest(
+        model_execution_binding_digest
+    ):
+        raise WorkflowRegistrationError("registration catalog is invalid")
+    provider_ids = value.get("selected_capability_provider_ids", [])
+    if (
+        not isinstance(provider_ids, list)
+        or not provider_ids
+        and "selected_capability_provider_ids" in value
+        or any(
+            not isinstance(provider_id, str) or not provider_id
+            for provider_id in provider_ids
+        )
+    ):
+        raise WorkflowRegistrationError("registration catalog is invalid")
     return WorkflowRegistration(  # type: ignore[arg-type]
         **values,
+        capability_requirements_digest=capability_requirements_digest,
+        model_materials_digest=model_materials_digest,
+        model_execution_binding_digest=model_execution_binding_digest,
+        selected_capability_provider_ids=tuple(provider_ids),
         mcp_binding_id=mcp_binding_id,
         model_recipe_digest=model_recipe_digest,
     )

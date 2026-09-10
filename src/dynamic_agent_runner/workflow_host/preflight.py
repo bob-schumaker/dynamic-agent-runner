@@ -10,6 +10,7 @@ from dynamic_agent_runner.workflow_host.catalog import (
     PackageCatalog,
     PackageCatalogError,
 )
+from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
 from dynamic_agent_runner.workflow_host.policy import (
     CapabilityResolution,
     PolicyCompilationError,
@@ -45,10 +46,12 @@ class PackagePreflightService:
         stager: PrivatePackageStager,
         catalog: PackageCatalog,
         available_capabilities: Iterable[str],
+        capability_catalog: CapabilityCatalog | None = None,
     ) -> None:
         self._stager = stager
         self._catalog = catalog
         self._available_capabilities = frozenset(available_capabilities)
+        self._capability_catalog = capability_catalog
 
     def preflight(
         self, package_source_handle: str, *, now: datetime
@@ -64,7 +67,9 @@ class PackagePreflightService:
         try:
             staged = self._stager.stage(package_source_handle, now=now)
             revision = self._catalog.import_staged(staged)
-            policy = compile_workflow_policy(revision)
+            policy = compile_workflow_policy(
+                revision, capability_catalog=self._capability_catalog
+            )
         except (
             PackageStagingError,
             PackageCatalogError,

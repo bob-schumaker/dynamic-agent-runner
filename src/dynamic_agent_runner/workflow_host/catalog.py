@@ -9,8 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from dynamic_agent_runner import load_agent_package_workflow
-
+from dynamic_agent_runner.workflow_host.descriptor import (
+    WorkflowDescriptor,
+    WorkflowDescriptorError,
+    load_descriptor_yaml,
+)
 from dynamic_agent_runner.workflow_host.staging import StagedPackage
 
 
@@ -44,13 +47,7 @@ class PackageCatalog:
         """Record one DAR-validated staged copy by package ID and content digest."""
 
         package_root = Path(staged.root)
-        try:
-            workflow = load_agent_package_workflow(str(package_root))
-        except Exception as error:
-            raise PackageCatalogError("staged package fails DAR validation") from error
-        package_id = workflow.runtime_manifest.package_id
-        if not package_id:
-            raise PackageCatalogError("staged package has no package_id")
+        package_id = _descriptor_package_id(package_root)
         if not _is_digest(staged.digest):
             raise PackageCatalogError("staged package digest is invalid")
         if staged.trust == "human_selected_local":
@@ -122,6 +119,21 @@ class PackageCatalog:
         )
         os.chmod(temporary, 0o600)
         os.replace(temporary, self._path)
+
+
+def _descriptor_package_id(package_root: Path) -> str:
+    """Read only the descriptor identity during non-executing catalog import."""
+
+    try:
+        value = load_descriptor_yaml(
+            (package_root / "workflow-descriptor.yaml").read_bytes()
+        )
+        package_id = WorkflowDescriptor.from_mapping(value).package_id
+    except (OSError, WorkflowDescriptorError, TypeError) as error:
+        raise PackageCatalogError(
+            "staged package fails descriptor validation"
+        ) from error
+    return package_id
 
 
 def _revision_from_mapping(

@@ -24,6 +24,7 @@ from dynamic_agent_runner.openai_client import (  # noqa: E402
 
 from dynamic_agent_runner.workflow_host.host import (  # noqa: E402
     LocalWorkflowHost,
+    LocalWorkflowHostError,
     attach_mcp_client,
     configure_apple_local_host,
     configure_qwen25_vl_3b_floorplan_grpo_transformers_peft_host,
@@ -34,6 +35,14 @@ from dynamic_agent_runner.workflow_host.host import (  # noqa: E402
 )
 from dynamic_agent_runner.workflow_host.connections import (  # noqa: E402
     MCPConnectionControlPlane,
+)
+from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
+    BUILTIN_CAPABILITY_CONTRACTS,
+    CapabilityCatalog,
+    CapabilityProvider,
+    CapabilityRequirement,
+    CapabilityRequirements,
+    ProviderAvailability,
 )
 from dynamic_agent_runner.workflow_host.authorized_tools import (  # noqa: E402
     create_authorized_mcp_tool_bindings,
@@ -1381,5 +1390,120 @@ def test_host_ingresses_a_file_only_under_the_registered_workspace_contract(
             path=document,
             role="document",
             media_type="text/plain",
+            now=NOW,
+        )
+
+
+def test_host_rejects_unsatisfied_requirement_before_file_ingress(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package_root = tmp_path / "packages"
+    source = package_root / "document-helper"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    descriptor = source / "workflow-descriptor.yaml"
+    value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+    value["workspace"]["accepted_input_types"] = ["text/plain"]
+    value["task_invocation"]["allowed_artifact_roles"] = ["document"]
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+    requirement = CapabilityRequirement(
+        contract.capability_id,
+        contract.contract_version,
+        contract.contract_digest,
+        ("multimodal",),
+    )
+    requirements = CapabilityRequirements((requirement,))
+    value["dar_runtime"]["required_version"] = "0.1.17"
+    value["capability_requirements"] = {
+        "format_version": 1,
+        "required_capabilities": [requirement.to_mapping()],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {},
+    }
+    descriptor.write_text(yaml.safe_dump(value), encoding="utf-8")
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+    document = input_root / "document.txt"
+    document.write_text("document body", encoding="utf-8")
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.host.create_local_adapter",
+        lambda profile: OpenAIClientAdapter(
+            _Client(),
+            models=[profile.execution_model_id],
+            is_local=True,
+            model_id_mapping={profile.execution_model_id: profile.model_id},
+            execution_profile_adapter_id=profile.adapter_id,
+        ),
+    )
+    configure_local_host(
+        root=tmp_path / "state",
+        package_root=package_root,
+        workspace_input_root=input_root,
+        model_id="local-model-v1",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    host = LocalWorkflowHost.open(tmp_path / "state")
+    provider_available = True
+    available_catalog = CapabilityCatalog(
+        (contract,),
+        (
+            CapabilityProvider(
+                "private-test-provider",
+                contract,
+                conformance_passed=True,
+                conformance_vector_ids=frozenset(
+                    {
+                        "requested_features",
+                        "output_integrity",
+                        "resource_limits",
+                        "redacted_failure",
+                    }
+                ),
+            ),
+        ),
+        availability_provider=lambda _provider: (
+            ProviderAvailability.AVAILABLE
+            if provider_available
+            else ProviderAvailability.DISABLED
+        ),
+    )
+    host._capability_catalog = available_catalog
+    host._preparation._capability_catalog = available_catalog
+    source_handle = host.select_package(source, now=NOW)
+    registration = host.register(
+        workflow_id="document-helper", package_source_handle=source_handle, now=NOW
+    )
+    provider_available = False
+    assert host._workspace_ingress is not None
+    monkeypatch.setattr(
+        host._workspace_ingress,
+        "ingress",
+        lambda **_kwargs: pytest.fail("workspace file ingress was called"),
+    )
+
+    with pytest.raises(LocalWorkflowHostError, match="registration"):
+        host.ingress_file(
+            workflow_id=registration.workflow_id,
+            path=document,
+            role="document",
+            media_type="text/plain",
+            now=NOW,
+        )
+
+    host._profile = replace(
+        host._profile,
+        adapter_id="qwen25-vl-3b-floorplan-grpo-transformers-peft-adapter-v1",
+    )
+    monkeypatch.setattr(
+        host._model_preparation,
+        "prepare",
+        lambda **_kwargs: pytest.fail("model preparation was called"),
+    )
+    with pytest.raises(LocalWorkflowHostError, match="saved package"):
+        host.invoke_saved(
+            package_name=registration.workflow_id,
+            prompt="Answer the request.",
+            workspace_files=(),
+            dry_run=True,
+            approval_broker=None,
             now=NOW,
         )

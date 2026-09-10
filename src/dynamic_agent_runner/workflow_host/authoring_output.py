@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import yaml
 
 from dynamic_agent_runner import load_agent_package_workflow
 from dynamic_agent_runner.validation import validate_agent_workflow
@@ -23,6 +22,11 @@ from dynamic_agent_runner.workflow_host.descriptor import (
     validate_package_skill_contract,
     validate_runtime_tool_contract,
 )
+from dynamic_agent_runner.workflow_host.model_materials import (
+    ModelMaterialsError,
+    parse_model_dependency_lock,
+)
+from dynamic_agent_runner.workflow_host.policy import load_workflow_descriptor
 
 
 class AuthoringOutputError(ValueError):
@@ -71,9 +75,24 @@ def build_authored_package_manifest(package_root: Path) -> bytes:
         "package_id": package_id,
         "runtime_format_version": runtime_manifest.format_version,
     }
+    model_materials = _load_model_materials(package_root)
+    if model_materials is not None:
+        payload["model_materials_digest"] = model_materials.digest
     if not isinstance(descriptor_bytes, bytes):  # Defensive invariant for typing.
         raise AuthoringOutputError("authoring package structure is invalid")
     return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _load_model_materials(package_root: Path):
+    path = package_root / "model-materials.json"
+    if not path.exists():
+        return None
+    try:
+        return parse_model_dependency_lock(path.read_bytes())
+    except (OSError, ModelMaterialsError) as error:
+        raise AuthoringOutputError(
+            "authoring model-material lock is invalid"
+        ) from error
 
 
 def write_authored_package_manifest(package_root: Path) -> bytes:
@@ -177,13 +196,13 @@ def _package_files(package_root: Path) -> tuple[tuple[str, bytes], ...]:
 
 def _load_package_contract(package_root: Path) -> tuple[Any, bytes, dict[str, object]]:
     try:
-        workflow = load_agent_package_workflow(str(package_root))
-        validate_agent_workflow(workflow)
         descriptor_bytes = (package_root / "workflow-descriptor.yaml").read_bytes()
-        descriptor_value = yaml.safe_load(descriptor_bytes)
+        descriptor_value = load_workflow_descriptor(descriptor_bytes)
         if not isinstance(descriptor_value, dict):
             raise ValueError
         descriptor = WorkflowDescriptor.from_mapping(descriptor_value)
+        workflow = load_agent_package_workflow(str(package_root))
+        validate_agent_workflow(workflow)
         if descriptor.package_id != workflow.runtime_manifest.package_id:
             raise ValueError
         validate_no_tool_runtime_nodes(descriptor, workflow.runtime_manifest.nodes)

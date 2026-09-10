@@ -15,11 +15,16 @@ from dynamic_agent_runner.workflow_host.package_signatures import (
     PackageSignatureError,
     sign_manifest,
 )
+from dynamic_agent_runner.workflow_host.model_materials import (
+    ModelMaterialsError,
+    parse_model_dependency_lock,
+)
 from dynamic_agent_runner.workflow_host.staging import StagedPackage
 
 
 _MANIFEST_NAME = "package-manifest.json"
 _SIGNATURE_NAME = "package-signature.json"
+_MODEL_MATERIALS_NAME = "model-materials.json"
 _ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 
 
@@ -119,8 +124,17 @@ def _verified_payload(staged: StagedPackage) -> dict[str, bytes]:
         or not isinstance(value.get("descriptor_format_version"), int)
         or isinstance(value["descriptor_format_version"], bool)
         or not _valid_dar_runtime(value.get("dar_runtime"))
+        or (
+            "capability_requirements_digest" in value
+            and not _is_digest(value["capability_requirements_digest"])
+        )
+        or (
+            "model_materials_digest" in value
+            and not _is_digest(value["model_materials_digest"])
+        )
     ):
         raise PackageExportError("staged package manifest is invalid")
+    _verify_model_materials_digest(root, value)
     payload: dict[str, bytes] = {_MANIFEST_NAME: manifest}
     entries: list[tuple[str, str, int]] = []
     for entry in files:
@@ -142,6 +156,23 @@ def _verified_payload(staged: StagedPackage) -> dict[str, bytes]:
     if _content_digest(entries) != staged.digest:
         raise PackageExportError("staged package manifest does not match payload")
     return payload
+
+
+def _verify_model_materials_digest(root: Path, manifest: dict[object, object]) -> None:
+    path = root / _MODEL_MATERIALS_NAME
+    declared_digest = manifest.get("model_materials_digest")
+    if not path.exists():
+        if declared_digest is not None:
+            raise PackageExportError("model-material lock does not match manifest")
+        return
+    try:
+        digest = parse_model_dependency_lock(
+            _read_regular_file(root, _MODEL_MATERIALS_NAME)
+        ).digest
+    except (ModelMaterialsError, PackageExportError) as error:
+        raise PackageExportError("model-material lock is invalid") from error
+    if declared_digest != digest:
+        raise PackageExportError("model-material lock does not match manifest")
 
 
 def _valid_dar_runtime(value: object) -> bool:
@@ -177,6 +208,14 @@ def _relative_path(value: object) -> str:
     ):
         raise PackageExportError("staged package manifest is invalid")
     return str(path)
+
+
+def _is_digest(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 def _read_regular_file(root: Path, relative_path: str) -> bytes:

@@ -15,6 +15,13 @@ from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
     validate_package_skill_contract,
     validate_no_tool_runtime_nodes,
 )
+from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
+    CapabilityRequirements,
+)
+from dynamic_agent_runner.workflow_host.policy import (  # noqa: E402
+    PolicyCompilationError,
+    load_workflow_descriptor,
+)
 
 
 def _descriptor() -> dict[str, object]:
@@ -63,6 +70,79 @@ def test_valid_no_tool_descriptor_compiles() -> None:
     validate_no_tool_runtime_nodes(
         descriptor, (RuntimeNode(id="answer", kind="llm_step"),)
     )
+
+
+def test_descriptor_parses_canonical_capability_requirements() -> None:
+    value = _descriptor()
+    requirements = CapabilityRequirements()
+    value["dar_runtime"]["required_version"] = "0.1.17"  # type: ignore[index]
+    value["capability_requirements"] = {
+        "format_version": 1,
+        "required_capabilities": [],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {},
+    }
+
+    descriptor = WorkflowDescriptor.from_mapping(value)
+
+    assert descriptor.capability_requirements == requirements
+    assert descriptor.capability_requirements_digest == requirements.digest
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        lambda requirement: requirement.update({"format_version": 2}),
+        lambda requirement: requirement.update({"unexpected": True}),
+        lambda requirement: requirement.update(
+            {"capability_requirements_digest": "a" * 64}
+        ),
+        lambda requirement: requirement.update(
+            {"bindings": {"runner": {"capability_id": "missing"}}}
+        ),
+    ),
+)
+def test_descriptor_rejects_invalid_capability_requirements(mutation: object) -> None:
+    value = _descriptor()
+    requirements = CapabilityRequirements()
+    value["dar_runtime"]["required_version"] = "0.1.17"  # type: ignore[index]
+    requirement: dict[str, object] = {
+        "format_version": 1,
+        "required_capabilities": [],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {},
+    }
+    mutation(requirement)  # type: ignore[operator]
+    value["capability_requirements"] = requirement
+
+    with pytest.raises(WorkflowDescriptorError, match="capability requirements"):
+        WorkflowDescriptor.from_mapping(value)
+
+
+def test_descriptor_requires_capability_runtime_version() -> None:
+    value = _descriptor()
+    requirements = CapabilityRequirements()
+    value["capability_requirements"] = {
+        "format_version": 1,
+        "required_capabilities": [],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {},
+    }
+
+    with pytest.raises(WorkflowDescriptorError, match="required_version"):
+        WorkflowDescriptor.from_mapping(value)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        b"package_id: first\npackage_id: second\n",
+        b"capability_requirements:\n  bindings:\n    runner: one\n    runner: two\n",
+    ),
+)
+def test_descriptor_loader_rejects_duplicate_yaml_keys(payload: bytes) -> None:
+    with pytest.raises(PolicyCompilationError, match="duplicate"):
+        load_workflow_descriptor(payload)
 
 
 def test_input_converter_manifest_requires_the_exact_runner_contract() -> None:

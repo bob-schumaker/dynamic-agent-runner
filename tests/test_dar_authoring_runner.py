@@ -8,6 +8,7 @@ from hashlib import sha256
 import json
 import shutil
 import socket
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -26,6 +27,14 @@ from dynamic_agent_runner.openai_client import (  # noqa: E402
 )
 
 from dynamic_agent_runner.workflow_host.catalog import PackageCatalog  # noqa: E402
+from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
+    BUILTIN_CAPABILITY_CONTRACTS,
+    CapabilityCatalog,
+    CapabilityProvider,
+    CapabilityRequirement,
+    CapabilityRequirements,
+    ProviderAvailability,
+)
 from dynamic_agent_runner.workflow_host.action_ledger import WorkflowActionLedger  # noqa: E402
 from dynamic_agent_runner.workflow_host.approvals import WorkflowApprovalStore  # noqa: E402
 from dynamic_agent_runner.workflow_host.authorized_tools import (  # noqa: E402
@@ -53,6 +62,9 @@ from dynamic_agent_runner.workflow_host.preparation import (
 from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControlPlane  # noqa: E402
 from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+)
+from dynamic_agent_runner.workflow_host.model_execution_binding import (  # noqa: E402
+    ModelExecutionBinding,
 )
 from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
     DeclaredArtifactTool,
@@ -512,6 +524,8 @@ def _runner(
     response_content: str = "completed locally",
     reviewed_tool_packages: ReviewedToolPackageControlPlane | None = None,
     reviewed_artifact_tool_executors: object | None = None,
+    capability_catalog: CapabilityCatalog | None = None,
+    with_capability_requirements: bool = False,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -527,7 +541,7 @@ def _runner(
         asset = source / "tools" / "inspect"
         asset.parent.mkdir()
         asset.write_text("placeholder", encoding="utf-8")
-    if hosted or vision or input_converter:
+    if hosted or vision or input_converter or with_capability_requirements:
         descriptor_path = source / "workflow-descriptor.yaml"
         descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
         if hosted:
@@ -552,6 +566,22 @@ def _runner(
                     "timeout_seconds": 1,
                 },
             }
+        if with_capability_requirements:
+            contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+            requirement = CapabilityRequirement(
+                contract.capability_id,
+                contract.contract_version,
+                contract.contract_digest,
+                ("multimodal",),
+            )
+            requirements = CapabilityRequirements((requirement,))
+            descriptor["dar_runtime"]["required_version"] = "0.1.17"
+            descriptor["capability_requirements"] = {
+                "format_version": 1,
+                "required_capabilities": [requirement.to_mapping()],
+                "capability_requirements_digest": requirements.digest,
+                "bindings": {},
+            }
         descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
     if terminal_validator:
         descriptor_path = source / "workflow-descriptor.yaml"
@@ -572,7 +602,7 @@ def _runner(
             source_handle, now=NOW
         )
     )
-    policy = compile_workflow_policy(revision)
+    policy = compile_workflow_policy(revision, capability_catalog=capability_catalog)
     profiles = LocalModelProfileControlPlane(store=store)
     profile = (
         profiles.create_floorplan_vision_llama_cpp()
@@ -612,6 +642,7 @@ def _runner(
         catalog=catalog,
         store=store,
         artifact_verifier=artifact_verifier,  # type: ignore[arg-type]
+        capability_catalog=capability_catalog,
     )
     client = (
         AsyncFakeClient(response_content)
@@ -679,6 +710,7 @@ def _runner(
             reviewed_artifact_tool_executors=reviewed_artifact_tool_executors,  # type: ignore[arg-type]
             terminal_diagnostic_store=store,
             terminal_diagnostic_owner="test-local-user",
+            capability_catalog=capability_catalog,
         ),
         preparation,
         registration,
@@ -697,6 +729,315 @@ def test_runner_rejects_an_image_workflow_for_a_text_only_profile(
             workflow_id=registration.workflow_id,
             input_kind="image_artifact",
         )
+
+
+def test_runner_rejects_a_locked_runner_before_sealed_input_loading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner, preparation, registration, revision, _ = _runner(tmp_path)
+    binding = ModelExecutionBinding(
+        "example",
+        "llama-cpp-v1",
+        "1",
+        "llama-cpp-text-v1",
+        "1",
+        "a" * 64,
+        "b" * 64,
+        "model.execution.test.v1",
+        "1",
+        "c" * 64,
+    )
+    policy = replace(
+        compile_workflow_policy(revision),
+        model_execution_binding=binding,
+    )
+    monkeypatch.setattr(
+        runner,
+        "_preflight",
+        lambda _workflow_id: (registration, revision.package_root, policy, {}),
+    )
+    monkeypatch.setattr(
+        preparation,
+        "load",
+        lambda *_args, **_kwargs: pytest.fail("sealed input was loaded"),
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="model runner"):
+        runner.run(
+            RunDarWorkflowRequest(registration.workflow_id, "prepared-input"), now=NOW
+        )
+
+
+def test_runner_rejects_unsatisfied_requirement_before_artifact_materialization(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class CountingVerifier(ArtifactVerifier):
+        def __init__(self) -> None:
+            self.loads = 0
+
+        def load(self, *args: object, **kwargs: object) -> object:
+            self.loads += 1
+            return super().load(*args, **kwargs)  # type: ignore[arg-type]
+
+    verifier = CountingVerifier()
+    runner, preparation, registration, revision, client = _runner(
+        tmp_path, artifact_verifier=verifier
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Answer me.",
+        workspace_artifact_ids=("v1.workspace-artifact",),
+        now=NOW,
+    )
+    loads_before_run = verifier.loads
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+    requirement = CapabilityRequirement(
+        contract.capability_id,
+        contract.contract_version,
+        contract.contract_digest,
+        ("multimodal",),
+    )
+    requirements = CapabilityRequirements((requirement,))
+    descriptor_path = revision.package_root / "workflow-descriptor.yaml"
+    revision.package_root.chmod(0o700)
+    descriptor_path.chmod(0o600)
+    descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+    descriptor["dar_runtime"]["required_version"] = "0.1.17"
+    descriptor["capability_requirements"] = {
+        "format_version": 1,
+        "required_capabilities": [requirement.to_mapping()],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {},
+    }
+    descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
+    monkeypatch.setattr(
+        subprocess,
+        "Popen",
+        lambda *_args, **_kwargs: pytest.fail("subprocess creation was called"),
+    )
+    monkeypatch.setattr(
+        socket,
+        "create_connection",
+        lambda *_args, **_kwargs: pytest.fail("network access was called"),
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="registered workflow run failed"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    assert verifier.loads == loads_before_run
+    assert client.responses.calls == []
+
+
+def test_runner_rejects_provider_reselection_before_model_execution(
+    tmp_path: Path,
+) -> None:
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+
+    def provider(provider_id: str) -> CapabilityProvider:
+        return CapabilityProvider(
+            provider_id,
+            contract,
+            conformance_passed=True,
+            conformance_vector_ids=frozenset(
+                {
+                    "requested_features",
+                    "output_integrity",
+                    "resource_limits",
+                    "redacted_failure",
+                }
+            ),
+        )
+
+    first = provider("private-provider-a")
+    second = provider("private-provider-b")
+    original_catalog = CapabilityCatalog((contract,), (first, second))
+    runner, preparation, registration, _, client = _runner(
+        tmp_path,
+        capability_catalog=original_catalog,
+        with_capability_requirements=True,
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Answer me.",
+        now=NOW,
+    )
+    runner._capability_catalog = CapabilityCatalog((contract,), (second, first))
+
+    with pytest.raises(RunDarWorkflowError, match="capability requirements"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    assert client.responses.calls == []
+
+
+def test_runner_rejects_provider_becoming_unavailable_before_model_execution(
+    tmp_path: Path,
+) -> None:
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+    provider = CapabilityProvider(
+        "private-provider-a",
+        contract,
+        conformance_passed=True,
+        conformance_vector_ids=frozenset(
+            {
+                "requested_features",
+                "output_integrity",
+                "resource_limits",
+                "redacted_failure",
+            }
+        ),
+    )
+    available = True
+    catalog = CapabilityCatalog(
+        (contract,),
+        (provider,),
+        availability_provider=lambda _provider: (
+            ProviderAvailability.AVAILABLE
+            if available
+            else ProviderAvailability.DISABLED
+        ),
+    )
+    runner, preparation, registration, _, client = _runner(
+        tmp_path,
+        capability_catalog=catalog,
+        with_capability_requirements=True,
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Answer me.",
+        now=NOW,
+    )
+    available = False
+
+    with pytest.raises(RunDarWorkflowError, match="registered workflow run failed"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    assert client.responses.calls == []
+
+
+def test_runner_rejects_provider_becoming_unavailable_before_converter_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+    provider = CapabilityProvider(
+        "private-provider-a",
+        contract,
+        conformance_passed=True,
+        conformance_vector_ids=frozenset(
+            {
+                "requested_features",
+                "output_integrity",
+                "resource_limits",
+                "redacted_failure",
+            }
+        ),
+    )
+    available = True
+    catalog = CapabilityCatalog(
+        (contract,),
+        (provider,),
+        availability_provider=lambda _provider: (
+            ProviderAvailability.AVAILABLE
+            if available
+            else ProviderAvailability.DISABLED
+        ),
+    )
+    runner, preparation, registration, _, client = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+        capability_catalog=catalog,
+        with_capability_requirements=True,
+    )
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    monkeypatch.setattr(
+        adapter,
+        "bind_input_converter",
+        lambda **_kwargs: pytest.fail("converter load was called"),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+    available = False
+
+    with pytest.raises(RunDarWorkflowError, match="registered workflow run failed"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    assert client.responses.calls == []
+
+
+def test_legacy_package_does_not_invoke_capability_catalog(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    catalog = CapabilityCatalog((), ())
+    monkeypatch.setattr(
+        catalog,
+        "resolve",
+        lambda _requirements: pytest.fail("capability catalog was used"),
+    )
+    runner, preparation, registration, _, client = _runner(
+        tmp_path, capability_catalog=catalog
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Answer me.",
+        now=NOW,
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": registration.workflow_id,
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    assert result.status == "completed"
+    assert len(client.responses.calls) == 1
 
 
 def test_runner_binds_a_declared_local_tool_to_sealed_binary_input(

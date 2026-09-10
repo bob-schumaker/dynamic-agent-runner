@@ -10,10 +10,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-import yaml
 from dynamic_agent_runner import load_agent_package_workflow
 
 from dynamic_agent_runner.workflow_host.catalog import CatalogPackageRevision
+from dynamic_agent_runner.workflow_host.capabilities import (
+    CapabilityCatalog,
+    CapabilityRequirements,
+)
 from dynamic_agent_runner.workflow_host.descriptor import (
     DeclaredTool,
     DeclaredLocalTool,
@@ -26,13 +29,26 @@ from dynamic_agent_runner.workflow_host.descriptor import (
     WorkflowDescriptor,
     WorkflowLimits,
     WorkspaceContract,
+    WorkflowDescriptorError,
+    load_descriptor_yaml,
     validate_package_skill_contract,
     validate_no_tool_runtime_nodes,
     validate_runtime_tool_contract,
 )
+from dynamic_agent_runner.workflow_host.model_materials import (
+    ModelDependencyLock,
+    ModelMaterialsError,
+    parse_model_dependency_lock,
+)
+from dynamic_agent_runner.workflow_host.model_execution_binding import (
+    ModelExecutionBinding,
+    ModelExecutionBindingError,
+    derive_model_execution_binding,
+)
 
 
 DESCRIPTOR_FILENAME = "workflow-descriptor.yaml"
+MODEL_MATERIALS_FILENAME = "model-materials.json"
 
 
 class PolicyCompilationError(ValueError):
@@ -52,6 +68,17 @@ class WorkflowPolicy:
     task_invocation: TaskInvocation
     limits: WorkflowLimits
     required_capabilities: frozenset[str]
+    capability_requirements: CapabilityRequirements = field(
+        default_factory=CapabilityRequirements
+    )
+    capability_requirements_digest: str = field(
+        default_factory=lambda: CapabilityRequirements().digest
+    )
+    model_materials: ModelDependencyLock | None = None
+    model_materials_digest: str | None = None
+    model_execution_binding: ModelExecutionBinding | None = None
+    model_execution_binding_digest: str | None = None
+    selected_capability_provider_ids: tuple[str, ...] = ()
     workspace: WorkspaceContract = field(
         default_factory=lambda: WorkspaceContract((), "none")
     )
@@ -72,13 +99,32 @@ class CapabilityResolution:
     missing_capabilities: tuple[str, ...]
 
 
-def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
+def compile_workflow_policy(  # noqa: C901
+    revision: CatalogPackageRevision,
+    *,
+    capability_catalog: CapabilityCatalog | None = None,
+) -> WorkflowPolicy:
     """Compile descriptor and DAR graph data from one immutable catalog revision."""
 
     descriptor_path = revision.package_root / DESCRIPTOR_FILENAME
     try:
         descriptor_bytes = descriptor_path.read_bytes()
-        descriptor = WorkflowDescriptor.from_mapping(yaml.safe_load(descriptor_bytes))
+        descriptor = WorkflowDescriptor.from_mapping(
+            load_workflow_descriptor(descriptor_bytes)
+        )
+    except Exception as error:  # Descriptor parsing must precede package-owned loads.
+        raise PolicyCompilationError("cataloged package policy is invalid") from error
+    selected_capability_provider_ids: tuple[str, ...] = ()
+    if descriptor.capability_requirements is not None:
+        catalog = capability_catalog or CapabilityCatalog((), ())
+        resolution = catalog.resolve(descriptor.capability_requirements)
+        if resolution.status != "eligible":
+            raise PolicyCompilationError(
+                "package capability requirements are unavailable"
+            )
+        selected_capability_provider_ids = resolution.selected_provider_ids
+    model_materials = _load_model_materials(revision.package_root)
+    try:
         workflow = load_agent_package_workflow(str(revision.package_root))
         _validate_local_tool_assets(
             package_root=revision.package_root, tools=descriptor.declared_local_tools
@@ -113,6 +159,45 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
     if descriptor.output_schema_ref not in workflow.runtime_manifest.output_contracts:
         raise PolicyCompilationError("registered terminal output contract is missing")
     descriptor_digest = hashlib.sha256(descriptor_bytes).hexdigest()
+    capability_requirements = (
+        descriptor.capability_requirements or CapabilityRequirements()
+    )
+    if model_materials is not None and "runner" not in capability_requirements.bindings:
+        raise PolicyCompilationError(
+            "model-material lock requires a runner capability binding"
+        )
+    model_execution_binding = None
+    if model_materials is not None:
+        requirements_by_id = {
+            item.capability_id: item
+            for item in capability_requirements.required_capabilities
+        }
+        if any(
+            (requirement := requirements_by_id.get(operation.capability_id)) is None
+            or requirement.contract_version != operation.contract_version
+            or requirement.contract_digest != operation.contract_digest
+            for operation in model_materials.preparation
+        ):
+            raise PolicyCompilationError(
+                "model-material preparation capability is unavailable"
+            )
+        converter_capability_id = None
+        if descriptor.input_converter is not None:
+            converter_capability_id = capability_requirements.bindings.get("converter")
+            if not isinstance(converter_capability_id, str):
+                raise PolicyCompilationError(
+                    "model converter capability is unavailable"
+                )
+        try:
+            model_execution_binding = derive_model_execution_binding(
+                lock=model_materials,
+                requirements=capability_requirements,
+                converter_capability_id=converter_capability_id,
+            )
+        except ModelExecutionBindingError as error:
+            raise PolicyCompilationError(
+                "model execution binding is unavailable"
+            ) from error
     tool_capabilities = _tool_capabilities(descriptor.declared_tools)
     local_tool_capabilities = _local_tool_capabilities(descriptor.declared_local_tools)
     deferred_capabilities = _deferred_runtime_capabilities(descriptor, workflow)
@@ -130,6 +215,15 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
             "package_id": revision.package_id,
             "revision_digest": revision.revision_digest,
             "descriptor_digest": descriptor_digest,
+            "capability_requirements_digest": capability_requirements.digest,
+            "model_materials_digest": (
+                model_materials.digest if model_materials is not None else None
+            ),
+            "model_execution_binding_digest": (
+                model_execution_binding.digest
+                if model_execution_binding is not None
+                else None
+            ),
             "model_profile_requirement": descriptor.model_profile_requirement,
             "workspace": {
                 "accepted_input_types": descriptor.workspace.accepted_input_types,
@@ -240,6 +334,19 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         task_invocation=descriptor.task_invocation,
         limits=descriptor.limits,
         required_capabilities=required_capabilities,
+        capability_requirements=capability_requirements,
+        capability_requirements_digest=capability_requirements.digest,
+        model_materials=model_materials,
+        model_materials_digest=(
+            model_materials.digest if model_materials is not None else None
+        ),
+        model_execution_binding=model_execution_binding,
+        model_execution_binding_digest=(
+            model_execution_binding.digest
+            if model_execution_binding is not None
+            else None
+        ),
+        selected_capability_provider_ids=selected_capability_provider_ids,
         declared_skill_ids=descriptor.declared_skill_ids,
         declared_tools=descriptor.declared_tools,
         declared_local_tools=descriptor.declared_local_tools,
@@ -248,6 +355,30 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         terminal_output_processors=descriptor.terminal_output_processors,
         input_converter=descriptor.input_converter,
     )
+
+
+def load_workflow_descriptor(descriptor_bytes: bytes) -> object:
+    """Load one descriptor while rejecting duplicate YAML keys before conversion."""
+    try:
+        return load_descriptor_yaml(descriptor_bytes)
+    except WorkflowDescriptorError as error:
+        if "duplicate YAML keys" in str(error):
+            raise PolicyCompilationError(
+                "descriptor contains duplicate YAML keys"
+            ) from error
+        raise PolicyCompilationError("cataloged package policy is invalid") from error
+    except Exception as error:
+        raise PolicyCompilationError("cataloged package policy is invalid") from error
+
+
+def _load_model_materials(package_root: Path) -> ModelDependencyLock | None:
+    path = package_root / MODEL_MATERIALS_FILENAME
+    if not path.exists():
+        return None
+    try:
+        return parse_model_dependency_lock(path.read_bytes())
+    except (OSError, ModelMaterialsError) as error:
+        raise PolicyCompilationError("model-material lock is invalid") from error
 
 
 def resolve_capabilities(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from dataclasses import replace
+import json
 
 import pytest
 
@@ -109,7 +110,100 @@ def test_registration_binds_eligible_policy_to_configured_local_profile(
     assert registration.profile_id.startswith("v1.")
     assert len(registration.profile_digest) == 64
     assert len(registration.registration_digest) == 64
+    assert (
+        registration.capability_requirements_digest
+        == _policy().capability_requirements_digest
+    )
     assert service.resolve("document-helper") == registration
+    record = json.loads((tmp_path / "registrations" / "registrations.json").read_text())
+    assert (
+        record["registrations"]["document-helper"]["capability_requirements_digest"]
+        == registration.capability_requirements_digest
+    )
+
+
+def test_registration_persists_private_selected_capability_provider_ids(
+    tmp_path: Path,
+) -> None:
+    service = _service(tmp_path)
+    policy = replace(
+        _policy(), selected_capability_provider_ids=("private-provider-a",)
+    )
+
+    registration = service.register(
+        workflow_id="document-helper",
+        policy=policy,
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+
+    assert registration.selected_capability_provider_ids == ("private-provider-a",)
+    record = json.loads((tmp_path / "registrations" / "registrations.json").read_text())
+    assert record["registrations"]["document-helper"][
+        "selected_capability_provider_ids"
+    ] == ["private-provider-a"]
+    assert service.resolve("document-helper") == registration
+
+
+def test_registration_persists_the_model_materials_digest(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    policy = replace(_policy(), model_materials_digest="d" * 64)
+
+    registration = service.register(
+        workflow_id="document-helper",
+        policy=policy,
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+
+    assert registration.model_materials_digest == "d" * 64
+    record = json.loads((tmp_path / "registrations" / "registrations.json").read_text())
+    assert (
+        record["registrations"]["document-helper"]["model_materials_digest"] == "d" * 64
+    )
+    assert service.resolve("document-helper") == registration
+
+    changed = service.register(
+        workflow_id="changed-model-materials",
+        policy=replace(_policy(), model_materials_digest="e" * 64),
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+
+    assert changed.registration_digest != registration.registration_digest
+
+
+def test_registration_binds_the_model_execution_binding_digest(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    registration = service.register(
+        workflow_id="document-helper",
+        policy=replace(_policy(), model_execution_binding_digest="e" * 64),
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+
+    assert registration.model_execution_binding_digest == "e" * 64
+    record = json.loads((tmp_path / "registrations" / "registrations.json").read_text())
+    assert (
+        record["registrations"]["document-helper"]["model_execution_binding_digest"]
+        == "e" * 64
+    )
+
+
+def test_legacy_registration_without_capability_digest_remains_readable(
+    tmp_path: Path,
+) -> None:
+    service = _service(tmp_path)
+    registration = service.register(
+        workflow_id="document-helper",
+        policy=_policy(),
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+    path = tmp_path / "registrations" / "registrations.json"
+    record = json.loads(path.read_text())
+    del record["registrations"]["document-helper"]["capability_requirements_digest"]
+    path.write_text(json.dumps(record), encoding="utf-8")
+
+    loaded = service.resolve("document-helper")
+
+    assert loaded.workflow_id == registration.workflow_id
+    assert loaded.capability_requirements_digest is None
 
 
 def test_registration_binds_converter_to_the_host_recipe_digest(

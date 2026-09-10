@@ -18,7 +18,19 @@ from pathlib import PurePosixPath
 
 import yaml
 
-from dynamic_agent_runner import load_agent_package_workflow
+from dynamic_agent_runner.workflow_host.capabilities import (
+    CapabilityError,
+    CapabilityRequirements,
+)
+from dynamic_agent_runner.workflow_host.descriptor import (
+    WorkflowDescriptor,
+    WorkflowDescriptorError,
+    load_descriptor_yaml,
+)
+from dynamic_agent_runner.workflow_host.model_materials import (
+    ModelMaterialsError,
+    parse_model_dependency_lock,
+)
 
 from dynamic_agent_runner.workflow_host.profiles import InstallationIdentityProvider
 from dynamic_agent_runner.workflow_host.package_signatures import (
@@ -40,6 +52,7 @@ _PACKAGE_MANIFEST_NAME = "package-manifest.json"
 _PACKAGE_SIGNATURE_NAME = "package-signature.json"
 _HUMAN_SELECTED_LOCAL = "human_selected_local"
 _PUBLISHER_SIGNATURE = "publisher_signature"
+_RUNTIME_FORMAT_VERSION = 1
 
 
 class PackageStagingError(ValueError):
@@ -100,18 +113,13 @@ class PrivatePackageStager:
                 entries=entries,
             )
             digest, file_count, byte_count = _package_digest(entries)
-            try:
-                workflow = load_agent_package_workflow(str(temporary_root))
-            except Exception as error:
-                raise PackageStagingError(
-                    "DAR validation failed for staged package"
-                ) from error
+            compatibility = _package_compatibility(temporary_root)
             _mark_declared_local_tool_assets_executable(temporary_root)
             expected_manifest = _content_manifest_bytes(
-                package_id=workflow.runtime_manifest.package_id,
+                package_id=compatibility["package_id"],
                 content_digest=digest,
                 entries=entries,
-                compatibility=_package_compatibility(temporary_root, workflow),
+                compatibility=compatibility,
             )
             if source_type == "zip" and source_manifest is None:
                 raise PackageStagingError("portable ZIP source manifest is missing")
@@ -435,24 +443,42 @@ def _content_manifest_bytes(
         "package_id": package_id,
         "runtime_format_version": compatibility["runtime_format_version"],
     }
+    capability_requirements_digest = compatibility.get("capability_requirements_digest")
+    if capability_requirements_digest is not None:
+        payload["capability_requirements_digest"] = capability_requirements_digest
+    model_materials_digest = compatibility.get("model_materials_digest")
+    if model_materials_digest is not None:
+        payload["model_materials_digest"] = model_materials_digest
     return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-def _package_compatibility(root: Path, workflow: object) -> dict[str, object]:
+def _package_compatibility(root: Path) -> dict[str, object]:  # noqa: C901
     descriptor_path = root / "workflow-descriptor.yaml"
     try:
-        descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as error:
+        descriptor = load_descriptor_yaml(descriptor_path.read_bytes())
+    except FileNotFoundError as error:
+        raise PackageStagingError("DAR validation failed for staged package") from error
+    except (OSError, WorkflowDescriptorError) as error:
         raise PackageStagingError("package descriptor is invalid") from error
-    runtime_manifest = getattr(workflow, "runtime_manifest", None)
-    runtime_format_version = getattr(runtime_manifest, "format_version", None)
-    package_id = getattr(runtime_manifest, "package_id", None)
-    if (
-        not isinstance(descriptor, Mapping)
-        or descriptor.get("package_id") != package_id
-        or not _positive_int(runtime_format_version)
-        or not _positive_int(descriptor.get("format_version"))
+    if not isinstance(descriptor, Mapping) or not _positive_int(
+        descriptor.get("format_version")
     ):
+        raise PackageStagingError("package descriptor is incompatible")
+    try:
+        package_id = WorkflowDescriptor.from_mapping(descriptor).package_id
+    except WorkflowDescriptorError as error:
+        raise PackageStagingError("package descriptor is incompatible") from error
+    try:
+        runtime = yaml.safe_load(
+            (root / "agent-runtime.yaml").read_text(encoding="utf-8")
+        )
+    except (OSError, yaml.YAMLError) as error:
+        raise PackageStagingError("DAR validation failed for staged package") from error
+    if not isinstance(runtime, Mapping) or not _positive_int(
+        runtime.get("format_version")
+    ):
+        raise PackageStagingError("DAR validation failed for staged package")
+    if runtime.get("package_id") != package_id:
         raise PackageStagingError("package descriptor is incompatible")
     dar_runtime = descriptor.get("dar_runtime")
     if (
@@ -462,14 +488,32 @@ def _package_compatibility(root: Path, workflow: object) -> dict[str, object]:
         or not _nonempty_string(dar_runtime.get("required_version"))
     ):
         raise PackageStagingError("package descriptor is incompatible")
-    return {
+    compatibility = {
+        "package_id": package_id,
         "dar_runtime": {
             "distribution": dar_runtime["distribution"],
             "required_version": dar_runtime["required_version"],
         },
         "descriptor_format_version": descriptor["format_version"],
-        "runtime_format_version": runtime_format_version,
+        "runtime_format_version": _RUNTIME_FORMAT_VERSION,
     }
+    raw_requirements = descriptor.get("capability_requirements")
+    if raw_requirements is not None:
+        try:
+            compatibility["capability_requirements_digest"] = (
+                CapabilityRequirements.from_mapping(raw_requirements).digest
+            )
+        except CapabilityError as error:
+            raise PackageStagingError("package descriptor is incompatible") from error
+    model_materials_path = root / "model-materials.json"
+    if model_materials_path.exists():
+        try:
+            compatibility["model_materials_digest"] = parse_model_dependency_lock(
+                model_materials_path.read_bytes()
+            ).digest
+        except (OSError, ModelMaterialsError) as error:
+            raise PackageStagingError("model-material lock is invalid") from error
+    return compatibility
 
 
 def _mark_declared_local_tool_assets_executable(root: Path) -> None:

@@ -7,9 +7,18 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+import yaml
 
 
 from dynamic_agent_runner.workflow_host.catalog import PackageCatalog  # noqa: E402
+from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
+    BUILTIN_CAPABILITY_CONTRACTS,
+    CapabilityCatalog,
+    CapabilityProvider,
+    CapabilityRequirement,
+    CapabilityRequirements,
+    ProviderAvailability,
+)
 from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
 )  # noqa: E402
@@ -124,9 +133,58 @@ class _BinaryMaterializingArtifactVerifier(_ArtifactVerifier):
         )
 
 
-def _prepared_service(tmp_path: Path):
+def _capability_catalog(*, available: bool) -> CapabilityCatalog:
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+    providers = (
+        CapabilityProvider(
+            "private-test-provider",
+            contract,
+            availability=(
+                ProviderAvailability.AVAILABLE
+                if available
+                else ProviderAvailability.DISABLED
+            ),
+            conformance_passed=True,
+            conformance_vector_ids=frozenset(
+                {
+                    "requested_features",
+                    "output_integrity",
+                    "resource_limits",
+                    "redacted_failure",
+                }
+            ),
+        ),
+    )
+    return CapabilityCatalog((contract,), providers)
+
+
+def _prepared_service(
+    tmp_path: Path,
+    *,
+    capability_catalog: CapabilityCatalog | None = None,
+    with_capability_requirements: bool = False,
+):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
+    if with_capability_requirements:
+        contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+        requirement = CapabilityRequirement(
+            contract.capability_id,
+            contract.contract_version,
+            contract.contract_digest,
+            ("multimodal",),
+        )
+        requirements = CapabilityRequirements((requirement,))
+        descriptor = source / "workflow-descriptor.yaml"
+        value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+        value["dar_runtime"]["required_version"] = "0.1.17"
+        value["capability_requirements"] = {
+            "format_version": 1,
+            "required_capabilities": [requirement.to_mapping()],
+            "capability_requirements_digest": requirements.digest,
+            "bindings": {},
+        }
+        descriptor.write_text(yaml.safe_dump(value), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
         allowed_root=source.parent, store=store
@@ -137,7 +195,7 @@ def _prepared_service(tmp_path: Path):
             source_handle, now=NOW
         )
     )
-    policy = compile_workflow_policy(revision)
+    policy = compile_workflow_policy(revision, capability_catalog=capability_catalog)
     profiles = LocalModelProfileControlPlane(store=store)
     profile = profiles.create(
         model_id="local-model-v1",
@@ -160,7 +218,10 @@ def _prepared_service(tmp_path: Path):
     )
     return (
         WorkflowInvocationPreparationService(
-            registrations=registrations, catalog=catalog, store=store
+            registrations=registrations,
+            catalog=catalog,
+            store=store,
+            capability_catalog=capability_catalog,
         ),
         registrations,
         registration,
@@ -217,6 +278,29 @@ def test_preparation_seals_only_verified_opaque_workspace_artifact_ids(
     assert verifier.calls == [
         ("v1.artifact", "document-helper", registration.registration_digest)
     ]
+
+
+def test_preparation_rejects_unsatisfied_requirement_before_artifact_verification(
+    tmp_path: Path,
+) -> None:
+    service, _, _, _, _ = _prepared_service(
+        tmp_path,
+        capability_catalog=_capability_catalog(available=True),
+        with_capability_requirements=True,
+    )
+    verifier = _ArtifactVerifier()
+    service._artifact_verifier = verifier
+    service._capability_catalog = _capability_catalog(available=False)
+
+    with pytest.raises(PreparedWorkflowInputError, match="registration"):
+        service.prepare(
+            workflow_id="document-helper",
+            prompt="Answer this request.",
+            workspace_artifact_ids=("v1.artifact",),
+            now=NOW,
+        )
+
+    assert verifier.calls == []
 
 
 def test_preparation_rejects_unverified_or_duplicate_workspace_artifact_ids(

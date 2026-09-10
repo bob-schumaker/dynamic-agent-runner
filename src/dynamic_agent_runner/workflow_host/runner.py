@@ -40,6 +40,11 @@ from dynamic_agent_runner.workflow_host.catalog import (
     PackageCatalog,
     PackageCatalogError,
 )
+from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
+from dynamic_agent_runner.workflow_host.model_execution_binding import (
+    ModelExecutionBindingError,
+    ModelRunnerRegistry,
+)
 from dynamic_agent_runner.workflow_host.fastmail_triage import (
     FastmailTriageBindingError,
     create_fastmail_triage_search_binding,
@@ -302,6 +307,8 @@ class WorkflowRunner:
         | None = None,
         terminal_diagnostic_store: PrivateStateStore | None = None,
         terminal_diagnostic_owner: str | None = None,
+        capability_catalog: CapabilityCatalog | None = None,
+        model_runner_registry: ModelRunnerRegistry | None = None,
     ) -> None:
         self._registrations = registrations
         self._catalog = catalog
@@ -319,6 +326,8 @@ class WorkflowRunner:
             reviewed_artifact_tool_executors or {}
         )
         self._terminal_diagnostic_store = terminal_diagnostic_store
+        self._capability_catalog = capability_catalog
+        self._model_runner_registry = model_runner_registry
         self._terminal_diagnostic_owner = (
             terminal_diagnostic_owner or InstallationIdentityProvider().principal
         )
@@ -345,6 +354,7 @@ class WorkflowRunner:
                 policy,
                 terminal_output_contract,
             ) = self._preflight(request.workflow_id)
+            self._validate_model_execution_binding(policy)
             self._validate_adapter(registration)
             self._validate_declared_response_formats(package_root)
             self._validate_guardrail_registry(package_root, guardrail_registry)
@@ -887,7 +897,22 @@ class WorkflowRunner:
         revision = self._catalog.revision(
             registration.package_id, registration.revision_digest
         )
-        policy = compile_workflow_policy(revision)
+        policy = compile_workflow_policy(
+            revision, capability_catalog=self._capability_catalog
+        )
+        if (
+            self._capability_catalog is not None
+            and policy.selected_capability_provider_ids
+            and (
+                registration.selected_capability_provider_ids
+                != policy.selected_capability_provider_ids
+                or self._capability_catalog.revalidate(
+                    registration.selected_capability_provider_ids
+                ).status
+                != "eligible"
+            )
+        ):
+            raise RunDarWorkflowError("package capability requirements are unavailable")
         if policy.policy_digest != registration.policy_digest:
             raise RunDarWorkflowError("registered workflow policy does not match")
         workflow = load_agent_package_workflow(str(revision.package_root))
@@ -902,6 +927,21 @@ class WorkflowRunner:
             policy,
             terminal_output_contract,
         )
+
+    def _validate_model_execution_binding(self, policy: Any) -> None:
+        """Resolve locked execution only through an exact receiver registry."""
+
+        binding = policy.model_execution_binding
+        if binding is None:
+            return
+        if self._model_runner_registry is None:
+            raise RunDarWorkflowError("registered model runner is unavailable")
+        try:
+            self._model_runner_registry.resolve(binding)
+        except ModelExecutionBindingError as error:
+            raise RunDarWorkflowError(
+                "registered model runner is unavailable"
+            ) from error
 
     def _validate_guardrail_registry(
         self,

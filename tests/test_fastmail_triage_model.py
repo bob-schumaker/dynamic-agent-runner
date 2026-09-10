@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -42,6 +41,10 @@ def test_floorplan_vision_adapter_sends_only_sealed_image_bytes_to_llama_cpp(
         FloorplanVisionLlamaCppAdapter,
         create_floorplan_vision_qwen_config,
     )
+    from dynamic_agent_runner.local_model_preparation import (
+        FLOORPLAN_VISION_RECIPE,
+        PreparedArtifactSet,
+    )
 
     class FakeBackend:
         model_id = FLOORPLAN_VISION_MODEL_ID
@@ -57,15 +60,16 @@ def test_floorplan_vision_adapter_sends_only_sealed_image_bytes_to_llama_cpp(
     model_path.write_bytes(b"fake")
     projector_path = tmp_path / "projector.gguf"
     projector_path.write_bytes(b"fake projector")
-    config = create_floorplan_vision_qwen_config()
     adapter = FloorplanVisionLlamaCppAdapter(
-        replace(
-            config,
-            model_path=model_path,
-            model_kwargs={
-                **(config.model_kwargs or {}),
-                "clip_model_path": str(projector_path),
-            },
+        create_floorplan_vision_qwen_config(
+            PreparedArtifactSet(
+                recipe=FLOORPLAN_VISION_RECIPE,
+                paths={
+                    "base_model": model_path,
+                    "vision_projector": projector_path,
+                    "adapter": tmp_path / "adapter.gguf",
+                },
+            )
         )
     )
     backend = FakeBackend()
@@ -91,8 +95,86 @@ def test_floorplan_vision_adapter_rejects_a_missing_projector_before_model_call(
         FloorplanVisionLlamaCppAdapter,
         create_floorplan_vision_qwen_config,
     )
+    from dynamic_agent_runner.local_model_preparation import (
+        FLOORPLAN_VISION_RECIPE,
+        PreparedArtifactSet,
+    )
 
-    adapter = FloorplanVisionLlamaCppAdapter(create_floorplan_vision_qwen_config())
+    adapter = FloorplanVisionLlamaCppAdapter(
+        create_floorplan_vision_qwen_config(
+            PreparedArtifactSet(
+                recipe=FLOORPLAN_VISION_RECIPE,
+                paths={
+                    "base_model": Path("missing-base.gguf"),
+                    "vision_projector": Path("missing-projector.gguf"),
+                    "adapter": Path("missing-adapter.gguf"),
+                },
+            )
+        )
+    )
 
     with pytest.raises(ModelExecutionError, match="projector"):
         adapter.bind_sealed_image(content=b"image-bytes", media_type="image/png")
+
+
+def test_floorplan_vision_config_uses_only_a_verified_prepared_set(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_model_preparation import (
+        FLOORPLAN_VISION_RECIPE,
+        PreparedArtifactSet,
+    )
+    from dynamic_agent_runner.workflow_host.floorplan_vision_model import (
+        create_floorplan_vision_qwen_config,
+    )
+
+    paths = {
+        "base_model": tmp_path / "base.gguf",
+        "vision_projector": tmp_path / "projector.gguf",
+        "adapter": tmp_path / "adapter.gguf",
+    }
+    config = create_floorplan_vision_qwen_config(
+        PreparedArtifactSet(recipe=FLOORPLAN_VISION_RECIPE, paths=paths)
+    )
+
+    assert config.model_path == paths["base_model"]
+    assert config.huggingface_file == FLOORPLAN_VISION_RECIPE.artifacts[0].reference()
+    assert config.allow_network is False
+    assert config.model_kwargs == {
+        "clip_model_path": str(paths["vision_projector"]),
+        "lora_path": str(paths["adapter"]),
+        "n_ctx": 16384,
+        "n_gpu_layers": -1,
+        "verbose": False,
+    }
+
+
+def test_floorplan_vision_config_rejects_a_mismatched_prepared_set(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_model_preparation import (
+        LocalModelPreparationRecipe,
+        LocalModelTransformation,
+        PreparedArtifactSet,
+    )
+    from dynamic_agent_runner.workflow_host.floorplan_vision_model import (
+        create_floorplan_vision_qwen_config,
+    )
+
+    mismatched = PreparedArtifactSet(
+        recipe=LocalModelPreparationRecipe(
+            model_id="other",
+            adapter_id="other",
+            artifacts=(),
+            transformation=LocalModelTransformation(
+                converter_revision="other",
+                output_role="adapter",
+                output_filename="other.gguf",
+                output_sha256="0" * 64,
+            ),
+        ),
+        paths={"base_model": tmp_path / "base.gguf"},
+    )
+
+    with pytest.raises(ModelExecutionError, match="prepared artifact set"):
+        create_floorplan_vision_qwen_config(mismatched)

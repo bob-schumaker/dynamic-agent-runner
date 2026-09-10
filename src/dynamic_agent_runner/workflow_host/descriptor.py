@@ -6,11 +6,47 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Mapping, Sequence
 
+import yaml
+
 from dynamic_agent_runner.models import RuntimeNode
+from dynamic_agent_runner.workflow_host.capabilities import (
+    CapabilityError,
+    CapabilityRequirements,
+)
+
+
+_CAPABILITY_REQUIREMENTS_MIN_DAR_VERSION = (0, 1, 17)
 
 
 class WorkflowDescriptorError(ValueError):
     """Raised when a package descriptor exceeds the current wrapper gate."""
+
+
+def load_descriptor_yaml(value: bytes) -> Mapping[str, Any]:
+    """Load descriptor YAML while rejecting duplicate keys before conversion."""
+
+    class DuplicateKeyLoader(yaml.SafeLoader):
+        pass
+
+    def construct_mapping(
+        loader: yaml.SafeLoader, node: yaml.MappingNode, deep: bool = False
+    ) -> dict[object, object]:
+        mapping: dict[object, object] = {}
+        for key_node, value_node in node.value:
+            key = loader.construct_object(key_node, deep=deep)
+            if key in mapping:
+                raise WorkflowDescriptorError("descriptor contains duplicate YAML keys")
+            mapping[key] = loader.construct_object(value_node, deep=deep)
+        return mapping
+
+    DuplicateKeyLoader.add_constructor(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_mapping
+    )
+    try:
+        loaded = yaml.load(value, Loader=DuplicateKeyLoader)
+    except yaml.YAMLError as error:
+        raise WorkflowDescriptorError("descriptor YAML is invalid") from error
+    return _mapping(loaded, "descriptor")
 
 
 @dataclass(frozen=True)
@@ -138,6 +174,8 @@ class WorkflowDescriptor:
     terminal_output_validator: DeclaredTerminalOutputValidator | None = None
     terminal_output_processors: tuple[DeclaredTerminalOutputProcessor, ...] = ()
     input_converter: DeclaredInputConverter | None = None
+    capability_requirements: CapabilityRequirements | None = None
+    capability_requirements_digest: str | None = None
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> WorkflowDescriptor:
@@ -153,6 +191,9 @@ class WorkflowDescriptor:
         runtime = _mapping(mapping.get("dar_runtime"), "dar_runtime")
         if runtime.get("distribution") != "dynamic-agent-runner":
             raise WorkflowDescriptorError("dar_runtime.distribution is invalid")
+        capability_requirements = _parse_capability_requirements(
+            mapping.get("capability_requirements"), runtime.get("required_version")
+        )
         input_contract = _parse_input_contract(mapping.get("input_contract"))
         workspace = _parse_workspace_contract(mapping.get("workspace"))
         task = _parse_task_invocation(mapping.get("task_invocation"))
@@ -201,6 +242,12 @@ class WorkflowDescriptor:
             terminal_output_validator=terminal_output_validator,
             terminal_output_processors=terminal_output_processors,
             input_converter=input_converter,
+            capability_requirements=capability_requirements,
+            capability_requirements_digest=(
+                capability_requirements.digest
+                if capability_requirements is not None
+                else None
+            ),
         )
 
 
@@ -683,6 +730,34 @@ def _mapping(value: object, name: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise WorkflowDescriptorError(f"{name} must be a mapping")
     return value
+
+
+def _parse_capability_requirements(
+    value: object, required_dar_version: object
+) -> CapabilityRequirements | None:
+    if value is None:
+        return None
+    if not _supports_capability_requirements(required_dar_version):
+        raise WorkflowDescriptorError(
+            "dar_runtime.required_version does not support capability requirements"
+        )
+    try:
+        return CapabilityRequirements.from_mapping(value)
+    except CapabilityError as error:
+        raise WorkflowDescriptorError("capability requirements are invalid") from error
+
+
+def _supports_capability_requirements(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    parts = value.split(".")
+    if len(parts) != 3 or any(
+        not part.isascii() or not part.isdigit() for part in parts
+    ):
+        return False
+    return (
+        tuple(int(part) for part in parts) >= _CAPABILITY_REQUIREMENTS_MIN_DAR_VERSION
+    )
 
 
 def _text(value: object, name: str) -> str:
