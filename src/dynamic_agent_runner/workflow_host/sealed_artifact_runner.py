@@ -48,6 +48,17 @@ class SealedArtifactExecutionError(ValueError):
 
 
 @dataclass(frozen=True)
+class SealedArtifactLimits:
+    """The package-declared resource ceilings for one sealed invocation."""
+
+    max_concurrency: int
+    max_cpu_milliseconds: int
+    max_io_bytes: int
+    max_memory_bytes: int
+    max_runtime_milliseconds: int
+
+
+@dataclass(frozen=True)
 class SealedArtifactRunnerDescriptor:
     """The validated public identity of one v1 sealed-artifact runner."""
 
@@ -57,6 +68,7 @@ class SealedArtifactRunnerDescriptor:
     capability_requirements_digest: str
     inputs: tuple["SealedArtifactInput", ...]
     outputs: tuple["SealedArtifactOutput", ...]
+    limits: SealedArtifactLimits
     schema_assets: tuple["SealedArtifactSchemaAsset", ...]
     child_contract_digests: tuple[str, ...]
     callbacks: tuple["SealedArtifactCallback", ...]
@@ -155,7 +167,7 @@ def parse_sealed_artifact_runner_descriptor(
     inputs = _inputs(mapping["inputs"], schema_digests=schema_digests)
     outputs = _outputs(mapping["outputs"], schema_digests=schema_digests)
     output_roles = tuple(item.role for item in outputs)
-    _limits(mapping["limits"])
+    limits = _limits(mapping["limits"])
     child_digests = _child_digests(mapping["child_contract_digests"])
     callbacks = _callbacks(mapping["callbacks"], child_digests)
     return SealedArtifactRunnerDescriptor(
@@ -165,6 +177,7 @@ def parse_sealed_artifact_runner_descriptor(
         capability_requirements_digest=capability_requirements_digest,
         inputs=inputs,
         outputs=outputs,
+        limits=limits,
         schema_assets=schema_assets,
         child_contract_digests=child_digests,
         callbacks=callbacks,
@@ -348,6 +361,7 @@ class SealedArtifactExecutionContext:
         "_callback_response_bytes",
         "_collector",
         "_descriptor",
+        "_io_bytes",
         "_read_input",
         "_reads",
     )
@@ -377,6 +391,7 @@ class SealedArtifactExecutionContext:
         object.__setattr__(self, "_callback_counts", {})
         object.__setattr__(self, "_callback_request_bytes", {})
         object.__setattr__(self, "_callback_response_bytes", {})
+        object.__setattr__(self, "_io_bytes", 0)
 
     def __getattribute__(self, name: str) -> object:
         if name in {"read_input", "invoke_callback", "write_output"}:
@@ -394,6 +409,9 @@ class SealedArtifactExecutionContext:
         content = object.__getattribute__(self, "_read_input")(role)
         if not isinstance(content, bytes) or len(content) > matching[0].max_bytes:
             raise SealedArtifactExecutionError("sealed artifact input is unavailable")
+        object.__getattribute__(self, "_consume_io")(
+            len(content), "sealed artifact input is unavailable"
+        )
         reads.add(role)
         return content
 
@@ -420,6 +438,9 @@ class SealedArtifactExecutionContext:
             raise SealedArtifactExecutionError(
                 "sealed artifact callback is unavailable"
             )
+        object.__getattribute__(self, "_consume_io")(
+            len(request), "sealed artifact callback is unavailable"
+        )
         counts[name] = count + 1
         request_bytes[name] = total_request + len(request)
         response = object.__getattribute__(self, "_callback")(name, request)
@@ -432,6 +453,9 @@ class SealedArtifactExecutionContext:
             raise SealedArtifactExecutionError(
                 "sealed artifact callback is unavailable"
             )
+        object.__getattribute__(self, "_consume_io")(
+            len(response), "sealed artifact callback is unavailable"
+        )
         response_bytes[name] = total_response + len(response)
         return response
 
@@ -439,6 +463,13 @@ class SealedArtifactExecutionContext:
         """Write one ordered output through the private collector."""
 
         try:
+            if not isinstance(content, bytes):
+                raise SealedArtifactExecutionError(
+                    "sealed artifact output is unavailable"
+                )
+            object.__getattribute__(self, "_consume_io")(
+                len(content), "sealed artifact output is unavailable"
+            )
             object.__getattribute__(self, "_collector").write(
                 role=role, media_type=media_type, content=content
             )
@@ -446,6 +477,13 @@ class SealedArtifactExecutionContext:
             raise SealedArtifactExecutionError(
                 "sealed artifact output is unavailable"
             ) from error
+
+    def _consume_io(self, byte_count: int, error: str) -> None:
+        descriptor = object.__getattribute__(self, "_descriptor")
+        used = object.__getattribute__(self, "_io_bytes")
+        if used + byte_count > descriptor.limits.max_io_bytes:
+            raise SealedArtifactExecutionError(error)
+        object.__setattr__(self, "_io_bytes", used + byte_count)
 
 
 class SealedArtifactAssetRuntime:
@@ -833,7 +871,7 @@ def _outputs(
     return tuple(outputs)
 
 
-def _limits(value: object) -> None:
+def _limits(value: object) -> SealedArtifactLimits:
     mapping = _mapping(value)
     _require_exact_keys(
         mapping,
@@ -847,6 +885,13 @@ def _limits(value: object) -> None:
     )
     for item in mapping.values():
         _positive(item)
+    return SealedArtifactLimits(
+        max_concurrency=mapping["max_concurrency"],  # type: ignore[arg-type]
+        max_cpu_milliseconds=mapping["max_cpu_milliseconds"],  # type: ignore[arg-type]
+        max_io_bytes=mapping["max_io_bytes"],  # type: ignore[arg-type]
+        max_memory_bytes=mapping["max_memory_bytes"],  # type: ignore[arg-type]
+        max_runtime_milliseconds=mapping["max_runtime_milliseconds"],  # type: ignore[arg-type]
+    )
 
 
 def _child_digests(value: object) -> tuple[str, ...]:

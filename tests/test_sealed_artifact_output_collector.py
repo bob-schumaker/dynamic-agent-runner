@@ -8,6 +8,7 @@ from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactOutput,
     SealedArtifactOutputCollector,
     SealedArtifactOutputCollectorError,
+    SealedArtifactLimits,
     SealedArtifactRunnerDescriptor,
 )
 
@@ -33,6 +34,7 @@ def _descriptor() -> SealedArtifactRunnerDescriptor:
                 schema_digest=None,
             ),
         ),
+        limits=SealedArtifactLimits(1, 1, 100, 1, 1),
         schema_assets=(),
         child_contract_digests=(),
         callbacks=(),

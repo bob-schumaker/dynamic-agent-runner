@@ -12,6 +12,7 @@ from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactExecutionContext,
     SealedArtifactExecutionError,
     SealedArtifactInput,
+    SealedArtifactLimits,
     SealedArtifactOutput,
     SealedArtifactOutputCollector,
     SealedArtifactRunnerDescriptor,
@@ -41,6 +42,7 @@ def _descriptor() -> SealedArtifactRunnerDescriptor:
                 schema_digest=None,
             ),
         ),
+        limits=SealedArtifactLimits(1, 1, 100, 1, 1),
         schema_assets=(),
         child_contract_digests=(),
         callbacks=(),
@@ -113,3 +115,11 @@ def test_context_rejects_oversized_callback_request_before_provider_entry() -> N
 
     with pytest.raises(SealedArtifactExecutionError, match="callback"):
         context.invoke_callback("generate", b"long")
+
+
+def test_context_enforces_aggregate_io_before_input_return() -> None:
+    descriptor = replace(_descriptor(), limits=SealedArtifactLimits(1, 1, 3, 1, 1))
+    context, _collector = _context(descriptor)
+
+    with pytest.raises(SealedArtifactExecutionError, match="input"):
+        context.read_input("snapshot")

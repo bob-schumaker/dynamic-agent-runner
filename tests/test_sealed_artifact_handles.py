@@ -10,6 +10,7 @@ from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactHandleError,
     SealedArtifactHandleService,
     SealedArtifactInput,
+    SealedArtifactLimits,
     SealedArtifactOutput,
     SealedArtifactRunnerDescriptor,
     SealedArtifactSchemaAsset,
@@ -49,6 +50,7 @@ def _descriptor() -> SealedArtifactRunnerDescriptor:
                 schema_digest=None,
             ),
         ),
+        limits=SealedArtifactLimits(1, 1, 100, 1, 1),
         schema_assets=(),
         child_contract_digests=(),
         callbacks=(),
@@ -81,6 +83,7 @@ def _json_descriptor() -> SealedArtifactRunnerDescriptor:
                 schema_digest=None,
             ),
         ),
+        limits=SealedArtifactLimits(1, 1, 100, 1, 1),
         schema_assets=(
             SealedArtifactSchemaAsset(
                 path="schemas/snapshot.json", digest=schema_digest, document=schema

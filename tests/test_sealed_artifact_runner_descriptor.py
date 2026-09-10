@@ -144,6 +144,13 @@ def test_parser_retains_declared_callback_limits() -> None:
     assert callback.max_total_response_bytes == 6
 
 
+def test_parser_retains_declared_execution_limits() -> None:
+    parsed = parse_sealed_artifact_runner_descriptor(_canonical(_descriptor()))
+
+    assert parsed.limits.max_io_bytes == 1
+    assert parsed.limits.max_concurrency == 1
+
+
 @pytest.mark.parametrize(
     ("mutate", "expected"),
     [
