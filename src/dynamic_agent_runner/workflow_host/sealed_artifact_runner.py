@@ -46,6 +46,7 @@ class SealedArtifactRunnerDescriptor:
     asset_path: str
     asset_digest: str
     schema_assets: tuple["SealedArtifactSchemaAsset", ...]
+    callbacks: tuple["SealedArtifactCallback", ...]
     output_roles: tuple[str, ...]
 
 
@@ -55,6 +56,15 @@ class SealedArtifactSchemaAsset:
 
     path: str
     digest: str
+
+
+@dataclass(frozen=True)
+class SealedArtifactCallback:
+    """One descriptor-bound callback and its child contract identity."""
+
+    name: str
+    requirement: str
+    child_contract_digest: str
 
 
 @dataclass(frozen=True)
@@ -106,12 +116,13 @@ def parse_sealed_artifact_runner_descriptor(
     )
     _limits(mapping["limits"])
     child_digests = _child_digests(mapping["child_contract_digests"])
-    _callbacks(mapping["callbacks"], child_digests)
+    callbacks = _callbacks(mapping["callbacks"], child_digests)
     return SealedArtifactRunnerDescriptor(
         digest=declared_digest,
         asset_path=asset_path,
         asset_digest=asset_digest,
         schema_assets=schema_assets,
+        callbacks=callbacks,
         output_roles=output_roles,
     )
 
@@ -125,6 +136,8 @@ def verify_sealed_artifact_runner_files(
     _file_digest(root, descriptor.asset_path, descriptor.asset_digest)
     for schema in descriptor.schema_assets:
         _validate_schema(_file_digest(root, schema.path, schema.digest))
+    for callback in descriptor.callbacks:
+        _validate_child_contract(root, callback)
     return descriptor
 
 
@@ -401,9 +414,12 @@ def _child_digests(value: object) -> tuple[str, ...]:
     return items
 
 
-def _callbacks(value: object, child_digests: tuple[str, ...]) -> None:
+def _callbacks(
+    value: object, child_digests: tuple[str, ...]
+) -> tuple[SealedArtifactCallback, ...]:
     items = _list(value)
     names: list[str] = []
+    callbacks: list[SealedArtifactCallback] = []
     keys = {
         "child_contract_digest",
         "max_calls",
@@ -422,12 +438,21 @@ def _callbacks(value: object, child_digests: tuple[str, ...]) -> None:
         child = _digest(mapping["child_contract_digest"])
         if child not in child_digests or not isinstance(mapping["requirement"], str):
             _invalid()
-        names.append(_name(mapping["name"]))
+        name = _name(mapping["name"])
+        names.append(name)
+        callbacks.append(
+            SealedArtifactCallback(
+                name=name,
+                requirement=mapping["requirement"],  # type: ignore[arg-type]
+                child_contract_digest=child,
+            )
+        )
         for key, item_value in mapping.items():
             if key not in {"child_contract_digest", "name", "requirement"}:
                 _positive(item_value)
     if names != sorted(names) or len(set(names)) != len(names):
         _invalid()
+    return tuple(callbacks)
 
 
 def _mapping(value: object) -> Mapping[str, object]:
@@ -520,6 +545,43 @@ def _validate_schema(value: bytes) -> None:
     ) as error:
         raise SealedArtifactRunnerDescriptorError(
             "sealed artifact runner schema is invalid"
+        ) from error
+
+
+def _validate_child_contract(root: Path, callback: SealedArtifactCallback) -> None:
+    matches: list[bytes] = []
+    for candidate in root.rglob("*"):
+        try:
+            metadata = candidate.lstat()
+            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+                continue
+            content = candidate.read_bytes()
+        except OSError as error:
+            raise SealedArtifactRunnerDescriptorError(
+                "sealed artifact child contract is unavailable"
+            ) from error
+        if hashlib.sha256(content).hexdigest() == callback.child_contract_digest:
+            matches.append(content)
+    if len(matches) != 1:
+        raise SealedArtifactRunnerDescriptorError(
+            "sealed artifact child contract is unavailable"
+        )
+    try:
+        mapping = _canonical_mapping(matches[0])
+        _require_exact_keys(
+            mapping,
+            {"body", "callback_name", "capability_requirement", "format_version"},
+        )
+        if (
+            not isinstance(mapping["body"], dict)
+            or mapping["format_version"] != 1
+            or mapping["callback_name"] != callback.name
+            or mapping["capability_requirement"] != callback.requirement
+        ):
+            _invalid()
+    except SealedArtifactRunnerDescriptorError as error:
+        raise SealedArtifactRunnerDescriptorError(
+            "sealed artifact child contract is invalid"
         ) from error
 
 

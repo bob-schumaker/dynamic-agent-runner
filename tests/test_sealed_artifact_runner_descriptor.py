@@ -196,3 +196,72 @@ def test_verifier_rejects_invalid_or_tampered_declared_schema(tmp_path) -> None:
     ).hexdigest()
     with pytest.raises(SealedArtifactRunnerDescriptorError):
         verify_sealed_artifact_runner_files(tmp_path, _canonical(descriptor))
+
+
+def test_verifier_requires_one_matching_callback_child_contract(tmp_path) -> None:
+    asset = b"def run(context):\n    return None\n"
+    child = _canonical(
+        {
+            "body": {},
+            "callback_name": "generate",
+            "capability_requirement": "model.generate.v1",
+            "format_version": 1,
+        }
+    )
+    child_digest = hashlib.sha256(child).hexdigest()
+    descriptor = _descriptor()
+    descriptor["asset"]["sha256"] = hashlib.sha256(asset).hexdigest()
+    descriptor["child_contract_digests"] = [child_digest]
+    descriptor["callbacks"] = [
+        {
+            "child_contract_digest": child_digest,
+            "max_calls": 1,
+            "max_concurrency": 1,
+            "max_request_bytes": 1,
+            "max_response_bytes": 1,
+            "max_total_request_bytes": 1,
+            "max_total_response_bytes": 1,
+            "name": "generate",
+            "requirement": "model.generate.v1",
+            "timeout_milliseconds": 1,
+        }
+    ]
+    unsigned = dict(descriptor)
+    del unsigned["artifact_runner_digest"]
+    descriptor["artifact_runner_digest"] = hashlib.sha256(
+        _canonical(unsigned)
+    ).hexdigest()
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "example.py").write_bytes(asset)
+    (tmp_path / "contracts").mkdir()
+    (tmp_path / "contracts" / "generate.json").write_bytes(child)
+
+    verify_sealed_artifact_runner_files(tmp_path, _canonical(descriptor))
+
+    (tmp_path / "contracts" / "duplicate.json").write_bytes(child)
+    with pytest.raises(SealedArtifactRunnerDescriptorError, match="child contract"):
+        verify_sealed_artifact_runner_files(tmp_path, _canonical(descriptor))
+    (tmp_path / "contracts" / "duplicate.json").unlink()
+
+    (tmp_path / "contracts" / "generate.json").write_bytes(
+        _canonical(
+            {
+                "body": {},
+                "callback_name": "other",
+                "capability_requirement": "model.generate.v1",
+                "format_version": 1,
+            }
+        )
+    )
+    new_digest = hashlib.sha256(
+        (tmp_path / "contracts" / "generate.json").read_bytes()
+    ).hexdigest()
+    descriptor["child_contract_digests"] = [new_digest]
+    descriptor["callbacks"][0]["child_contract_digest"] = new_digest
+    unsigned = dict(descriptor)
+    del unsigned["artifact_runner_digest"]
+    descriptor["artifact_runner_digest"] = hashlib.sha256(
+        _canonical(unsigned)
+    ).hexdigest()
+    with pytest.raises(SealedArtifactRunnerDescriptorError, match="child contract"):
+        verify_sealed_artifact_runner_files(tmp_path, _canonical(descriptor))
