@@ -28,8 +28,9 @@
     byte limits in the fixed ABI.
   - [x] Enforce aggregate descriptor I/O limits across input reads, callbacks,
     and collector writes.
-  - [ ] Add callback provider revalidation, concurrency/deadline enforcement,
-    cancellation, aggregate runtime limits, and redacted receipts.
+  - [x] Revalidate the exact declared callback provider immediately before entry.
+  - [ ] Add callback concurrency/deadline enforcement, cancellation, aggregate
+    runtime limits, and redacted receipts.
 - [ ] S4 [tests, GREEN] Prove atomic outputs, provider revalidation, revocation,
   cancellation/late-result disposal, redacted receipts, and deterministic
   receiving-host execution.
