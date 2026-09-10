@@ -13,9 +13,10 @@
 - Version 1 admits only deterministic embedding providers: identical locked
   inputs and execution parameters must produce identical bundle and report
   bytes.
-- S3 and S4 require the sealed bounded result-location primitive from
-  `sandbox-workspace-runtime`. Until that primitive is implemented, DAR may
-  validate ingress and embedding capability contracts but must not execute an
+- S3 and S4 require both the sealed bounded result-location primitive from
+  `sandbox-workspace-runtime` and an approved untrusted-asset isolation backend
+  from `local-tool-sandbox-hardening`. Until both exist, DAR may validate
+  ingress and embedding capability contracts but must not execute an
   index-builder asset.
 
 ## S1 — Snapshot and bundle contracts
@@ -56,8 +57,9 @@ import, sealed document ingress, or builder execution.
 
 1. Gate this slice on an implemented `sandbox-workspace-runtime` result-location
    primitive that creates one empty bounded location and returns only declared
-   result artifacts. The current sandbox specification explicitly defers that
-   writable primitive, so no builder asset is executable yet.
+   result artifacts, and on an approved `local-tool-sandbox-hardening`
+   OS/runtime isolation backend for untrusted assets. Both are presently
+   deferred, so no builder asset is executable yet.
 2. Once the gate is met, define the narrow sandbox tool ABI and sealed builder
    descriptor for snapshot records, optional prior bundle, bounded embedding
    batches, empty result location, and manifests. The descriptor binds the

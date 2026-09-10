@@ -50,8 +50,10 @@
   - Acceptance: document whether `sandbox-workspace-runtime` implementation is
     required before E4 can begin.
   - Evidence: `sandbox-workspace-runtime` documents no implemented bounded
-    writable result-location primitive. Its implementation is required before
-    E4 can begin; E3 remains a host-only, no-builder slice.
+    writable result-location primitive, and `local-tool-sandbox-hardening`
+    admits no OS/runtime isolation backend for untrusted executable assets.
+    Both are required before E4 can begin; E3 remains a host-only, no-builder
+    slice.
 
 ## E2 — Sealed artifacts
 
