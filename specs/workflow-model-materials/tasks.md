@@ -126,3 +126,15 @@ fake-only and test-first.
     in the migration; the final build retry was blocked by an unavailable
     Artifactory mirror before wheel creation. Both source and the previously
     built wheel had no floorplan or Qwen-converter match.
+
+## M7 — Material Sets for Locked Inference
+
+- [ ] M7.1 [design] Approve canonical ordered named material-set syntax and
+  legacy single-lock compatibility with `workflow-locked-inference-callback`.
+- [ ] M7.2 [tests, RED] Add parser/package/registration vectors for duplicate,
+  missing, reordered, and substituted material roles before any cache, load,
+  provider, or package asset action.
+- [ ] M7.3 [implementation] Bind the material-set digest and exact inference
+  role/material role relation into package policy and private execution binding.
+- [ ] M7.4 [tests, GREEN] Prove role isolation and unchanged legacy package
+  import/export behavior.

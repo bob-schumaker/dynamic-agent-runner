@@ -312,3 +312,17 @@ targeted pre-commit hooks passed on 2026-09-09.
     through that public input; an absent catalog rejects that package before
     registration; and existing legacy host coverage remains catalog-free.
     Focused host tests and the full suite pass.
+
+## C6 — Locked Inference Capability
+
+- [ ] C6.1 [design] Publish the exact `model.generate.v1` capability contract,
+  feature set, and provider conformance vectors with
+  `workflow-locked-inference-callback`.
+- [ ] C6.2 [tests, RED] Add descriptor/admission vectors for inference-role
+  requirement/material-role mismatches that leave all asset, model, provider,
+  ingress, and result actions at zero.
+- [ ] C6.3 [implementation] Resolve and revalidate the selected private
+  provider only through the generic inference binding; do not expose provider
+  selection or domain output interpretation to package data.
+- [ ] C6.4 [tests, GREEN] Prove exact matching, role isolation, no fallback,
+  and legacy requirements-package compatibility.

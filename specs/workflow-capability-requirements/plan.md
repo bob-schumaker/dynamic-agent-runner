@@ -202,6 +202,19 @@ Exit: an integration caller never mutates host-private attributes to execute a
 sealed requirements package, and no catalog registry or configuration file is
 introduced.
 
+### S7 — Locked inference capability (planned)
+
+1. Publish the exact `model.generate.v1` contract and conformance vectors
+   without introducing a provider selector or domain output semantics.
+2. Extend descriptor-only admission to bind an inference role to one sealed
+   material-set role before asset import, material load, or input ingress.
+3. Keep callback value schemas, resource limits, and sealed-asset delivery in
+   `workflow-locked-inference-callback`; this plan owns only exact contract
+   resolution and provider revalidation.
+
+Exit: a package can require an exact generic inference behavior while only DAR
+selects and revalidates its compatible receiver-local provider.
+
 ## Validation Strategy
 
 Run focused tests after each slice, then run:

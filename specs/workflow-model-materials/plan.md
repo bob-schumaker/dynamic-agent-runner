@@ -71,6 +71,16 @@ admission has accepted the exact capability requirements.
 4. Run focused regressions, the full suite, Ruff, `git diff --check`, and the
    package build to confirm generic package construction still works.
 
+### M7 — Material sets for locked inference
+
+1. Extend the canonical lock declaration to an ordered named material set while
+   preserving v1 single-lock parsing and package identity.
+2. Bind each inference role to exactly one material role; reject duplicate,
+   missing, or cross-role substitution before any load or package asset import.
+3. Coordinate the exact generation capability mapping with
+   `workflow-locked-inference-callback`; do not add domain model names or
+   provider configuration.
+
 ## Validation
 
 Run focused tests per slice, then `poetry run pytest -q`,

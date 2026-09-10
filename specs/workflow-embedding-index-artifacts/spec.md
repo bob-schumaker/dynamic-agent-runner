@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `workflow-embedding-index-artifacts`
-- Status: approved; implementation in progress
+- Status: E1–E5 experimental bridge complete; portable package-runtime work is planned
 - Owner: dynamic-agent-runner workflow-package, model-material, and artifact boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`
@@ -14,6 +14,7 @@
   - `specs/local-tool-sandbox-hardening/spec.md`
   - `specs/authored-workflow-runtime-v1/spec.md`
   - `specs/llama-cpp-local-model/spec.md`
+  - `specs/workflow-locked-inference-callback/spec.md`
 
 ## Objective
 
@@ -157,6 +158,15 @@ report only through that result location.
 The descriptor's canonical bytes define `index_builder_digest`. It is an
 identity, not executable configuration supplied by the caller.
 
+### Portable package runtime
+
+E1–E5 provide a host-private experimental bridge, not a portable workflow
+package path. A portable package must declare the snapshot input, optional
+prior bundle, index-builder asset digest/descriptor, embedding material role,
+exact embedding capability, and declared opaque outputs in its sealed
+descriptor. DAR verifies those declarations and resolves all required
+capabilities/materials before it loads the asset or accepts the input.
+
 ## Functional Requirements
 
 ### FR-1: Sealed snapshot ingress
@@ -229,6 +239,15 @@ admit a package received from another party. Raw document content, chunks, vecto
 index bytes, and source-path mappings are sensitive artifacts and must not
 enter ordinary traces, error text, capability reports, or debug diagnostics.
 
+### FR-8: Portable invocation
+
+DAR shall admit an embedding-index ZIP only when its generic descriptor binds
+the complete artifact and builder contract, all material/capability bindings
+resolve before package-asset loading, and the exact package/asset has the
+required runtime authorization. The experimental profile may serve an
+explicitly owner-authorized package; foreign/untrusted package execution stays
+gated on the approved isolation backend.
+
 ## Acceptance Criteria
 
 - Fake-only tests prove malformed or oversized snapshots fail before any
@@ -244,6 +263,8 @@ enter ordinary traces, error text, capability reports, or debug diagnostics.
 - The first real-model acceptance, if authorized later, records only package,
   artifact, provider-contract, and aggregate-count digests; it does not make a
   live model call from pytest or CI.
+- ZIP round-trip vectors prove receiver invocation uses the sealed descriptor,
+  never an injected builder or caller-supplied model configuration.
 
 ## Dependencies and Delivery Gate
 

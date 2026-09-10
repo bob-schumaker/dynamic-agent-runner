@@ -105,3 +105,15 @@ diagnostics.
 The manually maintained test harness selects its own pinned material and uses
 the standard Hugging Face cache. No scenario model identifier, revision, file,
 or file digest is a DAR package or generic-contract value.
+
+## S5 — Portable package runtime
+
+1. Add a generic descriptor section for sealed snapshot/prior-bundle ingress,
+   builder asset/configuration, embedding material role, and opaque outputs.
+2. Route ZIP admission and invocation through descriptor-only material and
+   capability resolution before builder asset loading or input ingress.
+3. Add fake-only ZIP round-trip and owner-authorization vectors; preserve the
+   experimental/untrusted-package isolation distinction.
+
+Exit: an owner-authorized external ZIP can execute the same generic contract
+without test-fixture injection or caller-supplied model configuration.

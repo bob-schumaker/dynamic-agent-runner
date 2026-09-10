@@ -55,6 +55,17 @@ package-execution API. It is an egress building block for a future isolated
 backend, not a writable model-facing workspace or proof of untrusted-asset
 isolation.
 
+## Portable Experimental Asset Authorization
+
+An explicit local owner may authorize one exact provenance-verified package
+digest and sealed asset digest for personal experimentation after ZIP selection
+and descriptor-only admission. This does not establish publisher trust or
+isolation, grant filesystem/network/process access, survive a digest change, or
+make a foreign/untrusted package runnable. It may enable only narrow sealed
+input, bounded callback, and declared in-memory result interfaces defined by
+their owning feature specifications. General release remains gated on
+`local-tool-sandbox-hardening`.
+
 ## Scope
 
 This feature covers:

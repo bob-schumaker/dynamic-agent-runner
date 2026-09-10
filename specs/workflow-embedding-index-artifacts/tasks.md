@@ -145,9 +145,24 @@
   - Depends on: E5.1.
   - The manually maintained test harness supplies and verifies its scenario
     material pin; no scenario material identity belongs in this task contract.
-  - Evidence: on 2026-09-10, the owner-authorized E5.2 fixture ran through
+  - Evidence: on 2026-09-10, the owner-authorized host-private E5.2 fixture
+    ran through
     llama.cpp on local Metal. Its retained test-harness receipt contains only
     bundle/report/binding/package digests and aggregate counts: one document,
     one chunk, one indexed, and zero skipped/deleted/errors. The harness checks
     that no document, path, content, text, vector, or bundle field can enter
     the coverage-report receipt.
+
+## E6 — Portable package runtime
+
+- [ ] E6.1 [design] Define the sealed descriptor/package-manifest binding for
+  snapshot ingress, optional prior bundle, builder asset/configuration,
+  embedding material role, exact capability, and declared opaque outputs.
+- [ ] E6.2 [tests, RED] Add ZIP receiver-admission vectors proving malformed,
+  unbound, or unauthorized packages load no asset, model, provider, ingress, or
+  result collector.
+- [ ] E6.3 [implementation] Route authorized portable package invocation
+  through descriptor-only admission and the sealed builder runtime; eliminate
+  test-fixture injection from the portable path.
+- [ ] E6.4 [tests, GREEN] Prove deterministic ZIP import/invocation and
+  aggregate-only result egress on a receiving host.

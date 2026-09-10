@@ -66,6 +66,12 @@ It
 does not standardize a general model registry, a transform graph language, or
 an unrestricted execution environment.
 
+The proposed locked-inference callback requires a canonical material set:
+ordered named roles each hold one existing immutable lock, and a declared
+inference role binds to exactly one material role. Existing single-lock
+packages remain valid unchanged. Roles do not expose receiver providers,
+execution settings, or model paths.
+
 ## Non-Goals
 
 This feature does not:
