@@ -66,6 +66,7 @@ class SealedArtifactRunnerDescriptor:
     asset_path: str
     asset_digest: str
     capability_requirements_digest: str
+    profile_digest: str
     inputs: tuple["SealedArtifactInput", ...]
     outputs: tuple["SealedArtifactOutput", ...]
     limits: SealedArtifactLimits
@@ -175,6 +176,7 @@ def parse_sealed_artifact_runner_descriptor(
         asset_path=asset_path,
         asset_digest=asset_digest,
         capability_requirements_digest=capability_requirements_digest,
+        profile_digest=_digest(mapping["profile_digest"]),
         inputs=inputs,
         outputs=outputs,
         limits=limits,
@@ -546,6 +548,12 @@ class SealedArtifactHandleService:
             raise SealedArtifactHandleError("handle service is unavailable")
         self._store = store
         self._owner = owner
+
+    @property
+    def owner(self) -> str:
+        """Return the host principal allowed to manage this private handle set."""
+
+        return self._owner
 
     def prepare(
         self,

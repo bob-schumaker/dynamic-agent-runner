@@ -11,7 +11,7 @@
     a single byte is returned.
   - [x] Replace the generic admission loop with an observable receiver-order
     sentinel through collector allocation and asset import.
-  - [ ] Bind preparation to package provenance, exact owner authorization, and
+  - [x] Bind preparation to package provenance, exact owner authorization, and
     side-effect-free identity resolution.
   - [ ] Extend sentinels to actual ZIP/manifest readers, handle-byte access,
     provider revalidation/material load, output sealing, publication, and

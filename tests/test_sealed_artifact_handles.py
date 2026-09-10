@@ -33,6 +33,7 @@ def _descriptor() -> SealedArtifactRunnerDescriptor:
         asset_path="assets/runner.py",
         asset_digest="c" * 64,
         capability_requirements_digest="d" * 64,
+        profile_digest="f" * 64,
         inputs=(
             SealedArtifactInput(
                 role="snapshot",
@@ -66,6 +67,7 @@ def _json_descriptor() -> SealedArtifactRunnerDescriptor:
         asset_path="assets/runner.py",
         asset_digest="c" * 64,
         capability_requirements_digest="d" * 64,
+        profile_digest="f" * 64,
         inputs=(
             SealedArtifactInput(
                 role="snapshot",
