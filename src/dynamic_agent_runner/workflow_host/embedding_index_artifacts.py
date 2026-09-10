@@ -165,6 +165,47 @@ class IndexBundleManifest:
         manifest._validate()
         return manifest
 
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, object]) -> "IndexBundleManifest":
+        """Parse only the exact generic bundle-manifest shape."""
+
+        expected = {
+            "format_version",
+            "snapshot_digest",
+            "embedding_material_lock_digest",
+            "embedding_capability_contract_digest",
+            "index_builder_digest",
+            "bundle_sha256",
+            "document_count",
+            "chunk_count",
+            "indexed_count",
+            "skipped_count",
+            "deleted_count",
+            "error_count",
+        }
+        if set(value) != expected or value.get("format_version") != 1:
+            raise IndexArtifactError("index bundle manifest is invalid")
+        try:
+            manifest = cls(
+                _string(value["snapshot_digest"]),
+                IndexArtifactBinding(
+                    _string(value["embedding_material_lock_digest"]),
+                    _string(value["embedding_capability_contract_digest"]),
+                    _string(value["index_builder_digest"]),
+                ),
+                _string(value["bundle_sha256"]),
+                _integer(value["document_count"]),
+                _integer(value["chunk_count"]),
+                _integer(value["indexed_count"]),
+                _integer(value["skipped_count"]),
+                _integer(value["deleted_count"]),
+                _integer(value["error_count"]),
+            )
+        except (KeyError, TypeError, ValueError) as error:
+            raise IndexArtifactError("index bundle manifest is invalid") from error
+        manifest._validate()
+        return manifest
+
     def _validate(self) -> None:
         if (
             not _DIGEST.fullmatch(self.snapshot_digest)

@@ -113,9 +113,14 @@
     missing-module error before the experimental bridge existed; it now proves
     exact owner authorization, data-only ABI, declared output slots, and zero
     builder calls for rejected admission.
-- [ ] E4.2 [implementation] Route the builder through the approved sandbox and
+- [x] E4.2 [implementation] Route the builder through the approved sandbox and
   artifact boundary; expose no directory, network, subprocess, or storage API.
   - Depends on: E4.1.
+  - Evidence: the owner-authorized experimental bridge passes only the sealed
+    snapshot, optional bounded prior bundle, exact binding, embedding callback,
+    and in-memory declared result collector. It parses and validates the bundle
+    manifest/report before returning a host-private receipt; the profile makes
+    no untrusted-package isolation claim.
 - [ ] E4.3 [tests, GREEN] Add a deterministic toy package fixture proving
   initial and incremental identical-byte bundle/report identity, rebuild
   boundaries, aggregate-only report egress, and redaction.

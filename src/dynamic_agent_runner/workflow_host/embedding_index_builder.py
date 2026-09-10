@@ -14,7 +14,13 @@ from dynamic_agent_runner.workflow_host.embedding_execution import (
     EmbeddingVector,
 )
 from dynamic_agent_runner.workflow_host.embedding_index_artifacts import (
+    CoverageReport,
     DocumentSnapshot,
+    IndexArtifactBinding,
+    IndexArtifactError,
+    IndexArtifactResult,
+    IndexBundleManifest,
+    validate_index_artifacts,
 )
 from dynamic_agent_runner.workflow_host.sandbox_result_location import (
     DeclaredResultArtifact,
@@ -40,6 +46,7 @@ class ExperimentalIndexBuilder(Protocol):
         *,
         snapshot: DocumentSnapshot,
         prior_bundle: bytes | None,
+        binding: IndexArtifactBinding,
         embed: Callable[[tuple[EmbeddingTextItem, ...]], tuple[EmbeddingVector, ...]],
         results: ResultLocation,
     ) -> None:
@@ -62,8 +69,7 @@ class IndexBuilderDescriptor:
             not _DIGEST.fullmatch(self.package_digest)
             or not _DIGEST.fullmatch(self.asset_digest)
             or not artifacts
-            or names != tuple(sorted(names))
-            or len(set(names)) != len(names)
+            or names != ("coverage_report", "index_bundle", "index_manifest")
             or any(not isinstance(item, DeclaredResultArtifact) for item in artifacts)
             or not _positive(self.max_prior_bundle_bytes)
         ):
@@ -148,6 +154,7 @@ class BuilderRunResult:
 
     builder_digest: str
     artifacts: tuple[SealedResultArtifact, ...]
+    receipt: IndexArtifactResult
     _results: ResultLocation = field(repr=False, compare=False)
 
     def read(self, name: str) -> bytes:
@@ -169,6 +176,7 @@ def run_owner_authorized_builder(
     catalog: ExperimentalBuilderCatalog,
     snapshot: DocumentSnapshot,
     prior_bundle: bytes | None,
+    binding: IndexArtifactBinding,
     embed: Callable[[tuple[EmbeddingTextItem, ...]], tuple[EmbeddingVector, ...]],
 ) -> BuilderRunResult:
     """Run one exact host-installed builder under the experimental profile.
@@ -177,20 +185,37 @@ def run_owner_authorized_builder(
     explicit local owner authorization of the exact sealed package and asset.
     """
 
-    _validate_run_inputs(profile, descriptor, catalog, snapshot, prior_bundle, embed)
+    _validate_run_inputs(
+        profile, descriptor, catalog, snapshot, prior_bundle, binding, embed
+    )
     builder = catalog.resolve(descriptor.asset_digest)
     results = create_result_location(descriptor.result_artifacts)
     try:
         builder.run(
             snapshot=snapshot,
             prior_bundle=prior_bundle,
+            binding=binding,
             embed=embed,
             results=results,
         )
         artifacts = results.seal()
     except Exception as error:  # noqa: BLE001 - builder internals are untrusted here.
         raise IndexBuilderError("experimental builder execution failed") from error
-    return BuilderRunResult(descriptor.digest, artifacts, results)
+    try:
+        receipt = _validate_artifacts(
+            artifacts=artifacts,
+            results=results,
+            snapshot=snapshot,
+            binding=binding,
+        )
+    except (
+        IndexArtifactError,
+        ResultLocationError,
+        UnicodeDecodeError,
+        ValueError,
+    ) as error:
+        raise IndexBuilderError("index builder artifacts are invalid") from error
+    return BuilderRunResult(descriptor.digest, artifacts, receipt, results)
 
 
 def _validate_run_inputs(
@@ -199,6 +224,7 @@ def _validate_run_inputs(
     catalog: ExperimentalBuilderCatalog,
     snapshot: DocumentSnapshot,
     prior_bundle: bytes | None,
+    binding: IndexArtifactBinding,
     embed: object,
 ) -> None:
     if (
@@ -206,9 +232,11 @@ def _validate_run_inputs(
         or not isinstance(descriptor, IndexBuilderDescriptor)
         or not isinstance(catalog, ExperimentalBuilderCatalog)
         or not isinstance(snapshot, DocumentSnapshot)
+        or not isinstance(binding, IndexArtifactBinding)
         or not callable(embed)
         or profile.package_digest != descriptor.package_digest
         or profile.asset_digest != descriptor.asset_digest
+        or binding.index_builder_digest != descriptor.digest
         or prior_bundle is not None
         and (
             not isinstance(prior_bundle, bytes)
@@ -216,6 +244,32 @@ def _validate_run_inputs(
         )
     ):
         raise IndexBuilderError("experimental builder admission is invalid")
+
+
+def _validate_artifacts(
+    *,
+    artifacts: tuple[SealedResultArtifact, ...],
+    results: ResultLocation,
+    snapshot: DocumentSnapshot,
+    binding: IndexArtifactBinding,
+) -> IndexArtifactResult:
+    by_name = {artifact.name: artifact for artifact in artifacts}
+    bundle = results.read(by_name["index_bundle"])
+    manifest = IndexBundleManifest.from_mapping(
+        json.loads(results.read(by_name["index_manifest"]).decode("utf-8"))
+    )
+    report = CoverageReport.from_mapping(
+        json.loads(results.read(by_name["coverage_report"]).decode("utf-8"))
+    )
+    return validate_index_artifacts(
+        bundle=bundle,
+        manifest=manifest,
+        report=report,
+        snapshot=snapshot,
+        binding=binding,
+        max_bundle_bytes=by_name["index_bundle"].byte_count,
+        max_report_bytes=by_name["coverage_report"].byte_count,
+    )
 
 
 def _positive(value: object) -> bool:

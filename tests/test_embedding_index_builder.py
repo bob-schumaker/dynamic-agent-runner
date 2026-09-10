@@ -11,8 +11,11 @@ from dynamic_agent_runner.workflow_host.embedding_execution import (
     EmbeddingVector,
 )
 from dynamic_agent_runner.workflow_host.embedding_index_artifacts import (
+    CoverageReport,
     DocumentSnapshot,
     DocumentSnapshotPolicy,
+    IndexArtifactBinding,
+    IndexBundleManifest,
     SnapshotDocument,
 )
 from dynamic_agent_runner.workflow_host.embedding_index_builder import (
@@ -40,8 +43,9 @@ def _descriptor() -> IndexBuilderDescriptor:
         package_digest="a" * 64,
         asset_digest="b" * 64,
         result_artifacts=(
-            DeclaredResultArtifact("coverage_report", 64),
+            DeclaredResultArtifact("coverage_report", 2048),
             DeclaredResultArtifact("index_bundle", 128),
+            DeclaredResultArtifact("index_manifest", 2048),
         ),
         max_prior_bundle_bytes=128,
     )
@@ -56,6 +60,7 @@ class _FakeBuilder:
         *,
         snapshot: DocumentSnapshot,
         prior_bundle: bytes | None,
+        binding: IndexArtifactBinding,
         embed: object,
         results: object,
     ) -> None:
@@ -63,16 +68,46 @@ class _FakeBuilder:
             {
                 "snapshot": snapshot,
                 "prior_bundle": prior_bundle,
+                "binding": binding,
                 "embed": embed,
                 "results": results,
             }
         )
-        results.write("coverage_report", b'{"status":"ok"}')
-        results.write("index_bundle", b"index")
+        bundle = b"index"
+        manifest = IndexBundleManifest.create(
+            bundle=bundle,
+            snapshot=snapshot,
+            binding=binding,
+            document_count=1,
+            chunk_count=1,
+            indexed_count=1,
+            skipped_count=0,
+            deleted_count=0,
+            error_count=0,
+        )
+        report = CoverageReport.create(
+            snapshot=snapshot,
+            binding=binding,
+            prior_bundle_digest=None,
+            document_count=1,
+            chunk_count=1,
+            indexed_count=1,
+            skipped_count=0,
+            deleted_count=0,
+            error_count=0,
+            error_classifications=(),
+        )
+        results.write("coverage_report", report.canonical_bytes)
+        results.write("index_bundle", bundle)
+        results.write("index_manifest", manifest.canonical_bytes)
 
 
 def _embed(items: tuple[EmbeddingTextItem, ...]) -> tuple[EmbeddingVector, ...]:
     return tuple(EmbeddingVector(item.item_id, (0.25, 0.75)) for item in items)
+
+
+def _binding(descriptor: IndexBuilderDescriptor) -> IndexArtifactBinding:
+    return IndexArtifactBinding("c" * 64, "d" * 64, descriptor.digest)
 
 
 def test_owner_authorized_builder_receives_only_narrow_data_abi() -> None:
@@ -86,6 +121,7 @@ def test_owner_authorized_builder_receives_only_narrow_data_abi() -> None:
         ),
         snapshot=_snapshot(),
         prior_bundle=None,
+        binding=_binding(descriptor),
         embed=_embed,
     )
 
@@ -93,7 +129,13 @@ def test_owner_authorized_builder_receives_only_narrow_data_abi() -> None:
     assert result.artifacts[0].name == "coverage_report"
     assert result.read("index_bundle") == b"index"
     assert len(builder.calls) == 1
-    assert set(builder.calls[0]) == {"snapshot", "prior_bundle", "embed", "results"}
+    assert set(builder.calls[0]) == {
+        "snapshot",
+        "prior_bundle",
+        "binding",
+        "embed",
+        "results",
+    }
     assert not hasattr(builder.calls[0]["results"], "path")
 
 
@@ -119,6 +161,7 @@ def test_rejected_builder_admission_never_calls_builder(
             ),
             snapshot=_snapshot(),
             prior_bundle=prior_bundle,
+            binding=_binding(_descriptor()),
             embed=_embed,
         )
 
@@ -140,5 +183,54 @@ def test_builder_cannot_write_an_undeclared_result_slot() -> None:
             ),
             snapshot=_snapshot(),
             prior_bundle=None,
+            binding=_binding(_descriptor()),
+            embed=_embed,
+        )
+
+
+def test_builder_rejects_a_result_manifest_with_wrong_binding() -> None:
+    class MismatchedManifestBuilder(_FakeBuilder):
+        def run(self, **kwargs: object) -> None:
+            snapshot = kwargs["snapshot"]
+            binding = IndexArtifactBinding("e" * 64, "d" * 64, "f" * 64)
+            bundle = b"index"
+            manifest = IndexBundleManifest.create(
+                bundle=bundle,
+                snapshot=snapshot,
+                binding=binding,
+                document_count=1,
+                chunk_count=1,
+                indexed_count=1,
+                skipped_count=0,
+                deleted_count=0,
+                error_count=0,
+            )
+            report = CoverageReport.create(
+                snapshot=snapshot,
+                binding=binding,
+                prior_bundle_digest=None,
+                document_count=1,
+                chunk_count=1,
+                indexed_count=1,
+                skipped_count=0,
+                deleted_count=0,
+                error_count=0,
+                error_classifications=(),
+            )
+            kwargs["results"].write("coverage_report", report.canonical_bytes)
+            kwargs["results"].write("index_bundle", bundle)
+            kwargs["results"].write("index_manifest", manifest.canonical_bytes)
+
+    descriptor = _descriptor()
+    with pytest.raises(IndexBuilderError, match="artifact"):
+        run_owner_authorized_builder(
+            profile=OwnerAuthorizedBuilderProfile("a" * 64, "b" * 64),
+            descriptor=descriptor,
+            catalog=ExperimentalBuilderCatalog(
+                (ExperimentalBuilderBinding("b" * 64, MismatchedManifestBuilder()),)
+            ),
+            snapshot=_snapshot(),
+            prior_bundle=None,
+            binding=_binding(descriptor),
             embed=_embed,
         )
