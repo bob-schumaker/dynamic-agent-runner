@@ -36,35 +36,48 @@ def _prepare(service: SealedArtifactHandleService):
     )
 
 
+def _binding() -> dict[str, str | None]:
+    return {
+        "receiver_id": "receiver",
+        "revision_digest": "a" * 64,
+        "invocation_id": "invocation",
+        "role": "snapshot",
+        "media_type": "application/octet-stream",
+        "schema_digest": None,
+    }
+
+
 def test_handle_is_opaque_bound_and_single_use(tmp_path) -> None:
     service = _service(tmp_path)
     handle = _prepare(service)
 
     assert handle.handle_id
+    service.reserve(handle.handle_id, now=NOW, **_binding())
     assert (
         service.consume(
             handle.handle_id,
-            receiver_id="receiver",
-            revision_digest="a" * 64,
-            invocation_id="invocation",
-            role="snapshot",
-            media_type="application/octet-stream",
-            schema_digest=None,
             now=NOW,
+            **_binding(),
         )
         == b"sealed bytes"
     )
     with pytest.raises(SealedArtifactHandleError, match="unavailable"):
         service.consume(
             handle.handle_id,
-            receiver_id="receiver",
-            revision_digest="a" * 64,
-            invocation_id="invocation",
-            role="snapshot",
-            media_type="application/octet-stream",
-            schema_digest=None,
             now=NOW,
+            **_binding(),
         )
+
+
+def test_handle_cannot_be_consumed_before_reservation(tmp_path) -> None:
+    service = _service(tmp_path)
+    handle = _prepare(service)
+
+    with pytest.raises(SealedArtifactHandleError, match="unavailable"):
+        service.consume(handle.handle_id, now=NOW, **_binding())
+
+    service.reserve(handle.handle_id, now=NOW, **_binding())
+    assert service.consume(handle.handle_id, now=NOW, **_binding()) == b"sealed bytes"
 
 
 @pytest.mark.parametrize(
@@ -94,20 +107,14 @@ def test_mismatched_handle_metadata_never_consumes_bytes(
     expected[field] = value
 
     with pytest.raises(SealedArtifactHandleError, match="does not match"):
-        service.consume(handle.handle_id, now=NOW, **expected)
+        service.reserve(handle.handle_id, now=NOW, **expected)
 
+    service.reserve(handle.handle_id, now=NOW, **_binding())
     assert (
         service.consume(
             handle.handle_id,
             now=NOW,
-            **{
-                "receiver_id": "receiver",
-                "revision_digest": "a" * 64,
-                "invocation_id": "invocation",
-                "role": "snapshot",
-                "media_type": "application/octet-stream",
-                "schema_digest": None,
-            },
+            **_binding(),
         )
         == b"sealed bytes"
     )
@@ -129,6 +136,17 @@ def test_revoked_handle_cannot_be_consumed(tmp_path) -> None:
             schema_digest=None,
             now=NOW,
         )
+
+
+def test_reserved_handle_can_be_revoked(tmp_path) -> None:
+    service = _service(tmp_path)
+    handle = _prepare(service)
+    service.reserve(handle.handle_id, now=NOW, **_binding())
+
+    service.revoke(handle.handle_id, now=NOW)
+
+    with pytest.raises(SealedArtifactHandleError, match="unavailable"):
+        service.consume(handle.handle_id, now=NOW, **_binding())
 
 
 def test_expired_handle_cannot_be_consumed(tmp_path) -> None:

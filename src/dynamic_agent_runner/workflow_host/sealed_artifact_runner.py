@@ -298,6 +298,55 @@ class SealedArtifactHandleService:
         )
         instant = _utc(now)
         try:
+            record = self._store.load_state(
+                handle_id,
+                expected_kind="sealed_artifact_handle",
+                owner=self._owner,
+                expected_state="reserved",
+                now=instant,
+            )
+        except OpaqueRecordError as error:
+            raise SealedArtifactHandleError("artifact handle is unavailable") from error
+        payload = record.payload
+        if any(payload.get(name) != value for name, value in fields.items()):
+            raise SealedArtifactHandleError("artifact handle does not match")
+        try:
+            record = self._store.transition(
+                handle_id,
+                expected_kind="sealed_artifact_handle",
+                owner=self._owner,
+                expected_state="reserved",
+                new_state="consumed",
+                now=instant,
+            )
+        except OpaqueRecordError as error:
+            raise SealedArtifactHandleError("artifact handle is unavailable") from error
+        return _handle_content(record.payload)
+
+    def reserve(
+        self,
+        handle_id: str,
+        *,
+        receiver_id: str,
+        revision_digest: str,
+        invocation_id: str,
+        role: str,
+        media_type: str,
+        schema_digest: str | None,
+        now: datetime,
+    ) -> None:
+        """Atomically reserve one matching prepared handle without reading bytes."""
+
+        fields = _handle_fields(
+            receiver_id=receiver_id,
+            revision_digest=revision_digest,
+            invocation_id=invocation_id,
+            role=role,
+            media_type=media_type,
+            schema_digest=schema_digest,
+        )
+        instant = _utc(now)
+        try:
             record = self._store.load(
                 handle_id,
                 expected_kind="sealed_artifact_handle",
@@ -306,20 +355,19 @@ class SealedArtifactHandleService:
             )
         except OpaqueRecordError as error:
             raise SealedArtifactHandleError("artifact handle is unavailable") from error
-        payload = record.payload
-        if any(payload.get(name) != value for name, value in fields.items()):
+        if any(record.payload.get(name) != value for name, value in fields.items()):
             raise SealedArtifactHandleError("artifact handle does not match")
-        content = _handle_content(payload)
         try:
-            self._store.consume(
+            self._store.transition(
                 handle_id,
                 expected_kind="sealed_artifact_handle",
                 owner=self._owner,
+                expected_state="active",
+                new_state="reserved",
                 now=instant,
             )
         except OpaqueRecordError as error:
             raise SealedArtifactHandleError("artifact handle is unavailable") from error
-        return content
 
     def revoke(self, handle_id: str, *, now: datetime) -> None:
         """Irreversibly revoke one caller-owned handle."""
