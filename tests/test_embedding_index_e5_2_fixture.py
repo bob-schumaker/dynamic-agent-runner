@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 from pathlib import Path
 
 
 _ROOT = Path(__file__).parents[1]
 _FIXTURE = _ROOT / "tests/fixtures/embedding-index-e5-2/model-material.json"
+_HARNESS = _ROOT / "tests/manual/run_embedding_index_e5_2.py"
 
 
 def test_e5_2_material_fixture_is_pinned_and_not_a_dar_contract() -> None:
@@ -30,3 +32,17 @@ def test_e5_2_material_fixture_is_pinned_and_not_a_dar_contract() -> None:
     for path in generic_paths:
         contents = path.read_text(encoding="utf-8")
         assert all(value not in contents for value in scenario_values), path
+
+
+def test_e5_2_harness_accepts_only_the_host_prepared_fixture_snapshot() -> None:
+    spec = importlib.util.spec_from_file_location("embedding_e5_2_harness", _HARNESS)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    snapshot = module._snapshot(
+        _ROOT / "tests/fixtures/embedding-index-e5-2/snapshot.json"
+    )
+
+    assert len(snapshot.documents) == 1
+    assert "acceptance document" not in repr(snapshot)
