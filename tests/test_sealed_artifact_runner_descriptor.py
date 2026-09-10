@@ -1,0 +1,129 @@
+"""RED contract vectors for the sealed artifact runner descriptor."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+
+import pytest
+
+from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
+    SealedArtifactRunnerDescriptorError,
+    parse_sealed_artifact_runner_descriptor,
+)
+
+
+def _canonical(value: object) -> bytes:
+    return json.dumps(
+        value,
+        allow_nan=False,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+
+
+def _descriptor() -> dict[str, object]:
+    value: dict[str, object] = {
+        "asset": {
+            "abi_version": 1,
+            "entrypoint": "run",
+            "path": "assets/example.py",
+            "sha256": "a" * 64,
+        },
+        "callbacks": [],
+        "capability_requirements_digest": "b" * 64,
+        "child_contract_digests": [],
+        "format_version": 1,
+        "inputs": [],
+        "limits": {
+            "max_concurrency": 1,
+            "max_cpu_milliseconds": 1,
+            "max_io_bytes": 1,
+            "max_memory_bytes": 1,
+            "max_runtime_milliseconds": 1,
+        },
+        "outputs": [
+            {
+                "max_bytes": 1,
+                "media_type": "application/octet-stream",
+                "role": "result",
+                "schema_digest": None,
+            }
+        ],
+        "profile_digest": "c" * 64,
+        "schemas": [],
+    }
+    value["artifact_runner_digest"] = hashlib.sha256(_canonical(value)).hexdigest()
+    return value
+
+
+def test_parser_accepts_the_normative_v1_canonicalization_vector() -> None:
+    descriptor = _descriptor()
+
+    parsed = parse_sealed_artifact_runner_descriptor(_canonical(descriptor))
+
+    assert parsed.digest == descriptor["artifact_runner_digest"]
+    assert parsed.asset_path == "assets/example.py"
+    assert parsed.output_roles == ("result",)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "expected"),
+    [
+        (
+            lambda value: value.__setitem__("unknown", "value"),
+            "descriptor is invalid",
+        ),
+        (
+            lambda value: value["asset"].__setitem__("entrypoint", "other"),
+            "descriptor is invalid",
+        ),
+        (
+            lambda value: value["asset"].__setitem__("path", "assets/example.txt"),
+            "descriptor is invalid",
+        ),
+        (
+            lambda value: value["outputs"].__setitem__(
+                0,
+                {
+                    "max_bytes": 1,
+                    "media_type": "application/json",
+                    "role": "Result",
+                    "schema_digest": None,
+                },
+            ),
+            "descriptor is invalid",
+        ),
+        (
+            lambda value: value["limits"].__setitem__("max_io_bytes", True),
+            "descriptor is invalid",
+        ),
+        (
+            lambda value: value.__setitem__("artifact_runner_digest", "0" * 64),
+            "descriptor digest does not match",
+        ),
+    ],
+)
+def test_parser_rejects_noncanonical_v1_contracts(mutate, expected: str) -> None:
+    descriptor = _descriptor()
+    mutate(descriptor)
+    if expected == "descriptor is invalid":
+        unsigned = dict(descriptor)
+        del unsigned["artifact_runner_digest"]
+        descriptor["artifact_runner_digest"] = hashlib.sha256(
+            _canonical(unsigned)
+        ).hexdigest()
+
+    with pytest.raises(SealedArtifactRunnerDescriptorError, match=expected):
+        parse_sealed_artifact_runner_descriptor(_canonical(descriptor))
+
+
+def test_parser_rejects_duplicate_json_keys_before_descriptor_processing() -> None:
+    value = _canonical(_descriptor()).decode("utf-8")
+    duplicate = value.replace(
+        '"format_version":1', '"format_version":1,"format_version":1'
+    )
+
+    with pytest.raises(SealedArtifactRunnerDescriptorError, match="duplicate"):
+        parse_sealed_artifact_runner_descriptor(duplicate.encode("utf-8"))
