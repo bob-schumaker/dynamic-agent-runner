@@ -49,6 +49,7 @@ from dynamic_agent_runner.workflow_host.authorized_tools import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.mcp_client import MCPClientConfiguration  # noqa: E402
 from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool  # noqa: E402
 from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
+    InstallationIdentityProvider,
     LocalModelProfileControlPlane,
 )
 from dynamic_agent_runner.workflow_host.policy import PolicyCompilationError  # noqa: E402
@@ -176,7 +177,9 @@ def test_local_host_enables_sealed_artifact_runner_only_with_a_resolver(
     assert enabled._sealed_artifact_runner is not None
 
 
-def test_local_host_runs_a_registered_sealed_artifact_package(tmp_path: Path) -> None:
+def test_local_host_rejects_tampered_sealed_asset_before_callback_or_egress(
+    tmp_path: Path,
+) -> None:
     package_root = tmp_path / "packages"
     source = package_root / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -260,11 +263,15 @@ def test_local_host_runs_a_registered_sealed_artifact_package(tmp_path: Path) ->
             raise AssertionError("no callback is declared")
 
     class Resolver:
+        calls = 0
+
         def resolve(self, _descriptor, _policy) -> Callbacks:
+            self.calls += 1
             return Callbacks()
 
+    resolver = Resolver()
     host = LocalWorkflowHost.open(
-        tmp_path / "state", sealed_artifact_callback_resolver=Resolver()
+        tmp_path / "state", sealed_artifact_callback_resolver=resolver
     )
     registration = host.register(
         workflow_id="document-helper",
@@ -282,6 +289,33 @@ def test_local_host_runs_a_registered_sealed_artifact_package(tmp_path: Path) ->
         now=NOW,
     )
 
+    revision = host._catalog.revision(
+        registration.package_id, registration.revision_digest
+    )
+    revision.package_root.chmod(0o700)
+    staged_asset = revision.package_root / "assets" / "runner.py"
+    staged_asset.chmod(0o600)
+    staged_asset.write_bytes(b"tampered")
+    output_store = PrivateStateStore(tmp_path / "state")
+
+    with pytest.raises(LocalWorkflowHostError, match="sealed artifact runner"):
+        host.run_sealed_artifact(
+            SealedArtifactInvocation(
+                workflow_id=registration.workflow_id,
+                invocation_id="run-1",
+                input_handles={"snapshot": prepared.handle_id},
+            ),
+            now=NOW,
+        )
+
+    assert resolver.calls == 0
+    assert not output_store.active_records(
+        kind="sealed_artifact_output_set",
+        owner=InstallationIdentityProvider().principal,
+        now=NOW,
+    )
+    staged_asset.write_bytes(asset)
+
     result = host.run_sealed_artifact(
         SealedArtifactInvocation(
             workflow_id=registration.workflow_id,
@@ -293,6 +327,7 @@ def test_local_host_runs_a_registered_sealed_artifact_package(tmp_path: Path) ->
 
     assert [handle.role for handle in result.outputs] == ["result"]
     assert result.receipt["status"] == "completed"
+    assert resolver.calls == 1
 
 
 def test_local_host_configures_one_reviewed_tool_package(tmp_path: Path) -> None:
