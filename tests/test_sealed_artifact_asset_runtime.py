@@ -52,10 +52,18 @@ def _descriptor() -> SealedArtifactRunnerDescriptor:
 
 def _context(descriptor: SealedArtifactRunnerDescriptor):
     collector = SealedArtifactOutputCollector(descriptor=descriptor)
+
+    class Callbacks:
+        def revalidate(self, _callback: SealedArtifactCallback) -> None:
+            return None
+
+        def invoke(self, _name: str, _request: bytes) -> bytes:
+            return b""
+
     context = SealedArtifactExecutionContext(
         descriptor=descriptor,
         read_input=lambda role: b"snapshot" if role == "snapshot" else b"",
-        invoke_callback=lambda _name, _request: b"",
+        callback_provider=Callbacks(),
         collector=collector,
     )
     return context, collector
@@ -115,6 +123,48 @@ def test_context_rejects_oversized_callback_request_before_provider_entry() -> N
 
     with pytest.raises(SealedArtifactExecutionError, match="callback"):
         context.invoke_callback("generate", b"long")
+
+
+def test_context_revalidates_callback_provider_immediately_before_entry() -> None:
+    descriptor = replace(
+        _descriptor(),
+        callbacks=(
+            SealedArtifactCallback(
+                name="generate",
+                requirement="model.generate.v1",
+                child_contract_digest="d" * 64,
+                max_calls=1,
+                max_concurrency=1,
+                max_request_bytes=3,
+                max_response_bytes=4,
+                max_total_request_bytes=3,
+                max_total_response_bytes=4,
+                timeout_milliseconds=1,
+            ),
+        ),
+    )
+    calls: list[str] = []
+
+    class Callbacks:
+        def revalidate(self, callback: SealedArtifactCallback) -> None:
+            assert callback.name == "generate"
+            calls.append("revalidate")
+
+        def invoke(self, name: str, request: bytes) -> bytes:
+            assert (name, request) == ("generate", b"ok")
+            calls.append("invoke")
+            return b"done"
+
+    collector = SealedArtifactOutputCollector(descriptor=descriptor)
+    context = SealedArtifactExecutionContext(
+        descriptor=descriptor,
+        read_input=lambda _role: b"",
+        callback_provider=Callbacks(),
+        collector=collector,
+    )
+
+    assert context.invoke_callback("generate", b"ok") == b"done"
+    assert calls == ["revalidate", "invoke"]
 
 
 def test_context_enforces_aggregate_io_before_input_return() -> None:

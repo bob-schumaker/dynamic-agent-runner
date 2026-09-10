@@ -351,11 +351,19 @@ class SealedArtifactOutputCollector:
         self._state = "destroyed"
 
 
+class SealedArtifactCallbackProvider(Protocol):
+    """One host-private callback provider with exact entry revalidation."""
+
+    def revalidate(self, callback: SealedArtifactCallback) -> None: ...
+
+    def invoke(self, name: str, request: bytes) -> bytes: ...
+
+
 class SealedArtifactExecutionContext:
     """The narrow, non-introspectable ABI surface for one verified asset."""
 
     __slots__ = (
-        "_callback",
+        "_callback_provider",
         "_callback_counts",
         "_callback_request_bytes",
         "_callback_response_bytes",
@@ -371,13 +379,14 @@ class SealedArtifactExecutionContext:
         *,
         descriptor: SealedArtifactRunnerDescriptor,
         read_input: Callable[[str], bytes],
-        invoke_callback: Callable[[str, bytes], bytes],
+        callback_provider: SealedArtifactCallbackProvider,
         collector: SealedArtifactOutputCollector,
     ) -> None:
         if (
             not isinstance(descriptor, SealedArtifactRunnerDescriptor)
             or not callable(read_input)
-            or not callable(invoke_callback)
+            or not callable(getattr(callback_provider, "revalidate", None))
+            or not callable(getattr(callback_provider, "invoke", None))
             or not isinstance(collector, SealedArtifactOutputCollector)
         ):
             raise SealedArtifactExecutionError(
@@ -385,7 +394,7 @@ class SealedArtifactExecutionContext:
             )
         object.__setattr__(self, "_descriptor", descriptor)
         object.__setattr__(self, "_read_input", read_input)
-        object.__setattr__(self, "_callback", invoke_callback)
+        object.__setattr__(self, "_callback_provider", callback_provider)
         object.__setattr__(self, "_collector", collector)
         object.__setattr__(self, "_reads", set())
         object.__setattr__(self, "_callback_counts", {})
@@ -443,7 +452,14 @@ class SealedArtifactExecutionContext:
         )
         counts[name] = count + 1
         request_bytes[name] = total_request + len(request)
-        response = object.__getattribute__(self, "_callback")(name, request)
+        provider = object.__getattribute__(self, "_callback_provider")
+        try:
+            provider.revalidate(callback)
+            response = provider.invoke(name, request)
+        except Exception as error:
+            raise SealedArtifactExecutionError(
+                "sealed artifact callback is unavailable"
+            ) from error
         total_response = response_bytes.get(name, 0)
         if (
             not isinstance(response, bytes)
