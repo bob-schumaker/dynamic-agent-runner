@@ -127,6 +127,17 @@ DAR-supported embedding runner/profile and immutable source material under
 `workflow-model-materials`. The receiver resolves the provider before sealed
 input ingress, model download, package-local tool load, or index materialization.
 
+The package declares exactly one `embedding.execute.v1` requirement. It is not
+an additional `bindings` entry: the capability ID itself identifies this
+single-purpose operation, while the same material lock's existing `runner`
+binding identifies the DAR-supported embedding runner/profile. DAR derives an
+internal `EmbeddingExecutionBinding` from the material-execution binding and
+the exact required capability contract. Its content is the material-lock and
+runner/profile identities plus the embedding capability contract identity; it
+contains no receiver provider ID, model path, or execution settings. The
+receiver resolves that binding before ingress and revalidates the selected
+provider immediately before embedding.
+
 ### Workflow-local index builder
 
 The package supplies one sealed, versioned index-builder asset and a sealed

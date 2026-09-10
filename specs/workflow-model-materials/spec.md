@@ -58,7 +58,11 @@ Version 1 supports only the existing Hugging Face per-file transport, complete
 closure validation owned by a versioned DAR loader profile, a finite ordered
 list of deterministic preparation operations selected through required DAR
 capabilities, and the built-in
-`transformers-peft-v1` and `llama-cpp-v1` runner contracts defined below. It
+`transformers-peft-v1` and `llama-cpp-v1` runner contracts defined below. An
+embedding workflow may use the same lock format with a DAR-supported embedding
+runner/profile; its distinct execution operation is governed by the exact
+`embedding.execute.v1` requirement under `workflow-embedding-index-artifacts`.
+It
 does not standardize a general model registry, a transform graph language, or
 an unrestricted execution environment.
 
@@ -305,6 +309,14 @@ preparation implementation, runner factory, framework import target, loader
 function, or native library. A non-built-in runner is a receiver-installed,
 reviewed DAR capability with an exact public contract verified during package
 admission.
+
+An embedding workflow retains this runner/profile binding and additionally
+declares exactly one `embedding.execute.v1` requirement. That operation does
+not add a descriptor `bindings` key: its capability ID is unambiguous. DAR
+derives its host-private embedding binding from the material execution binding
+and the exact embedding capability requirement, then resolves a deterministic
+provider before sealed document ingress. This does not make a direct local
+embedding adapter a package-selected loader.
 
 DAR's package-import and registration control plane is generic. It accepts a
 package's descriptor, material lock, and declared sealed assets, validates the

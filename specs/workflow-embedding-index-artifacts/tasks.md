@@ -35,17 +35,23 @@
   - Evidence: approved 2026-09-09; host-only contracts are implemented in
     `workflow_host.embedding_index_artifacts` and expose only digests, bounds,
     counts, and redacted classifications.
-- [ ] E1.2 [design] Reconcile `embedding.execute.v1` with
+- [x] E1.2 [design] Reconcile `embedding.execute.v1` with
   `workflow-model-materials` and `workflow-capability-requirements`, including
   the exact embedding runner/profile binding and conformance vectors.
   - Depends on: E1.1.
   - Acceptance: a receiving DAR installation can decide compatibility before
     package import, model download, or input ingress.
-- [ ] E1.3 [design] Confirm the sandbox result-location primitive can enforce
+  - Evidence: the exact embedding requirement is single-purpose rather than a
+    new descriptor binding; the existing material-lock runner/profile binding
+    plus the requirement derive a host-private `EmbeddingExecutionBinding`.
+- [x] E1.3 [design] Confirm the sandbox result-location primitive can enforce
   index-builder egress without arbitrary package-local filesystem writes.
   - Depends on: E1.1.
   - Acceptance: document whether `sandbox-workspace-runtime` implementation is
     required before E4 can begin.
+  - Evidence: `sandbox-workspace-runtime` documents no implemented bounded
+    writable result-location primitive. Its implementation is required before
+    E4 can begin; E3 remains a host-only, no-builder slice.
 
 ## E2 — Sealed artifacts
 
@@ -70,15 +76,22 @@
 
 ## E3 — Embedding capability binding
 
-- [ ] E3.1 [tests, RED] Add fake-only material/capability/provider tests for
+- [x] E3.1 [tests, RED] Add fake-only material/capability/provider tests for
   exact binding, unavailable/changed providers, package and host batch bounds,
   nonfinite values, ordering, duplicate IDs, vector-dimension violations, and
   nondeterministic-provider rejection.
   - Depends on: E1.2.
-- [ ] E3.2 [implementation] Add the embedding runner/profile and
+  - Evidence: `tests/test_embedding_execution.py` failed with the expected
+    missing-module error before the host execution seam existed.
+- [x] E3.2 [implementation] Add the embedding runner/profile and
   `embedding.execute.v1` capability contract, reusing the existing local
   embedding adapter only behind the generic provider seam.
   - Depends on: E3.1.
+  - Evidence: `workflow_host.embedding_execution` derives a private binding
+    from the existing sealed material runner/profile binding and exact
+    `embedding.execute.v1` requirement; its receiver-owned adapter bridge
+    wraps the existing direct local embedding interface without exposing loader
+    configuration to package data.
 - [ ] E3.3 [tests, GREEN] Prove every failed embedding binding leaves model
   materialization, embedding execution, package import, and egress at zero.
   - Depends on: E3.2.

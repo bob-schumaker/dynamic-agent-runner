@@ -119,6 +119,13 @@ binary, download source, execution profile, or fallback. A package may require,
 for example, a standard local GGUF multimodal runner, a standard deterministic
 GGUF quantization operation, or a standard sealed-image conversion contract.
 
+Some single-purpose operations do not require a `bindings` entry because their
+capability ID is their only valid role. In particular, an embedding-index
+workflow declares exactly one `embedding.execute.v1` requirement. DAR binds it
+to the package's separately required model-material runner/profile internally;
+the workflow does not name a provider or add an `embedding` selector to
+`bindings`.
+
 The canonical requirements bytes are the UTF-8 canonical JSON representation
 of the `format_version`, `required_capabilities`, and `bindings` information
 content, with recursively sorted object keys, no insignificant whitespace, NFC
