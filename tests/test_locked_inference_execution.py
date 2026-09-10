@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+from threading import Event, Thread
 
 import pytest
 
@@ -134,3 +135,111 @@ def test_callback_times_out_and_discards_late_provider_result() -> None:
         service.generate("suggest", b'{"value":"request"}')
     time.sleep(0.03)
     assert provider.calls == [(b"sealed instruction", b'{"value":"request"}')]
+
+
+def test_roles_are_isolated_without_provider_fallback() -> None:
+    suggest = _Provider(b'{"value":"suggest"}')
+    classify = _Provider(b'{"value":"classify"}')
+    service = LockedInferenceExecutionService(
+        providers={"classify": classify, "suggest": suggest},
+        bindings={"classify": object(), "suggest": object()},
+        instructions={
+            "classify": b"classify instruction",
+            "suggest": b"suggest instruction",
+        },
+        request_schemas={"classify": _SCHEMA, "suggest": _SCHEMA},
+        response_schemas={"classify": _SCHEMA, "suggest": _SCHEMA},
+        package_limits={
+            "classify": LockedInferenceHostLimits(1, 64, 64, 1000, 1),
+            "suggest": LockedInferenceHostLimits(1, 64, 64, 1000, 1),
+        },
+        host_limits=LockedInferenceHostLimits(1, 32, 32, 1000, 1),
+        revalidate=lambda _role: True,
+    )
+
+    assert service.generate("suggest", b'{"value":"request"}') == b'{"value":"suggest"}'
+    assert (
+        service.generate("classify", b'{"value":"request"}') == b'{"value":"classify"}'
+    )
+    assert suggest.calls == [(b"suggest instruction", b'{"value":"request"}')]
+    assert classify.calls == [(b"classify instruction", b'{"value":"request"}')]
+
+
+def test_concurrent_callback_attempt_is_rejected_before_a_second_provider_entry() -> (
+    None
+):
+    entered = Event()
+    release = Event()
+
+    class BlockingProvider(_Provider):
+        def generate(self, **kwargs: object) -> bytes:
+            entered.set()
+            release.wait(1)
+            return super().generate(**kwargs)  # type: ignore[arg-type]
+
+    provider = BlockingProvider()
+    service = LockedInferenceExecutionService(
+        providers={"suggest": provider},
+        bindings={"suggest": object()},
+        instructions={"suggest": b"sealed instruction"},
+        request_schemas={"suggest": _SCHEMA},
+        response_schemas={"suggest": _SCHEMA},
+        package_limits={"suggest": LockedInferenceHostLimits(2, 64, 64, 1000, 1)},
+        host_limits=LockedInferenceHostLimits(2, 32, 32, 1000, 1),
+        revalidate=lambda _role: True,
+    )
+    result: list[bytes] = []
+    worker = Thread(
+        target=lambda: result.append(
+            service.generate("suggest", b'{"value":"request"}')
+        )
+    )
+    worker.start()
+    assert entered.wait(1)
+
+    with pytest.raises(LockedInferenceExecutionError, match="quota"):
+        service.generate("suggest", b'{"value":"request"}')
+
+    release.set()
+    worker.join(1)
+    assert result == [b'{"value":"ok"}']
+    assert len(provider.calls) == 1
+
+
+def test_effective_host_ceiling_and_provider_failure_are_redacted() -> None:
+    schema = json.dumps(
+        {
+            "type": "object",
+            "properties": {"value": {"type": "string", "max_string_bytes": 64}},
+            "required": ["value"],
+            "max_depth": 2,
+            "max_items": 1,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    provider = _Provider()
+    service = LockedInferenceExecutionService(
+        providers={"suggest": provider},
+        bindings={"suggest": object()},
+        instructions={"suggest": b"sealed instruction"},
+        request_schemas={"suggest": schema},
+        response_schemas={"suggest": schema},
+        package_limits={"suggest": LockedInferenceHostLimits(1, 64, 64, 1000, 1)},
+        host_limits=LockedInferenceHostLimits(1, 32, 32, 1000, 1),
+        revalidate=lambda _role: True,
+    )
+
+    with pytest.raises(LockedInferenceExecutionError, match="exceeds"):
+        service.generate(
+            "suggest", b'{"value":"this string exceeds the host input ceiling"}'
+        )
+    assert provider.calls == []
+
+    class FailingProvider(_Provider):
+        def generate(self, **_kwargs: object) -> bytes:
+            raise RuntimeError("private provider failure")
+
+    with pytest.raises(LockedInferenceExecutionError, match="provider failed") as error:
+        _service(FailingProvider()).generate("suggest", b'{"value":"request"}')
+    assert "private" not in str(error.value)
