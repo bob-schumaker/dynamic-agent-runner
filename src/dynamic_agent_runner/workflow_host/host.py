@@ -154,6 +154,19 @@ from dynamic_agent_runner.workflow_host.runner import (
     RunDarWorkflowResult,
     WorkflowRunner,
 )
+from dynamic_agent_runner.workflow_host.sealed_artifact_preparation import (
+    SealedArtifactInputPreparationService,
+)
+from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
+    SealedArtifactHandleService,
+    SealedArtifactOutputHandleService,
+)
+from dynamic_agent_runner.workflow_host.sealed_artifact_workflow_runner import (
+    SealedArtifactCallbackResolver,
+    SealedArtifactInvocation,
+    SealedArtifactInvocationResult,
+    SealedArtifactWorkflowRunner,
+)
 from dynamic_agent_runner.workflow_host.staging import (
     PrivatePackageStager,
     StagedPackage,
@@ -182,6 +195,7 @@ _AUTHORING_MATERIAL_MAX_MEMBERS = 16
 _AUTHORING_MATERIAL_TTL = timedelta(hours=1)
 _AUTHORING_OUTPUT_MAX_FILE_BYTES = 1024 * 1024
 _AUTHORING_OUTPUT_TTL = timedelta(hours=1)
+_SEALED_ARTIFACT_OUTPUT_TTL = timedelta(minutes=5)
 
 
 class LocalWorkflowHostError(ValueError):
@@ -690,6 +704,9 @@ class LocalWorkflowHost:
         mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
         reviewed_tool_packages: ReviewedToolPackageControlPlane,
         capability_catalog: CapabilityCatalog | None = None,
+        sealed_artifact_preparation: SealedArtifactInputPreparationService
+        | None = None,
+        sealed_artifact_runner: SealedArtifactWorkflowRunner | None = None,
     ) -> None:
         self._configuration = configuration
         self._sources = sources
@@ -708,6 +725,8 @@ class LocalWorkflowHost:
         self._mcp_bindings = mcp_bindings
         self._reviewed_tool_packages = reviewed_tool_packages
         self._capability_catalog = capability_catalog
+        self._sealed_artifact_preparation = sealed_artifact_preparation
+        self._sealed_artifact_runner = sealed_artifact_runner
 
     @classmethod
     def open(
@@ -722,6 +741,7 @@ class LocalWorkflowHost:
         local_model_runners: Sequence[LocalModelRunner] = (),
         model_runner_registry: ModelRunnerRegistry | None = None,
         capability_catalog: CapabilityCatalog | None = None,
+        sealed_artifact_callback_resolver: SealedArtifactCallbackResolver | None = None,
     ) -> LocalWorkflowHost:
         """Open a configured local host for the current OS user."""
 
@@ -781,6 +801,34 @@ class LocalWorkflowHost:
             store=store,
             artifact_verifier=workspace_ingress,
             capability_catalog=capability_catalog,
+        )
+        sealed_handles = SealedArtifactHandleService(
+            store=store, owner=InstallationIdentityProvider().principal
+        )
+        sealed_outputs = SealedArtifactOutputHandleService(
+            store=store, owner=InstallationIdentityProvider().principal
+        )
+        sealed_preparation = (
+            SealedArtifactInputPreparationService(
+                registrations=registrations,
+                catalog=catalog,
+                handles=sealed_handles,
+            )
+            if sealed_artifact_callback_resolver is not None
+            else None
+        )
+        sealed_runner = (
+            SealedArtifactWorkflowRunner(
+                registrations=registrations,
+                catalog=catalog,
+                handles=sealed_handles,
+                outputs=sealed_outputs,
+                callback_resolver=sealed_artifact_callback_resolver,
+                capability_catalog=capability_catalog,
+                output_ttl=_SEALED_ARTIFACT_OUTPUT_TTL,
+            )
+            if sealed_artifact_callback_resolver is not None
+            else None
         )
         return cls(
             configuration=configuration,
@@ -853,6 +901,8 @@ class LocalWorkflowHost:
             mcp_bindings=mcp_bindings if mcp_client is not None else None,
             reviewed_tool_packages=reviewed_tool_packages,
             capability_catalog=capability_catalog,
+            sealed_artifact_preparation=sealed_preparation,
+            sealed_artifact_runner=sealed_runner,
         )
 
     def select_package(self, path: Path, *, now: datetime) -> str:
@@ -1242,6 +1292,48 @@ class LocalWorkflowHost:
             workspace_artifact_ids=workspace_artifact_ids,
             now=now,
         )
+
+    def prepare_sealed_artifact_input(
+        self,
+        *,
+        workflow_id: str,
+        invocation_id: str,
+        role: str,
+        media_type: str,
+        schema_digest: str | None,
+        content: bytes,
+        expires_at: datetime,
+        now: datetime,
+    ):
+        """Seal one declared artifact input for an enabled sealed receiver."""
+
+        if self._sealed_artifact_preparation is None:
+            raise LocalWorkflowHostError("sealed artifact runner is unavailable")
+        return self._sealed_artifact_preparation.prepare(
+            workflow_id=workflow_id,
+            receiver_id=InstallationIdentityProvider().principal,
+            invocation_id=invocation_id,
+            role=role,
+            media_type=media_type,
+            schema_digest=schema_digest,
+            content=content,
+            expires_at=expires_at,
+            now=now,
+        )
+
+    def run_sealed_artifact(
+        self, invocation: SealedArtifactInvocation, *, now: datetime
+    ) -> SealedArtifactInvocationResult:
+        """Run one enabled sealed-artifact invocation through the host composition."""
+
+        if self._sealed_artifact_runner is None:
+            raise LocalWorkflowHostError("sealed artifact runner is unavailable")
+        try:
+            return self._sealed_artifact_runner.run(invocation, now=now)
+        except Exception as error:
+            raise LocalWorkflowHostError(
+                "sealed artifact runner is unavailable"
+            ) from error
 
     def invoke_saved(
         self,

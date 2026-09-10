@@ -56,6 +56,9 @@ from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: 
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa: E402
     ReviewedToolPackageBinding,
 )
+from dynamic_agent_runner.workflow_host.sealed_artifact_workflow_runner import (  # noqa: E402
+    SealedArtifactInvocation,
+)
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -144,6 +147,33 @@ def test_local_host_open_supplies_the_trusted_local_tool_executor(
     host = LocalWorkflowHost.open(tmp_path / "state")
 
     assert host._runner.local_tool_execution_available
+
+
+def test_local_host_enables_sealed_artifact_runner_only_with_a_resolver(
+    tmp_path: Path,
+) -> None:
+    configure_local_host(
+        root=tmp_path / "state",
+        package_root=tmp_path / "packages",
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
+    class Resolver:
+        def resolve(self, _descriptor, _policy):
+            return object()
+
+    unavailable = LocalWorkflowHost.open(tmp_path / "state")
+    enabled = LocalWorkflowHost.open(
+        tmp_path / "state", sealed_artifact_callback_resolver=Resolver()
+    )
+
+    with pytest.raises(LocalWorkflowHostError, match="sealed artifact runner"):
+        unavailable.run_sealed_artifact(
+            SealedArtifactInvocation("workflow", "invocation", {}), now=NOW
+        )
+    assert enabled._sealed_artifact_preparation is not None
+    assert enabled._sealed_artifact_runner is not None
 
 
 def test_local_host_configures_one_reviewed_tool_package(tmp_path: Path) -> None:
