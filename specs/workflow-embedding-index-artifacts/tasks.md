@@ -132,9 +132,12 @@
 
 ## E5 — Verification and manual gate
 
-- [ ] E5.1 [verification] Run focused suites, `poetry run pytest -q`,
+- [x] E5.1 [verification] Run focused suites, `poetry run pytest -q`,
   `poetry run ruff check src tests`, and `git diff --check`.
   - Depends on: E4.3.
+  - Evidence: 2026-09-10 focused embedding-index suites passed; full
+    `poetry run pytest -q` passed (2042 passed, 1 skipped, 7 deselected), full
+    `poetry run ruff check src tests` passed, and `git diff --check` passed.
 - [ ] E5.2 [manual gate] With explicit authorization, execute one approved
   package on a non-sensitive host-prepared snapshot and locked embedding model.
   Retain only digest identities and aggregate coverage counts; verify the
