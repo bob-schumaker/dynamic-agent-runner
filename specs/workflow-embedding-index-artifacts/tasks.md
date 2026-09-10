@@ -143,3 +143,7 @@
   Retain only digest identities and aggregate coverage counts; verify the
   returned coverage report has no per-document or raw-content fields.
   - Depends on: E5.1.
+  - Selected material: `ChristianAzinn/gte-small-gguf` at
+    `240acca7b64619cd22093a380dc266c4122d99b2`,
+    `gte-small.Q4_K_M.gguf`, SHA-256
+    `2b330c1579bac032397b48f5aa92b7b5ab2b94d72cc43cd15925db3ffd03fd61`.
