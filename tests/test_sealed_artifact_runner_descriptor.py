@@ -127,3 +127,19 @@ def test_parser_rejects_duplicate_json_keys_before_descriptor_processing() -> No
 
     with pytest.raises(SealedArtifactRunnerDescriptorError, match="duplicate"):
         parse_sealed_artifact_runner_descriptor(duplicate.encode("utf-8"))
+
+
+@pytest.mark.parametrize(
+    "encoded",
+    [
+        lambda value: b"\xef\xbb\xbf" + value,
+        lambda value: value + b"\n",
+        lambda value: value.replace(b'":', b'": ', 1),
+        lambda value: value.replace(
+            b'"abi_version":1', b'"abi_version":1,"abi_version":1'
+        ),
+    ],
+)
+def test_parser_rejects_noncanonical_descriptor_bytes(encoded) -> None:
+    with pytest.raises(SealedArtifactRunnerDescriptorError):
+        parse_sealed_artifact_runner_descriptor(encoded(_canonical(_descriptor())))
