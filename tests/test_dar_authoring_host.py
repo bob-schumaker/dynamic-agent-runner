@@ -8,7 +8,7 @@ import json
 import shutil
 import zipfile
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -174,6 +174,125 @@ def test_local_host_enables_sealed_artifact_runner_only_with_a_resolver(
         )
     assert enabled._sealed_artifact_preparation is not None
     assert enabled._sealed_artifact_runner is not None
+
+
+def test_local_host_runs_a_registered_sealed_artifact_package(tmp_path: Path) -> None:
+    package_root = tmp_path / "packages"
+    source = package_root / "document-helper"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    configuration = configure_local_host(
+        root=tmp_path / "state",
+        package_root=package_root,
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    profile = LocalModelProfileControlPlane(
+        store=PrivateStateStore(tmp_path / "state")
+    ).load(configuration.profile_id)
+    requirements = CapabilityRequirements()
+    workflow_descriptor = source / "workflow-descriptor.yaml"
+    workflow = yaml.safe_load(workflow_descriptor.read_text(encoding="utf-8"))
+    workflow["dar_runtime"]["required_version"] = "0.1.17"
+    workflow["capability_requirements"] = {
+        "format_version": 1,
+        "required_capabilities": [],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {},
+    }
+    workflow_descriptor.write_text(yaml.safe_dump(workflow), encoding="utf-8")
+    asset = (
+        b"def run(context):\n"
+        b"    context.write_output('result', 'application/octet-stream', context.read_input('snapshot'))\n"
+    )
+    (source / "assets").mkdir()
+    (source / "assets" / "runner.py").write_bytes(asset)
+    runner_descriptor = {
+        "asset": {
+            "abi_version": 1,
+            "entrypoint": "run",
+            "path": "assets/runner.py",
+            "sha256": hashlib.sha256(asset).hexdigest(),
+        },
+        "callbacks": [],
+        "capability_requirements_digest": requirements.digest,
+        "child_contract_digests": [],
+        "format_version": 1,
+        "inputs": [
+            {
+                "max_bytes": 12,
+                "media_type": "application/octet-stream",
+                "required": True,
+                "role": "snapshot",
+                "schema_digest": None,
+            }
+        ],
+        "limits": {
+            "max_concurrency": 1,
+            "max_cpu_milliseconds": 1,
+            "max_io_bytes": 100,
+            "max_memory_bytes": 1,
+            "max_runtime_milliseconds": 100,
+        },
+        "outputs": [
+            {
+                "max_bytes": 12,
+                "media_type": "application/octet-stream",
+                "role": "result",
+                "schema_digest": None,
+            }
+        ],
+        "profile_digest": profile.profile_digest,
+        "schemas": [],
+    }
+    runner_descriptor["artifact_runner_digest"] = hashlib.sha256(
+        json.dumps(runner_descriptor, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    (source / "sealed-artifact-runner.json").write_text(
+        json.dumps(runner_descriptor, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    class Callbacks:
+        def revalidate(self, _callback) -> None:
+            return None
+
+        def invoke(self, _name: str, _request: bytes) -> bytes:
+            raise AssertionError("no callback is declared")
+
+    class Resolver:
+        def resolve(self, _descriptor, _policy) -> Callbacks:
+            return Callbacks()
+
+    host = LocalWorkflowHost.open(
+        tmp_path / "state", sealed_artifact_callback_resolver=Resolver()
+    )
+    registration = host.register(
+        workflow_id="document-helper",
+        package_source_handle=host.select_package(source, now=NOW),
+        now=NOW,
+    )
+    prepared = host.prepare_sealed_artifact_input(
+        workflow_id=registration.workflow_id,
+        invocation_id="run-1",
+        role="snapshot",
+        media_type="application/octet-stream",
+        schema_digest=None,
+        content=b"snapshot",
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    result = host.run_sealed_artifact(
+        SealedArtifactInvocation(
+            workflow_id=registration.workflow_id,
+            invocation_id="run-1",
+            input_handles={"snapshot": prepared.handle_id},
+        ),
+        now=NOW,
+    )
+
+    assert [handle.role for handle in result.outputs] == ["result"]
+    assert result.receipt["status"] == "completed"
 
 
 def test_local_host_configures_one_reviewed_tool_package(tmp_path: Path) -> None:

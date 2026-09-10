@@ -19,7 +19,7 @@
 - [ ] S3 [implementation] Add receiver composition and sealed artifact runner.
   - [x] Retain declared output slots and add an ordered atomic private collector
     that destroys candidates on invalid or incomplete execution.
-  - [ ] Bind the receiver to real host registration, package, authorization,
+  - [x] Bind the receiver to real host registration, package, authorization,
     identity, handle, runtime-profile, callback-provider, and output-handle
     collaborators.
   - [x] Implement the fixed import-disabled `run(context) -> None` asset ABI,
