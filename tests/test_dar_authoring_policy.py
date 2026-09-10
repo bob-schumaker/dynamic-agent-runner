@@ -67,6 +67,8 @@ def _catalog_revision(  # noqa: C901
     input_converter_digest: str | None = None,
     capability_requirements: dict[str, object] | None = None,
     model_materials: dict[str, object] | None = None,
+    model_material_sets: dict[str, object] | None = None,
+    inference_roles: dict[str, object] | None = None,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -75,6 +77,16 @@ def _catalog_revision(  # noqa: C901
             json.dumps(model_materials, sort_keys=True, separators=(",", ":")),
             encoding="utf-8",
         )
+    if model_material_sets is not None:
+        (source / "model-material-sets.json").write_text(
+            json.dumps(model_material_sets, sort_keys=True, separators=(",", ":")),
+            encoding="utf-8",
+        )
+    if inference_roles is not None:
+        descriptor = source / "workflow-descriptor.yaml"
+        descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+        descriptor_value["inference_roles"] = inference_roles
+        descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
     if package_id is not None:
         descriptor = source / "workflow-descriptor.yaml"
         descriptor.write_text(
@@ -453,6 +465,112 @@ def test_policy_binds_the_canonical_model_materials_digest(tmp_path: Path) -> No
 
     assert policy.model_materials == lock
     assert policy.model_materials_digest == lock.digest
+
+
+def test_policy_binds_named_material_sets_to_locked_inference_roles(
+    tmp_path: Path,
+) -> None:
+    lock = {
+        "format_version": 1,
+        "logical_model_id": "local-model",
+        "runner_contract": {"id": "llama-cpp-v1", "version": "1"},
+        "loader_profile_contract": {"id": "llama-cpp-text-v1", "version": "1"},
+        "sources": [
+            {
+                "role": "base_model",
+                "group": "base",
+                "source_type": "huggingface_file",
+                "repository": "example/model",
+                "revision": "a" * 40,
+                "filename": "model.gguf",
+                "sha256": "b" * 64,
+            }
+        ],
+        "preparation": [],
+    }
+    runner = CapabilityContract("model.execution.test.v1", "1", "c" * 64, ())
+    generate = CapabilityContract("model.generate.v1", "1", "d" * 64, ("structured",))
+    requirements = CapabilityRequirements(
+        (
+            CapabilityRequirement(runner.capability_id, "1", "c" * 64, ()),
+            CapabilityRequirement(
+                generate.capability_id, "1", "d" * 64, ("structured",)
+            ),
+        ),
+        {"runner": runner.capability_id},
+    )
+    inference_roles = {
+        "format_version": 1,
+        "roles": [
+            {
+                "role": "suggest",
+                "material_role": "suggest",
+                "capability_id": "model.generate.v1",
+                "instruction_asset": {
+                    "path": "assets/instruction.txt",
+                    "sha256": "a" * 64,
+                },
+                "request_schema_asset": {
+                    "path": "assets/request.json",
+                    "sha256": "b" * 64,
+                },
+                "response_schema_asset": {
+                    "path": "assets/response.json",
+                    "sha256": "c" * 64,
+                },
+                "authorized_asset_digests": ["d" * 64],
+                "limits": {
+                    "max_calls": 1,
+                    "max_input_bytes": 1,
+                    "max_output_bytes": 1,
+                    "timeout_milliseconds": 1,
+                    "max_concurrency": 1,
+                },
+            }
+        ],
+    }
+    policy = compile_workflow_policy(
+        _catalog_revision(
+            tmp_path,
+            model_material_sets={
+                "format_version": 1,
+                "material_sets": [{"role": "suggest", "model_materials": lock}],
+            },
+            inference_roles=inference_roles,
+            capability_requirements={
+                "format_version": 1,
+                "required_capabilities": [
+                    item.to_mapping() for item in requirements.required_capabilities
+                ],
+                "capability_requirements_digest": requirements.digest,
+                "bindings": {"runner": {"capability_id": runner.capability_id}},
+            },
+        ),
+        capability_catalog=CapabilityCatalog(
+            (runner, generate),
+            (
+                CapabilityProvider("private-runner", runner, conformance_passed=True),
+                CapabilityProvider(
+                    "private-generate",
+                    generate,
+                    conformance_passed=True,
+                    conformance_vector_ids=frozenset(
+                        {
+                            "bounded_io",
+                            "deadline",
+                            "structured_value",
+                            "redacted_failure",
+                        }
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    assert policy.model_materials is None
+    assert policy.model_material_sets is not None
+    assert policy.inference_roles_digest == policy.inference_roles.digest
+    assert policy.locked_inference_bindings[0].role == "suggest"
 
 
 def test_policy_derives_embedding_binding_before_workflow_import(

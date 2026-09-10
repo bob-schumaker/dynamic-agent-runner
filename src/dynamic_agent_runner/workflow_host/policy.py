@@ -50,10 +50,22 @@ from dynamic_agent_runner.workflow_host.embedding_execution import (
     EmbeddingExecutionBindingError,
     derive_embedding_execution_binding,
 )
+from dynamic_agent_runner.workflow_host.locked_inference import (
+    InferenceRoles,
+    LockedInferenceBinding,
+    LockedInferenceError,
+    derive_locked_inference_bindings,
+)
+from dynamic_agent_runner.workflow_host.material_sets import (
+    MaterialSetsError,
+    ModelMaterialSets,
+    parse_model_material_sets,
+)
 
 
 DESCRIPTOR_FILENAME = "workflow-descriptor.yaml"
 MODEL_MATERIALS_FILENAME = "model-materials.json"
+MODEL_MATERIAL_SETS_FILENAME = "model-material-sets.json"
 
 
 class PolicyCompilationError(ValueError):
@@ -96,6 +108,11 @@ class WorkflowPolicy:
     terminal_output_validator: DeclaredTerminalOutputValidator | None = None
     terminal_output_processors: tuple[DeclaredTerminalOutputProcessor, ...] = ()
     input_converter: DeclaredInputConverter | None = None
+    model_material_sets: ModelMaterialSets | None = None
+    model_material_sets_digest: str | None = None
+    inference_roles: InferenceRoles | None = None
+    inference_roles_digest: str | None = None
+    locked_inference_bindings: tuple[LockedInferenceBinding, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -130,13 +147,20 @@ def compile_workflow_policy(  # noqa: C901
                 "package capability requirements are unavailable"
             )
         selected_capability_provider_ids = resolution.selected_provider_ids
-    model_materials = _load_model_materials(revision.package_root)
+    model_materials, model_material_sets = _load_model_material_declarations(
+        revision.package_root
+    )
     capability_requirements = (
         descriptor.capability_requirements or CapabilityRequirements()
     )
     model_execution_binding, embedding_execution_binding = _execution_bindings(
         descriptor=descriptor,
         model_materials=model_materials,
+        capability_requirements=capability_requirements,
+    )
+    locked_inference_bindings = _locked_inference_bindings(
+        descriptor=descriptor,
+        model_material_sets=model_material_sets,
         capability_requirements=capability_requirements,
     )
     try:
@@ -195,6 +219,17 @@ def compile_workflow_policy(  # noqa: C901
             "model_materials_digest": (
                 model_materials.digest if model_materials is not None else None
             ),
+            "model_material_sets_digest": (
+                model_material_sets.digest if model_material_sets is not None else None
+            ),
+            "inference_roles_digest": (
+                descriptor.inference_roles.digest
+                if descriptor.inference_roles is not None
+                else None
+            ),
+            "locked_inference_binding_digests": [
+                binding.digest for binding in locked_inference_bindings
+            ],
             "model_execution_binding_digest": (
                 model_execution_binding.digest
                 if model_execution_binding is not None
@@ -341,6 +376,17 @@ def compile_workflow_policy(  # noqa: C901
         terminal_output_validator=descriptor.terminal_output_validator,
         terminal_output_processors=descriptor.terminal_output_processors,
         input_converter=descriptor.input_converter,
+        model_material_sets=model_material_sets,
+        model_material_sets_digest=(
+            model_material_sets.digest if model_material_sets is not None else None
+        ),
+        inference_roles=descriptor.inference_roles,
+        inference_roles_digest=(
+            descriptor.inference_roles.digest
+            if descriptor.inference_roles is not None
+            else None
+        ),
+        locked_inference_bindings=locked_inference_bindings,
     )
 
 
@@ -419,14 +465,54 @@ def load_workflow_descriptor(descriptor_bytes: bytes) -> object:
         raise PolicyCompilationError("cataloged package policy is invalid") from error
 
 
-def _load_model_materials(package_root: Path) -> ModelDependencyLock | None:
+def _load_model_material_declarations(
+    package_root: Path,
+) -> tuple[ModelDependencyLock | None, ModelMaterialSets | None]:
+    sets_path = package_root / MODEL_MATERIAL_SETS_FILENAME
     path = package_root / MODEL_MATERIALS_FILENAME
+    if path.exists() and sets_path.exists():
+        raise PolicyCompilationError("model-material declarations are invalid")
+    if sets_path.exists():
+        try:
+            return None, parse_model_material_sets(sets_path.read_bytes())
+        except (OSError, MaterialSetsError) as error:
+            raise PolicyCompilationError("model-material sets are invalid") from error
     if not path.exists():
-        return None
+        return None, None
     try:
-        return parse_model_dependency_lock(path.read_bytes())
+        return parse_model_dependency_lock(path.read_bytes()), None
     except (OSError, ModelMaterialsError) as error:
         raise PolicyCompilationError("model-material lock is invalid") from error
+
+
+def _load_model_materials(package_root: Path) -> ModelDependencyLock | None:
+    """Compatibility seam retained for existing single-lock admission vectors."""
+
+    return _load_model_material_declarations(package_root)[0]
+
+
+def _locked_inference_bindings(
+    *,
+    descriptor: WorkflowDescriptor,
+    model_material_sets: ModelMaterialSets | None,
+    capability_requirements: CapabilityRequirements,
+) -> tuple[LockedInferenceBinding, ...]:
+    if descriptor.inference_roles is None:
+        if model_material_sets is not None:
+            raise PolicyCompilationError("model-material sets require inference roles")
+        return ()
+    if model_material_sets is None:
+        raise PolicyCompilationError("locked inference material sets are unavailable")
+    try:
+        return derive_locked_inference_bindings(
+            roles=descriptor.inference_roles,
+            material_sets=model_material_sets,
+            requirements=capability_requirements,
+        )
+    except LockedInferenceError as error:
+        raise PolicyCompilationError(
+            "locked inference binding is unavailable"
+        ) from error
 
 
 def resolve_capabilities(

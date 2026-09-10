@@ -13,6 +13,11 @@ from dynamic_agent_runner.workflow_host.capabilities import (
     CapabilityError,
     CapabilityRequirements,
 )
+from dynamic_agent_runner.workflow_host.locked_inference import (
+    InferenceRoles,
+    LockedInferenceError,
+    parse_inference_roles,
+)
 
 
 _CAPABILITY_REQUIREMENTS_MIN_DAR_VERSION = (0, 1, 17)
@@ -176,6 +181,7 @@ class WorkflowDescriptor:
     input_converter: DeclaredInputConverter | None = None
     capability_requirements: CapabilityRequirements | None = None
     capability_requirements_digest: str | None = None
+    inference_roles: InferenceRoles | None = None
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> WorkflowDescriptor:
@@ -194,6 +200,9 @@ class WorkflowDescriptor:
         capability_requirements = _parse_capability_requirements(
             mapping.get("capability_requirements"), runtime.get("required_version")
         )
+        inference_roles = _parse_inference_roles(mapping.get("inference_roles"))
+        if inference_roles is not None and capability_requirements is None:
+            raise WorkflowDescriptorError("locked inference requires capabilities")
         input_contract = _parse_input_contract(mapping.get("input_contract"))
         workspace = _parse_workspace_contract(mapping.get("workspace"))
         task = _parse_task_invocation(mapping.get("task_invocation"))
@@ -248,6 +257,7 @@ class WorkflowDescriptor:
                 if capability_requirements is not None
                 else None
             ),
+            inference_roles=inference_roles,
         )
 
 
@@ -745,6 +755,15 @@ def _parse_capability_requirements(
         return CapabilityRequirements.from_mapping(value)
     except CapabilityError as error:
         raise WorkflowDescriptorError("capability requirements are invalid") from error
+
+
+def _parse_inference_roles(value: object) -> InferenceRoles | None:
+    if value is None:
+        return None
+    try:
+        return parse_inference_roles(value)
+    except LockedInferenceError as error:
+        raise WorkflowDescriptorError("inference roles are invalid") from error
 
 
 def _supports_capability_requirements(value: object) -> bool:
