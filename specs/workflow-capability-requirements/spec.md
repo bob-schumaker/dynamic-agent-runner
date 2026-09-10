@@ -130,7 +130,9 @@ The proposed `model.generate.v1` operation is likewise single-purpose, but its
 generic inference role binds to a sealed model-material-set entry rather than a
 provider selector. `workflow-locked-inference-callback` owns callback limits
 and value contracts; this specification continues to own exact capability
-matching and receiver-local provider selection.
+matching and receiver-local provider selection. A package declares the exact
+generation requirement once; all of its inference roles reference that one
+requirement and separately bind distinct material roles.
 
 The canonical requirements bytes are the UTF-8 canonical JSON representation
 of the `format_version`, `required_capabilities`, and `bindings` information

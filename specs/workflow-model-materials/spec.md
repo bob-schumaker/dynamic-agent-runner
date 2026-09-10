@@ -70,7 +70,9 @@ The proposed locked-inference callback requires a canonical material set:
 ordered named roles each hold one existing immutable lock, and a declared
 inference role binds to exactly one material role. Existing single-lock
 packages remain valid unchanged. Roles do not expose receiver providers,
-execution settings, or model paths.
+execution settings, or model paths. The inference descriptor owns inference
+role names; material-role names are separately unique, and each inference role
+maps to one distinct material role.
 
 ## Non-Goals
 

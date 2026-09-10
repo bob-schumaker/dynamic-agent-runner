@@ -1,26 +1,47 @@
 # Workflow Locked Inference Callback Tasks
 
+## I0 — Readiness review
+
+- [x] I0.1 [review] Run a reduced-independence architecture Council and Ponytail
+  review. Resolve schema-asset, sealed-instruction, role authority, lifecycle,
+  egress ABI, cardinality, and descriptor-digest gaps before implementation.
+  - Evidence: 2026-09-10 Council (Aristotle, Ada, Feynman) and Ponytail agreed
+    the original proposal was not ready; I1–I3 now cover the repaired contract.
+
 ## I1 — Contract and multi-material prerequisites
 
-- [ ] I1.1 [design] Approve the canonical inference-role descriptor and
-  `model.generate.v1` contract, including schemas, limits, and redaction.
-- [ ] I1.2 [design] Approve the model-material-set and capability-binding
-  amendments; preserve legacy single-material packages.
+- [ ] I1.1 [design] Approve the canonical `inference_roles` v1 descriptor:
+  role grammar/order, canonical bytes/digest, instruction/schema asset
+  locations and digests, restricted structured-value-v1 dialect, explicit
+  ceilings, callback-enabled asset entitlement, and result-slot ABI.
+- [ ] I1.2 [design] Approve one package-level `model.generate.v1` requirement
+  shared by roles, exact material-set role mapping, private executable binding,
+  and legacy single-material/older-receiver behavior.
 
 ## I2 — Admission and callback
 
-- [ ] I2.1 [tests, RED] Add fake-only role/material/capability/provider failure
-  vectors with package-import, model-load, callback, and result-write sentinels.
-- [ ] I2.2 [implementation] Derive a private inference binding and implement
-  bounded canonical callback execution through a receiver-owned provider seam.
-- [ ] I2.3 [tests, GREEN] Prove exact role isolation, revalidation, no fallback,
-  and ordinary trace/receipt redaction.
+- [ ] I2.1 [tests, RED] Add fake-only descriptor/policy/admission vectors for
+  duplicate/noncanonical inference roles, schema/instruction asset mutation,
+  unsupported dialect/value, material/capability mismatch, role/asset escape,
+  and every staging/catalog/preflight/registration/preparation/ingress/runner
+  route with import/load/provider/result-allocation sentinels.
+- [ ] I2.2 [implementation] Derive a private per-role inference binding and
+  implement bounded canonical callback execution through a receiver-owned
+  provider seam and bounded response reader.
+- [ ] I2.3 [tests, GREEN] Prove exact role isolation, shared-capability
+  cardinality, effective host ceilings, atomic quota reservation, cancellation,
+  late-response disposal, revalidation, no fallback, and trace/receipt/error
+  redaction.
 
 ## I3 — Sealed asset integration
 
-- [ ] I3.1 [tests, RED] Add exact owner/package/asset authorization and result
-  collector vectors for callback-enabled assets.
+- [ ] I3.1 [tests, RED] Add exact owner/package/asset authorization and
+  versioned asset-ABI vectors for sealed inputs, allowed roles, declared slots,
+  absent/extra/repeated slots, atomic rollback, and content-free receipts.
 - [ ] I3.2 [implementation] Wire the callback only through the approved sealed
-  asset runtime profile.
-- [ ] I3.3 [verification] Run focused suites, full pytest, Ruff, diff checks,
-  and a separately authorized manual acceptance.
+  asset runtime profile and the existing in-memory result collector.
+- [ ] I3.3 [tests, GREEN] Prove deterministic ZIP import/invocation, declared
+  result-slot sealing, and aggregate-only egress on a receiving fake host.
+- [ ] I3.4 [verification] Run focused suites, full pytest, Ruff, diff checks,
+  then a separately authorized manual acceptance under exact owner
+  authorization or the approved isolation backend.
