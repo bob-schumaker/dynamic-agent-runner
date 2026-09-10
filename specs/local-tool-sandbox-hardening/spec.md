@@ -10,6 +10,23 @@
   - `specs/sandbox-workspace-runtime/spec.md`
   - `specs/host-workflow-integration/spec.md`
   - `specs/workflow-input-converter-plugin/spec.md`
+  - `specs/workflow-embedding-index-artifacts/spec.md`
+
+## Explicit Deferral
+
+This requirement is deferred. DAR does not currently admit an OS/runtime
+isolation backend for untrusted executable workflow assets.
+
+Consequently, `workflow-embedding-index-artifacts` may implement sealed
+document ingress, opaque artifact validation, and embedding-provider admission,
+but it must not execute its workflow-local index-builder asset. That feature's
+E4 and E5 work remains unavailable until this specification supplies an
+implemented and approved backend together with the bounded result-location
+primitive required by `sandbox-workspace-runtime`.
+
+This is a safety gate, not an alternate trusted-in-process execution mode. The
+existing trusted-fixture boundary remains available only for its stated tests
+and implementation-owned fixtures.
 
 ## Objective
 
