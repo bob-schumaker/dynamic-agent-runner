@@ -9,10 +9,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from dynamic_agent_runner.workflow_host.capabilities import CapabilityRequirements
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactHandleService,
     SealedArtifactOutputHandleService,
+    SealedArtifactRunnerAdmissionError,
     parse_sealed_artifact_runner_descriptor,
 )
 from dynamic_agent_runner.workflow_host.sealed_artifact_workflow_runner import (
@@ -175,3 +178,85 @@ def test_concrete_runner_reserves_consumes_and_publishes_atomically(
 
     assert [handle.role for handle in result.outputs] == ["result"]
     assert result.receipt["status"] == "completed"
+
+
+def test_tampered_asset_stops_before_handle_or_provider_or_egress(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import dynamic_agent_runner.workflow_host.sealed_artifact_workflow_runner as module
+
+    root = tmp_path / "package"
+    descriptor_bytes, requirements = _package(root)
+    descriptor = parse_sealed_artifact_runner_descriptor(descriptor_bytes)
+    store = PrivateStateStore(tmp_path / "state")
+    inputs = SealedArtifactHandleService(store=store, owner=_OWNER)
+    input_handle = inputs.prepare(
+        descriptor=descriptor,
+        receiver_id=_OWNER,
+        revision_digest=_REVISION,
+        invocation_id="invocation",
+        role="snapshot",
+        media_type="application/octet-stream",
+        schema_digest=None,
+        content=b"snapshot",
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    (root / "assets" / "runner.py").write_bytes(b"tampered")
+
+    class Registrations:
+        def resolve(self, _workflow_id: str) -> _Registration:
+            return _Registration()
+
+    class Catalog:
+        def revision(self, _package_id: str, _revision_digest: str) -> _Revision:
+            return _Revision(root)
+
+    class CallbackResolver:
+        calls = 0
+
+        def resolve(self, _descriptor, _policy):
+            self.calls += 1
+            raise AssertionError("provider resolution must not happen")
+
+    resolver = CallbackResolver()
+    monkeypatch.setattr(
+        module,
+        "compile_workflow_policy",
+        lambda _revision, capability_catalog=None: SimpleNamespace(
+            policy_digest="c" * 64,
+            capability_requirements=requirements,
+        ),
+    )
+    runner = SealedArtifactWorkflowRunner(
+        registrations=Registrations(),
+        catalog=Catalog(),
+        handles=inputs,
+        outputs=SealedArtifactOutputHandleService(store=store, owner=_OWNER),
+        callback_resolver=resolver,
+        identity=_Identity(),
+        output_ttl=timedelta(minutes=1),
+    )
+
+    with pytest.raises(SealedArtifactRunnerAdmissionError, match="unavailable"):
+        runner.run(
+            SealedArtifactInvocation(
+                "example", "invocation", {"snapshot": input_handle.handle_id}
+            ),
+            now=NOW,
+        )
+
+    assert resolver.calls == 0
+    inputs.reserve(
+        input_handle.handle_id,
+        receiver_id=_OWNER,
+        revision_digest=_REVISION,
+        invocation_id="invocation",
+        role="snapshot",
+        media_type="application/octet-stream",
+        schema_digest=None,
+        now=NOW,
+    )
+    assert not store.active_records(
+        kind="sealed_artifact_output_set", owner=_OWNER, now=NOW
+    )
