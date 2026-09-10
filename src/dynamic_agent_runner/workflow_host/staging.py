@@ -35,6 +35,10 @@ from dynamic_agent_runner.workflow_host.material_sets import (
     MaterialSetsError,
     parse_model_material_sets,
 )
+from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
+    SealedArtifactRunnerDescriptorError,
+    parse_sealed_artifact_runner_descriptor,
+)
 
 from dynamic_agent_runner.workflow_host.profiles import InstallationIdentityProvider
 from dynamic_agent_runner.workflow_host.package_signatures import (
@@ -54,6 +58,7 @@ MAX_ZIP_COMPRESSION_RATIO = 100
 _READ_SIZE = 64 * 1024
 _PACKAGE_MANIFEST_NAME = "package-manifest.json"
 _PACKAGE_SIGNATURE_NAME = "package-signature.json"
+_SEALED_ARTIFACT_RUNNER_NAME = "sealed-artifact-runner.json"
 _HUMAN_SELECTED_LOCAL = "human_selected_local"
 _PUBLISHER_SIGNATURE = "publisher_signature"
 _RUNTIME_FORMAT_VERSION = 1
@@ -456,6 +461,9 @@ def _content_manifest_bytes(
     model_material_sets_digest = compatibility.get("model_material_sets_digest")
     if model_material_sets_digest is not None:
         payload["model_material_sets_digest"] = model_material_sets_digest
+    sealed_artifact_runner_digest = compatibility.get("sealed_artifact_runner_digest")
+    if sealed_artifact_runner_digest is not None:
+        payload["sealed_artifact_runner_digest"] = sealed_artifact_runner_digest
     return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
@@ -530,6 +538,16 @@ def _package_compatibility(root: Path) -> dict[str, object]:  # noqa: C901
             ).digest
         except (OSError, MaterialSetsError) as error:
             raise PackageStagingError("model-material sets are invalid") from error
+    sealed_artifact_runner_path = root / _SEALED_ARTIFACT_RUNNER_NAME
+    if sealed_artifact_runner_path.exists():
+        try:
+            compatibility["sealed_artifact_runner_digest"] = (
+                parse_sealed_artifact_runner_descriptor(
+                    sealed_artifact_runner_path.read_bytes()
+                ).digest
+            )
+        except (OSError, SealedArtifactRunnerDescriptorError) as error:
+            raise PackageStagingError("sealed artifact runner is invalid") from error
     return compatibility
 
 

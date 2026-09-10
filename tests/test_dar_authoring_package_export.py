@@ -5,6 +5,7 @@ from __future__ import annotations
 import shutil
 import zipfile
 import json
+import hashlib
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -65,12 +66,52 @@ def _model_materials() -> dict[str, object]:
     }
 
 
+def _sealed_artifact_descriptor() -> bytes:
+    value: dict[str, object] = {
+        "asset": {
+            "abi_version": 1,
+            "entrypoint": "run",
+            "path": "assets/runner.py",
+            "sha256": hashlib.sha256(
+                b"def run(context):\n    return None\n"
+            ).hexdigest(),
+        },
+        "callbacks": [],
+        "capability_requirements_digest": "a" * 64,
+        "child_contract_digests": [],
+        "format_version": 1,
+        "inputs": [],
+        "limits": {
+            "max_concurrency": 1,
+            "max_cpu_milliseconds": 1,
+            "max_io_bytes": 1,
+            "max_memory_bytes": 1,
+            "max_runtime_milliseconds": 1,
+        },
+        "outputs": [
+            {
+                "max_bytes": 1,
+                "media_type": "application/octet-stream",
+                "role": "result",
+                "schema_digest": None,
+            }
+        ],
+        "profile_digest": "b" * 64,
+        "schemas": [],
+    }
+    value["artifact_runner_digest"] = hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
 def _stage(
     tmp_path: Path,
     *,
     with_capability_requirements: bool = False,
     with_model_materials: bool = False,
     with_model_material_sets: bool = False,
+    with_sealed_artifact_runner: bool = False,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -104,6 +145,14 @@ def _stage(
                 separators=(",", ":"),
             ),
             encoding="utf-8",
+        )
+    if with_sealed_artifact_runner:
+        (source / "assets").mkdir()
+        (source / "assets" / "runner.py").write_text(
+            "def run(context):\n    return None\n", encoding="utf-8"
+        )
+        (source / "sealed-artifact-runner.json").write_bytes(
+            _sealed_artifact_descriptor()
         )
     store = PrivateStateStore(tmp_path / "state")
     handle = PackageSourceSelectionPolicy(
@@ -182,6 +231,27 @@ def test_export_and_import_bind_declared_model_materials_digest(
     expected = parse_model_dependency_lock(_model_materials()).digest
     assert staged_manifest["model_materials_digest"] == expected
     assert exported_manifest["model_materials_digest"] == expected
+    assert imported.digest == staged.digest
+
+
+def test_export_and_import_bind_sealed_artifact_runner_digest(tmp_path: Path) -> None:
+    staged, store = _stage(tmp_path, with_sealed_artifact_runner=True)
+    archive = tmp_path / "exports" / "sealed-artifact.zip"
+
+    export_staged_package(staged=staged, destination=archive)
+    staged_manifest = json.loads((staged.root / "package-manifest.json").read_text())
+    with zipfile.ZipFile(archive) as exported:
+        exported_manifest = json.loads(exported.read("package-manifest.json"))
+    handle = PackageSourceSelectionPolicy(
+        allowed_root=archive.parent, store=store
+    ).select_zip(archive, now=NOW)
+    imported = PrivatePackageStager(
+        store=store, private_root=tmp_path / "imports"
+    ).stage(handle, now=NOW)
+
+    expected = json.loads(_sealed_artifact_descriptor())["artifact_runner_digest"]
+    assert staged_manifest["sealed_artifact_runner_digest"] == expected
+    assert exported_manifest["sealed_artifact_runner_digest"] == expected
     assert imported.digest == staged.digest
 
 
