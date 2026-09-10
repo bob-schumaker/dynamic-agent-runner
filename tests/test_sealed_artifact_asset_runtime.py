@@ -76,13 +76,37 @@ def _context(descriptor: SealedArtifactRunnerDescriptor):
 def test_asset_runtime_runs_only_fixed_context_abi() -> None:
     descriptor = _descriptor()
     context, collector = _context(descriptor)
+    runtime = SealedArtifactAssetRuntime()
 
-    sealed = SealedArtifactAssetRuntime().execute(
+    sealed = runtime.execute(
         asset=b"def run(context):\n    context.write_output('result', 'application/octet-stream', context.read_input('snapshot'))\n",
         context=context,
     )
 
     assert sealed == (("result", "application/octet-stream", b"snapshot"),)
+    assert runtime.receipts() == (
+        {
+            "callback_count": 0,
+            "descriptor_digest": descriptor.digest,
+            "output_bytes": len(b"snapshot"),
+            "output_count": 1,
+            "status": "completed",
+        },
+    )
+
+
+def test_asset_runtime_receipt_is_redacted_after_failure() -> None:
+    descriptor = _descriptor()
+    context, _collector = _context(descriptor)
+    runtime = SealedArtifactAssetRuntime()
+
+    with pytest.raises(SealedArtifactExecutionError, match="unavailable"):
+        runtime.execute(asset=b"def run(context):\n    return None\n", context=context)
+
+    receipt = runtime.receipts()[0]
+    assert receipt["status"] == "failed"
+    assert receipt["descriptor_digest"] == descriptor.digest
+    assert "snapshot" not in repr(receipt)
 
 
 def test_asset_runtime_rejects_missing_declared_output() -> None:

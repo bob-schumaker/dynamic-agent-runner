@@ -31,7 +31,7 @@
   - [x] Revalidate the exact declared callback provider immediately before entry.
   - [x] Add callback concurrency/deadline enforcement, cancellation, and
     aggregate runtime limits.
-  - [ ] Add redacted receipts.
+  - [x] Add redacted receipts.
 - [ ] S4 [tests, GREEN] Prove atomic outputs, provider revalidation, revocation,
   cancellation/late-result disposal, redacted receipts, and deterministic
   receiving-host execution.

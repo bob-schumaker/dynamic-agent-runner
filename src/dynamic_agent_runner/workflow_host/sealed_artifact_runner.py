@@ -557,6 +557,14 @@ class SealedArtifactExecutionContext:
 class SealedArtifactAssetRuntime:
     """Execute one verified Python asset with imports and host objects unavailable."""
 
+    def __init__(self) -> None:
+        self._receipts: list[dict[str, int | str]] = []
+
+    def receipts(self) -> tuple[dict[str, int | str], ...]:
+        """Return copy-safe redacted execution receipts."""
+
+        return tuple(dict(receipt) for receipt in self._receipts)
+
     def execute(
         self, *, asset: bytes, context: SealedArtifactExecutionContext
     ) -> tuple[tuple[str, str, bytes], ...]:
@@ -587,16 +595,19 @@ class SealedArtifactAssetRuntime:
                 ).limits.max_runtime_milliseconds
                 / 1000
             )
+            self._record_receipt(context=context, status="completed", sealed=result)
             return result
         except TimeoutError as error:
             object.__getattribute__(context, "_revoke")()
             object.__getattribute__(context, "_collector").abort()
+            self._record_receipt(context=context, status="failed")
             raise SealedArtifactExecutionError(
                 "sealed artifact execution is unavailable"
             ) from error
         except Exception as error:
             object.__getattribute__(context, "_revoke")()
             object.__getattribute__(context, "_collector").abort()
+            self._record_receipt(context=context, status="failed")
             if isinstance(error, SealedArtifactExecutionError):
                 raise
             raise SealedArtifactExecutionError(
@@ -604,6 +615,25 @@ class SealedArtifactAssetRuntime:
             ) from error
         finally:
             executor.shutdown(wait=False, cancel_futures=True)
+
+    def _record_receipt(
+        self,
+        *,
+        context: SealedArtifactExecutionContext,
+        status: str,
+        sealed: tuple[tuple[str, str, bytes], ...] = (),
+    ) -> None:
+        descriptor = object.__getattribute__(context, "_descriptor")
+        callback_counts = object.__getattribute__(context, "_callback_counts")
+        self._receipts.append(
+            {
+                "callback_count": sum(callback_counts.values()),
+                "descriptor_digest": descriptor.digest,
+                "output_bytes": sum(len(content) for _, _, content in sealed),
+                "output_count": len(sealed),
+                "status": status,
+            }
+        )
 
 
 class SealedArtifactHandleService:
