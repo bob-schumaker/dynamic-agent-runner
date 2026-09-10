@@ -13,6 +13,10 @@
 - Version 1 admits only deterministic embedding providers: identical locked
   inputs and execution parameters must produce identical bundle and report
   bytes.
+- S3 and S4 require the sealed bounded result-location primitive from
+  `sandbox-workspace-runtime`. Until that primitive is implemented, DAR may
+  validate ingress and embedding capability contracts but must not execute an
+  index-builder asset.
 
 ## S1 — Snapshot and bundle contracts
 
@@ -30,36 +34,45 @@ bundle and generic-report artifacts without importing workflow-local code.
 
 ## S2 — Embedding capability and material binding
 
-1. Extend the model-material and execution-binding contracts with an embedding
-   runner/profile category, without changing existing generation bindings.
-2. Define `embedding.execute.v1` in the capability catalog with strict batch
-   input/result models, host ceilings, deterministic-execution conformance, and
-   provider validation.
+1. Reuse the existing locked material execution binding's exact runner/profile
+   identity and derive a private embedding binding from exactly one required
+   `embedding.execute.v1` capability. This single-purpose capability does not
+   add a descriptor `bindings` entry or expose a provider selector.
+2. Define `embedding.execute.v1` with strict batch input/result models, host
+   ceilings, deterministic-execution conformance, and receiver-owned provider
+   validation. Existing direct local embedding adapters may appear only behind
+   that generic provider seam.
 3. Add RED fake-provider tests for unavailable, changed, wrong-contract,
    malformed-vector, dimensionality, ordering, finite-value, host-ceiling, and
    nondeterministic-provider failures.
 4. Bind exact selected provider and material digests before every deferred side
    effect; rerun the existing capability admission matrix.
 
-Exit: a sealed package can name an embedding material set and DAR capability,
-and admission fails closed before model or package-local side effects.
+Exit: a sealed package can name an embedding material set and exact capability;
+the host fails closed before provider execution, model preparation, package
+import, sealed document ingress, or builder execution.
 
 ## S3 — Bounded index-builder execution
 
-1. Define the narrow sandbox tool ABI and sealed builder descriptor for snapshot
-   records, optional prior bundle, bounded embedding batches, empty result
-   location, and manifests. The descriptor binds the exact builder asset and
-   all chunking/index configuration into `index_builder_digest`.
-2. Add RED sentinels proving malformed inputs or unsatisfied requirements never
+1. Gate this slice on an implemented `sandbox-workspace-runtime` result-location
+   primitive that creates one empty bounded location and returns only declared
+   result artifacts. The current sandbox specification explicitly defers that
+   writable primitive, so no builder asset is executable yet.
+2. Once the gate is met, define the narrow sandbox tool ABI and sealed builder
+   descriptor for snapshot records, optional prior bundle, bounded embedding
+   batches, empty result location, and manifests. The descriptor binds the
+   exact builder asset and all chunking/index configuration into
+   `index_builder_digest`.
+3. Add RED sentinels proving malformed inputs or unsatisfied requirements never
    import or execute the index builder, invoke embeddings, or create output.
-3. Implement the smallest host bridge through the existing sandbox/result
+4. Implement the smallest host bridge through the existing sandbox/result
    artifact path; do not add filesystem, network, subprocess, or storage APIs.
-4. Add fake-only end-to-end tests with injected deterministic toy builder and
+5. Add fake-only end-to-end tests with injected deterministic toy builder and
    embedder doubles, asserting aggregate-only report egress and no raw artifact
    content in ordinary results or traces.
 
-Exit: a sealed workflow can produce a validated opaque bundle entirely through
-the reviewed artifact and capability paths.
+Exit: after the sandbox gate, a sealed workflow can produce a validated opaque
+bundle entirely through the reviewed artifact and capability paths.
 
 ## S4 — Incremental bundles and package fixture
 
@@ -72,8 +85,9 @@ the reviewed artifact and capability paths.
    DAR owns none of those semantics.
 4. Run focused suites, full pytest, Ruff, and `git diff --check`.
 
-Exit: an example portable package demonstrates initial and incremental index
-artifact production without a live model or a persistent external store.
+Exit: after S3's sandbox gate, an example portable package demonstrates initial
+and incremental index artifact production without a live model or a persistent
+external store.
 
 ## Manual Acceptance
 
