@@ -7,9 +7,11 @@ import json
 import re
 import stat
 from collections.abc import Callable, Mapping
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Lock
 from typing import Any, Protocol
 
 from jsonschema import Draft202012Validator, SchemaError, ValidationError
@@ -366,7 +368,9 @@ class SealedArtifactExecutionContext:
 
     __slots__ = (
         "_callback_provider",
+        "_callback_active",
         "_callback_counts",
+        "_callback_lock",
         "_callback_request_bytes",
         "_callback_response_bytes",
         "_collector",
@@ -374,6 +378,7 @@ class SealedArtifactExecutionContext:
         "_io_bytes",
         "_read_input",
         "_reads",
+        "_revoked",
     )
 
     def __init__(
@@ -399,10 +404,13 @@ class SealedArtifactExecutionContext:
         object.__setattr__(self, "_callback_provider", callback_provider)
         object.__setattr__(self, "_collector", collector)
         object.__setattr__(self, "_reads", set())
+        object.__setattr__(self, "_callback_active", {})
         object.__setattr__(self, "_callback_counts", {})
+        object.__setattr__(self, "_callback_lock", Lock())
         object.__setattr__(self, "_callback_request_bytes", {})
         object.__setattr__(self, "_callback_response_bytes", {})
         object.__setattr__(self, "_io_bytes", 0)
+        object.__setattr__(self, "_revoked", False)
 
     def __getattribute__(self, name: str) -> object:
         if name in {"read_input", "invoke_callback", "write_output"}:
@@ -412,6 +420,9 @@ class SealedArtifactExecutionContext:
     def read_input(self, role: str) -> bytes:
         """Return one declared input exactly once."""
 
+        object.__getattribute__(self, "_require_active")(
+            "sealed artifact input is unavailable"
+        )
         descriptor = object.__getattribute__(self, "_descriptor")
         reads = object.__getattribute__(self, "_reads")
         matching = [item for item in descriptor.inputs if item.role == role]
@@ -429,6 +440,9 @@ class SealedArtifactExecutionContext:
     def invoke_callback(self, name: str, request: bytes) -> bytes:
         """Invoke one descriptor-declared callback with opaque bytes."""
 
+        object.__getattribute__(self, "_require_active")(
+            "sealed artifact callback is unavailable"
+        )
         descriptor = object.__getattribute__(self, "_descriptor")
         matches = [item for item in descriptor.callbacks if item.name == name]
         if not isinstance(request, bytes) or len(matches) != 1:
@@ -436,32 +450,58 @@ class SealedArtifactExecutionContext:
                 "sealed artifact callback is unavailable"
             )
         callback = matches[0]
-        counts = object.__getattribute__(self, "_callback_counts")
-        request_bytes = object.__getattribute__(self, "_callback_request_bytes")
-        response_bytes = object.__getattribute__(self, "_callback_response_bytes")
-        count = counts.get(name, 0)
-        total_request = request_bytes.get(name, 0)
-        if (
-            count >= callback.max_calls
-            or len(request) > callback.max_request_bytes
-            or total_request + len(request) > callback.max_total_request_bytes
-        ):
-            raise SealedArtifactExecutionError(
+        lock = object.__getattribute__(self, "_callback_lock")
+        with lock:
+            object.__getattribute__(self, "_require_active")(
                 "sealed artifact callback is unavailable"
             )
-        object.__getattribute__(self, "_consume_io")(
-            len(request), "sealed artifact callback is unavailable"
-        )
-        counts[name] = count + 1
-        request_bytes[name] = total_request + len(request)
+            counts = object.__getattribute__(self, "_callback_counts")
+            active = object.__getattribute__(self, "_callback_active")
+            request_bytes = object.__getattribute__(self, "_callback_request_bytes")
+            count = counts.get(name, 0)
+            total_request = request_bytes.get(name, 0)
+            if (
+                count >= callback.max_calls
+                or active.get(name, 0) >= callback.max_concurrency
+                or len(request) > callback.max_request_bytes
+                or total_request + len(request) > callback.max_total_request_bytes
+            ):
+                raise SealedArtifactExecutionError(
+                    "sealed artifact callback is unavailable"
+                )
+            object.__getattribute__(self, "_consume_io")(
+                len(request), "sealed artifact callback is unavailable"
+            )
+            counts[name] = count + 1
+            active[name] = active.get(name, 0) + 1
+            request_bytes[name] = total_request + len(request)
         provider = object.__getattribute__(self, "_callback_provider")
         try:
             provider.revalidate(callback)
-            response = provider.invoke(name, request)
+            executor = ThreadPoolExecutor(max_workers=1)
+            try:
+                future = executor.submit(provider.invoke, name, request)
+                response = future.result(callback.timeout_milliseconds / 1000)
+            except TimeoutError as error:
+                future.cancel()
+                object.__getattribute__(self, "_revoke")()
+                raise SealedArtifactExecutionError(
+                    "sealed artifact callback is unavailable"
+                ) from error
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
         except Exception as error:
             raise SealedArtifactExecutionError(
                 "sealed artifact callback is unavailable"
             ) from error
+        finally:
+            with lock:
+                active = object.__getattribute__(self, "_callback_active")
+                active[name] -= 1
+        object.__getattribute__(self, "_require_active")(
+            "sealed artifact callback is unavailable"
+        )
+        response_bytes = object.__getattribute__(self, "_callback_response_bytes")
         total_response = response_bytes.get(name, 0)
         if (
             not isinstance(response, bytes)
@@ -481,6 +521,9 @@ class SealedArtifactExecutionContext:
         """Write one ordered output through the private collector."""
 
         try:
+            object.__getattribute__(self, "_require_active")(
+                "sealed artifact output is unavailable"
+            )
             if not isinstance(content, bytes):
                 raise SealedArtifactExecutionError(
                     "sealed artifact output is unavailable"
@@ -495,6 +538,13 @@ class SealedArtifactExecutionContext:
             raise SealedArtifactExecutionError(
                 "sealed artifact output is unavailable"
             ) from error
+
+    def _revoke(self) -> None:
+        object.__setattr__(self, "_revoked", True)
+
+    def _require_active(self, error: str) -> None:
+        if object.__getattribute__(self, "_revoked"):
+            raise SealedArtifactExecutionError(error)
 
     def _consume_io(self, byte_count: int, error: str) -> None:
         descriptor = object.__getattribute__(self, "_descriptor")
@@ -518,7 +568,8 @@ class SealedArtifactAssetRuntime:
             raise SealedArtifactExecutionError(
                 "sealed artifact execution is unavailable"
             )
-        try:
+
+        def run_asset() -> tuple[tuple[str, str, bytes], ...]:
             namespace: dict[str, object] = {"__builtins__": {}}
             exec(compile(asset, "<sealed-artifact>", "exec"), namespace)
             run = namespace.get("run")
@@ -527,13 +578,32 @@ class SealedArtifactAssetRuntime:
                     "sealed artifact execution is unavailable"
                 )
             return object.__getattribute__(context, "_collector").seal()
+
+        executor = ThreadPoolExecutor(max_workers=1)
+        try:
+            result = executor.submit(run_asset).result(
+                object.__getattribute__(
+                    context, "_descriptor"
+                ).limits.max_runtime_milliseconds
+                / 1000
+            )
+            return result
+        except TimeoutError as error:
+            object.__getattribute__(context, "_revoke")()
+            object.__getattribute__(context, "_collector").abort()
+            raise SealedArtifactExecutionError(
+                "sealed artifact execution is unavailable"
+            ) from error
         except Exception as error:
+            object.__getattribute__(context, "_revoke")()
             object.__getattribute__(context, "_collector").abort()
             if isinstance(error, SealedArtifactExecutionError):
                 raise
             raise SealedArtifactExecutionError(
                 "sealed artifact execution is unavailable"
             ) from error
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
 
 class SealedArtifactHandleService:
