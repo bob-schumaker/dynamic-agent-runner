@@ -80,7 +80,7 @@ def _sealed_artifact_descriptor() -> bytes:
             ).hexdigest(),
         },
         "callbacks": [],
-        "capability_requirements_digest": "a" * 64,
+        "capability_requirements_digest": CapabilityRequirements().digest,
         "child_contract_digests": [],
         "format_version": 1,
         "inputs": [],
@@ -116,10 +116,12 @@ def _stage(
     with_model_material_sets: bool = False,
     with_sealed_artifact_runner: bool = False,
     sealed_asset_body: str = "def run(context):\n    return None\n",
+    sealed_artifact_descriptor: bytes | None = None,
+    sealed_artifact_files: dict[str, bytes] | None = None,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
-    if with_capability_requirements:
+    if with_capability_requirements or with_sealed_artifact_runner:
         descriptor = source / "workflow-descriptor.yaml"
         value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
         requirements = CapabilityRequirements()
@@ -156,8 +158,12 @@ def _stage(
             sealed_asset_body, encoding="utf-8"
         )
         (source / "sealed-artifact-runner.json").write_bytes(
-            _sealed_artifact_descriptor()
+            sealed_artifact_descriptor or _sealed_artifact_descriptor()
         )
+        for path, content in (sealed_artifact_files or {}).items():
+            destination = source / path
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(content)
     store = PrivateStateStore(tmp_path / "state")
     handle = PackageSourceSelectionPolicy(
         allowed_root=source.parent, store=store
@@ -266,6 +272,71 @@ def test_staging_rejects_a_sealed_runner_with_tampered_asset(tmp_path: Path) -> 
             with_sealed_artifact_runner=True,
             sealed_asset_body="def run(context):\n    raise RuntimeError()\n",
         )
+
+
+def test_staging_rejects_callback_without_declared_capability(tmp_path: Path) -> None:
+    child = json.dumps(
+        {
+            "body": {},
+            "callback_name": "generate",
+            "capability_requirement": "model.generate.v1",
+            "format_version": 1,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    child_digest = hashlib.sha256(child).hexdigest()
+    descriptor = json.loads(_sealed_artifact_descriptor())
+    descriptor["child_contract_digests"] = [child_digest]
+    descriptor["callbacks"] = [
+        {
+            "child_contract_digest": child_digest,
+            "max_calls": 1,
+            "max_concurrency": 1,
+            "max_request_bytes": 1,
+            "max_response_bytes": 1,
+            "max_total_request_bytes": 1,
+            "max_total_response_bytes": 1,
+            "name": "generate",
+            "requirement": "model.generate.v1",
+            "timeout_milliseconds": 1,
+        }
+    ]
+    del descriptor["artifact_runner_digest"]
+    descriptor["artifact_runner_digest"] = hashlib.sha256(
+        json.dumps(descriptor, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+    with pytest.raises(PackageStagingError, match="sealed artifact runner"):
+        _stage(
+            tmp_path,
+            with_sealed_artifact_runner=True,
+            sealed_artifact_descriptor=json.dumps(
+                descriptor, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8"),
+            sealed_artifact_files={"contracts/generate.json": child},
+        )
+
+
+def test_export_rejects_runner_capability_digest_mismatch(tmp_path: Path) -> None:
+    staged, _ = _stage(tmp_path, with_sealed_artifact_runner=True)
+    staged.root.chmod(0o700)
+    runner_path = staged.root / "sealed-artifact-runner.json"
+    runner_path.chmod(0o600)
+    descriptor = json.loads(runner_path.read_text(encoding="utf-8"))
+    descriptor["capability_requirements_digest"] = "0" * 64
+    del descriptor["artifact_runner_digest"]
+    descriptor["artifact_runner_digest"] = hashlib.sha256(
+        json.dumps(descriptor, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    runner_path.write_text(
+        json.dumps(descriptor, sort_keys=True, separators=(",", ":")), encoding="utf-8"
+    )
+
+    with pytest.raises(
+        PackageExportError, match=r"^sealed artifact runner is invalid$"
+    ):
+        export_staged_package(staged=staged, destination=tmp_path / "export.zip")
 
 
 def test_export_rejects_a_tampered_model_materials_digest(tmp_path: Path) -> None:

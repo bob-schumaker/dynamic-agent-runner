@@ -11,6 +11,12 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+from dynamic_agent_runner.workflow_host.capabilities import CapabilityRequirements
+from dynamic_agent_runner.workflow_host.descriptor import (
+    WorkflowDescriptor,
+    WorkflowDescriptorError,
+    load_descriptor_yaml,
+)
 from dynamic_agent_runner.workflow_host.package_signatures import (
     PackageSignatureError,
     sign_manifest,
@@ -26,6 +32,7 @@ from dynamic_agent_runner.workflow_host.material_sets import (
 from dynamic_agent_runner.workflow_host.staging import StagedPackage
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactRunnerDescriptorError,
+    validate_sealed_artifact_runner_capabilities,
     verify_sealed_artifact_runner_files,
 )
 
@@ -224,13 +231,26 @@ def _verify_sealed_artifact_runner_digest(
             raise PackageExportError("sealed artifact runner does not match manifest")
         return
     try:
-        digest = verify_sealed_artifact_runner_files(
+        runner_descriptor = verify_sealed_artifact_runner_files(
             root, _read_regular_file(root, _SEALED_ARTIFACT_RUNNER_NAME)
-        ).digest
+        )
+        validate_sealed_artifact_runner_capabilities(
+            runner_descriptor, _capability_requirements(root)
+        )
     except (SealedArtifactRunnerDescriptorError, PackageExportError) as error:
         raise PackageExportError("sealed artifact runner is invalid") from error
-    if declared_digest != digest:
+    if declared_digest != runner_descriptor.digest:
         raise PackageExportError("sealed artifact runner does not match manifest")
+
+
+def _capability_requirements(root: Path) -> CapabilityRequirements | None:
+    try:
+        descriptor = WorkflowDescriptor.from_mapping(
+            load_descriptor_yaml(_read_regular_file(root, "workflow-descriptor.yaml"))
+        )
+    except (PackageExportError, WorkflowDescriptorError) as error:
+        raise PackageExportError("package descriptor is invalid") from error
+    return descriptor.capability_requirements
 
 
 def _valid_dar_runtime(value: object) -> bool:

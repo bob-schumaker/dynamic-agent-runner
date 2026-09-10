@@ -18,10 +18,6 @@ from pathlib import PurePosixPath
 
 import yaml
 
-from dynamic_agent_runner.workflow_host.capabilities import (
-    CapabilityError,
-    CapabilityRequirements,
-)
 from dynamic_agent_runner.workflow_host.descriptor import (
     WorkflowDescriptor,
     WorkflowDescriptorError,
@@ -37,6 +33,7 @@ from dynamic_agent_runner.workflow_host.material_sets import (
 )
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactRunnerDescriptorError,
+    validate_sealed_artifact_runner_capabilities,
     verify_sealed_artifact_runner_files,
 )
 
@@ -480,7 +477,8 @@ def _package_compatibility(root: Path) -> dict[str, object]:  # noqa: C901
     ):
         raise PackageStagingError("package descriptor is incompatible")
     try:
-        package_id = WorkflowDescriptor.from_mapping(descriptor).package_id
+        workflow_descriptor = WorkflowDescriptor.from_mapping(descriptor)
+        package_id = workflow_descriptor.package_id
     except WorkflowDescriptorError as error:
         raise PackageStagingError("package descriptor is incompatible") from error
     try:
@@ -512,14 +510,10 @@ def _package_compatibility(root: Path) -> dict[str, object]:  # noqa: C901
         "descriptor_format_version": descriptor["format_version"],
         "runtime_format_version": _RUNTIME_FORMAT_VERSION,
     }
-    raw_requirements = descriptor.get("capability_requirements")
-    if raw_requirements is not None:
-        try:
-            compatibility["capability_requirements_digest"] = (
-                CapabilityRequirements.from_mapping(raw_requirements).digest
-            )
-        except CapabilityError as error:
-            raise PackageStagingError("package descriptor is incompatible") from error
+    if workflow_descriptor.capability_requirements_digest is not None:
+        compatibility["capability_requirements_digest"] = (
+            workflow_descriptor.capability_requirements_digest
+        )
     model_materials_path = root / "model-materials.json"
     model_material_sets_path = root / "model-material-sets.json"
     if model_materials_path.exists() and model_material_sets_path.exists():
@@ -541,11 +535,13 @@ def _package_compatibility(root: Path) -> dict[str, object]:  # noqa: C901
     sealed_artifact_runner_path = root / _SEALED_ARTIFACT_RUNNER_NAME
     if sealed_artifact_runner_path.exists():
         try:
-            compatibility["sealed_artifact_runner_digest"] = (
-                verify_sealed_artifact_runner_files(
-                    root, sealed_artifact_runner_path.read_bytes()
-                ).digest
+            runner_descriptor = verify_sealed_artifact_runner_files(
+                root, sealed_artifact_runner_path.read_bytes()
             )
+            validate_sealed_artifact_runner_capabilities(
+                runner_descriptor, workflow_descriptor.capability_requirements
+            )
+            compatibility["sealed_artifact_runner_digest"] = runner_descriptor.digest
         except (OSError, SealedArtifactRunnerDescriptorError) as error:
             raise PackageStagingError("sealed artifact runner is invalid") from error
     return compatibility

@@ -14,6 +14,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, SchemaError
 
+from dynamic_agent_runner.workflow_host.capabilities import CapabilityRequirements
 from dynamic_agent_runner.workflow_host.state import (
     OpaqueRecordError,
     PrivateStateStore,
@@ -45,6 +46,7 @@ class SealedArtifactRunnerDescriptor:
     digest: str
     asset_path: str
     asset_digest: str
+    capability_requirements_digest: str
     schema_assets: tuple["SealedArtifactSchemaAsset", ...]
     child_contract_digests: tuple[str, ...]
     callbacks: tuple["SealedArtifactCallback", ...]
@@ -107,7 +109,7 @@ def parse_sealed_artifact_runner_descriptor(
     if hashlib.sha256(_canonical_bytes(unsigned)).hexdigest() != declared_digest:
         raise SealedArtifactRunnerDescriptorError("descriptor digest does not match")
     asset_path, asset_digest = _asset(mapping["asset"])
-    _digest(mapping["capability_requirements_digest"])
+    capability_requirements_digest = _digest(mapping["capability_requirements_digest"])
     _digest(mapping["profile_digest"])
     schema_assets = _schemas(mapping["schemas"])
     schema_digests = frozenset(item.digest for item in schema_assets)
@@ -122,6 +124,7 @@ def parse_sealed_artifact_runner_descriptor(
         digest=declared_digest,
         asset_path=asset_path,
         asset_digest=asset_digest,
+        capability_requirements_digest=capability_requirements_digest,
         schema_assets=schema_assets,
         child_contract_digests=child_digests,
         callbacks=callbacks,
@@ -147,6 +150,30 @@ def verify_sealed_artifact_runner_files(
             child_contracts[callback.child_contract_digest], callback
         )
     return descriptor
+
+
+def validate_sealed_artifact_runner_capabilities(
+    descriptor: SealedArtifactRunnerDescriptor,
+    capability_requirements: CapabilityRequirements | None,
+) -> None:
+    """Require the descriptor's callbacks to match one sealed capability record."""
+
+    if (
+        not isinstance(capability_requirements, CapabilityRequirements)
+        or descriptor.capability_requirements_digest != capability_requirements.digest
+    ):
+        raise SealedArtifactRunnerDescriptorError(
+            "sealed artifact runner capabilities are invalid"
+        )
+    capability_ids = {
+        item.capability_id for item in capability_requirements.required_capabilities
+    }
+    if any(
+        callback.requirement not in capability_ids for callback in descriptor.callbacks
+    ):
+        raise SealedArtifactRunnerDescriptorError(
+            "sealed artifact runner capabilities are invalid"
+        )
 
 
 class SealedArtifactRunnerAdmission:
