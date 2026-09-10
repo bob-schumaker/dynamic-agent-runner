@@ -188,6 +188,8 @@ class DebugGeneratedFragment:
     content: str
     exhausted: bool
     generated_tokens: int | None
+    runner_max_new_tokens: int | None
+    backend_max_new_tokens: int | None
 
 
 @dataclass(frozen=True)
@@ -232,10 +234,14 @@ class _DebugDiagnosticCollector:
         content = getattr(value, "content", None)
         exhausted = getattr(value, "exhausted", None)
         generated_tokens = getattr(value, "generated_tokens", None)
+        runner_max_new_tokens = getattr(value, "runner_max_new_tokens", None)
+        backend_max_new_tokens = getattr(value, "backend_max_new_tokens", None)
         if (
             not isinstance(content, str)
             or not isinstance(exhausted, bool)
             or (generated_tokens is not None and not isinstance(generated_tokens, int))
+            or not _optional_generation_limit(runner_max_new_tokens)
+            or not _optional_generation_limit(backend_max_new_tokens)
         ):
             self.retention_limited = True
             return
@@ -245,7 +251,13 @@ class _DebugDiagnosticCollector:
             return
         self._bytes += byte_count
         self.fragments.append(
-            DebugGeneratedFragment(content, exhausted, generated_tokens)
+            DebugGeneratedFragment(
+                content,
+                exhausted,
+                generated_tokens,
+                runner_max_new_tokens,
+                backend_max_new_tokens,
+            )
         )
 
     def record_terminal(self, terminal: TerminalProcessorDiagnostic | None) -> None:
@@ -846,6 +858,8 @@ class WorkflowRunner:
                             ).decode("ascii"),
                             "exhausted": fragment.exhausted,
                             "generated_tokens": fragment.generated_tokens,
+                            "runner_max_new_tokens": fragment.runner_max_new_tokens,
+                            "backend_max_new_tokens": fragment.backend_max_new_tokens,
                         }
                         for fragment in collector.fragments
                     ],
@@ -1423,16 +1437,24 @@ def _debug_diagnostic(payload: Mapping[str, object]) -> DebugWorkflowDiagnostic:
         content = _diagnostic_bytes(fragment.get("content_base64"))
         exhausted = fragment.get("exhausted")
         generated_tokens = fragment.get("generated_tokens")
+        runner_max_new_tokens = fragment.get("runner_max_new_tokens")
+        backend_max_new_tokens = fragment.get("backend_max_new_tokens")
         if (
             not isinstance(exhausted, bool)
             or generated_tokens is not None
             and not isinstance(generated_tokens, int)
+            or not _optional_generation_limit(runner_max_new_tokens)
+            or not _optional_generation_limit(backend_max_new_tokens)
         ):
             raise RunDarWorkflowError("debug diagnostic is unavailable")
         try:
             parsed.append(
                 DebugGeneratedFragment(
-                    content.decode("utf-8"), exhausted, generated_tokens
+                    content.decode("utf-8"),
+                    exhausted,
+                    generated_tokens,
+                    runner_max_new_tokens,
+                    backend_max_new_tokens,
                 )
             )
         except UnicodeDecodeError as error:
@@ -1444,6 +1466,12 @@ def _debug_diagnostic(payload: Mapping[str, object]) -> DebugWorkflowDiagnostic:
     )
     return DebugWorkflowDiagnostic(
         diagnostic_id, run_id, outcome, tuple(parsed), terminal, limited
+    )
+
+
+def _optional_generation_limit(value: object) -> bool:
+    return value is None or (
+        isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 65_536
     )
 
 

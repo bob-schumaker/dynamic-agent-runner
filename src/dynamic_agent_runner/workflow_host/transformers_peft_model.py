@@ -65,6 +65,8 @@ class GeneratedText:
     content: str
     exhausted: bool
     generated_tokens: int | None = None
+    runner_max_new_tokens: int | None = None
+    backend_max_new_tokens: int | None = None
 
 
 @dataclass(frozen=True)
@@ -190,7 +192,14 @@ class TransformersGenerateRunner:
                 generated = backend.generate_packed(
                     packed_input.take(), max_new_tokens=max_new_tokens
                 )
-            return _generated_text(generated)
+            generated_text = _generated_text(generated)
+            return GeneratedText(
+                generated_text.content,
+                generated_text.exhausted,
+                generated_text.generated_tokens,
+                runner_max_new_tokens=max_new_tokens,
+                backend_max_new_tokens=generated_text.backend_max_new_tokens,
+            )
         except ModelExecutionError:
             raise
         except Exception as error:  # noqa: BLE001 - backend errors vary.
@@ -763,6 +772,7 @@ class _LoadedTransformersPeftBackend:
             decoded[0],
             exhausted=_generation_exhausted(generated, prefix_length, max_new_tokens),
             generated_tokens=generated_tokens,
+            backend_max_new_tokens=max_new_tokens,
         )
 
 

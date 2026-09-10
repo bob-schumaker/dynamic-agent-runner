@@ -1207,6 +1207,8 @@ def test_runner_retains_and_loads_debug_fragments_for_the_local_owner(
         content = '{"walls":['
         exhausted = True
         generated_tokens = 3
+        runner_max_new_tokens = 65_536
+        backend_max_new_tokens = 65_536
 
     collector.record_fragment(Generated())
     runner._retain_debug_diagnostic(  # type: ignore[attr-defined]
@@ -1221,6 +1223,8 @@ def test_runner_retains_and_loads_debug_fragments_for_the_local_owner(
     assert diagnostic.fragments[0].content == '{"walls":['
     assert diagnostic.fragments[0].exhausted is True
     assert diagnostic.fragments[0].generated_tokens == 3
+    assert diagnostic.fragments[0].runner_max_new_tokens == 65_536
+    assert diagnostic.fragments[0].backend_max_new_tokens == 65_536
     assert diagnostic.terminal is None
     assert diagnostic.retention_limited is False
 
