@@ -137,7 +137,10 @@ fake-only and test-first.
 - [ ] M7.2 [tests, RED] Add parser/package/registration vectors for duplicate,
   missing, reordered, and substituted material roles before any cache, load,
   provider, or package asset action.
-- [ ] M7.3 [implementation] Bind the material-set digest and exact inference
+- [x] M7.3 [implementation] Bind the material-set digest and exact inference
   role/material role relation into package policy and private execution binding.
+  - Evidence: `ModelMaterialSets` and `InferenceRoles` derive distinct private
+    `LockedInferenceBinding` values before runtime package loading; policy and
+    deterministic ZIP manifests bind the material-set and inference-role digests.
 - [ ] M7.4 [tests, GREEN] Prove role isolation and unchanged legacy package
   import/export behavior.
