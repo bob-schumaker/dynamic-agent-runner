@@ -10,8 +10,12 @@ declared opaque output-artifact handles.
 ## Current state and boundaries
 
 The host has independently useful foundations for declared result sealing,
-capability requirements, model-material bindings, and locked-inference assets.
-They are not yet composed into a receiving-host artifact invocation route.
+capability requirements, model-material bindings, locked-inference assets, and
+partial descriptor/handle validation. They are not yet composed into a
+receiving-host artifact invocation route. In particular, a generic ordered
+admission callback chain is not proof that package access, authorization,
+identity resolution, byte reads, collector allocation, provider entry, and
+egress occur in the required order.
 
 This work owns the outer descriptor, private handle lifecycle, admission
 sequence, asset invocation, and output egress. Existing capability matching,
@@ -19,6 +23,37 @@ result collection, model material binding, and sandbox/profile enforcement
 remain their owning subsystems. The runner must not introduce a plugin
 registry, asset discovery, arbitrary callbacks, domain semantics, or a second
 embedding/inference invocation route.
+
+The implementation has one host-owned composition boundary. It may adapt
+existing host services behind narrow receiver interfaces, but it must not make
+those services or their private objects visible to the asset. Consumer child
+contracts stay opaque to the generic runner except for their canonical common
+envelope, digest, callback name, and capability identifier.
+
+## Execution model and test seam
+
+Build the receiver against an explicit fake-only host seam before binding real
+host services. The seam records these observable operations separately:
+
+1. registration/provenance lookup;
+2. ZIP and package-manifest entry access;
+3. descriptor, asset, schema, and child-contract verification;
+4. exact receiver-owner-package-revision-asset-profile authorization;
+5. capability-catalog, material, and provider *identity* resolution;
+6. prepared-handle metadata validation and private-byte read;
+7. collector allocation, write, abort, and atomic seal;
+8. asset runtime creation/import/execution;
+9. callback provider revalidation, material load, and provider entry; and
+10. output-handle publication and egress.
+
+The fake host records ordered events and returns controlled outcomes. Every
+negative vector asserts both its stable redacted classification and that the
+event log ends at the specified boundary. It is a test fixture only, not a
+second production abstraction or plugin API.
+
+The production composition maps each seam operation to the existing owning
+service. It must expose no fallback provider selection. Material loading is a
+callback-entry operation; identity resolution alone is side-effect free.
 
 ## Delivery sequence
 
@@ -37,24 +72,36 @@ profile, callback budget fields, and child-consumer digest binding have one
 unambiguous representation. S1 is a design gate; no runtime implementation
 starts until it is approved.
 
-### 2. Build admission sentinels before runtime code (S2)
+### 2. Complete descriptor, package, and admission sentinels (S2)
 
-Add fake-only tests and fakes for the manifest reader, artifact-handle store,
-owner authorization check, material/provider resolver, asset importer,
-callback provider, and result collector. Exercise every fixed admission
-boundary independently. For each rejection, assert that every later boundary
-has zero calls, including byte reads, asset import, model materialization,
-provider access, collector allocation or write, output-handle creation, and
-egress.
+Add the fake host described above, with one selected failure at each observable
+boundary. Cover provenance/owner rejection; duplicate, noncanonical, missing,
+unknown, or mismatched package entries; descriptor, schema, asset, and child
+contract failures; authorization rejection; identity-resolution rejection;
+handle metadata rejection; and collector-allocation failure. For each rejection
+assert that every later effect has zero calls, including input-byte reads, asset
+runtime creation/import, material load, provider entry, collector write/seal,
+output-handle publication, and egress.
 
-Add canonicalization, duplicate/unknown/missing-field, digest mismatch,
-role/order, ZIP binding, handle receiver/revision/invocation/role/media/schema/
-digest/expiry, and authorization-vector cases. These tests are the executable
-definition of the admission order, not implementation-specific mocks.
+Complete descriptor and ZIP vectors: canonicalization, duplicate/unknown/
+missing fields, digest mismatch, role/order errors, schema/media correspondence,
+manifest entry type and digest binding, child-contract uniqueness and envelope
+binding, and exact callback capability membership in the bound
+capability-requirements record. A descriptor reference alone is insufficient:
+the ZIP manifest must contain exactly the corresponding regular-file record.
 
-Exit criteria: all S2 tests fail only because the receiver composition and
-runner do not yet exist; they must not require a live model, network, or
-external tool.
+Replace the direct arbitrary-byte handle preparation test seam with a
+preparation service fixture that first performs package/descriptor verification,
+authorization, side-effect-free identity resolution, role/media/byte/digest/
+schema validation, and only then seals private bytes. Add lifecycle vectors for
+`prepared -> reserved -> consumed`, replay, expiry, revocation, and terminal
+invocation failure. These tests are the executable definition of admission and
+preparation order, not implementation-specific mocks.
+
+Exit criteria: descriptor, package, child-contract, and preparation tests pass
+where their components already exist. Receiver-path tests fail only because the
+receiver composition and runner do not yet exist; none requires a live model,
+network, or external tool.
 
 ### 3. Compose host-owned dependencies (S3)
 
@@ -69,6 +116,14 @@ Define only interfaces required by the contract. Provider resolution must be
 exact and revalidated at callback entry, with no fallback or provider identity
 disclosure. The composition root must reject missing dependencies at startup
 rather than silently selecting defaults.
+
+Replace the generic ordered admission-callback class with the concrete receiver
+composition. The order belongs in one receiver method and is tested through the
+event-recording fake host; do not retain the generic chain as a second runtime
+route. The preparation service and invocation service share the same verified
+registration tuple but have separate effects: preparation may seal input bytes
+but may not load material, enter a provider, allocate a collector, or import an
+asset.
 
 Exit criteria: a fake receiver can be constructed entirely from explicit host
 collaborators, and an asset cannot obtain ambient filesystem, network,
@@ -107,13 +162,20 @@ Exit criteria: both consumers can be expressed as child descriptors bound into
 the outer descriptor, and neither has a direct asset-import or output-egress
 path outside the generic runner.
 
-### 6. Prove lifecycle and receiver portability (S4)
+### 6. Prove lifecycle, cancellation, and receiver portability (S4)
 
-Complete green tests for ordered atomic output sealing; provider revalidation;
-handle single use, expiry, and revocation; cancellation; late-result disposal;
-and redacted receipts. Add a deterministic receiving-host test that imports a
-ZIP with the exact registered manifest, satisfies only declared requirements,
-executes a fake asset, and returns declared sealed output handles.
+Complete green tests for ordered atomic output sealing; provider revalidation
+immediately before each callback; handle single use, expiry, reservation, and
+revocation; cancellation; late-result disposal; and redacted receipts. Verify
+that a terminal failure revokes reserved inputs and destroys the private
+collector, while a seal that wins the race returns only sealed handles.
+
+Add a deterministic receiving-host test that imports a ZIP with the exact
+registered manifest, satisfies only declared requirements, executes a fake
+asset, and returns declared sealed output handles. Add negative ABI tests for
+undeclared role reads, repeated reads, unknown callbacks, callback budget
+overages, out-of-order/repeated/missing output writes, and asset failure. No
+test reads a raw output candidate or observes provider identity.
 
 Run focused unit tests during development, then the full pytest suite, Ruff,
 and package build. A failed admission sentinel, any raw-data receipt, any
@@ -133,12 +195,47 @@ Exit criteria: package export, registration, and a receiving fake host use the
 same descriptor digest and invocation path for both consumers; source-level
 tests demonstrate that no parallel invocation path remains.
 
+## Work-package dependency and acceptance matrix
+
+| Package | Depends on | Deliverable | Done check |
+| --- | --- | --- | --- |
+| S2a descriptor/package vectors | S1 | strict parser and ZIP/manifest/child-contract tests | all malformed and binding vectors reject before identity resolution |
+| S2b preparation/handle vectors | S2a | preparation-boundary and handle-state tests | unverified or mismatched input is never sealed or read |
+| S2c admission sentinel matrix | S2a, S2b | event-recording fake host and boundary tests | every rejection has zero later events |
+| S3a receiver composition | S2c | one concrete host composition root | fake host completes a successful invocation in specified order |
+| S3b asset/context/callback path | S3a | fixed ABI, callback adapter, collector integration | only declared inputs, callbacks, and output slots are usable |
+| S4 lifecycle/portability proof | S3a, S3b | deterministic receiving-host and race/error tests | sealing is atomic; failures publish nothing and receipts are redacted |
+| S5 consumer migration | S4 | sealed embedding and locked-inference package assets | no consumer bypass remains |
+
+No packages are marked parallel: S2c depends on the shared test fixture and
+state model established by S2a/S2b, and all later packages consume their
+contracts.
+
+## Risks and controls
+
+| Risk | Trigger | Control | Fallback |
+| --- | --- | --- | --- |
+| A partial test double hides a forbidden side effect | a negative test passes with a generic pipeline | require the event-recording host and assert the complete suffix of zero events | keep S2 open and add the missing observable seam |
+| A package reference is not actually ZIP-bound | a descriptor digest resolves from an unlisted or duplicate entry | verify manifest record type, path, and digest before identity resolution | reject the package; do not infer a path |
+| Preparation becomes an execution bypass | byte sealing loads material or enters a provider | split preparation from invocation and record their effects independently | reject preparation and revoke its invocation |
+| Consumer migration reintroduces a special route | a consumer calls asset/runtime or egress services directly | source-level bypass tests and deletion criteria in S5 | retain the old route only while its sealed replacement is not yet admitted |
+| Experimental personal profile is mistaken for isolation | a foreign package is admitted as personal | require locally selected owner plus exact authorization tuple | keep foreign assets behind `local-tool-sandbox-hardening` |
+
 ## Verification and rollback
 
 Use fake assets, handles, providers, and receivers exclusively for unit and
 integration coverage. No test may contact a live model, Hugging Face, network,
-or local tool service. Verify the final implementation with the repository
-test, lint, and build commands recorded in `AGENTS.md`.
+or local tool service. During implementation run the relevant focused pytest
+files first; at S4 and S5 run:
+
+```text
+poetry run pytest -q
+poetry run ruff check src tests
+poetry build
+```
+
+A failed admission sentinel, any raw-data receipt, any output allocation before
+atomic sealing, or any consumer bypass blocks the migration gate.
 
 Each milestone is additive until its old consumer route is removed. If a
 consumer migration exposes a missing generic contract field, restore that
