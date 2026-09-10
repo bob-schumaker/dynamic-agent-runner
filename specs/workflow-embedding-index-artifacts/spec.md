@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `workflow-embedding-index-artifacts`
-- Status: reviewed; ready for approval
+- Status: approved; implementation in progress
 - Owner: dynamic-agent-runner workflow-package, model-material, and artifact boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`

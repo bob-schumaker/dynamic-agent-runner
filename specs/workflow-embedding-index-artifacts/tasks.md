@@ -26,12 +26,15 @@
 
 ## E1 — Contract readiness
 
-- [ ] E1.1 [design] Approve the canonical document-snapshot, index-bundle,
+- [x] E1.1 [design] Approve the canonical document-snapshot, index-bundle,
   builder-descriptor, and generic coverage-report manifest shapes, all
   package-declared limits, and their sensitive-field classification.
   - Depends on: approval of this spec.
   - Acceptance: no manifest contains a source path, destination path,
     credential, provider choice, or invocation-time model selector.
+  - Evidence: approved 2026-09-09; host-only contracts are implemented in
+    `workflow_host.embedding_index_artifacts` and expose only digests, bounds,
+    counts, and redacted classifications.
 - [ ] E1.2 [design] Reconcile `embedding.execute.v1` with
   `workflow-model-materials` and `workflow-capability-requirements`, including
   the exact embedding runner/profile binding and conformance vectors.
@@ -46,16 +49,24 @@
 
 ## E2 — Sealed artifacts
 
-- [ ] E2.1 [tests, RED] Add fake-only snapshot/bundle/report canonicalization
+- [x] E2.1 [tests, RED] Add fake-only snapshot/bundle/report canonicalization
   and admission tests covering ordering, hashes, media types, bounds,
   redaction, malformed input, and no-side-effect sentinels.
   - Depends on: E1.1.
-- [ ] E2.2 [implementation] Implement the minimal host-only artifact models,
+  - Evidence: `tests/test_embedding_index_artifacts.py` failed with the
+    expected missing-module error before implementation.
+- [x] E2.2 [implementation] Implement the minimal host-only artifact models,
   digest binding, sealed ingress, and opaque result validation required by E2.1.
   - Depends on: E2.1.
-- [ ] E2.3 [tests, GREEN] Run focused artifact/workflow tests and prove invalid
+  - Evidence: `workflow_host.embedding_index_artifacts` seals bounded ordered
+    snapshots and validates opaque bundle/report identities without external
+    execution or persistence.
+- [x] E2.3 [tests, GREEN] Run focused artifact/workflow tests and prove invalid
   snapshots load no package code, model, provider, or index builder.
   - Depends on: E2.2.
+  - Evidence: `poetry run pytest tests/test_embedding_index_artifacts.py -q`
+    (8 passed) and focused Ruff passed on 2026-09-09. The pure host-only
+    validation path has no package, model, provider, or builder dependency.
 
 ## E3 — Embedding capability binding
 
