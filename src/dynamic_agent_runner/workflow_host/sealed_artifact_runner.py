@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 import stat
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -41,6 +41,10 @@ class SealedArtifactHandleError(ValueError):
 
 class SealedArtifactOutputCollectorError(ValueError):
     """Raised after destroying unavailable or invalid output candidates."""
+
+
+class SealedArtifactExecutionError(ValueError):
+    """Raised without exposing asset internals or private candidate bytes."""
 
 
 @dataclass(frozen=True)
@@ -325,6 +329,116 @@ class SealedArtifactOutputCollector:
     def _destroy(self) -> None:
         self._candidates.clear()
         self._state = "destroyed"
+
+
+class SealedArtifactExecutionContext:
+    """The narrow, non-introspectable ABI surface for one verified asset."""
+
+    __slots__ = ("_callback", "_collector", "_descriptor", "_read_input", "_reads")
+
+    def __init__(
+        self,
+        *,
+        descriptor: SealedArtifactRunnerDescriptor,
+        read_input: Callable[[str], bytes],
+        invoke_callback: Callable[[str, bytes], bytes],
+        collector: SealedArtifactOutputCollector,
+    ) -> None:
+        if (
+            not isinstance(descriptor, SealedArtifactRunnerDescriptor)
+            or not callable(read_input)
+            or not callable(invoke_callback)
+            or not isinstance(collector, SealedArtifactOutputCollector)
+        ):
+            raise SealedArtifactExecutionError(
+                "sealed artifact execution is unavailable"
+            )
+        object.__setattr__(self, "_descriptor", descriptor)
+        object.__setattr__(self, "_read_input", read_input)
+        object.__setattr__(self, "_callback", invoke_callback)
+        object.__setattr__(self, "_collector", collector)
+        object.__setattr__(self, "_reads", set())
+
+    def __getattribute__(self, name: str) -> object:
+        if name in {"read_input", "invoke_callback", "write_output"}:
+            return object.__getattribute__(self, name)
+        raise AttributeError("sealed artifact context member is unavailable")
+
+    def read_input(self, role: str) -> bytes:
+        """Return one declared input exactly once."""
+
+        descriptor = object.__getattribute__(self, "_descriptor")
+        reads = object.__getattribute__(self, "_reads")
+        matching = [item for item in descriptor.inputs if item.role == role]
+        if len(matching) != 1 or role in reads:
+            raise SealedArtifactExecutionError("sealed artifact input is unavailable")
+        content = object.__getattribute__(self, "_read_input")(role)
+        if not isinstance(content, bytes) or len(content) > matching[0].max_bytes:
+            raise SealedArtifactExecutionError("sealed artifact input is unavailable")
+        reads.add(role)
+        return content
+
+    def invoke_callback(self, name: str, request: bytes) -> bytes:
+        """Invoke one descriptor-declared callback with opaque bytes."""
+
+        descriptor = object.__getattribute__(self, "_descriptor")
+        if (
+            not isinstance(request, bytes)
+            or len([item for item in descriptor.callbacks if item.name == name]) != 1
+        ):
+            raise SealedArtifactExecutionError(
+                "sealed artifact callback is unavailable"
+            )
+        response = object.__getattribute__(self, "_callback")(name, request)
+        if not isinstance(response, bytes):
+            raise SealedArtifactExecutionError(
+                "sealed artifact callback is unavailable"
+            )
+        return response
+
+    def write_output(self, role: str, media_type: str, content: bytes) -> None:
+        """Write one ordered output through the private collector."""
+
+        try:
+            object.__getattribute__(self, "_collector").write(
+                role=role, media_type=media_type, content=content
+            )
+        except SealedArtifactOutputCollectorError as error:
+            raise SealedArtifactExecutionError(
+                "sealed artifact output is unavailable"
+            ) from error
+
+
+class SealedArtifactAssetRuntime:
+    """Execute one verified Python asset with imports and host objects unavailable."""
+
+    def execute(
+        self, *, asset: bytes, context: SealedArtifactExecutionContext
+    ) -> tuple[tuple[str, str, bytes], ...]:
+        """Call only ``run(context) -> None`` or destroy the private collector."""
+
+        if not isinstance(asset, bytes) or not isinstance(
+            context, SealedArtifactExecutionContext
+        ):
+            raise SealedArtifactExecutionError(
+                "sealed artifact execution is unavailable"
+            )
+        try:
+            namespace: dict[str, object] = {"__builtins__": {}}
+            exec(compile(asset, "<sealed-artifact>", "exec"), namespace)
+            run = namespace.get("run")
+            if not callable(run) or run(context) is not None:
+                raise SealedArtifactExecutionError(
+                    "sealed artifact execution is unavailable"
+                )
+            return object.__getattribute__(context, "_collector").seal()
+        except Exception as error:
+            object.__getattribute__(context, "_collector").abort()
+            if isinstance(error, SealedArtifactExecutionError):
+                raise
+            raise SealedArtifactExecutionError(
+                "sealed artifact execution is unavailable"
+            ) from error
 
 
 class SealedArtifactHandleService:
