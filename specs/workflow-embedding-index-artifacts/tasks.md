@@ -49,11 +49,11 @@
   - Depends on: E1.1.
   - Acceptance: document whether `sandbox-workspace-runtime` implementation is
     required before E4 can begin.
-  - Evidence: `sandbox-workspace-runtime` documents no implemented bounded
-    writable result-location primitive, and `local-tool-sandbox-hardening`
-    admits no OS/runtime isolation backend for untrusted executable assets.
-    Both are required before E4 can begin; E3 remains a host-only, no-builder
-    slice.
+  - Evidence: `sandbox-workspace-runtime` now has a host-only bounded in-memory
+    result collector, but `local-tool-sandbox-hardening` admits no OS/runtime
+    isolation backend for untrusted executable assets. The collector must be
+    wired through that backend before E4 can begin; E3 remains a host-only,
+    no-builder slice.
 
 ## E2 — Sealed artifacts
 

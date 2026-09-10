@@ -219,10 +219,10 @@ never an unsealed mutable workspace.
 ### FR-7: Isolation and redaction
 
 Package-local index-builder code remains subject to
-`sandbox-workspace-runtime` and `local-tool-sandbox-hardening`. Until a bounded
-result-location primitive and an approved OS/runtime isolation backend both
-exist, DAR must not claim that untrusted index-builder code is safely
-executable. Raw document content, chunks, vectors,
+`sandbox-workspace-runtime` and `local-tool-sandbox-hardening`. DAR has only a
+host-only in-memory bounded result collector today; until it is wired through
+an approved OS/runtime isolation backend, DAR must not claim that untrusted
+index-builder code is safely executable. Raw document content, chunks, vectors,
 index bytes, and source-path mappings are sensitive artifacts and must not
 enter ordinary traces, error text, capability reports, or debug diagnostics.
 

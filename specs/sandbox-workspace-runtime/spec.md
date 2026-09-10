@@ -5,11 +5,11 @@
 - Feature slug: `sandbox-workspace-runtime`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: DAR approval-policy boundary and a host-only descriptor-relative
-  no-follow file-copy primitive are implemented; all writable model-facing
-  runtime surfaces remain deferred, including the planned host-wrapper
-  temporary-workspace profile and authored-workflow-runtime-v1 file-ingress
-  integration
+- Status: DAR approval-policy boundary, a host-only descriptor-relative
+  no-follow file-copy primitive, and a host-only bounded in-memory declared
+  result collector are implemented; all writable model-facing runtime surfaces
+  remain deferred, including the planned host-wrapper temporary-workspace
+  profile and authored-workflow-runtime-v1 file-ingress integration
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `runtime.execution_policy.sandbox_runtime`
@@ -46,6 +46,14 @@ count. It intentionally does not provide write tools, shell tools, apply-patch
 tools, package installation, workspace persistence, or model-facing sandbox
 enforcement. The primitive is not yet wired into an authored-workflow-runtime-v1
 input artifact.
+
+The host-only `sandbox_result_location` collector accepts one bounded byte value
+for each canonical declared result name, seals all slots atomically in memory,
+and returns content-free hash/count identities until the host explicitly reads
+the sealed value. It exposes no filesystem path, directory, subprocess, or
+package-execution API. It is an egress building block for a future isolated
+backend, not a writable model-facing workspace or proof of untrusted-asset
+isolation.
 
 ## Scope
 
