@@ -16,7 +16,7 @@
   - [ ] Extend sentinels to actual ZIP/manifest readers, handle-byte access,
     provider revalidation/material load, output sealing, publication, and
     egress rather than fake asset-execution internals.
-- [ ] S3 [implementation] Add receiver composition and sealed artifact runner.
+- [x] S3 [implementation] Add receiver composition and sealed artifact runner.
   - [x] Retain declared output slots and add an ordered atomic private collector
     that destroys candidates on invalid or incomplete execution.
   - [x] Bind the receiver to real host registration, package, authorization,
@@ -32,7 +32,7 @@
   - [x] Add callback concurrency/deadline enforcement, cancellation, and
     aggregate runtime limits.
   - [x] Add redacted receipts.
-- [ ] S4 [tests, GREEN] Prove atomic outputs, provider revalidation, revocation,
+- [x] S4 [tests, GREEN] Prove atomic outputs, provider revalidation, revocation,
   cancellation/late-result disposal, redacted receipts, and deterministic
   receiving-host execution.
 - [ ] S5 [migration] Route embedding-index and locked-inference package assets
