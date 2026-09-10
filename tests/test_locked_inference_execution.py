@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 import pytest
 
@@ -117,3 +118,19 @@ def test_callback_revalidates_before_provider_and_has_no_role_fallback() -> None
     with pytest.raises(LockedInferenceExecutionError, match="role"):
         service.generate("missing", b'{"value":"request"}')
     assert provider.calls == []
+
+
+def test_callback_times_out_and_discards_late_provider_result() -> None:
+    class SlowProvider(_Provider):
+        def generate(self, **kwargs: object) -> bytes:
+            time.sleep(0.02)
+            return super().generate(**kwargs)  # type: ignore[arg-type]
+
+    provider = SlowProvider()
+    service = _service(provider)
+    service._limits["suggest"] = LockedInferenceHostLimits(2, 32, 32, 1, 1)
+
+    with pytest.raises(LockedInferenceExecutionError, match="timeout"):
+        service.generate("suggest", b'{"value":"request"}')
+    time.sleep(0.03)
+    assert provider.calls == [(b"sealed instruction", b'{"value":"request"}')]

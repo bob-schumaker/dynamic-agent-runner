@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Protocol
@@ -84,7 +85,7 @@ class LockedInferenceExecutionService:
         self._active = dict.fromkeys(roles, 0)
         self._lock = threading.Lock()
 
-    def generate(self, role: str, request_bytes: bytes) -> bytes:
+    def generate(self, role: str, request_bytes: bytes) -> bytes:  # noqa: C901
         """Execute one role after canonical validation and atomic quota reservation."""
 
         if role not in self._providers:
@@ -110,11 +111,22 @@ class LockedInferenceExecutionService:
             self._remaining[role] -= 1
             self._active[role] += 1
         try:
-            response_bytes = self._providers[role].generate(
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(
+                self._providers[role].generate,
                 binding=self._bindings[role],
                 instruction_bytes=self._instructions[role],
                 request_bytes=request_bytes,
             )
+            try:
+                response_bytes = future.result(limits.timeout_milliseconds / 1000)
+            except TimeoutError as error:
+                future.cancel()
+                raise LockedInferenceExecutionError("inference timeout") from error
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
+        except LockedInferenceExecutionError:
+            raise
         except Exception as error:  # noqa: BLE001 - provider internals stay private.
             raise LockedInferenceExecutionError("inference provider failed") from error
         finally:
