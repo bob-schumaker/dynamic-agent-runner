@@ -19,12 +19,17 @@ from dynamic_agent_runner.workflow_host.model_materials import (
     ModelMaterialsError,
     parse_model_dependency_lock,
 )
+from dynamic_agent_runner.workflow_host.material_sets import (
+    MaterialSetsError,
+    parse_model_material_sets,
+)
 from dynamic_agent_runner.workflow_host.staging import StagedPackage
 
 
 _MANIFEST_NAME = "package-manifest.json"
 _SIGNATURE_NAME = "package-signature.json"
 _MODEL_MATERIALS_NAME = "model-materials.json"
+_MODEL_MATERIAL_SETS_NAME = "model-material-sets.json"
 _ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 
 
@@ -132,9 +137,14 @@ def _verified_payload(staged: StagedPackage) -> dict[str, bytes]:
             "model_materials_digest" in value
             and not _is_digest(value["model_materials_digest"])
         )
+        or (
+            "model_material_sets_digest" in value
+            and not _is_digest(value["model_material_sets_digest"])
+        )
     ):
         raise PackageExportError("staged package manifest is invalid")
     _verify_model_materials_digest(root, value)
+    _verify_model_material_sets_digest(root, value)
     payload: dict[str, bytes] = {_MANIFEST_NAME: manifest}
     entries: list[tuple[str, str, int]] = []
     for entry in files:
@@ -173,6 +183,25 @@ def _verify_model_materials_digest(root: Path, manifest: dict[object, object]) -
         raise PackageExportError("model-material lock is invalid") from error
     if declared_digest != digest:
         raise PackageExportError("model-material lock does not match manifest")
+
+
+def _verify_model_material_sets_digest(
+    root: Path, manifest: dict[object, object]
+) -> None:
+    path = root / _MODEL_MATERIAL_SETS_NAME
+    declared_digest = manifest.get("model_material_sets_digest")
+    if not path.exists():
+        if declared_digest is not None:
+            raise PackageExportError("model-material sets do not match manifest")
+        return
+    try:
+        digest = parse_model_material_sets(
+            _read_regular_file(root, _MODEL_MATERIAL_SETS_NAME)
+        ).digest
+    except (MaterialSetsError, PackageExportError) as error:
+        raise PackageExportError("model-material sets are invalid") from error
+    if declared_digest != digest:
+        raise PackageExportError("model-material sets do not match manifest")
 
 
 def _valid_dar_runtime(value: object) -> bool:

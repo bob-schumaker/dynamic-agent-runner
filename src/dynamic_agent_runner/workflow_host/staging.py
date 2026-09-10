@@ -31,6 +31,10 @@ from dynamic_agent_runner.workflow_host.model_materials import (
     ModelMaterialsError,
     parse_model_dependency_lock,
 )
+from dynamic_agent_runner.workflow_host.material_sets import (
+    MaterialSetsError,
+    parse_model_material_sets,
+)
 
 from dynamic_agent_runner.workflow_host.profiles import InstallationIdentityProvider
 from dynamic_agent_runner.workflow_host.package_signatures import (
@@ -449,6 +453,9 @@ def _content_manifest_bytes(
     model_materials_digest = compatibility.get("model_materials_digest")
     if model_materials_digest is not None:
         payload["model_materials_digest"] = model_materials_digest
+    model_material_sets_digest = compatibility.get("model_material_sets_digest")
+    if model_material_sets_digest is not None:
+        payload["model_material_sets_digest"] = model_material_sets_digest
     return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
@@ -506,6 +513,9 @@ def _package_compatibility(root: Path) -> dict[str, object]:  # noqa: C901
         except CapabilityError as error:
             raise PackageStagingError("package descriptor is incompatible") from error
     model_materials_path = root / "model-materials.json"
+    model_material_sets_path = root / "model-material-sets.json"
+    if model_materials_path.exists() and model_material_sets_path.exists():
+        raise PackageStagingError("model-material declarations are invalid")
     if model_materials_path.exists():
         try:
             compatibility["model_materials_digest"] = parse_model_dependency_lock(
@@ -513,6 +523,13 @@ def _package_compatibility(root: Path) -> dict[str, object]:  # noqa: C901
             ).digest
         except (OSError, ModelMaterialsError) as error:
             raise PackageStagingError("model-material lock is invalid") from error
+    if model_material_sets_path.exists():
+        try:
+            compatibility["model_material_sets_digest"] = parse_model_material_sets(
+                model_material_sets_path.read_bytes()
+            ).digest
+        except (OSError, MaterialSetsError) as error:
+            raise PackageStagingError("model-material sets are invalid") from error
     return compatibility
 
 

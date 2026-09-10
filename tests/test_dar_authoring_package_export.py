@@ -24,6 +24,9 @@ from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.model_materials import (  # noqa: E402
     parse_model_dependency_lock,
 )
+from dynamic_agent_runner.workflow_host.material_sets import (  # noqa: E402
+    parse_model_material_sets,
+)
 from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
 )  # noqa: E402
@@ -67,6 +70,7 @@ def _stage(
     *,
     with_capability_requirements: bool = False,
     with_model_materials: bool = False,
+    with_model_material_sets: bool = False,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -85,6 +89,20 @@ def _stage(
     if with_model_materials:
         (source / "model-materials.json").write_text(
             json.dumps(_model_materials(), sort_keys=True, separators=(",", ":")),
+            encoding="utf-8",
+        )
+    if with_model_material_sets:
+        (source / "model-material-sets.json").write_text(
+            json.dumps(
+                {
+                    "format_version": 1,
+                    "material_sets": [
+                        {"role": "suggest", "model_materials": _model_materials()}
+                    ],
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
             encoding="utf-8",
         )
     store = PrivateStateStore(tmp_path / "state")
@@ -180,6 +198,34 @@ def test_export_rejects_a_tampered_model_materials_digest(tmp_path: Path) -> Non
 
     with pytest.raises(PackageExportError, match="model-material"):
         export_staged_package(staged=staged, destination=tmp_path / "export.zip")
+
+
+def test_export_and_import_bind_declared_material_sets_digest(tmp_path: Path) -> None:
+    staged, store = _stage(tmp_path, with_model_material_sets=True)
+    archive = tmp_path / "exports" / "model-material-sets.zip"
+
+    export_staged_package(staged=staged, destination=archive)
+    staged_manifest = json.loads((staged.root / "package-manifest.json").read_text())
+    with zipfile.ZipFile(archive) as exported:
+        exported_manifest = json.loads(exported.read("package-manifest.json"))
+    handle = PackageSourceSelectionPolicy(
+        allowed_root=archive.parent, store=store
+    ).select_zip(archive, now=NOW)
+    imported = PrivatePackageStager(
+        store=store, private_root=tmp_path / "imports"
+    ).stage(handle, now=NOW)
+
+    expected = parse_model_material_sets(
+        {
+            "format_version": 1,
+            "material_sets": [
+                {"role": "suggest", "model_materials": _model_materials()}
+            ],
+        }
+    ).digest
+    assert staged_manifest["model_material_sets_digest"] == expected
+    assert exported_manifest["model_material_sets_digest"] == expected
+    assert imported.digest == staged.digest
 
 
 def test_export_rejects_a_tampered_private_payload(tmp_path: Path) -> None:
