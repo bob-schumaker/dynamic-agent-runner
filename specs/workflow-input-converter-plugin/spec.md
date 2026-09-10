@@ -4,12 +4,14 @@
 
 - Feature slug: `workflow-input-converter-plugin`
 - Status: implemented and validated through the manual floorplan gate; release
-  task T5.6 and the Apple Metal addendum remain pending
+  task T5.6, the Apple Metal addendum, and capability-catalog integration
+  remain pending
 - Owner: dynamic-agent-runner workflow-host and local-model boundaries
 - Related specifications:
   - `specs/model-execution-plugin-interface/spec.md`
   - `specs/local-model-runner-interface/spec.md`
   - `specs/workflow-model-materials/spec.md`
+  - `specs/workflow-capability-requirements/spec.md`
   - `specs/local-tool-sandbox-hardening/spec.md`
   - `specs/natural-language-workflow-authoring/spec.md`
 
@@ -50,8 +52,11 @@ This feature defines:
    runner;
 4. lifecycle, resource, and failure requirements for a sealed converter
    package; and
-5. the first runner execution contract, `transformers-generate-v1`, for which a
-   converter creates processor-produced generation inputs.
+5. the built-in runner execution contracts `transformers-generate-v1` and
+   `llama-cpp-chat-v1`, for which a converter creates private runner inputs;
+   and
+6. a public, versioned converter ABI that lets a package asset avoid imports
+   from DAR's private `workflow_host` implementation modules.
 
 ## Non-Goals
 
@@ -82,6 +87,15 @@ registered workflow + prompt + sealed payload bytes
 The workflow already selects a logical model requirement and a runner execution
 contract. The host resolves those choices before execution; prompt text and
 payload bytes cannot select or replace them.
+
+The package also declares the standard DAR capability required to host the
+sealed converter ABI under `workflow-capability-requirements`. That requirement
+selects DAR's converter sandbox and runner context, not the package converter
+asset itself; the asset remains bound and validated by this specification. The
+manifest's compatible runner contract maps to exactly one required
+converter-host capability; DAR rejects a missing or incompatible mapping before
+it loads the package-local converter asset. The mapping is the package
+`capability_requirements.bindings.converter` entry.
 
 ### Private conversion edge
 
@@ -169,8 +183,18 @@ category. No processor is discovered or selected at invocation time.
 `transformers-peft-single-image-v1` remains the preparation loader profile and
 `transformers-peft-v1` remains the built-in runner catalog ID.
 `transformers-generate-v1` is the converter-compatible runner execution
-contract. A converter manifest shall match only the latter; these identifiers
-are not aliases and have no fallback matching.
+contract for processor-produced generation inputs. `llama-cpp-chat-v1` is the
+converter-compatible execution contract for the built-in multimodal llama.cpp
+profiles in `workflow-model-materials`. A converter manifest shall match one
+of those exact contracts; these identifiers are not aliases and have no
+fallback matching.
+
+For `llama-cpp-chat-v1`, the restricted context exposes only the facilities
+needed to build a validated private llama.cpp chat-message representation from
+the prompt and sealed payload. The runner receives that representation for one
+completion. It does not expose a model path, projector or adapter path,
+llama.cpp constructor settings, or arbitrary backend object. The converter
+cannot request a model, change a runner profile, or persist the representation.
 
 ### Converter contract
 
@@ -199,12 +223,28 @@ arbitrary model files nor model-selection controls. A converter may decode,
 identify, transform, normalize, tokenize, or pack its bytes in any way that its
 compatible runner can consume.
 
+The protocol and its referenced types are exported only from the public
+`dynamic_agent_runner.workflow_converter_api` module. That module exposes the
+versioned `InputConverterPlugin`, `SealedPayload`,
+`RestrictedRunnerInputContext`, `PackedModelInput`, and converter-owned error
+type needed by an asset. The context creates or validates the opaque packed
+value; package code does not import a runner implementation class or framework
+tensor type from `workflow_host`. Imports of `workflow_host`, a private runner
+module, a model path, or an arbitrary backend object are invalid converter
+dependencies and fail package admission.
+
 The first execution contract is `transformers-generate-v1`. Its runner loads
 the reviewed base model and PEFT adapter, provides the reviewed processor in the
 restricted context, receives an opaque mapping suitable for
 `model.generate(**inputs)`, and performs bounded generation and output decode.
 A JPEG/PNG Qwen converter is one implementation; a TIFF Qwen converter is a
 different implementation. Neither changes DAR's core interface.
+
+The current Qwen image converter is migration evidence, not a host-owned
+implementation target: its payload limits, Pillow decode, Qwen chat-template
+packing, and first-user-image message rule move unchanged into the sealed
+workflow asset that declares the matching Qwen material lock. DAR retains only
+the ABI validation, sandbox, limits, and runner context.
 
 ### Durable package identity
 
@@ -220,10 +260,10 @@ asset_digest
 declared_resource_limits
 ```
 
-The converter asset digest, selected runner contract, sealed model-material-lock
-digest, and workflow package digest form the immutable binding for that
-registered workflow instance. A generated converter becomes durable only
-through this binding. It
+The converter asset digest, selected runner contract, matching converter-host
+capability contract digest, sealed model-material-lock digest, and workflow
+package digest form the immutable binding for that registered workflow instance.
+A generated converter becomes durable only through this binding. It
 is not a host-wide installed plugin and cannot be reused by a different
 workflow without a separate host registration decision.
 
@@ -236,6 +276,10 @@ when its declared runner-contract ID exactly matches the selected runner. A
 payload, prompt, generated text, filename, extension, or guessed format shall
 not influence selection. Missing, duplicate, malformed, stale, or incompatible
 converter assets fail before a model worker starts.
+
+Package import/registration, rather than a model-specific host configuration
+command, is the only way a new workflow binds its converter to its selected
+model material and runner profile.
 
 ### FR-2: Opaque bytes at the DAR boundary
 

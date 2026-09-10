@@ -14,12 +14,21 @@
   - `specs/hugging-face-support-layer/spec.md`
   - `specs/local-model-availability-api/spec.md`
   - `specs/workflow-input-converter-plugin/spec.md`
+  - `specs/workflow-capability-requirements/spec.md`
 
 ## Objective
 
 Materialize a sealed workflow's declared model-material lock without exposing
 model paths, cache layout, artifact handles, or conversion steps to the
 workflow user.
+
+The portable transformation contract is owned by
+`specs/workflow-model-materials/spec.md` and
+`specs/workflow-capability-requirements/spec.md`: a required DAR preparation
+capability and a recomputable transformation digest replace this document's
+legacy DAR-owned preparation-recipe identifiers. References below to recipe
+selection describe legacy implementation mechanics only and must not govern
+construction of new workflow packages.
 
 For a known package/runtime pair, DAR resolves the package-bound, pinned
 material declaration to the complete artifact set required by that runtime. It
@@ -97,23 +106,20 @@ capabilities, and the complete model-material declaration defined by
 include `qwen25-vl-3b-floorplan-grpo`, the selected runner/profile, and
 `multimodal_input`. The declaration contains no physical artifact location.
 
-### Preparation recipe
+### Legacy preparation recipe
 
-A preparation recipe is DAR-owned reviewed implementation configuration for one
-exact, package-declared transformation. It defines how DAR executes an approved
-deterministic transformation with declared input/output roles. The sealed
-workflow material declaration supplies every source artifact's immutable
-repository revision, filename, expected digest, role, and compatible runtime
-format.
-
-A workflow author may select only a preparation-recipe identifier DAR supports
-at construction. A workflow cannot supply conversion code or commands. DAR must
-not use Hub search, a similarly named model, or a substitute recipe as fallback.
+A preparation recipe is a legacy DAR-owned implementation configuration for one
+exact transformation. New packages instead declare a required preparation
+capability with the immutable input/output roles and transformation digest
+defined by `workflow-model-materials`. DAR selects a compatible provider under
+`workflow-capability-requirements`; a workflow cannot supply conversion code,
+commands, or a provider preference. DAR must not use Hub search, a similarly
+named model, or a substitute capability as fallback.
 
 ### Prepared artifact set
 
 A prepared artifact set is the verified, runtime-ready result of one material
-lock and any selected preparation recipe.
+lock and any required preparation capability.
 It may contain multiple files, such as `base_model`, `vision_projector`, and
 `adapter`. Its paths and cache representation remain host-private. The only
 stable user-facing reference is the original logical model requirement.
@@ -137,9 +143,9 @@ uses the llama.cpp converter at commit
 `465e49b9cea78a68b9c244ffb48d0ee24a82873d`, produces F16 GGUF, and expects
 the resulting artifact SHA-256
 `ed95fb7aed5e44d075fe028fc58a5b478019f52960a5bebc1a8dd1d15fa93138`.
-The implementation shall pin the converter's isolated dependency environment
-as part of DAR's approved preparation recipe; an ambient Python environment is
-not a workflow-material input.
+The selected DAR preparation provider owns its isolated dependency environment;
+an ambient Python environment is not a workflow-material input. The converter
+commit is historical reference material, not a package-selectable recipe.
 
 ### Native Transformers + PEFT closure
 
@@ -175,13 +181,13 @@ sealed-artifact invocation.
 Before invoking a local adapter, DAR shall resolve the registered workflow's
 sealed material declaration and locked adapter/runner binding. The model prompt,
 generated workflow prose, and workspace input must not influence material or
-preparation-recipe selection.
+preparation-capability resolution.
 
 Acceptance criteria:
 
 - A floorplan workflow resolves its declared material lock and locked adapter to
   the floorplan artifact closure.
-- An unsupported material declaration or preparation recipe yields a stable
+- An unsupported material declaration or preparation capability yields a stable
   unavailable result before model loading or network activity.
 - A same-named model with a different adapter, revision, or capability is not a
   fallback.
@@ -308,7 +314,7 @@ operation, if exposed, operates exclusively on the saved workflow's lock.
 
 Preparation failures shall distinguish, without leaking private details:
 
-- unsupported sealed material declaration or preparation recipe;
+- unsupported sealed material declaration or preparation capability;
 - preparation not authorized by the current host policy;
 - source artifact unavailable or access required;
 - source or output integrity failure;
@@ -321,7 +327,7 @@ credential, access token, or opaque internal receipt.
 ## Required Validation
 
 Implementation must add deterministic, fake-only tests for material-lock and
-preparation-recipe selection,
+preparation-capability resolution,
 cache hit/miss behavior, download policy, per-file pinning, conversion input and
 output validation, cache invalidation, and path redaction. One manually gated
 acceptance run shall prepare and compose the floorplan base GGUF, projector, and

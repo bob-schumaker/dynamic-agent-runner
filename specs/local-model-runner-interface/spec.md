@@ -11,15 +11,16 @@
 - Validation: `validation.md`
 - Related: `specs/local-model-preparation/spec.md`
 - Related: `specs/workflow-model-materials/spec.md`
+- Related: `specs/workflow-capability-requirements/spec.md`
 - Future extension: `specs/workflow-input-converter-plugin/spec.md`
 
 ## Objective
 
 Make a DAR-prepared local model executable through its reviewed runtime without
-exposing runtime paths or framework choices to a workflow author. DAR owns one
-generic optional `transformers-peft-v1` compatibility runner alongside its
-existing llama.cpp support. A client runner remains an explicit escape hatch
-only for a model outside that closed compatibility profile.
+exposing runtime paths or framework choices to a workflow user. DAR owns the
+generic built-in `transformers-peft-v1` and `llama-cpp-v1` runners. A
+nonstandard runner is available only as a receiver-installed, reviewed plugin;
+it is never executable code supplied by a workflow package.
 
 `qwen25-vl-3b-floorplan-grpo` is the first native material declaration. It uses
 the generic runner; DAR contains no floorplan prompt, output schema, SVG rule, or
@@ -27,12 +28,19 @@ model-specific generation branch.
 
 ## Boundaries
 
-DAR owns material-lock/profile resolution, verified artifact materialization,
-optional runtime dependencies, local model loading, sealed text/image
-translation, generation limits, cleanup, tracing, and normalized model
-responses. The sealed workflow model-material declaration owns immutable
-base/adapter closures and the closed loader-profile ID. The workflow owns
-floorplan prompting, JSON/SVG contracts, and domain tooling.
+DAR owns material-lock/profile resolution, the generic runner registry,
+verified artifact materialization, optional runtime dependencies, local model
+loading, sealed text/image translation, generation limits, cleanup, tracing,
+and normalized model responses. The sealed workflow model-material declaration
+owns immutable base/adapter closures and the closed loader-profile ID. The
+receiving host owns placement, cache, network, endpoint, and resource policy.
+The workflow owns floorplan prompting, JSON/SVG contracts, and domain tooling.
+
+New packages declare the exact standard runner capability required by their
+material lock under `workflow-capability-requirements`. This specification
+defines the observable runner semantics behind that capability. The runner and
+profile IDs below constrain material compatibility; they do not select a class,
+native library, device, or provider implementation.
 
 The first slice deliberately does not add a plugin ABI, a model scheduler, a
 GPU allocator, user-configurable placement, remote code support, or support for
@@ -57,7 +65,7 @@ when all of the following are true:
 | Adapter API | `PeftModel.from_pretrained` against the verified adapter group, `is_trainable=False`, and local-only loading. |
 | Image runtime | The optional runtime includes a Torchvision release compatible with the locked Torch release; Qwen's processor requires it even for one image. |
 | Input | One nonempty user text prompt and exactly one sealed PNG or JPEG image no larger than 8 MiB or 32 megapixels. |
-| Generation | `model.generate` with `max_new_tokens` in `1..4096`; sampling is disabled. |
+| Generation | `model.generate` with `max_new_tokens` in `1..65536`, at most 32 continuations, and disabled sampling. |
 | Decode | Remove the prompt-token prefix, batch-decode the generated suffix with special tokens skipped, and reject an empty result. |
 
 The standard multimodal chat-template flow receives only an in-memory decoded
@@ -83,13 +91,13 @@ import or loader call.
 
 ## Requirements
 
-### FR-1: Exact built-in selection
+### FR-1: Exact registry selection
 
-DAR selects `transformers-peft-v1` only for a material declaration with the
-closed profile.
-The built-in ID is reserved: a client cannot register it, and a nonstandard
-material declaration cannot use it. The catalog must not infer a runner from
-extensions, imports, filenames, or fallback ordering.
+After exact capability resolution, DAR selects `transformers-peft-v1` or
+`llama-cpp-v1` only for a sealed ModelExecutionBinding with the matching closed
+profile. Built-in IDs are reserved: a package or external plugin cannot
+register or shadow them. The registry must not infer a runner from extensions,
+imports, filenames, adapter IDs, or fallback ordering.
 
 ### FR-2: Offline, verified loading
 
@@ -107,12 +115,14 @@ generation failure, or cancellation. Errors and traces use package-owned
 classifications and never include sealed bytes, image paths, prompt text,
 artifact paths, or vendor exception text.
 
-### FR-4: Client-runner escape hatch
+### FR-4: Receiver-installed runner extension
 
-The existing client-runner catalog remains for nonstandard profile IDs only. A
-client runner gets the same lazy verified-set resolver; it does not receive an
-authored path or authority to download. It cannot override or shadow a
-DAR-owned runner ID.
+A nonstandard runner is installed and reviewed by the receiving DAR
+installation before package admission. It gets the same sealed binding, lazy
+verified-set resolver, and host policy as a built-in runner; it does not
+receive an authored path or authority to download. It cannot override or shadow
+a DAR-owned runner ID, and a workflow package cannot contain its factory or
+native dependency.
 
 ### FR-5: Generic MPS placement
 
@@ -132,8 +142,8 @@ not retry through CPU/disk offload.
 
 - Fake-only tests prove the exact base/adapter closure, loader arguments,
   network-free rejection, generated-token slicing, and response normalization.
-- Fake-only tests prove no loader or client runner runs for an invalid profile,
-  wrong closure, duplicate/reserved ID, invalid media, or exhausted limit.
+- Fake-only tests prove no loader or runner runs for an invalid profile, wrong
+  closure, duplicate/reserved ID, invalid media, or exhausted limit.
 - Fake-only tests prove sealed image cleanup on every success and failure path.
 - Fake-only tests prove that MPS availability selects the direct MPS path and
   that an unavailable MPS backend retains the bounded automatic path, without

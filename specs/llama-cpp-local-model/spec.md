@@ -40,6 +40,7 @@
   - any earlier prototype work is non-authoritative historical context only
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
+  - `specs/workflow-model-materials/spec.md`
   - `specs/openai-compatible-provider-wrapper/spec.md`
   - `specs/internal-graph-mutation/spec.md`
   - `specs/llama-cpp-local-model/plan.md`
@@ -504,6 +505,13 @@ Acceptance criteria:
 
 Portable workflow artifacts must not become the canonical place for low-level
 llama.cpp deployment configuration.
+
+`workflow-model-materials` separately defines a sealed, exact artifact lock
+for construction-defined `llama-cpp-v1` workflow packages. That lock is not a
+deployment configuration surface: DAR resolves its hash-verified artifacts into
+host-private paths and applies all llama.cpp loading and hardware policy. The
+caller-provided resolution forms below remain the generic adapter API; sealed
+workflow execution must use the stricter workflow-material contract instead.
 
 Acceptance criteria:
 

@@ -38,8 +38,9 @@ and sealed-artifact handling.
 This feature defines:
 
 1. declarative built-in compatibility profiles for standard model families;
-2. a narrow client-supplied plugin contract for nonstandard execution behavior;
-3. exact plugin/material-lock/profile identity and compatibility validation;
+2. a narrow receiver-installed provider contract for nonstandard execution
+   behavior;
+3. exact capability/material-lock/profile compatibility validation;
 4. a verified installation and isolation model for plugin code; and
 5. DAR-owned lifecycle, resource, ingress, tracing, and result boundaries.
 
@@ -67,11 +68,11 @@ prompting, generation, and output behavior are within that profile's explicitly
 documented limits. Unsupported behavior fails closed instead of invoking a
 similarly named profile.
 
-### Client plugin for exceptions
+### Receiver-installed provider for exceptions
 
-A client plugin is an installed package or executable registered by the host,
-not content fetched or selected by a workflow material declaration. Its
-registration binds:
+A receiver-installed provider is an installed package or executable registered
+by the host, not content fetched or selected by a workflow material declaration.
+Its registration records:
 
 ```text
 plugin_id
@@ -80,10 +81,15 @@ plugin_distribution_digest
 supported_execution_profiles
 ```
 
+These fields are DAR-private provider identity and audit state. They establish
+which public model-execution capability contracts the provider may implement;
+they are not workflow package requirements or package-identity inputs.
+
 A sealed workflow model-material declaration names one supported execution
-profile and carries an immutable artifact closure. DAR validates the exact
-`(material_lock_digest, runner_id, plugin_id, plugin_version)` binding before
-loading a model.
+profile and carries an immutable artifact closure. The package requires the
+matching public model-execution capability; DAR selects a reviewed registered
+provider for it. Plugin identity is receiver-private audit state, not an exact
+package binding.
 
 ### Plugin contract
 
