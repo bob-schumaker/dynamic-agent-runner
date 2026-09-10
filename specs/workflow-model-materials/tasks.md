@@ -79,3 +79,27 @@ fake-only and test-first.
   - Evidence: `poetry run pytest -q` completed with 2,000 passed, 1 skipped,
     and 7 deselected; `poetry run ruff check src tests`, `git diff --check`,
     and `poetry run pre-commit run --all-files` passed on 2026-09-09.
+
+## M6 — Remove Legacy Floorplan Host Paths
+
+- [ ] M6.1 [tests, RED] Add focused regression tests proving a workflow with a
+  locked multimodal material, standard runner capability, and sealed converter
+  can be admitted without importing a floorplan-named production module or
+  calling a floorplan-named host/profile/CLI API.
+- [ ] M6.2 [implementation] Remove
+  `workflow_host/floorplan_vision_model.py`, floorplan-specific preparation
+  recipes, floorplan profile and host constructors, and floorplan-specific CLI
+  commands. Preserve only generic model-material, runner, converter, ingress,
+  and result-shaping contracts.
+- [ ] M6.3 [implementation] Move the floorplan scenario's model lock,
+  converter, renderer, schema, input images, and manual acceptance runner into
+  test-harness-only locations. No production module, package descriptor, or
+  generic specification may select or interpret those values.
+- [ ] M6.4 [tests, GREEN] Add a production-boundary scan that fails if `src/`,
+  package build output, or generic workflow fixtures contain floorplan-specific
+  model IDs, adapter IDs, converter IDs, schema names, or renderer references.
+  Allow the values only under the dedicated test harness.
+- [ ] M6.5 [verification] Run the focused migration regressions,
+  `poetry run pytest -q`, `poetry run ruff check src tests`, `git diff --check`,
+  and `poetry build`; verify the built wheel has no floorplan-specific files or
+  strings.

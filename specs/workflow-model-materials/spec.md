@@ -331,9 +331,11 @@ legacy compatibility paths, not future package architecture. New packages use
 the generic bindings: a text lock for the former Fastmail model; a
 `llama-cpp-multimodal-lora-v1` lock plus sealed converter for the former
 llama.cpp floorplan model; and the locked Transformers/PEFT profile for the
-former native floorplan model. DAR may retain read-only compatibility for
-already-issued host profiles, but must not construct a new package from a named
-domain adapter ID.
+former native floorplan model. Before this specification is complete, DAR must
+remove the floorplan-named host code, configuration commands, preparation
+recipes, and package-construction paths. The scenario's model lock, converter,
+renderer, fixtures, and acceptance runner belong only in the test harness. DAR
+must not construct a new package from a named domain adapter ID.
 
 A model-specific converter implementation is a workflow asset, even when it is
 not domain-specific. For example, the present Qwen image decoder and

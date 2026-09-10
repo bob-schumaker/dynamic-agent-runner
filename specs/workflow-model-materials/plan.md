@@ -49,11 +49,27 @@ admission has accepted the exact capability requirements.
 
 1. Derive a private `ModelExecutionBinding` from the validated lock, capability
    requirements digest, runner/profile contract, and sealed converter binding.
-2. Route generic runner and converter admission through it. Keep existing
-   floorplan/Fastmail constructors as legacy compatibility only.
+2. Route generic runner and converter admission through it. Preserve unrelated
+   compatibility paths only until their separately scoped migrations; do not
+   add new domain-named constructors.
 3. Prove missing/incompatible material, runner, or converter capabilities fail
    before download, preparation, framework import, converter asset access,
    model load, or sealed ingress.
+
+### M6 — Remove legacy floorplan host paths
+
+1. Add regression tests that exercise the generic material, runner, and
+   converter contracts without importing floorplan-named production modules or
+   configuring a domain-named host profile.
+2. Remove the floorplan vision module, fixed preparation recipes, named
+   profile/host constructors, and CLI configuration commands. Move the
+   scenario's model lock, converter, renderer, fixture assets, and manual
+   acceptance runner to the test harness.
+3. Prove production source and distributable package artifacts contain no
+   floorplan-specific model IDs, adapter IDs, converter IDs, schema names, or
+   renderer references; retain those only under test-harness paths.
+4. Run focused regressions, the full suite, Ruff, `git diff --check`, and the
+   package build to confirm generic package construction still works.
 
 ## Validation
 
