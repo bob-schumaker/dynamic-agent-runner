@@ -134,6 +134,12 @@ matching and receiver-local provider selection. A package declares the exact
 generation requirement once; all of its inference roles reference that one
 requirement and separately bind distinct material roles.
 
+`model.generate.v1` version `1` currently publishes the required `structured`
+feature. A conforming provider must satisfy DAR-owned fake vectors for bounded
+I/O, deadline handling, structured-value validation, and redacted failure.
+The capability is generic: it establishes no prompt, vocabulary, output-label,
+or domain interpretation contract.
+
 The canonical requirements bytes are the UTF-8 canonical JSON representation
 of the `format_version`, `required_capabilities`, and `bindings` information
 content, with recursively sorted object keys, no insignificant whitespace, NFC

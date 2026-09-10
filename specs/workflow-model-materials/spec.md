@@ -248,6 +248,23 @@ arguments. DAR rejects incomplete, additional, or incompatible closure members
 before a framework import. It shall not infer members from a filename, Hub
 snapshot, model card, or similarly named artifact.
 
+## ModelMaterialSets v1
+
+An inference-capable package with more than one locked model uses a separate
+`model-material-sets.json` declaration rather than changing a legacy
+`model-materials.json` lock. Its canonical information content is
+`format_version: 1` and a non-empty, lexically ordered `material_sets` array.
+Each entry contains a unique `[a-z][a-z0-9_]{0,63}` `role` and one complete
+`ModelDependencyLock v1` mapping. The optional declared
+`material_sets_digest` is the SHA-256 of those canonical bytes and is excluded
+from its own digest.
+
+A descriptor inference role names one distinct material-set role. DAR compares
+that relation before any asset read, cache access, download, preparation, model
+load, or sealed-input ingress. A package may contain either the legacy single
+lock or a material-set declaration, never both. The legacy lock's syntax,
+digest, import, and export behavior remain unchanged.
+
 ## Built-in llama.cpp Profiles
 
 `llama-cpp-v1` is a DAR-built runner contract for verified local GGUF

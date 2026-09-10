@@ -10,13 +10,18 @@
 
 ## I1 — Contract and multi-material prerequisites
 
-- [ ] I1.1 [design] Approve the canonical `inference_roles` v1 descriptor:
+- [x] I1.1 [design] Approve the canonical `inference_roles` v1 descriptor:
   role grammar/order, canonical bytes/digest, instruction/schema asset
   locations and digests, restricted structured-value-v1 dialect, explicit
   ceilings, callback-enabled asset entitlement, and result-slot ABI.
-- [ ] I1.2 [design] Approve one package-level `model.generate.v1` requirement
+  - Evidence: the strict canonical descriptor contract is recorded in the spec
+    and implemented as fake-only parser vectors; the asset ABI remains I3.
+- [x] I1.2 [design] Approve one package-level `model.generate.v1` requirement
   shared by roles, exact material-set role mapping, private executable binding,
   and legacy single-material/older-receiver behavior.
+  - Evidence: one exact structured generation requirement is shared by roles;
+    each role maps to a distinct material-set role, while legacy packages retain
+    the existing single-lock path.
 
 ## I2 — Admission and callback
 

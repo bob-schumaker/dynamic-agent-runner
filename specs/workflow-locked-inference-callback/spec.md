@@ -43,6 +43,15 @@ their referenced asset digests into package policy, registration, and export.
 The parser rejects unknown/duplicate/unsorted fields and roles. A receiver that
 does not support this descriptor version rejects it before asset import.
 
+The initial v1 syntax is a non-empty lexically ordered `roles` array. A role
+contains its identifier, distinct material-set role, literal
+`model.generate.v1` capability ID, sealed instruction/request-schema/response-
+schema assets (`path` plus SHA-256), sorted authorized callback-asset digests,
+and positive `max_calls`, input/output-byte, timeout-millisecond, and
+concurrency ceilings. `inference_roles_digest` is optional in source YAML but,
+when present, must equal the SHA-256 of the canonical JSON information content;
+registration and export always bind that digest.
+
 Each role has canonical UTF-8 instruction bytes and separate canonical
 structured-value-v1 request/result schema assets. Structured-value-v1 is a
 restricted JSON dialect: object, array, string, boolean, null, required,

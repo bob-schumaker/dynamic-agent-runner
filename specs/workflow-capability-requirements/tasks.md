@@ -315,9 +315,11 @@ targeted pre-commit hooks passed on 2026-09-09.
 
 ## C6 — Locked Inference Capability
 
-- [ ] C6.1 [design] Publish the exact `model.generate.v1` capability contract,
+- [x] C6.1 [design] Publish the exact `model.generate.v1` capability contract,
   feature set, and provider conformance vectors with
   `workflow-locked-inference-callback`.
+  - Evidence: the v1 contract requires the generic `structured` feature and
+    bounded-I/O, deadline, structured-value, and redacted-failure conformance.
 - [ ] C6.2 [tests, RED] Add descriptor/admission vectors for inference-role
   requirement/material-role mismatches that leave all asset, model, provider,
   ingress, and result actions at zero.

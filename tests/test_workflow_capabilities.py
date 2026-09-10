@@ -76,6 +76,43 @@ def test_empty_requirements_are_canonical_and_distinct_from_a_requirement() -> N
     assert empty.digest != _requirements().digest
 
 
+def test_builtin_locked_generation_contract_requires_structured_conformance() -> None:
+    contract = next(
+        item
+        for item in BUILTIN_CAPABILITY_CONTRACTS
+        if item.capability_id == "model.generate.v1"
+    )
+    requirements = CapabilityRequirements(
+        (
+            CapabilityRequirement(
+                contract.capability_id,
+                contract.contract_version,
+                contract.contract_digest,
+                ("structured",),
+            ),
+        )
+    )
+    incomplete = CapabilityProvider(
+        "private-generate-provider", contract, conformance_passed=True
+    )
+    complete = CapabilityProvider(
+        "private-generate-provider",
+        contract,
+        conformance_passed=True,
+        conformance_vector_ids=frozenset(
+            {"bounded_io", "deadline", "structured_value", "redacted_failure"}
+        ),
+    )
+
+    assert CapabilityCatalog((contract,), (incomplete,)).resolve(
+        requirements
+    ).status == ("capability_unavailable")
+    assert (
+        CapabilityCatalog((contract,), (complete,)).resolve(requirements).status
+        == "eligible"
+    )
+
+
 @pytest.mark.parametrize(
     "factory",
     (

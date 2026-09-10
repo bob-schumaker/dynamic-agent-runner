@@ -419,6 +419,7 @@ def _published_contract(
 
 BUILTIN_CAPABILITY_CONTRACTS = (
     _published_contract("model.execution.llama-cpp.v1", "1", ("multimodal",)),
+    _published_contract("model.generate.v1", "1", ("structured",)),
 )
 """DAR-owned built-in contracts that workflow packages may require."""
 
@@ -431,5 +432,8 @@ _BUILTIN_CONFORMANCE_VECTORS = {
             "resource_limits",
             "redacted_failure",
         }
-    )
+    ),
+    _contract_key(BUILTIN_CAPABILITY_CONTRACTS[1]): frozenset(
+        {"bounded_io", "deadline", "structured_value", "redacted_failure"}
+    ),
 }

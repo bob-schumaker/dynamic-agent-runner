@@ -129,8 +129,11 @@ fake-only and test-first.
 
 ## M7 — Material Sets for Locked Inference
 
-- [ ] M7.1 [design] Approve canonical ordered named material-set syntax and
+- [x] M7.1 [design] Approve canonical ordered named material-set syntax and
   legacy single-lock compatibility with `workflow-locked-inference-callback`.
+  - Evidence: `ModelMaterialSets v1` is a separate canonical declaration; it
+    leaves the legacy single-lock artifact unchanged and requires distinct named
+    role bindings before deferred execution.
 - [ ] M7.2 [tests, RED] Add parser/package/registration vectors for duplicate,
   missing, reordered, and substituted material roles before any cache, load,
   provider, or package asset action.
