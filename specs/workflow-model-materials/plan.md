@@ -62,12 +62,12 @@ admission has accepted the exact capability requirements.
    converter contracts without importing floorplan-named production modules or
    configuring a domain-named host profile.
 2. Remove the floorplan vision module, fixed preparation recipes, named
-   profile/host constructors, and CLI configuration commands. Move the
-   scenario's model lock, converter, renderer, fixture assets, and manual
-   acceptance runner to the test harness.
-3. Prove production source and distributable package artifacts contain no
-   floorplan-specific model IDs, adapter IDs, converter IDs, schema names, or
-   renderer references; retain those only under test-harness paths.
+   profile/host constructors, CLI configuration commands, and the in-tree Qwen
+   GRPO converter. Rehome only scenario assets currently under production
+   source; leave existing test-harness assets in place.
+3. Prove production source and distributable package artifacts contain none of
+   the enumerated floorplan model, adapter, converter, schema, renderer, or
+   module identifiers. Allow those identifiers only under `tests/`.
 4. Run focused regressions, the full suite, Ruff, `git diff --check`, and the
    package build to confirm generic package construction still works.
 

@@ -84,21 +84,25 @@ fake-only and test-first.
 
 - [ ] M6.1 [tests, RED] Add focused regression tests proving a workflow with a
   locked multimodal material, standard runner capability, and sealed converter
-  can be admitted without importing a floorplan-named production module or
-  calling a floorplan-named host/profile/CLI API.
+  can be admitted through public generic contracts without importing
+  `floorplan_vision_model` or calling a floorplan-named host, profile, or CLI
+  API.
 - [ ] M6.2 [implementation] Remove
-  `workflow_host/floorplan_vision_model.py`, floorplan-specific preparation
-  recipes, floorplan profile and host constructors, and floorplan-specific CLI
-  commands. Preserve only generic model-material, runner, converter, ingress,
-  and result-shaping contracts.
-- [ ] M6.3 [implementation] Move the floorplan scenario's model lock,
-  converter, renderer, schema, input images, and manual acceptance runner into
-  test-harness-only locations. No production module, package descriptor, or
-  generic specification may select or interpret those values.
-- [ ] M6.4 [tests, GREEN] Add a production-boundary scan that fails if `src/`,
-  package build output, or generic workflow fixtures contain floorplan-specific
-  model IDs, adapter IDs, converter IDs, schema names, or renderer references.
-  Allow the values only under the dedicated test harness.
+  `workflow_host/floorplan_vision_model.py`, both floorplan preparation recipe
+  declarations, floorplan profile and host constructors, floorplan-specific CLI
+  commands, and `workflow_host/qwen25_vl_3b_grpo_converter.py`. Preserve only
+  generic model-material, runner, converter, ingress, and result-shaping
+  contracts.
+- [ ] M6.3 [implementation] Rehome only the scenario assets currently under
+  production source—its model-lock/recipe declarations and Qwen converter—to
+  test-harness-only locations. Leave existing test fixture images, renderer,
+  schema, and manual acceptance assets in place. No production module, package
+  descriptor, or generic specification may select or interpret those values.
+- [ ] M6.4 [tests, GREEN] Add a production-source boundary scan that fails if
+  `src/` contains any of:
+  `qwen25-vl-3b-floorplan-grpo`, `floorplan-vision-llama-cpp-adapter-v1`,
+  `qwen-floorplan-input-v1`, `svg_floorplan`, `floorplan_vision_model`, or
+  `qwen25_vl_3b_grpo_converter`. Permit them only under `tests/`.
 - [ ] M6.5 [verification] Run the focused migration regressions,
   `poetry run pytest -q`, `poetry run ruff check src tests`, `git diff --check`,
   and `poetry build`; verify the built wheel has no floorplan-specific files or
