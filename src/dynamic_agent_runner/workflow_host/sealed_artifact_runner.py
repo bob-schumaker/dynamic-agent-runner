@@ -7,12 +7,12 @@ import json
 import re
 import stat
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from jsonschema import Draft202012Validator, SchemaError
+from jsonschema import Draft202012Validator, SchemaError, ValidationError
 
 from dynamic_agent_runner.workflow_host.capabilities import CapabilityRequirements
 from dynamic_agent_runner.workflow_host.state import (
@@ -60,6 +60,7 @@ class SealedArtifactSchemaAsset:
 
     path: str
     digest: str
+    document: object | None = None
 
 
 @dataclass(frozen=True)
@@ -152,8 +153,13 @@ def verify_sealed_artifact_runner_files(
 
     descriptor = parse_sealed_artifact_runner_descriptor(descriptor_bytes)
     _file_digest(root, descriptor.asset_path, descriptor.asset_digest)
-    for schema in descriptor.schema_assets:
-        _validate_schema(_file_digest(root, schema.path, schema.digest))
+    schema_assets = tuple(
+        replace(
+            schema,
+            document=_validate_schema(_file_digest(root, schema.path, schema.digest)),
+        )
+        for schema in descriptor.schema_assets
+    )
     child_contracts = {
         digest: _child_contract_mapping(root, digest)
         for digest in descriptor.child_contract_digests
@@ -162,7 +168,7 @@ def verify_sealed_artifact_runner_files(
         _validate_callback_child_contract(
             child_contracts[callback.child_contract_digest], callback
         )
-    return descriptor
+    return replace(descriptor, schema_assets=schema_assets)
 
 
 def validate_sealed_artifact_runner_capabilities(
@@ -293,6 +299,15 @@ class SealedArtifactHandleService:
             or len(content) > matching_inputs[0].max_bytes
         ):
             raise SealedArtifactHandleError("artifact handle is invalid")
+        if matching_inputs[0].schema_digest is not None:
+            schema_matches = [
+                item
+                for item in descriptor.schema_assets
+                if item.digest == matching_inputs[0].schema_digest
+            ]
+            if len(schema_matches) != 1 or schema_matches[0].document is None:
+                raise SealedArtifactHandleError("artifact handle is invalid")
+            _validate_input_json(content, schema_matches[0].document)
         issued_at = _utc(now)
         expiry = _utc(expires_at)
         if expiry <= issued_at:
@@ -692,12 +707,13 @@ def _file_digest(root: Path, path: str, expected_digest: str) -> bytes:
     return content
 
 
-def _validate_schema(value: bytes) -> None:
+def _validate_schema(value: bytes) -> object:
     try:
         schema = json.loads(
             value.decode("utf-8"), object_pairs_hook=_no_duplicate_object
         )
         Draft202012Validator.check_schema(schema)
+        return schema
     except (
         UnicodeDecodeError,
         json.JSONDecodeError,
@@ -707,6 +723,21 @@ def _validate_schema(value: bytes) -> None:
         raise SealedArtifactRunnerDescriptorError(
             "sealed artifact runner schema is invalid"
         ) from error
+
+
+def _validate_input_json(content: bytes, schema: object) -> None:
+    try:
+        value = json.loads(
+            content.decode("utf-8"), object_pairs_hook=_no_duplicate_object
+        )
+        Draft202012Validator(schema).validate(value)
+    except (
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        SealedArtifactRunnerDescriptorError,
+        ValidationError,
+    ) as error:
+        raise SealedArtifactHandleError("artifact handle is invalid") from error
 
 
 def _child_contract_mapping(root: Path, digest: str) -> Mapping[str, object]:

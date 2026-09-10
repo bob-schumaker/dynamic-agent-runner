@@ -11,6 +11,7 @@ from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactHandleService,
     SealedArtifactInput,
     SealedArtifactRunnerDescriptor,
+    SealedArtifactSchemaAsset,
 )
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 
@@ -40,6 +41,34 @@ def _descriptor() -> SealedArtifactRunnerDescriptor:
             ),
         ),
         schema_assets=(),
+        child_contract_digests=(),
+        callbacks=(),
+        output_roles=("result",),
+    )
+
+
+def _json_descriptor() -> SealedArtifactRunnerDescriptor:
+    schema = {"required": ["name"], "type": "object"}
+    schema_digest = "e" * 64
+    return SealedArtifactRunnerDescriptor(
+        digest="b" * 64,
+        asset_path="assets/runner.py",
+        asset_digest="c" * 64,
+        capability_requirements_digest="d" * 64,
+        inputs=(
+            SealedArtifactInput(
+                role="snapshot",
+                media_type="application/json",
+                max_bytes=100,
+                required=True,
+                schema_digest=schema_digest,
+            ),
+        ),
+        schema_assets=(
+            SealedArtifactSchemaAsset(
+                path="schemas/snapshot.json", digest=schema_digest, document=schema
+            ),
+        ),
         child_contract_digests=(),
         callbacks=(),
         output_roles=("result",),
@@ -104,6 +133,46 @@ def test_handle_preparation_enforces_declared_media_and_byte_ceiling(
             expires_at=NOW + timedelta(minutes=1),
             now=NOW,
         )
+
+
+@pytest.mark.parametrize("content", [b'{"name":"first","name":"second"}', b"[]"])
+def test_handle_preparation_rejects_invalid_declared_json_schema(
+    tmp_path, content: bytes
+) -> None:
+    service = _service(tmp_path)
+
+    with pytest.raises(SealedArtifactHandleError, match="invalid"):
+        service.prepare(
+            descriptor=_json_descriptor(),
+            receiver_id="receiver",
+            revision_digest="a" * 64,
+            invocation_id="invocation",
+            role="snapshot",
+            media_type="application/json",
+            schema_digest="e" * 64,
+            content=content,
+            expires_at=NOW + timedelta(minutes=1),
+            now=NOW,
+        )
+
+
+def test_handle_preparation_accepts_valid_declared_json_schema(tmp_path) -> None:
+    service = _service(tmp_path)
+
+    handle = service.prepare(
+        descriptor=_json_descriptor(),
+        receiver_id="receiver",
+        revision_digest="a" * 64,
+        invocation_id="invocation",
+        role="snapshot",
+        media_type="application/json",
+        schema_digest="e" * 64,
+        content=b'{"name":"ok"}',
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    assert handle.handle_id
 
 
 def _binding() -> dict[str, str | None]:

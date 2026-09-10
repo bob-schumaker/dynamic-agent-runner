@@ -204,7 +204,8 @@ def test_verifier_rejects_invalid_or_tampered_declared_schema(tmp_path) -> None:
     (tmp_path / "schemas").mkdir()
     (tmp_path / "schemas" / "result.json").write_bytes(schema)
 
-    verify_sealed_artifact_runner_files(tmp_path, _canonical(descriptor))
+    verified = verify_sealed_artifact_runner_files(tmp_path, _canonical(descriptor))
+    assert verified.schema_assets[0].document == {"type": "object"}
 
     (tmp_path / "schemas" / "result.json").write_bytes(b"not json")
     with pytest.raises(SealedArtifactRunnerDescriptorError):
