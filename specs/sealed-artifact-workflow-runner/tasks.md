@@ -1,7 +1,7 @@
 # Sealed Artifact Workflow Runner Tasks
 
-- [ ] S1 [design] Approve canonical descriptor, handle lifecycle, asset ABI,
-  authorization, and manifest binding.
+- [x] S1 [design] Approved canonical descriptor, handle lifecycle, asset ABI,
+  authorization, and manifest binding after Council and Ponytail review.
 - [ ] S2 [tests, RED] Add descriptor/ZIP/handle/authorization vectors and a
   complete zero-side-effect admission sentinel matrix.
 - [ ] S3 [implementation] Add receiver composition and sealed artifact runner.
