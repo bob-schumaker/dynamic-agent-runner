@@ -17,6 +17,13 @@
     provider revalidation/material load, output sealing, publication, and
     egress rather than fake asset-execution internals.
 - [ ] S3 [implementation] Add receiver composition and sealed artifact runner.
+  - [x] Retain declared output slots and add an ordered atomic private collector
+    that destroys candidates on invalid or incomplete execution.
+  - [ ] Bind the receiver to real host registration, package, authorization,
+    identity, handle, runtime-profile, callback-provider, and output-handle
+    collaborators.
+  - [ ] Implement the fixed asset ABI and its input, callback, cancellation,
+    limit, and redacted-receipt behavior.
 - [ ] S4 [tests, GREEN] Prove atomic outputs, provider revalidation, revocation,
   cancellation/late-result disposal, redacted receipts, and deterministic
   receiving-host execution.
