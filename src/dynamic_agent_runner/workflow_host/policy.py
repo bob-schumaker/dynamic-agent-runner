@@ -45,6 +45,11 @@ from dynamic_agent_runner.workflow_host.model_execution_binding import (
     ModelExecutionBindingError,
     derive_model_execution_binding,
 )
+from dynamic_agent_runner.workflow_host.embedding_execution import (
+    EmbeddingExecutionBinding,
+    EmbeddingExecutionBindingError,
+    derive_embedding_execution_binding,
+)
 
 
 DESCRIPTOR_FILENAME = "workflow-descriptor.yaml"
@@ -78,6 +83,8 @@ class WorkflowPolicy:
     model_materials_digest: str | None = None
     model_execution_binding: ModelExecutionBinding | None = None
     model_execution_binding_digest: str | None = None
+    embedding_execution_binding: EmbeddingExecutionBinding | None = None
+    embedding_execution_binding_digest: str | None = None
     selected_capability_provider_ids: tuple[str, ...] = ()
     workspace: WorkspaceContract = field(
         default_factory=lambda: WorkspaceContract((), "none")
@@ -124,6 +131,14 @@ def compile_workflow_policy(  # noqa: C901
             )
         selected_capability_provider_ids = resolution.selected_provider_ids
     model_materials = _load_model_materials(revision.package_root)
+    capability_requirements = (
+        descriptor.capability_requirements or CapabilityRequirements()
+    )
+    model_execution_binding, embedding_execution_binding = _execution_bindings(
+        descriptor=descriptor,
+        model_materials=model_materials,
+        capability_requirements=capability_requirements,
+    )
     try:
         workflow = load_agent_package_workflow(str(revision.package_root))
         _validate_local_tool_assets(
@@ -159,45 +174,6 @@ def compile_workflow_policy(  # noqa: C901
     if descriptor.output_schema_ref not in workflow.runtime_manifest.output_contracts:
         raise PolicyCompilationError("registered terminal output contract is missing")
     descriptor_digest = hashlib.sha256(descriptor_bytes).hexdigest()
-    capability_requirements = (
-        descriptor.capability_requirements or CapabilityRequirements()
-    )
-    if model_materials is not None and "runner" not in capability_requirements.bindings:
-        raise PolicyCompilationError(
-            "model-material lock requires a runner capability binding"
-        )
-    model_execution_binding = None
-    if model_materials is not None:
-        requirements_by_id = {
-            item.capability_id: item
-            for item in capability_requirements.required_capabilities
-        }
-        if any(
-            (requirement := requirements_by_id.get(operation.capability_id)) is None
-            or requirement.contract_version != operation.contract_version
-            or requirement.contract_digest != operation.contract_digest
-            for operation in model_materials.preparation
-        ):
-            raise PolicyCompilationError(
-                "model-material preparation capability is unavailable"
-            )
-        converter_capability_id = None
-        if descriptor.input_converter is not None:
-            converter_capability_id = capability_requirements.bindings.get("converter")
-            if not isinstance(converter_capability_id, str):
-                raise PolicyCompilationError(
-                    "model converter capability is unavailable"
-                )
-        try:
-            model_execution_binding = derive_model_execution_binding(
-                lock=model_materials,
-                requirements=capability_requirements,
-                converter_capability_id=converter_capability_id,
-            )
-        except ModelExecutionBindingError as error:
-            raise PolicyCompilationError(
-                "model execution binding is unavailable"
-            ) from error
     tool_capabilities = _tool_capabilities(descriptor.declared_tools)
     local_tool_capabilities = _local_tool_capabilities(descriptor.declared_local_tools)
     deferred_capabilities = _deferred_runtime_capabilities(descriptor, workflow)
@@ -222,6 +198,11 @@ def compile_workflow_policy(  # noqa: C901
             "model_execution_binding_digest": (
                 model_execution_binding.digest
                 if model_execution_binding is not None
+                else None
+            ),
+            "embedding_execution_binding_digest": (
+                embedding_execution_binding.digest
+                if embedding_execution_binding is not None
                 else None
             ),
             "model_profile_requirement": descriptor.model_profile_requirement,
@@ -346,6 +327,12 @@ def compile_workflow_policy(  # noqa: C901
             if model_execution_binding is not None
             else None
         ),
+        embedding_execution_binding=embedding_execution_binding,
+        embedding_execution_binding_digest=(
+            embedding_execution_binding.digest
+            if embedding_execution_binding is not None
+            else None
+        ),
         selected_capability_provider_ids=selected_capability_provider_ids,
         declared_skill_ids=descriptor.declared_skill_ids,
         declared_tools=descriptor.declared_tools,
@@ -355,6 +342,67 @@ def compile_workflow_policy(  # noqa: C901
         terminal_output_processors=descriptor.terminal_output_processors,
         input_converter=descriptor.input_converter,
     )
+
+
+def _execution_bindings(
+    *,
+    descriptor: WorkflowDescriptor,
+    model_materials: ModelDependencyLock | None,
+    capability_requirements: CapabilityRequirements,
+) -> tuple[ModelExecutionBinding | None, EmbeddingExecutionBinding | None]:
+    """Derive sealed execution identities before any package-owned load."""
+
+    if model_materials is None:
+        if any(
+            item.capability_id == "embedding.execute.v1"
+            for item in capability_requirements.required_capabilities
+        ):
+            raise PolicyCompilationError("embedding execution binding is unavailable")
+        return None, None
+    if "runner" not in capability_requirements.bindings:
+        raise PolicyCompilationError(
+            "model-material lock requires a runner capability binding"
+        )
+    requirements_by_id = {
+        item.capability_id: item
+        for item in capability_requirements.required_capabilities
+    }
+    if any(
+        (requirement := requirements_by_id.get(operation.capability_id)) is None
+        or requirement.contract_version != operation.contract_version
+        or requirement.contract_digest != operation.contract_digest
+        for operation in model_materials.preparation
+    ):
+        raise PolicyCompilationError(
+            "model-material preparation capability is unavailable"
+        )
+    converter_capability_id = None
+    if descriptor.input_converter is not None:
+        converter_capability_id = capability_requirements.bindings.get("converter")
+        if not isinstance(converter_capability_id, str):
+            raise PolicyCompilationError("model converter capability is unavailable")
+    try:
+        model_binding = derive_model_execution_binding(
+            lock=model_materials,
+            requirements=capability_requirements,
+            converter_capability_id=converter_capability_id,
+        )
+    except ModelExecutionBindingError as error:
+        raise PolicyCompilationError(
+            "model execution binding is unavailable"
+        ) from error
+    if "embedding.execute.v1" not in requirements_by_id:
+        return model_binding, None
+    try:
+        embedding_binding = derive_embedding_execution_binding(
+            model_binding=model_binding,
+            requirements=capability_requirements,
+        )
+    except EmbeddingExecutionBindingError as error:
+        raise PolicyCompilationError(
+            "embedding execution binding is unavailable"
+        ) from error
+    return model_binding, embedding_binding
 
 
 def load_workflow_descriptor(descriptor_bytes: bytes) -> object:

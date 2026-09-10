@@ -455,6 +455,120 @@ def test_policy_binds_the_canonical_model_materials_digest(tmp_path: Path) -> No
     assert policy.model_materials_digest == lock.digest
 
 
+def test_policy_derives_embedding_binding_before_workflow_import(
+    tmp_path: Path,
+) -> None:
+    materials = {
+        "format_version": 1,
+        "logical_model_id": "local-embedding-model",
+        "runner_contract": {"id": "llama-cpp-v1", "version": "1"},
+        "loader_profile_contract": {"id": "llama-cpp-embedding-v1", "version": "1"},
+        "sources": [
+            {
+                "role": "base_model",
+                "group": "base",
+                "source_type": "huggingface_file",
+                "repository": "example-org/example-model",
+                "revision": "a" * 40,
+                "filename": "model.gguf",
+                "sha256": "b" * 64,
+            }
+        ],
+        "preparation": [],
+    }
+    embedding = CapabilityContract(
+        "embedding.execute.v1", "1", "a" * 64, ("deterministic",)
+    )
+    runner = CapabilityContract("model.execution.test.v1", "1", "c" * 64, ())
+    requirements = CapabilityRequirements(
+        (
+            CapabilityRequirement(
+                embedding.capability_id,
+                embedding.contract_version,
+                embedding.contract_digest,
+                ("deterministic",),
+            ),
+            CapabilityRequirement(
+                runner.capability_id,
+                runner.contract_version,
+                runner.contract_digest,
+                (),
+            ),
+        ),
+        {"runner": runner.capability_id},
+    )
+
+    policy = compile_workflow_policy(
+        _catalog_revision(
+            tmp_path,
+            model_materials=materials,
+            capability_requirements={
+                "format_version": 1,
+                "required_capabilities": [
+                    item.to_mapping() for item in requirements.required_capabilities
+                ],
+                "capability_requirements_digest": requirements.digest,
+                "bindings": {"runner": {"capability_id": runner.capability_id}},
+            },
+        ),
+        capability_catalog=CapabilityCatalog(
+            (embedding, runner),
+            (
+                CapabilityProvider(
+                    "embedding-provider", embedding, conformance_passed=True
+                ),
+                CapabilityProvider("runner-provider", runner, conformance_passed=True),
+            ),
+        ),
+    )
+
+    assert policy.embedding_execution_binding is not None
+    assert (
+        policy.embedding_execution_binding.material_lock_digest
+        == policy.model_materials_digest
+    )
+    assert policy.embedding_execution_binding_digest
+
+
+def test_unavailable_embedding_fails_before_import_or_model_admission(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    embedding = CapabilityContract(
+        "embedding.execute.v1", "1", "a" * 64, ("deterministic",)
+    )
+    requirement = CapabilityRequirement(
+        embedding.capability_id,
+        embedding.contract_version,
+        embedding.contract_digest,
+        ("deterministic",),
+    )
+    requirements = CapabilityRequirements((requirement,))
+    revision = _catalog_revision(
+        tmp_path,
+        capability_requirements={
+            "format_version": 1,
+            "required_capabilities": [requirement.to_mapping()],
+            "capability_requirements_digest": requirements.digest,
+            "bindings": {},
+        },
+    )
+    monkeypatch.setattr(
+        policy_module,
+        "load_agent_package_workflow",
+        lambda _path: pytest.fail("runtime manifest was loaded"),
+    )
+    monkeypatch.setattr(
+        policy_module,
+        "_load_model_materials",
+        lambda _root: pytest.fail("model material admission was attempted"),
+    )
+
+    with pytest.raises(PolicyCompilationError, match="capability"):
+        compile_workflow_policy(
+            revision, capability_catalog=CapabilityCatalog((embedding,), ())
+        )
+
+
 def test_model_materials_require_a_declared_runner_capability_binding(
     tmp_path: Path,
 ) -> None:

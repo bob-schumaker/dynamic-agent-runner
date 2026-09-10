@@ -92,9 +92,14 @@
     `embedding.execute.v1` requirement; its receiver-owned adapter bridge
     wraps the existing direct local embedding interface without exposing loader
     configuration to package data.
-- [ ] E3.3 [tests, GREEN] Prove every failed embedding binding leaves model
+- [x] E3.3 [tests, GREEN] Prove every failed embedding binding leaves model
   materialization, embedding execution, package import, and egress at zero.
   - Depends on: E3.2.
+  - Evidence: policy compilation resolves and derives the exact embedding
+    binding before package import. Focused sentinels prove an unavailable
+    embedding requirement performs no runtime-manifest load or model-material
+    admission; provider/batch failures make zero provider calls. No builder or
+    egress surface exists before E4's sandbox gate.
 
 ## E4 — Workflow-local builder
 

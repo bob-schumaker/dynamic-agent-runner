@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+from hashlib import sha256
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
@@ -80,6 +81,19 @@ class EmbeddingExecutionBinding:
         """Return the locked material identity for result binding."""
 
         return self.model_binding.material_lock_digest
+
+    @property
+    def digest(self) -> str:
+        """Return the sealed host-private embedding execution identity."""
+
+        return sha256(
+            (
+                self.model_binding.digest
+                + self.capability_id
+                + self.capability_contract_version
+                + self.capability_contract_digest
+            ).encode("utf-8")
+        ).hexdigest()
 
 
 class EmbeddingProvider(Protocol):
