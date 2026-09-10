@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -325,3 +326,34 @@ def test_expired_handle_cannot_be_consumed(tmp_path) -> None:
             schema_digest=None,
             now=NOW + timedelta(minutes=2),
         )
+
+
+def test_forged_handle_and_wrong_owner_never_return_content(tmp_path) -> None:
+    service = _service(tmp_path)
+    handle = _prepare(service)
+    other_owner = SealedArtifactHandleService(
+        store=PrivateStateStore(tmp_path / "state"), owner="other-owner"
+    )
+
+    with pytest.raises(SealedArtifactHandleError, match="unavailable"):
+        service.reserve(f"{handle.handle_id}forged", now=NOW, **_binding())
+    with pytest.raises(SealedArtifactHandleError, match="unavailable"):
+        other_owner.reserve(handle.handle_id, now=NOW, **_binding())
+
+    service.reserve(handle.handle_id, now=NOW, **_binding())
+    assert service.consume(handle.handle_id, now=NOW, **_binding()) == b"sealed bytes"
+
+
+def test_tampered_private_handle_record_never_returns_content(tmp_path) -> None:
+    service = _service(tmp_path)
+    handle = _prepare(service)
+    service.reserve(handle.handle_id, now=NOW, **_binding())
+    records_path = tmp_path / "state" / "records.json"
+    records = json.loads(records_path.read_text(encoding="utf-8"))
+    records["records"][handle.handle_id]["payload"]["content"] = b"forged bytes".hex()
+    records_path.write_text(
+        json.dumps(records, sort_keys=True, separators=(",", ":")), encoding="utf-8"
+    )
+
+    with pytest.raises(SealedArtifactHandleError, match="unavailable"):
+        service.consume(handle.handle_id, now=NOW, **_binding())
