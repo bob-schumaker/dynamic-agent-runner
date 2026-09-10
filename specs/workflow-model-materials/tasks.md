@@ -142,5 +142,8 @@ fake-only and test-first.
   - Evidence: `ModelMaterialSets` and `InferenceRoles` derive distinct private
     `LockedInferenceBinding` values before runtime package loading; policy and
     deterministic ZIP manifests bind the material-set and inference-role digests.
-- [ ] M7.4 [tests, GREEN] Prove role isolation and unchanged legacy package
+- [x] M7.4 [tests, GREEN] Prove role isolation and unchanged legacy package
   import/export behavior.
+  - Evidence: focused fake-only material-set/inference-role parser and binding
+    tests prove distinct role isolation; staging/export regression coverage
+    proves deterministic legacy single-lock and new material-set ZIP behavior.
