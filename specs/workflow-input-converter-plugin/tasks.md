@@ -300,3 +300,12 @@ the standard runner interface. Docker and OS-level isolation are deferred to
   JSON, or the declared continuation limit, while the normal run result and
   traces remain redacted. Record only diagnostic identity, declared limits, and
   classified outcome in validation evidence.
+
+## T5.9 — Generic generation safety bounds
+
+- [x] T5.9.1 [tests, RED/GREEN] Raise the generic `transformers-peft-v1`
+  per-fragment `max_tokens` validation ceiling from 65,536 to 1,000,000 while
+  retaining the existing 32-continuation ceiling. Prove the inclusive 1,000,000
+  boundary is accepted and 1,000,001 is rejected. Document that these are DAR
+  safety bounds rather than a context-length claim for every locked model set.
+  Focused fake-only runner tests passed on 2026-09-09.

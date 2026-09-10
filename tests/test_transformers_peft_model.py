@@ -881,7 +881,7 @@ def test_generic_runner_rejects_bad_decodes_and_generation_limits(
             build_openai_request(
                 model=recipe.model_id,
                 messages=[OpenAIMessage("user", "vectorize")],
-                max_tokens=65_537,
+                max_tokens=1_000_001,
             )
         )
     assert adapter._sealed_image is None
@@ -923,11 +923,11 @@ def test_standard_runner_accepts_the_extended_generation_limits() -> None:
     request = build_openai_request(
         model="qwen25-vl-3b-floorplan-grpo",
         messages=[OpenAIMessage("user", "vectorize")],
-        max_tokens=65_536,
+        max_tokens=1_000_000,
         max_continuations=32,
     )
 
-    assert _max_new_tokens(request) == 65_536
+    assert _max_new_tokens(request) == 1_000_000
     assert _max_continuations(request) == 32
 
     with pytest.raises(ModelExecutionError, match="generation limit"):
@@ -935,7 +935,7 @@ def test_standard_runner_accepts_the_extended_generation_limits() -> None:
             build_openai_request(
                 model="qwen25-vl-3b-floorplan-grpo",
                 messages=[OpenAIMessage("user", "vectorize")],
-                max_tokens=65_537,
+                max_tokens=1_000_001,
             )
         )
     with pytest.raises(ModelExecutionError, match="continuation limit"):

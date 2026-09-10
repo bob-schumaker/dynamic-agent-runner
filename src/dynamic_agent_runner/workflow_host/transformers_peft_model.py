@@ -23,6 +23,7 @@ _CONTINUATION_INSTRUCTION = (
     "Continue the exact response from where it stopped. Return only the remaining text."
 )
 _MAX_CONTINUATIONS = 32
+_MAX_NEW_TOKENS = 1_000_000
 
 
 class TransformersPeftBackend(Protocol):
@@ -512,7 +513,7 @@ def _max_continuations(request: OpenAIModelRequest) -> int:
 
 
 def _validate_max_new_tokens(value: object) -> None:
-    if not isinstance(value, int) or not 1 <= value <= 65_536:
+    if not isinstance(value, int) or not 1 <= value <= _MAX_NEW_TOKENS:
         raise ModelExecutionError("model generation limit is invalid")
 
 
