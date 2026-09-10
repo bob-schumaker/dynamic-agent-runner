@@ -180,7 +180,7 @@ def test_local_host_enables_sealed_artifact_runner_only_with_a_resolver(
     assert enabled._sealed_artifact_runner is not None
 
 
-def test_local_host_rejects_tampered_sealed_asset_before_callback_or_egress(
+def test_local_host_rejects_tampered_asset_and_missing_handle_before_execution(
     tmp_path: Path,
 ) -> None:
     package_root = tmp_path / "packages"
@@ -324,6 +324,23 @@ def test_local_host_rejects_tampered_sealed_asset_before_callback_or_egress(
     )
     staged_asset.write_bytes(asset)
 
+    with pytest.raises(LocalWorkflowHostError, match="sealed artifact runner"):
+        host.run_sealed_artifact(
+            SealedArtifactInvocation(
+                workflow_id=registration.workflow_id,
+                invocation_id="run-1",
+                input_handles={"snapshot": "missing-handle"},
+            ),
+            now=NOW,
+        )
+
+    assert resolver.calls == 1
+    assert not output_store.active_records(
+        kind="sealed_artifact_output_set",
+        owner=InstallationIdentityProvider().principal,
+        now=NOW,
+    )
+
     result = host.run_sealed_artifact(
         SealedArtifactInvocation(
             workflow_id=registration.workflow_id,
@@ -335,7 +352,7 @@ def test_local_host_rejects_tampered_sealed_asset_before_callback_or_egress(
 
     assert [handle.role for handle in result.outputs] == ["result"]
     assert result.receipt["status"] == "completed"
-    assert resolver.calls == 1
+    assert resolver.calls == 2
 
 
 def test_local_host_configures_one_reviewed_tool_package(tmp_path: Path) -> None:
