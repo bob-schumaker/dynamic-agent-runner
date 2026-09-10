@@ -26,10 +26,8 @@ from dynamic_agent_runner.workflow_host.host import (
     authorize_mcp_oauth,
     configure_mcp_api_token,
     configure_apple_local_host,
-    configure_floorplan_vision_llama_cpp_host,
     configure_fastmail_triage_llama_cpp_host,
     configure_local_host,
-    configure_qwen25_vl_3b_floorplan_grpo_transformers_peft_host,
     create_mcp_connection,
     inspect_discovered_mcp_oauth,
     revoke_package_publisher,
@@ -126,8 +124,6 @@ def _configured_model(
         "configure-local-model",
         "configure-apple-model",
         "configure-fastmail-triage-llama-cpp",
-        "configure-floorplan-vision-llama-cpp",
-        "configure-qwen25-vl-3b-floorplan-grpo-transformers-peft",
     }:
         return None
     shared = {
@@ -142,10 +138,6 @@ def _configured_model(
     }
     if args.command == "configure-fastmail-triage-llama-cpp":
         return configure_fastmail_triage_llama_cpp_host(**shared)
-    if args.command == "configure-floorplan-vision-llama-cpp":
-        return configure_floorplan_vision_llama_cpp_host(**shared)
-    if args.command == "configure-qwen25-vl-3b-floorplan-grpo-transformers-peft":
-        return configure_qwen25_vl_3b_floorplan_grpo_transformers_peft_host(**shared)
     shared["model_id"] = args.model_id
     if args.command == "configure-apple-model":
         return configure_apple_local_host(**shared)
@@ -175,20 +167,6 @@ def _parser() -> argparse.ArgumentParser:
     fastmail_configure.add_argument("--package-root", required=True)
     fastmail_configure.add_argument("--workspace-input-root")
     fastmail_configure.add_argument(
-        "--workspace-input-max-bytes", type=int, default=8 * 1024 * 1024
-    )
-    floorplan_configure = commands.add_parser("configure-floorplan-vision-llama-cpp")
-    floorplan_configure.add_argument("--package-root", required=True)
-    floorplan_configure.add_argument("--workspace-input-root")
-    floorplan_configure.add_argument(
-        "--workspace-input-max-bytes", type=int, default=8 * 1024 * 1024
-    )
-    transformers_peft_configure = commands.add_parser(
-        "configure-qwen25-vl-3b-floorplan-grpo-transformers-peft"
-    )
-    transformers_peft_configure.add_argument("--package-root", required=True)
-    transformers_peft_configure.add_argument("--workspace-input-root")
-    transformers_peft_configure.add_argument(
         "--workspace-input-max-bytes", type=int, default=8 * 1024 * 1024
     )
     issue_materials = commands.add_parser("issue-authoring-materials")

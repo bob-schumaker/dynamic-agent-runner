@@ -9,7 +9,6 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from collections.abc import Callable
 from typing import Iterable
 from urllib.parse import urlsplit
 
@@ -33,10 +32,6 @@ from dynamic_agent_runner.workflow_host.fastmail_triage_model import (
     FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
     FASTMAIL_TRIAGE_MODEL_ALIAS,
     create_fastmail_triage_llama_cpp_adapter as _create_fastmail_triage_llama_cpp_adapter,
-)
-from dynamic_agent_runner.workflow_host.floorplan_vision_model import (
-    FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
-    FLOORPLAN_VISION_MODEL_ID,
 )
 
 
@@ -175,8 +170,6 @@ class LocalModelProfileControlPlane:
         elif adapter_id in {
             "apple-foundation-models-adapter-v1",
             FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
-            FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
-            "qwen25-vl-3b-floorplan-grpo-transformers-peft-adapter-v1",
         }:
             if base_url is not None:
                 raise LocalModelProfileError("local model profile is invalid")
@@ -251,34 +244,6 @@ class LocalModelProfileControlPlane:
             base_url=None,
             profile_requirement="local-general-model",
             capabilities={"text_generation"},
-        )
-
-    def create_floorplan_vision_llama_cpp(self) -> LocalModelProfile:
-        """Persist the exact configured local vision profile for floorplans."""
-
-        return self._issue(
-            model_id=FLOORPLAN_VISION_MODEL_ID,
-            execution_model_id=FLOORPLAN_VISION_MODEL_ID,
-            adapter_id=FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
-            base_url=None,
-            profile_requirement="local-multimodal-model-v1",
-            capabilities={"text_generation", "multimodal_input"},
-            runner_id="llama-cpp-v1",
-        )
-
-    def create_qwen25_vl_3b_floorplan_grpo_transformers_peft(
-        self,
-    ) -> LocalModelProfile:
-        """Persist the profile for DAR's native Transformers + PEFT runner."""
-
-        return self._issue(
-            model_id=FLOORPLAN_VISION_MODEL_ID,
-            execution_model_id=FLOORPLAN_VISION_MODEL_ID,
-            adapter_id="qwen25-vl-3b-floorplan-grpo-transformers-peft-adapter-v1",
-            base_url=None,
-            profile_requirement="local-multimodal-model-v1",
-            capabilities={"text_generation", "multimodal_input"},
-            runner_id="transformers-peft-v1",
         )
 
     def _issue(
@@ -368,27 +333,6 @@ def create_fastmail_triage_llama_cpp_adapter(profile: LocalModelProfile):
     ):
         raise LocalModelProfileError("local model profile is invalid")
     return _create_fastmail_triage_llama_cpp_adapter()
-
-
-def create_floorplan_vision_llama_cpp_adapter(
-    profile: LocalModelProfile,
-    *,
-    resolve_prepared_set: Callable[[], object],
-):
-    """Create the pinned vision adapter only for its exact configured profile."""
-
-    if (
-        profile.adapter_id != FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID
-        or profile.model_id != FLOORPLAN_VISION_MODEL_ID
-        or profile.execution_model_id != FLOORPLAN_VISION_MODEL_ID
-        or profile.base_url is not None
-    ):
-        raise LocalModelProfileError("local model profile is invalid")
-    from dynamic_agent_runner.workflow_host.floorplan_vision_model import (
-        DeferredFloorplanVisionLlamaCppAdapter,
-    )
-
-    return DeferredFloorplanVisionLlamaCppAdapter(resolve_prepared_set)
 
 
 def create_hosted_openai_adapter(profile: LocalModelProfile) -> OpenAIClientAdapter:
@@ -514,14 +458,10 @@ def _validate_profile_contract(
         "apple-foundation-models-adapter-v1",
         FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
     }:
-        if profile_requirement != "local-general-model":
-            raise LocalModelProfileError("local model profile is invalid")
-        return
-    if adapter_id in {
-        FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
-        "qwen25-vl-3b-floorplan-grpo-transformers-peft-adapter-v1",
-    }:
-        if profile_requirement != "local-multimodal-model-v1":
+        if profile_requirement not in {
+            "local-general-model",
+            "local-multimodal-model-v1",
+        }:
             raise LocalModelProfileError("local model profile is invalid")
         return
     if (
@@ -538,10 +478,6 @@ def _runner_id_for_adapter(adapter_id: object) -> str:
         "strict-local-adapter-v1": "local-openai-endpoint-v1",
         "apple-foundation-models-adapter-v1": "apple-foundation-models-v1",
         FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID: "llama-cpp-v1",
-        FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID: "llama-cpp-v1",
-        "qwen25-vl-3b-floorplan-grpo-transformers-peft-adapter-v1": (
-            "transformers-peft-v1"
-        ),
         "hosted-openai-adapter-v1": "hosted-openai-v1",
     }.get(adapter_id, "")
 

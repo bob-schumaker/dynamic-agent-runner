@@ -605,21 +605,25 @@ def _runner(
     policy = compile_workflow_policy(revision, capability_catalog=capability_catalog)
     profiles = LocalModelProfileControlPlane(store=store)
     profile = (
-        profiles.create_floorplan_vision_llama_cpp()
-        if vision
-        else (
-            profiles.create_hosted_openai(
-                model_id="local-model-v1",
-                base_url="https://models.example.test/v1",
-                capabilities={"text_generation"},
-            )
-            if hosted
-            else profiles.create(
-                model_id="local-model-v1",
-                adapter_id="strict-local-adapter-v1",
-                base_url="http://127.0.0.1:11434/v1",
-                capabilities={"text_generation"},
-            )
+        profiles.create_hosted_openai(
+            model_id="local-model-v1",
+            base_url="https://models.example.test/v1",
+            capabilities={"text_generation"},
+        )
+        if hosted
+        else profiles.create(
+            model_id=package_model if vision else "local-model-v1",
+            adapter_id="strict-local-adapter-v1",
+            base_url="http://127.0.0.1:11434/v1",
+            execution_model_id=package_model if vision else "local-model",
+            profile_requirement=(
+                "local-multimodal-model-v1" if vision else "local-general-model"
+            ),
+            capabilities=(
+                {"text_generation", "multimodal_input"}
+                if vision
+                else {"text_generation"}
+            ),
         )
     )
     registrations = WorkflowRegistrationService(

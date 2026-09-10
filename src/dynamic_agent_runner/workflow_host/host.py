@@ -17,8 +17,6 @@ from dynamic_agent_runner.apple_foundation_models import (
     create_apple_foundation_model_async_adapter,
 )
 from dynamic_agent_runner.local_model_preparation import (
-    FLOORPLAN_VISION_RECIPE,
-    QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE,
     LocalModelPreparationCatalog,
     LocalModelPreparationResult,
     LocalModelPreparationService,
@@ -138,8 +136,6 @@ from dynamic_agent_runner.workflow_host.profiles import (
     LocalModelProfileControlPlane,
     LocalModelProfileError,
     FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
-    FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
-    create_floorplan_vision_llama_cpp_adapter,
     create_fastmail_triage_llama_cpp_adapter,
     create_hosted_openai_adapter,
     create_local_adapter,
@@ -222,12 +218,6 @@ def _create_model_adapter(
         )
     if profile.adapter_id == FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID:
         return create_fastmail_triage_llama_cpp_adapter(profile)
-    if profile.adapter_id == FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID:
-        if resolve_prepared_set is None:
-            raise LocalWorkflowHostError("local model preparation is unavailable")
-        return create_floorplan_vision_llama_cpp_adapter(
-            profile, resolve_prepared_set=resolve_prepared_set
-        )
     if profile.runner_id == "transformers-peft-v1":
         if resolve_prepared_set is None:
             raise LocalWorkflowHostError("local model preparation is unavailable")
@@ -379,60 +369,6 @@ def configure_fastmail_triage_llama_cpp_host(
         workspace_input_root,
         workspace_input_max_bytes,
         mcp_client_configuration,
-    )
-    _write_configuration(root, configuration)
-    return configuration
-
-
-def configure_floorplan_vision_llama_cpp_host(
-    *,
-    root: Path,
-    package_root: Path,
-    workspace_input_root: Path | None = None,
-    workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES,
-) -> LocalWorkflowHostConfiguration:
-    """Configure the fixed offline Qwen vision profile for floorplans."""
-
-    _validate_root(root)
-    _validate_package_root(package_root)
-    if workspace_input_root is not None:
-        _validate_workspace_input_root(workspace_input_root)
-    _validate_workspace_input_max_bytes(workspace_input_max_bytes)
-    profile = LocalModelProfileControlPlane(
-        store=PrivateStateStore(root)
-    ).create_floorplan_vision_llama_cpp()
-    configuration = LocalWorkflowHostConfiguration(
-        package_root,
-        profile.profile_id,
-        workspace_input_root,
-        workspace_input_max_bytes,
-    )
-    _write_configuration(root, configuration)
-    return configuration
-
-
-def configure_qwen25_vl_3b_floorplan_grpo_transformers_peft_host(
-    *,
-    root: Path,
-    package_root: Path,
-    workspace_input_root: Path | None = None,
-    workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES,
-) -> LocalWorkflowHostConfiguration:
-    """Configure the native closed Transformers + PEFT Qwen profile."""
-
-    _validate_root(root)
-    _validate_package_root(package_root)
-    if workspace_input_root is not None:
-        _validate_workspace_input_root(workspace_input_root)
-    _validate_workspace_input_max_bytes(workspace_input_max_bytes)
-    profile = LocalModelProfileControlPlane(
-        store=PrivateStateStore(root)
-    ).create_qwen25_vl_3b_floorplan_grpo_transformers_peft()
-    configuration = LocalWorkflowHostConfiguration(
-        package_root,
-        profile.profile_id,
-        workspace_input_root,
-        workspace_input_max_bytes,
     )
     _write_configuration(root, configuration)
     return configuration
@@ -814,12 +750,7 @@ class LocalWorkflowHost:
             mcp_client = mcp_client_factory(configuration.mcp_client_configuration)
         catalog = PackageCatalog(root / "catalog")
         model_preparation = LocalModelPreparationService(
-            catalog=LocalModelPreparationCatalog(
-                (
-                    FLOORPLAN_VISION_RECIPE,
-                    QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE,
-                )
-            ),
+            catalog=LocalModelPreparationCatalog(()),
             cache_root=root / "model-preparation",
             approved_cache_roots=(Path.home() / ".cache" / "huggingface" / "hub",),
             converter=PinnedLlamaCppLoraConverter(
@@ -1347,18 +1278,6 @@ class LocalWorkflowHost:
         if policy.policy_digest != registration.policy_digest:
             raise LocalWorkflowHostError("saved package policy does not match")
         self._revalidate_capability_providers(registration, policy)
-        if self._profile.adapter_id in {
-            FLOORPLAN_VISION_LLAMA_CPP_ADAPTER_ID,
-            "qwen25-vl-3b-floorplan-grpo-transformers-peft-adapter-v1",
-        }:
-            preparation_status = self._model_preparation.prepare(
-                model_id=self._profile.model_id,
-                adapter_id=self._profile.adapter_id,
-                runner_id=self._profile.runner_id,
-                authorized=False,
-            )
-            if preparation_status.status != "ready":
-                raise LocalModelPreparationRequired(preparation_status)
         artifact_ids = tuple(workspace_artifact_ids) or tuple(
             self.ingress_default_file(
                 workflow_id=registration.workflow_id, path=path, now=now

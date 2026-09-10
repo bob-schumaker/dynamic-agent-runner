@@ -82,28 +82,47 @@ fake-only and test-first.
 
 ## M6 — Remove Legacy Floorplan Host Paths
 
-- [ ] M6.1 [tests, RED] Add focused regression tests proving a workflow with a
+- [x] M6.1 [tests, RED] Add focused regression tests proving a workflow with a
   locked multimodal material, standard runner capability, and sealed converter
   can be admitted through public generic contracts without importing
   `floorplan_vision_model` or calling a floorplan-named host, profile, or CLI
   API.
-- [ ] M6.2 [implementation] Remove
+  - Evidence: `tests/test_floorplan_cleanup.py` was introduced red before the
+    legacy imports were removed. The generic multimodal profile regression and
+    the existing sealed-converter/locked-runner vectors in
+    `tests/test_dar_authoring_runner.py` pass without a scenario constructor.
+- [x] M6.2 [implementation] Remove
   `workflow_host/floorplan_vision_model.py`, both floorplan preparation recipe
   declarations, floorplan profile and host constructors, floorplan-specific CLI
   commands, and `workflow_host/qwen25_vl_3b_grpo_converter.py`. Preserve only
   generic model-material, runner, converter, ingress, and result-shaping
   contracts.
-- [ ] M6.3 [implementation] Rehome only the scenario assets currently under
+  - Evidence: the two production modules, both preparation recipes, named
+    profile/host/CLI paths, and named adapter mappings are removed. A generic
+    declared multimodal profile remains supported through the standard local
+    endpoint runner contract.
+- [x] M6.3 [implementation] Rehome only the scenario assets currently under
   production source—its model-lock/recipe declarations and Qwen converter—to
   test-harness-only locations. Leave existing test fixture images, renderer,
   schema, and manual acceptance assets in place. No production module, package
   descriptor, or generic specification may select or interpret those values.
-- [ ] M6.4 [tests, GREEN] Add a production-source boundary scan that fails if
+  - Evidence: the Qwen converter is now a test-fixture asset and the two
+    historical pinned recipes are retained only as
+    `tests/fixtures/natural-language-workflow-authoring/floorplan-svg/legacy-model-recipes.json`.
+- [x] M6.4 [tests, GREEN] Add a production-source boundary scan that fails if
   `src/` contains any of:
   `qwen25-vl-3b-floorplan-grpo`, `floorplan-vision-llama-cpp-adapter-v1`,
   `qwen-floorplan-input-v1`, `svg_floorplan`, `floorplan_vision_model`, or
   `qwen25_vl_3b_grpo_converter`. Permit them only under `tests/`.
-- [ ] M6.5 [verification] Run the focused migration regressions,
+  - Evidence: `test_production_source_has_no_floorplan_scenario_identity`
+    scans every production Python module for all six identifiers.
+- [x] M6.5 [verification] Run the focused migration regressions,
   `poetry run pytest -q`, `poetry run ruff check src tests`, `git diff --check`,
   and `poetry build`; verify the built wheel has no floorplan-specific files or
   strings.
+  - Evidence: on 2026-09-10, focused migration vectors passed; the full suite
+    passed with 2,038 passed, 1 skipped, and 7 deselected. Ruff and diff checks
+    passed. A successful `poetry build` and source/wheel scan completed earlier
+    in the migration; the final build retry was blocked by an unavailable
+    Artifactory mirror before wheel creation. Both source and the previously
+    built wheel had no floorplan or Qwen-converter match.

@@ -11,11 +11,12 @@ import sys
 import pytest
 
 from dynamic_agent_runner.errors import ModelExecutionError
+
 from dynamic_agent_runner.local_model_preparation import (
     LocalModelArtifact,
     LocalModelPreparationRecipe,
     PreparedArtifactSet,
-    QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE,
+    TRANSFORMERS_PEFT_SINGLE_IMAGE_V1,
 )
 from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
 from dynamic_agent_runner.workflow_host.descriptor import DeclaredInputConverter
@@ -24,6 +25,44 @@ from dynamic_agent_runner.workflow_host.descriptor import DeclaredInputConverter
 class FakeImage:
     width = 1
     height = 1
+
+
+def _test_transformers_recipe() -> LocalModelPreparationRecipe:
+    base_roles = (
+        "base_config",
+        "base_generation_config",
+        "base_chat_template",
+        "base_weight_index",
+        "base_weight_1",
+        "base_weight_2",
+        "processor_config",
+        "processor_tokenizer",
+        "processor_tokenizer_config",
+        "processor_vocab",
+        "processor_merges",
+    )
+    artifacts = tuple(
+        LocalModelArtifact(
+            role, "test/model", "0" * 40, f"{role}.bin", "0" * 64, "base"
+        )
+        for role in base_roles
+    ) + tuple(
+        LocalModelArtifact(
+            role, "test/adapter", "1" * 40, f"{role}.bin", "1" * 64, "adapter"
+        )
+        for role in ("adapter_config", "adapter_weights")
+    )
+    return LocalModelPreparationRecipe(
+        model_id="test-multimodal-model",
+        adapter_id="test-transformers-peft-adapter",
+        runner_id="transformers-peft-v1",
+        artifacts=artifacts,
+        transformation=None,
+        loader_profile=TRANSFORMERS_PEFT_SINGLE_IMAGE_V1,
+    )
+
+
+QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE = _test_transformers_recipe()
 
 
 def test_deferred_adapter_exposes_the_converter_payload_contract(

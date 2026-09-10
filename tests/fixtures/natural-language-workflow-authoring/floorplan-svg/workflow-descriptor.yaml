@@ -41,7 +41,7 @@ input_converter:
   converter_contract_version: v1
   compatible_runner_contract_id: transformers-generate-v1
   entrypoint: assets/qwen25_vl_3b_grpo_converter.py
-  asset_digest: 8d8c0b1fbb68d39fa98a6ca1257c0e7c7cbae749c9c3eb91e54d88c7c635df21
+  asset_digest: 9e64a307247d8526aa5bf810c6afd6298f0c45ff5ffc27e0e54f27db9fd4a8d1
   declared_resource_limits:
     max_input_bytes: 8388608
     max_output_bytes: 33554432

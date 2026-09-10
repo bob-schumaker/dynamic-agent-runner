@@ -13,6 +13,50 @@ def _digest(content: bytes) -> str:
     return sha256(content).hexdigest()
 
 
+def _transformers_peft_recipe() -> object:
+    from dynamic_agent_runner.local_model_preparation import (
+        LocalModelArtifact,
+        LocalModelPreparationRecipe,
+        TRANSFORMERS_PEFT_SINGLE_IMAGE_V1,
+    )
+
+    base_roles = (
+        "base_config",
+        "base_generation_config",
+        "base_chat_template",
+        "base_weight_index",
+        "base_weight_1",
+        "base_weight_2",
+        "processor_config",
+        "processor_tokenizer",
+        "processor_tokenizer_config",
+        "processor_vocab",
+        "processor_merges",
+    )
+    artifacts = tuple(
+        LocalModelArtifact(
+            role, "test/model", "0" * 40, f"{role}.bin", "0" * 64, "base"
+        )
+        for role in base_roles
+    ) + tuple(
+        LocalModelArtifact(
+            role, "test/adapter", "1" * 40, f"{role}.bin", "1" * 64, "adapter"
+        )
+        for role in ("adapter_config", "adapter_weights")
+    )
+    return LocalModelPreparationRecipe(
+        model_id="test-multimodal-model",
+        adapter_id="test-transformers-peft-adapter",
+        runner_id="transformers-peft-v1",
+        artifacts=artifacts,
+        transformation=None,
+        loader_profile=TRANSFORMERS_PEFT_SINGLE_IMAGE_V1,
+    )
+
+
+QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE = _transformers_peft_recipe()
+
+
 def _recipe() -> object:
     from dynamic_agent_runner.local_model_preparation import (
         LocalModelArtifact,
@@ -60,32 +104,6 @@ def _recipe() -> object:
             output_sha256=_digest(b"GGUF converted"),
         ),
     )
-
-
-def test_floorplan_recipe_is_exact_immutable_and_does_not_fallback() -> None:
-    from dynamic_agent_runner.local_model_preparation import (
-        FLOORPLAN_VISION_RECIPE,
-        LocalModelPreparationCatalog,
-        LocalModelPreparationUnavailable,
-    )
-
-    catalog = LocalModelPreparationCatalog((FLOORPLAN_VISION_RECIPE,))
-
-    assert (
-        catalog.lookup(
-            "qwen25-vl-3b-floorplan-grpo",
-            "floorplan-vision-llama-cpp-adapter-v1",
-        )
-        == FLOORPLAN_VISION_RECIPE
-    )
-    assert FLOORPLAN_VISION_RECIPE.transformation.output_filename.endswith(".gguf")
-    assert FLOORPLAN_VISION_RECIPE.transformation.output_sha256 == (
-        "ed95fb7aed5e44d075fe028fc58a5b478019f52960a5bebc1a8dd1d15fa93138"
-    )
-    with pytest.raises(LocalModelPreparationUnavailable, match="recipe_unavailable"):
-        catalog.lookup("qwen25-vl-3b-floorplan", FLOORPLAN_VISION_RECIPE.adapter_id)
-    with pytest.raises((AttributeError, TypeError)):
-        FLOORPLAN_VISION_RECIPE.model_id = "other"  # type: ignore[misc]
 
 
 def test_catalog_requires_unique_runner_aware_recipe_keys() -> None:
@@ -158,7 +176,6 @@ def test_native_recipe_is_ready_without_a_gguf_transformation(tmp_path: Path) ->
 
 def test_qwen_native_recipe_uses_the_closed_transformers_peft_profile() -> None:
     from dynamic_agent_runner.local_model_preparation import (
-        QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE,
         TRANSFORMERS_PEFT_SINGLE_IMAGE_V1,
     )
 
@@ -177,7 +194,6 @@ def test_catalog_rejects_incomplete_or_mismatched_transformers_peft_recipes() ->
         LocalModelPreparationCatalog,
         LocalModelPreparationUnavailable,
         LocalModelPreparationRecipe,
-        QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE,
         TRANSFORMERS_PEFT_SINGLE_IMAGE_V1,
     )
 
@@ -212,7 +228,6 @@ def test_transformers_peft_preparation_materializes_one_private_group_root(
     from dynamic_agent_runner.local_model_preparation import (
         LocalModelPreparationCatalog,
         LocalModelPreparationService,
-        QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE,
     )
 
     content = b"fixture"
