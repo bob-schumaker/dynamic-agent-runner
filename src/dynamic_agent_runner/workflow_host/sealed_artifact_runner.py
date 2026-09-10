@@ -12,6 +12,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from jsonschema import Draft202012Validator, SchemaError
+
 from dynamic_agent_runner.workflow_host.state import (
     OpaqueRecordError,
     PrivateStateStore,
@@ -122,7 +124,7 @@ def verify_sealed_artifact_runner_files(
     descriptor = parse_sealed_artifact_runner_descriptor(descriptor_bytes)
     _file_digest(root, descriptor.asset_path, descriptor.asset_digest)
     for schema in descriptor.schema_assets:
-        _file_digest(root, schema.path, schema.digest)
+        _validate_schema(_file_digest(root, schema.path, schema.digest))
     return descriptor
 
 
@@ -486,7 +488,7 @@ def _invalid() -> None:
     raise SealedArtifactRunnerDescriptorError("descriptor is invalid")
 
 
-def _file_digest(root: Path, path: str, expected_digest: str) -> None:
+def _file_digest(root: Path, path: str, expected_digest: str) -> bytes:
     try:
         candidate = root.joinpath(*path.split("/"))
         metadata = candidate.lstat()
@@ -501,6 +503,24 @@ def _file_digest(root: Path, path: str, expected_digest: str) -> None:
         raise SealedArtifactRunnerDescriptorError(
             "sealed artifact runner file is invalid"
         )
+    return content
+
+
+def _validate_schema(value: bytes) -> None:
+    try:
+        schema = json.loads(
+            value.decode("utf-8"), object_pairs_hook=_no_duplicate_object
+        )
+        Draft202012Validator.check_schema(schema)
+    except (
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        SchemaError,
+        SealedArtifactRunnerDescriptorError,
+    ) as error:
+        raise SealedArtifactRunnerDescriptorError(
+            "sealed artifact runner schema is invalid"
+        ) from error
 
 
 def _handle_fields(

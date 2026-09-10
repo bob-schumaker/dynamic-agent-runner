@@ -10,6 +10,7 @@ import pytest
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactRunnerDescriptorError,
     parse_sealed_artifact_runner_descriptor,
+    verify_sealed_artifact_runner_files,
 )
 
 
@@ -147,3 +148,51 @@ def test_parser_rejects_duplicate_json_keys_before_descriptor_processing() -> No
 def test_parser_rejects_noncanonical_descriptor_bytes(encoded) -> None:
     with pytest.raises(SealedArtifactRunnerDescriptorError):
         parse_sealed_artifact_runner_descriptor(encoded(_canonical(_descriptor())))
+
+
+def test_verifier_rejects_invalid_or_tampered_declared_schema(tmp_path) -> None:
+    asset = b"def run(context):\n    return None\n"
+    schema = b'{"type":"object"}'
+    descriptor = _descriptor()
+    descriptor["asset"]["sha256"] = hashlib.sha256(asset).hexdigest()
+    descriptor["schemas"] = [
+        {
+            "dialect": "json-schema-draft-2020-12",
+            "path": "schemas/result.json",
+            "sha256": hashlib.sha256(schema).hexdigest(),
+        }
+    ]
+    descriptor["outputs"][0] = {
+        "max_bytes": 1,
+        "media_type": "application/json",
+        "role": "result",
+        "schema_digest": hashlib.sha256(schema).hexdigest(),
+    }
+    unsigned = dict(descriptor)
+    del unsigned["artifact_runner_digest"]
+    descriptor["artifact_runner_digest"] = hashlib.sha256(
+        _canonical(unsigned)
+    ).hexdigest()
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "example.py").write_bytes(asset)
+    (tmp_path / "schemas").mkdir()
+    (tmp_path / "schemas" / "result.json").write_bytes(schema)
+
+    verify_sealed_artifact_runner_files(tmp_path, _canonical(descriptor))
+
+    (tmp_path / "schemas" / "result.json").write_bytes(b"not json")
+    with pytest.raises(SealedArtifactRunnerDescriptorError):
+        verify_sealed_artifact_runner_files(tmp_path, _canonical(descriptor))
+
+    invalid_schema = b"not json"
+    descriptor["schemas"][0]["sha256"] = hashlib.sha256(invalid_schema).hexdigest()
+    descriptor["outputs"][0]["schema_digest"] = hashlib.sha256(
+        invalid_schema
+    ).hexdigest()
+    unsigned = dict(descriptor)
+    del unsigned["artifact_runner_digest"]
+    descriptor["artifact_runner_digest"] = hashlib.sha256(
+        _canonical(unsigned)
+    ).hexdigest()
+    with pytest.raises(SealedArtifactRunnerDescriptorError):
+        verify_sealed_artifact_runner_files(tmp_path, _canonical(descriptor))
