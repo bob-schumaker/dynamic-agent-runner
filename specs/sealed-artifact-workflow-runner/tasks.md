@@ -24,8 +24,10 @@
     collaborators.
   - [x] Implement the fixed import-disabled `run(context) -> None` asset ABI,
     narrow input/output context, and atomic collector seal.
-  - [ ] Add callback budgets/revalidation, cancellation, aggregate limits, and
-    redacted-receipt behavior to the fixed ABI.
+  - [x] Enforce declared callback call-count and per/aggregate request/response
+    byte limits in the fixed ABI.
+  - [ ] Add callback provider revalidation, concurrency/deadline enforcement,
+    cancellation, aggregate runtime/I/O limits, and redacted receipts.
 - [ ] S4 [tests, GREEN] Prove atomic outputs, provider revalidation, revocation,
   cancellation/late-result disposal, redacted receipts, and deterministic
   receiving-host execution.
