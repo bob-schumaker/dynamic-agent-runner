@@ -6,11 +6,11 @@ import hashlib
 import json
 import re
 import stat
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from jsonschema import Draft202012Validator, SchemaError
 
@@ -176,42 +176,59 @@ def validate_sealed_artifact_runner_capabilities(
         )
 
 
-class SealedArtifactRunnerAdmission:
-    """Invoke one injected admission pipeline in the specified fail-closed order."""
+class SealedArtifactWorkflowReceiverHost(Protocol):
+    """Host-owned operations performed by one sealed receiver invocation."""
 
-    def __init__(
-        self,
-        *,
-        provenance: Callable[..., object],
-        package_verification: Callable[..., object],
-        authorization: Callable[..., object],
-        identity_resolution: Callable[..., object],
-        handle_validation: Callable[..., object],
-        collector_allocation: Callable[..., object],
-        asset_execution: Callable[..., object],
-    ) -> None:
-        self._stages = (
-            provenance,
-            package_verification,
-            authorization,
-            identity_resolution,
-            handle_validation,
-            collector_allocation,
-            asset_execution,
-        )
+    def registration(self, invocation: object) -> object: ...
+
+    def verify_package(self, registration: object) -> object: ...
+
+    def authorize(self, package: object) -> object: ...
+
+    def resolve_identities(self, authorization: object) -> object: ...
+
+    def validate_handles(self, identities: object) -> object: ...
+
+    def allocate_collector(self, handles: object) -> object: ...
+
+    def execute_asset(self, collector: object) -> object: ...
+
+
+class SealedArtifactWorkflowReceiver:
+    """Run one host-owned sealed-artifact invocation in the fixed admission order."""
+
+    _HOST_METHODS = (
+        "registration",
+        "verify_package",
+        "authorize",
+        "resolve_identities",
+        "validate_handles",
+        "allocate_collector",
+        "execute_asset",
+    )
+
+    def __init__(self, *, host: SealedArtifactWorkflowReceiverHost) -> None:
+        if any(not callable(getattr(host, name, None)) for name in self._HOST_METHODS):
+            raise SealedArtifactRunnerAdmissionError(
+                "sealed artifact runner is unavailable"
+            )
+        self._host = host
 
     def run(self, *, invocation: object) -> object:
-        """Run every boundary once, stopping before every later boundary on error."""
+        """Stop at the first rejected boundary without invoking a later operation."""
 
-        current = invocation
         try:
-            for stage in self._stages:
-                current = stage(current)
+            registration = self._host.registration(invocation)
+            package = self._host.verify_package(registration)
+            authorization = self._host.authorize(package)
+            identities = self._host.resolve_identities(authorization)
+            handles = self._host.validate_handles(identities)
+            collector = self._host.allocate_collector(handles)
+            return self._host.execute_asset(collector)
         except Exception as error:
             raise SealedArtifactRunnerAdmissionError(
                 "sealed artifact runner is unavailable"
             ) from error
-        return current
 
 
 class SealedArtifactHandleService:
