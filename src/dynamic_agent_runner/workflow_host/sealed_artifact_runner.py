@@ -7,7 +7,13 @@ import json
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
+
+from dynamic_agent_runner.workflow_host.state import (
+    OpaqueRecordError,
+    PrivateStateStore,
+)
 
 
 _DIGEST = re.compile(r"[0-9a-f]{64}")
@@ -24,6 +30,10 @@ class SealedArtifactRunnerAdmissionError(ValueError):
     """Raised when one admission boundary rejects an invocation."""
 
 
+class SealedArtifactHandleError(ValueError):
+    """Raised without disclosing private prepared artifact bytes."""
+
+
 @dataclass(frozen=True)
 class SealedArtifactRunnerDescriptor:
     """The validated public identity of one v1 sealed-artifact runner."""
@@ -31,6 +41,14 @@ class SealedArtifactRunnerDescriptor:
     digest: str
     asset_path: str
     output_roles: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class SealedArtifactHandle:
+    """One receiver-private prepared artifact receipt."""
+
+    handle_id: str
+    expires_at: datetime
 
 
 def parse_sealed_artifact_runner_descriptor(
@@ -117,6 +135,122 @@ class SealedArtifactRunnerAdmission:
                 "sealed artifact runner is unavailable"
             ) from error
         return current
+
+
+class SealedArtifactHandleService:
+    """Issue and atomically consume role-bound prepared artifact handles."""
+
+    def __init__(self, *, store: PrivateStateStore, owner: str) -> None:
+        if (
+            not isinstance(store, PrivateStateStore)
+            or not isinstance(owner, str)
+            or not owner
+        ):
+            raise SealedArtifactHandleError("handle service is unavailable")
+        self._store = store
+        self._owner = owner
+
+    def prepare(
+        self,
+        *,
+        receiver_id: str,
+        revision_digest: str,
+        invocation_id: str,
+        role: str,
+        media_type: str,
+        schema_digest: str | None,
+        content: bytes,
+        expires_at: datetime,
+        now: datetime,
+    ) -> SealedArtifactHandle:
+        """Seal validated private bytes behind one opaque receiver-bound handle."""
+
+        fields = _handle_fields(
+            receiver_id=receiver_id,
+            revision_digest=revision_digest,
+            invocation_id=invocation_id,
+            role=role,
+            media_type=media_type,
+            schema_digest=schema_digest,
+        )
+        if not isinstance(content, bytes):
+            raise SealedArtifactHandleError("artifact handle is invalid")
+        issued_at = _utc(now)
+        expiry = _utc(expires_at)
+        if expiry <= issued_at:
+            raise SealedArtifactHandleError("artifact handle is invalid")
+        payload = {
+            **fields,
+            "byte_count": len(content),
+            "content": content.hex(),
+            "content_digest": hashlib.sha256(content).hexdigest(),
+        }
+        try:
+            handle_id = self._store.issue(
+                kind="sealed_artifact_handle",
+                owner=self._owner,
+                payload=payload,
+                expires_at=expiry,
+                now=issued_at,
+            )
+        except OpaqueRecordError as error:
+            raise SealedArtifactHandleError("artifact handle is unavailable") from error
+        return SealedArtifactHandle(handle_id, expiry)
+
+    def consume(
+        self,
+        handle_id: str,
+        *,
+        receiver_id: str,
+        revision_digest: str,
+        invocation_id: str,
+        role: str,
+        media_type: str,
+        schema_digest: str | None,
+        now: datetime,
+    ) -> bytes:
+        """Return matching bytes once, after immutable binding and digest checks."""
+
+        fields = _handle_fields(
+            receiver_id=receiver_id,
+            revision_digest=revision_digest,
+            invocation_id=invocation_id,
+            role=role,
+            media_type=media_type,
+            schema_digest=schema_digest,
+        )
+        instant = _utc(now)
+        try:
+            record = self._store.load(
+                handle_id,
+                expected_kind="sealed_artifact_handle",
+                owner=self._owner,
+                now=instant,
+            )
+        except OpaqueRecordError as error:
+            raise SealedArtifactHandleError("artifact handle is unavailable") from error
+        payload = record.payload
+        if any(payload.get(name) != value for name, value in fields.items()):
+            raise SealedArtifactHandleError("artifact handle does not match")
+        content = _handle_content(payload)
+        try:
+            self._store.consume(
+                handle_id,
+                expected_kind="sealed_artifact_handle",
+                owner=self._owner,
+                now=instant,
+            )
+        except OpaqueRecordError as error:
+            raise SealedArtifactHandleError("artifact handle is unavailable") from error
+        return content
+
+    def revoke(self, handle_id: str, *, now: datetime) -> None:
+        """Irreversibly revoke one caller-owned handle."""
+
+        try:
+            self._store.revoke(handle_id, owner=self._owner, now=_utc(now))
+        except OpaqueRecordError as error:
+            raise SealedArtifactHandleError("artifact handle is unavailable") from error
 
 
 def _canonical_mapping(value: bytes) -> dict[str, Any]:
@@ -325,3 +459,66 @@ def _require_exact_keys(mapping: Mapping[str, object], keys: set[str]) -> None:
 
 def _invalid() -> None:
     raise SealedArtifactRunnerDescriptorError("descriptor is invalid")
+
+
+def _handle_fields(
+    *,
+    receiver_id: object,
+    revision_digest: object,
+    invocation_id: object,
+    role: object,
+    media_type: object,
+    schema_digest: object,
+) -> dict[str, str | None]:
+    if not isinstance(receiver_id, str) or not receiver_id:
+        raise SealedArtifactHandleError("artifact handle is invalid")
+    if not isinstance(invocation_id, str) or not invocation_id:
+        raise SealedArtifactHandleError("artifact handle is invalid")
+    try:
+        revision = _digest(revision_digest)
+        name = _name(role)
+        media = _media_type(media_type)
+        if schema_digest is not None:
+            _digest(schema_digest)
+    except SealedArtifactRunnerDescriptorError as error:
+        raise SealedArtifactHandleError("artifact handle is invalid") from error
+    return {
+        "receiver_id": receiver_id,
+        "revision_digest": revision,
+        "invocation_id": invocation_id,
+        "role": name,
+        "media_type": media,
+        "schema_digest": schema_digest,
+    }
+
+
+def _handle_content(payload: Mapping[str, object]) -> bytes:
+    expected = {
+        "receiver_id",
+        "revision_digest",
+        "invocation_id",
+        "role",
+        "media_type",
+        "schema_digest",
+        "byte_count",
+        "content",
+        "content_digest",
+    }
+    if set(payload) != expected or not isinstance(payload.get("content"), str):
+        raise SealedArtifactHandleError("artifact handle is unavailable")
+    try:
+        content = bytes.fromhex(payload["content"])
+    except ValueError as error:
+        raise SealedArtifactHandleError("artifact handle is unavailable") from error
+    if (
+        payload.get("byte_count") != len(content)
+        or payload.get("content_digest") != hashlib.sha256(content).hexdigest()
+    ):
+        raise SealedArtifactHandleError("artifact handle is unavailable")
+    return content
+
+
+def _utc(value: object) -> datetime:
+    if not isinstance(value, datetime) or value.tzinfo is None:
+        raise SealedArtifactHandleError("artifact handle is invalid")
+    return value.astimezone(UTC)
