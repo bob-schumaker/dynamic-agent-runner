@@ -14,6 +14,9 @@ from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
 )
 
 
+_NORMATIVE_V1_VECTOR = b'{"artifact_runner_digest":"2c3ed7f8dc3c1aefe51d97bfc699bb7de6c5c5239a6b7a0df025acbf2ebb13f4","asset":{"abi_version":1,"entrypoint":"run","path":"assets/example.py","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"callbacks":[],"capability_requirements_digest":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","child_contract_digests":[],"format_version":1,"inputs":[],"limits":{"max_concurrency":1,"max_cpu_milliseconds":1,"max_io_bytes":1,"max_memory_bytes":1,"max_runtime_milliseconds":1},"outputs":[{"max_bytes":1,"media_type":"application/octet-stream","role":"result","schema_digest":null}],"profile_digest":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","schemas":[]}'
+
+
 def _canonical(value: object) -> bytes:
     return json.dumps(
         value,
@@ -62,7 +65,8 @@ def _descriptor() -> dict[str, object]:
 def test_parser_accepts_the_normative_v1_canonicalization_vector() -> None:
     descriptor = _descriptor()
 
-    parsed = parse_sealed_artifact_runner_descriptor(_canonical(descriptor))
+    assert _canonical(descriptor) == _NORMATIVE_V1_VECTOR
+    parsed = parse_sealed_artifact_runner_descriptor(_NORMATIVE_V1_VECTOR)
 
     assert (
         parsed.digest
