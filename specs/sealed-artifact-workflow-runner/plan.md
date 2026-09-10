@@ -2,244 +2,227 @@
 
 ## Objective
 
-Deliver one host-owned, domain-neutral receiver that accepts only declared
-opaque input-artifact handles, invokes one sealed package asset through a
-bounded profile and exact callback bindings, and atomically returns only
-declared opaque output-artifact handles.
+Finish the domain-neutral DAR receiver so a locally authorized sealed workflow
+package can transform declared opaque input-artifact handles into declared
+opaque output-artifact handles through one verified asset ABI and only declared,
+bounded host callbacks. Prove the required admission order at real host
+boundaries, then migrate the embedding-index and locked-inference consumers so
+neither retains a parallel asset-execution or artifact-egress route.
 
-## Current state and boundaries
+## Current state
 
-The host has independently useful foundations for declared result sealing,
-capability requirements, model-material bindings, locked-inference assets, and
-partial descriptor/handle validation. They are not yet composed into a
-receiving-host artifact invocation route. In particular, a generic ordered
-admission callback chain is not proof that package access, authorization,
-identity resolution, byte reads, collector allocation, provider entry, and
-egress occur in the required order.
+The approved v1 contract in `spec.md` is implemented through the host-owned
+composition boundary:
 
-This work owns the outer descriptor, private handle lifecycle, admission
-sequence, asset invocation, and output egress. Existing capability matching,
-result collection, model material binding, and sandbox/profile enforcement
-remain their owning subsystems. The runner must not introduce a plugin
-registry, asset discovery, arbitrary callbacks, domain semantics, or a second
-embedding/inference invocation route.
+- canonical descriptor, manifest, schema, child-contract, and capability
+  binding validation;
+- provenance-bound preparation, opaque input-handle reservation and consumption,
+  import-disabled `run(context)` execution, bounded callbacks, and ordered
+  private output collection;
+- atomic output-handle publication, cancellation/revocation, deadline and I/O
+  enforcement, and redacted receipts; and
+- `LocalWorkflowHost` composition with explicit callback resolution.
 
-The implementation has one host-owned composition boundary. It may adapt
-existing host services behind narrow receiver interfaces, but it must not make
-those services or their private objects visible to the asset. Consumer child
-contracts stay opaque to the generic runner except for their canonical common
-envelope, digest, callback name, and capability identifier.
+S1, S3, and S4 are therefore complete. S2 remains open only for the evidence
+gap identified in `tasks.md`: its admission sentinels prove the internal
+receiver order, but must also observe the actual package/ZIP, input-byte,
+callback-provider/material, output-publication, and egress boundaries. S5
+cannot start until the dependent consumer contracts are admission-complete:
+the embedding portable-package runtime work (E6) and the locked-inference
+admission vectors (I2) remain open in their owning specifications.
 
-## Execution model and test seam
+## Boundaries and decisions
 
-Build the receiver against an explicit fake-only host seam before binding real
-host services. The seam records these observable operations separately:
+This plan owns the outer sealed-artifact descriptor, invocation lifecycle,
+asset ABI, generic callback controls, and output sealing. It does not add
+document, vector-index, clustering, tag, prompt, model, provider, filesystem,
+or output-destination semantics to DAR.
 
-1. registration/provenance lookup;
-2. ZIP and package-manifest entry access;
-3. descriptor, asset, schema, and child-contract verification;
-4. exact receiver-owner-package-revision-asset-profile authorization;
-5. capability-catalog, material, and provider *identity* resolution;
-6. prepared-handle metadata validation and private-byte read;
-7. collector allocation, write, abort, and atomic seal;
-8. asset runtime creation/import/execution;
-9. callback provider revalidation, material load, and provider entry; and
-10. output-handle publication and egress.
+The production runner remains the only asset execution route. Test observers
+may wrap real collaborators, but they are not a public plugin API and must not
+become a second generic admission pipeline. Asset code continues to receive
+only `read_input`, `invoke_callback`, and `write_output`; it cannot receive
+host paths, raw handle records, capability objects, provider identities, or
+unsealed collector/output bytes.
 
-The fake host records ordered events and returns controlled outcomes. Every
-negative vector asserts both its stable redacted classification and that the
-event log ends at the specified boundary. It is a test fixture only, not a
-second production abstraction or plugin API.
+The experimental personal profile is not an isolation claim. It admits only a
+locally selected owner package with exact registration, revision, asset, and
+profile authorization. Foreign or untrusted asset admission remains deferred
+to the approved `local-tool-sandbox-hardening` backend already named by the
+specification.
 
-The production composition maps each seam operation to the existing owning
-service. It must expose no fallback provider selection. Material loading is a
-callback-entry operation; identity resolution alone is side-effect free.
+## Milestones
 
-## Delivery sequence
+### M1 — Prove real admission boundaries (S2 remainder)
 
-### 1. Freeze the v1 artifact contract (S1)
+**Depends on:** completed S1, S3, and S4.
 
-Specify and approve the exact canonical JSON representation of
-`sealed-artifact-runner.json`, its self-excluding digest computation, and its
-binding into package registration and the signed ZIP manifest. Record the
-private handle record and its state transitions: issuance, receiver-only
-resolution, single use, expiry, cancellation, revocation, and post-seal output
-publication. Define the asset ABI as role-addressed read-only input bytes, a
-fixed callback namespace, and the existing bounded result collector.
+**Deliverable:** event-recording wrappers around the actual receiver
+collaborators, plus focused negative and successful-invocation tests.
 
-Exit criteria: the descriptor, handle lifecycle, authorization tuple, runtime
-profile, callback budget fields, and child-consumer digest binding have one
-unambiguous representation. S1 is a design gate; no runtime implementation
-starts until it is approved.
+1. Add one test-only observer for each real effect that the runner can reach:
+   registration/provenance resolution, catalog revision and manifest/descriptor
+   reads, identity/capability resolution, input-handle reserve and byte
+   consumption, callback-provider revalidation, material load/provider entry,
+   collector seal, output-handle publication, and caller-authorized egress.
+   Use wrappers around the existing services; do not duplicate their behavior.
+2. Add one failure vector per admission boundary. Each vector asserts its stable
+   redacted public classification and the complete zero-call suffix: after a
+   failure, no subsequent real collaborator may be entered. In particular,
+   verify that a package or descriptor failure performs no input byte access;
+   a handle failure performs no asset or callback work; a callback/provider
+   failure publishes or exports nothing; and a seal/publication failure has no
+   egress.
+3. Add a successful deterministic package fixture that uses actual staged
+   package/manifest files, one prepared handle, and a declared output. Assert
+   the exact observed order without inspecting raw private candidate bytes.
+4. Cover failure cleanup through the same observers: reserved-but-unconsumed
+   inputs are revoked, late or failed callback work cannot seal outputs, and no
+   output handle exists until all slots have been atomically sealed.
 
-### 2. Complete descriptor, package, and admission sentinels (S2)
+**Acceptance:** the S2 subtask is checked only when the real collaborator
+event log—not an internal asset-runtime fake—proves every fixed admission
+boundary and its zero-side-effect suffix.
 
-Add the fake host described above, with one selected failure at each observable
-boundary. Cover provenance/owner rejection; duplicate, noncanonical, missing,
-unknown, or mismatched package entries; descriptor, schema, asset, and child
-contract failures; authorization rejection; identity-resolution rejection;
-handle metadata rejection; and collector-allocation failure. For each rejection
-assert that every later effect has zero calls, including input-byte reads, asset
-runtime creation/import, material load, provider entry, collector write/seal,
-output-handle publication, and egress.
-
-Complete descriptor and ZIP vectors: canonicalization, duplicate/unknown/
-missing fields, digest mismatch, role/order errors, schema/media correspondence,
-manifest entry type and digest binding, child-contract uniqueness and envelope
-binding, and exact callback capability membership in the bound
-capability-requirements record. A descriptor reference alone is insufficient:
-the ZIP manifest must contain exactly the corresponding regular-file record.
-
-Replace the direct arbitrary-byte handle preparation test seam with a
-preparation service fixture that first performs package/descriptor verification,
-authorization, side-effect-free identity resolution, role/media/byte/digest/
-schema validation, and only then seals private bytes. Add lifecycle vectors for
-`prepared -> reserved -> consumed`, replay, expiry, revocation, and terminal
-invocation failure. These tests are the executable definition of admission and
-preparation order, not implementation-specific mocks.
-
-Exit criteria: descriptor, package, child-contract, and preparation tests pass
-where their components already exist. Receiver-path tests fail only because the
-receiver composition and runner do not yet exist; none requires a live model,
-network, or external tool.
-
-### 3. Compose host-owned dependencies (S3)
-
-Add a narrow receiver composition root that injects the existing capability
-catalog and result-sealing service together with private handle resolution,
-owner authorization, ZIP/descriptor verification, material/provider binding,
-and one approved asset runtime profile. Keep handle records and raw artifact
-bytes private to the host; assets receive neither host paths nor capability
-objects.
-
-Define only interfaces required by the contract. Provider resolution must be
-exact and revalidated at callback entry, with no fallback or provider identity
-disclosure. The composition root must reject missing dependencies at startup
-rather than silently selecting defaults.
-
-Replace the generic ordered admission-callback class with the concrete receiver
-composition. The order belongs in one receiver method and is tested through the
-event-recording fake host; do not retain the generic chain as a second runtime
-route. The preparation service and invocation service share the same verified
-registration tuple but have separate effects: preparation may seal input bytes
-but may not load material, enter a provider, allocate a collector, or import an
-asset.
-
-Exit criteria: a fake receiver can be constructed entirely from explicit host
-collaborators, and an asset cannot obtain ambient filesystem, network,
-subprocess, environment, credentials, import escape, or introspection access.
-
-### 4. Implement the sealed invocation path (S3)
-
-Implement a `SealedArtifactWorkflowRunner` that performs the required order:
-provenance and owner authorization; manifest, descriptor, and asset-digest
-verification; requirements, material, and provider binding; handle metadata
-validation; collector allocation; then asset import and execution. Each
-failure returns a stable redacted classification and performs no later action.
-
-Present input bytes only through the ABI after their metadata is accepted.
-Create output handles only after the collector has validated every declared
-slot and atomically sealed all results. Cancellation, timeout, or an exception
-revokes callbacks, destroys the collector, discards late callback results, and
-returns no output handles or raw-data receipt.
-
-Exit criteria: the S2 failure vectors pass and a deterministic fake asset can
-perform one successful sealed input-to-output transformation.
-
-### 5. Bind bounded capabilities without creating parallel paths (S3)
-
-Adapt the locked-inference callback as a callback provider for the fixed asset
-ABI. Its existing role, material-set, provider, quota, deadline, and result
-validation checks remain in force immediately before every invocation. Do not
-let an asset supply a model, endpoint, provider, executable, or callback
-implementation.
-
-The embedding consumer is represented as a sealed asset with declared
-artifacts and capability requirements. It may use only the same receiver and
-ABI; it gets no dedicated runner or host-private filesystem path.
-
-Exit criteria: both consumers can be expressed as child descriptors bound into
-the outer descriptor, and neither has a direct asset-import or output-egress
-path outside the generic runner.
-
-### 6. Prove lifecycle, cancellation, and receiver portability (S4)
-
-Complete green tests for ordered atomic output sealing; provider revalidation
-immediately before each callback; handle single use, expiry, reservation, and
-revocation; cancellation; late-result disposal; and redacted receipts. Verify
-that a terminal failure revokes reserved inputs and destroys the private
-collector, while a seal that wins the race returns only sealed handles.
-
-Add a deterministic receiving-host test that imports a ZIP with the exact
-registered manifest, satisfies only declared requirements, executes a fake
-asset, and returns declared sealed output handles. Add negative ABI tests for
-undeclared role reads, repeated reads, unknown callbacks, callback budget
-overages, out-of-order/repeated/missing output writes, and asset failure. No
-test reads a raw output candidate or observes provider identity.
-
-Run focused unit tests during development, then the full pytest suite, Ruff,
-and package build. A failed admission sentinel, any raw-data receipt, any
-output allocation before atomic sealing, or any consumer bypass blocks the
-migration gate.
-
-### 7. Migrate consumers and remove bypasses (S5)
-
-Move the embedding-index asset first and the locked-inference asset second to
-the receiver, preserving their declared child contracts and test fixtures.
-Keep each old route only until the corresponding sealed route passes its
-consumer regression tests; then delete that route and its tests or fixtures
-that encode its bypass behavior. Do not retain a compatibility switch that can
-select an unsealed route.
-
-Exit criteria: package export, registration, and a receiving fake host use the
-same descriptor digest and invocation path for both consumers; source-level
-tests demonstrate that no parallel invocation path remains.
-
-## Work-package dependency and acceptance matrix
-
-| Package | Depends on | Deliverable | Done check |
-| --- | --- | --- | --- |
-| S2a descriptor/package vectors | S1 | strict parser and ZIP/manifest/child-contract tests | all malformed and binding vectors reject before identity resolution |
-| S2b preparation/handle vectors | S2a | preparation-boundary and handle-state tests | unverified or mismatched input is never sealed or read |
-| S2c admission sentinel matrix | S2a, S2b | event-recording fake host and boundary tests | every rejection has zero later events |
-| S3a receiver composition | S2c | one concrete host composition root | fake host completes a successful invocation in specified order |
-| S3b asset/context/callback path | S3a | fixed ABI, callback adapter, collector integration | only declared inputs, callbacks, and output slots are usable |
-| S4 lifecycle/portability proof | S3a, S3b | deterministic receiving-host and race/error tests | sealing is atomic; failures publish nothing and receipts are redacted |
-| S5 consumer migration | S4 | sealed embedding and locked-inference package assets | no consumer bypass remains |
-
-No packages are marked parallel: S2c depends on the shared test fixture and
-state model established by S2a/S2b, and all later packages consume their
-contracts.
-
-## Risks and controls
-
-| Risk | Trigger | Control | Fallback |
-| --- | --- | --- | --- |
-| A partial test double hides a forbidden side effect | a negative test passes with a generic pipeline | require the event-recording host and assert the complete suffix of zero events | keep S2 open and add the missing observable seam |
-| A package reference is not actually ZIP-bound | a descriptor digest resolves from an unlisted or duplicate entry | verify manifest record type, path, and digest before identity resolution | reject the package; do not infer a path |
-| Preparation becomes an execution bypass | byte sealing loads material or enters a provider | split preparation from invocation and record their effects independently | reject preparation and revoke its invocation |
-| Consumer migration reintroduces a special route | a consumer calls asset/runtime or egress services directly | source-level bypass tests and deletion criteria in S5 | retain the old route only while its sealed replacement is not yet admitted |
-| Experimental personal profile is mistaken for isolation | a foreign package is admitted as personal | require locally selected owner plus exact authorization tuple | keep foreign assets behind `local-tool-sandbox-hardening` |
-
-## Verification and rollback
-
-Use fake assets, handles, providers, and receivers exclusively for unit and
-integration coverage. No test may contact a live model, Hugging Face, network,
-or local tool service. During implementation run the relevant focused pytest
-files first; at S4 and S5 run:
+**Verification:**
 
 ```text
+poetry run pytest tests/test_sealed_artifact_runner_admission.py \
+  tests/test_sealed_artifact_workflow_runner.py \
+  tests/test_dar_authoring_host.py -q
+poetry run ruff check src tests
+```
+
+### M2 — Complete locked-inference receiver admission (dependency I2)
+
+**Depends on:** locked-inference I1. This work may proceed independently of M1,
+but M3 cannot begin until I2 is green.
+
+**Deliverable:** locked-inference policy admission verifies exact instruction
+and schema bytes/digests before package asset import, model material loading,
+or provider entry; the callback preserves exact-role no-fallback semantics.
+
+The locked-inference specification owns this work. This plan consumes only its
+published child-contract and callback-provider interface. The sealed runner
+must not duplicate role parsing, material binding, schema interpretation, or
+provider selection.
+
+**Acceptance:** I2's fake-only policy and execution suites prove asset-digest
+binding, role isolation, host ceilings, concurrency, revalidation, redaction,
+and zero later side effects. Its tasks are marked green in the owning spec.
+
+### M3 — Define consumer descriptors through the generic runner (S5 design)
+
+**Depends on:** M1, M2, and embedding portable runtime E6.
+
+**Deliverable:** one package fixture per consumer using only
+`sealed-artifact-runner.json`, normal package manifest registration, declared
+artifact roles, capability requirements, child-contract digests, and the fixed
+asset ABI.
+
+1. Map each embedding input/output and locked-inference callback to the generic
+   descriptor fields. Keep consumer payload semantics inside its child contract
+   or sealed asset; the outer descriptor stores only the generic role, media,
+   schema digest, limits, capability requirement, and callback bounds.
+2. Bind the existing `embedding.execute.v1` and `model.generate.v1` contracts
+   through the callback table. A sealed asset may invoke only the callback
+   declared for its exact child contract; it cannot select a provider, model,
+   material, executable, endpoint, or destination.
+3. Establish source-level bypass tests before migration. They must fail if a
+   consumer directly imports an asset, reads an invocation path, creates an
+   output/result artifact, or enters a provider outside the generic runner.
+
+**Acceptance:** both fixture descriptors register, prepare, and execute using
+the same generic receiver API without scenario-specific DAR source.
+
+### M4 — Migrate the embedding-index consumer (S5a)
+
+**Depends on:** M3 and E6 completion.
+
+**Deliverable:** the embedding package executes its sealed index-builder asset
+through the generic runner and returns only declared index-bundle and
+coverage-report output handles.
+
+1. Replace the host-private embedding builder bridge with the sealed asset
+   fixture and generic invocation/preparation calls.
+2. Preserve the embedding spec's generic snapshot, prior-bundle, material,
+   deterministic-batch, index-bundle, and coverage-report validation in their
+   owners. The runner validates only generic descriptor/handle/ABI rules.
+3. Add fake-only end-to-end coverage for initial and prior-bundle runs, exact
+   callback binding, atomic egress, and source-data/vector redaction.
+4. Delete the replaced direct builder/import/egress route and its bypass tests
+   in the same change. Do not leave a compatibility switch.
+
+**Acceptance:** package export, registration, prepared snapshot input, callback
+execution, and opaque output publication all traverse the sealed runner; a
+source-level test finds no remaining embedding-specific host invocation route.
+
+### M5 — Migrate the locked-inference consumer (S5b)
+
+**Depends on:** M3 and M2. M5 is independent of M4 and may run in parallel
+with it only after M3 establishes separate fixtures and no shared production
+files are edited concurrently.
+
+**Deliverable:** a callback-enabled asset receives the exact private
+locked-inference provider only through the sealed-runner callback adapter and
+writes declared result slots through its collector.
+
+1. Bind inference-role child contracts and their exact capability requirements
+   to the outer descriptor callback records.
+2. Run fake-only admission, role-isolation, quota, deadline, cancellation,
+   late-result-disposal, and atomic-output tests through the generic receiver.
+3. Delete the old direct callback-enabled asset route after its sealed
+   replacement passes; retain no fallback to the old entry point.
+
+**Acceptance:** no locked-inference package asset can reach a provider or
+result artifact except through the generic sealed runner, and ordinary receipts
+remain limited to digests, counts, and stable classifications.
+
+### M6 — Integration and release evidence
+
+**Depends on:** M4 and M5.
+
+Run consumer-focused suites first, then the full regression, lint, and build:
+
+```text
+poetry run pytest tests/test_sealed_artifact_runner_admission.py \
+  tests/test_sealed_artifact_workflow_runner.py \
+  tests/test_locked_inference_execution.py \
+  tests/test_workflow_locked_inference.py -q
 poetry run pytest -q
 poetry run ruff check src tests
 poetry build
 ```
 
-A failed admission sentinel, any raw-data receipt, any output allocation before
-atomic sealing, or any consumer bypass blocks the migration gate.
+The migration gate fails on any raw artifact data in a receipt, any output
+allocation before atomic seal, a live-model/network/tool dependency in tests,
+or any retained consumer bypass.
 
-Each milestone is additive until its old consumer route is removed. If a
-consumer migration exposes a missing generic contract field, restore that
-consumer's previously passing host-private route, retain the new runner code
-behind no public selection path, revise S1, and repeat the red admission
-vectors before attempting migration again. Do not relax the default-deny
-profile or introduce a consumer-specific escape hatch.
+## Work-package dependency matrix
+
+| Work package | Depends on | Owns | Completion evidence |
+| --- | --- | --- | --- |
+| S2-real | S1/S3/S4 complete | real-collaborator sentinels | event logs prove boundary and zero-call suffix |
+| I2 | locked-inference I1 | role asset/policy admission | owning focused RED/GREEN tests pass |
+| E6 | embedding E1–E5 | portable embedding package runtime | owning ZIP/descriptor tests pass |
+| S5-design | S2-real, I2, E6 | generic consumer descriptor fixtures | both consumers register through one ABI |
+| S5-embedding | S5-design, E6 | embedding migration and deletion | no direct builder route remains |
+| S5-inference | S5-design, I2 | inference migration and deletion | no direct callback asset route remains |
+| S5-integration | S5-embedding, S5-inference | regression/release evidence | full test, lint, and build pass |
+
+## Risks, rollback, and cleanup
+
+| Risk | Trigger | Control | Rollback / stop condition |
+| --- | --- | --- | --- |
+| A sentinel observes a mock, not the host boundary | a negative test passes while a real service could still act | wrap real collaborators and assert ordered events | keep S2 open; add the missing observer |
+| Consumer semantics leak into DAR | a migration adds chunk, tag, prompt, or vector logic to host source | confine semantics to sealed asset/child contract | reject the change and revise the consumer descriptor |
+| Migration retains an unsealed escape hatch | an old route still imports assets, calls providers, or publishes outputs | add source-level bypass tests and delete old route atomically | retain the old path only until its sealed replacement has passed; do not expose selection |
+| Experimental profile is treated as untrusted isolation | a foreign package is admitted | exact local-owner authorization and profile verification | reject admission; await `local-tool-sandbox-hardening` |
+| Consumer prerequisite changes outer ABI | I2 or E6 needs a generic field not represented by the descriptor | add a RED sealed-runner contract vector first | return to S1 contract review; do not add a consumer-specific side channel |
+
+Rollback is additive until a consumer's legacy route is deleted. If migration
+reveals a missing generic field, restore the previously passing host-private
+consumer path with no public selector, retain the new sealed route disabled,
+amend the approved outer contract, and repeat the admission vectors before
+trying the migration again. Never relax authorization, output-sealing, or
+untrusted-asset isolation requirements as a migration workaround.
