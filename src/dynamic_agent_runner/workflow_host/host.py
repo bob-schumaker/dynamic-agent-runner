@@ -785,6 +785,7 @@ class LocalWorkflowHost:
         | None = None,
         local_model_runners: Sequence[LocalModelRunner] = (),
         model_runner_registry: ModelRunnerRegistry | None = None,
+        capability_catalog: CapabilityCatalog | None = None,
     ) -> LocalWorkflowHost:
         """Open a configured local host for the current OS user."""
 
@@ -848,6 +849,7 @@ class LocalWorkflowHost:
             catalog=catalog,
             store=store,
             artifact_verifier=workspace_ingress,
+            capability_catalog=capability_catalog,
         )
         return cls(
             configuration=configuration,
@@ -897,6 +899,7 @@ class LocalWorkflowHost:
                 reviewed_artifact_tool_executors=reviewed_artifact_tool_executors,
                 terminal_diagnostic_store=store,
                 terminal_diagnostic_owner=InstallationIdentityProvider().principal,
+                capability_catalog=capability_catalog,
                 model_runner_registry=model_runner_registry,
             ),
             workspace_ingress=workspace_ingress,
@@ -918,6 +921,7 @@ class LocalWorkflowHost:
             mcp_surfaces=surfaces if mcp_client is not None else None,
             mcp_bindings=mcp_bindings if mcp_client is not None else None,
             reviewed_tool_packages=reviewed_tool_packages,
+            capability_catalog=capability_catalog,
         )
 
     def select_package(self, path: Path, *, now: datetime) -> str:

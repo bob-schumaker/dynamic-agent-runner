@@ -282,3 +282,33 @@ targeted pre-commit hooks passed on 2026-09-09.
     outside unit tests and does not unblock C1–C4.
   - Evidence: final fake-only validation passed on 2026-09-09: 2,000 passed,
     1 skipped, 7 deselected; Ruff, diff checks, and all pre-commit hooks pass.
+- [x] C5.6 [tests, RED/GREEN] Make the receiver capability catalog a supported
+  `LocalWorkflowHost.open()` composition input. Retain that exact catalog in
+  the host for registration admission, and pass it to invocation preparation
+  and the workflow runner. Remove the need for callers or integration harnesses
+  to mutate private host attributes after opening the host. Add focused host
+  tests proving a sealed package with exact capability requirements registers,
+  prepares, and runs using only the public `open()` input; prove an absent
+  catalog preserves legacy package behavior and fails closed for a package that
+  declares requirements.
+  - Spec: Capability resolution; Package Identity and Lifecycle; FR-1; FR-3.
+  - Files: `src/dynamic_agent_runner/workflow_host/host.py`,
+    `tests/test_dar_authoring_host.py`.
+  - Depends on: C5.4.
+  - Gate: the exact receiver-local catalog snapshot must be shared by every
+    admission/revalidation boundary; no package data, host-private provider
+    identity, fallback, private post-construction mutation, registry, or
+    persisted host configuration is introduced.
+  - Readiness review (2026-09-09): Council (Aristotle, Ada, Feynman; reduced-
+    independence sequential review) accepted the composition-root boundary
+    after clarifying that registration admission—not `WorkflowRegistrationService`
+    construction—uses the catalog. Ponytail accepted the minimal propagation
+    path and rejected a catalog registry, discovery mechanism, or new config
+    file.
+  - Evidence (2026-09-09): RED observed
+    `LocalWorkflowHost.open()` reject the `capability_catalog` keyword. GREEN
+    proves the same catalog is retained by host registration, preparation, and
+    runner services; a requirements package registers, prepares, and executes
+    through that public input; an absent catalog rejects that package before
+    registration; and existing legacy host coverage remains catalog-free.
+    Focused host tests and the full suite pass.

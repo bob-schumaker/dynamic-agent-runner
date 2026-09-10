@@ -52,6 +52,7 @@ from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool  #
 from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     LocalModelProfileControlPlane,
 )
+from dynamic_agent_runner.workflow_host.policy import PolicyCompilationError  # noqa: E402
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa: E402
     ReviewedToolPackageBinding,
@@ -1424,10 +1425,11 @@ def test_host_rejects_unsatisfied_requirement_before_file_ingress(
     input_root.mkdir()
     document = input_root / "document.txt"
     document.write_text("document body", encoding="utf-8")
+    client = _Client()
     monkeypatch.setattr(
         "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
-            _Client(),
+            client,
             models=[profile.execution_model_id],
             is_local=True,
             model_id_mapping={profile.execution_model_id: profile.model_id},
@@ -1441,7 +1443,6 @@ def test_host_rejects_unsatisfied_requirement_before_file_ingress(
         model_id="local-model-v1",
         base_url="http://127.0.0.1:11434/v1",
     )
-    host = LocalWorkflowHost.open(tmp_path / "state")
     provider_available = True
     available_catalog = CapabilityCatalog(
         (contract,),
@@ -1466,12 +1467,38 @@ def test_host_rejects_unsatisfied_requirement_before_file_ingress(
             else ProviderAvailability.DISABLED
         ),
     )
-    host._capability_catalog = available_catalog
-    host._preparation._capability_catalog = available_catalog
+    no_catalog_host = LocalWorkflowHost.open(tmp_path / "state")
+    no_catalog_source = no_catalog_host.select_package(source, now=NOW)
+
+    with pytest.raises(PolicyCompilationError, match="capability"):
+        no_catalog_host.register(
+            workflow_id="without-catalog",
+            package_source_handle=no_catalog_source,
+            now=NOW,
+        )
+
+    host = LocalWorkflowHost.open(
+        tmp_path / "state", capability_catalog=available_catalog
+    )
+    assert host._capability_catalog is available_catalog
+    assert host._preparation._capability_catalog is available_catalog
+    assert host._runner._capability_catalog is available_catalog
     source_handle = host.select_package(source, now=NOW)
     registration = host.register(
         workflow_id="document-helper", package_source_handle=source_handle, now=NOW
     )
+    prepared = host.prepare(
+        workflow_id=registration.workflow_id, prompt="Answer the request.", now=NOW
+    )
+    result = host.run(
+        workflow_id=registration.workflow_id,
+        prepared_input_id=prepared.prepared_input_id,
+        now=NOW,
+    )
+
+    assert result.output == {"message": "completed locally"}
+    assert len(client.responses.calls) == 1
+
     provider_available = False
     assert host._workspace_ingress is not None
     monkeypatch.setattr(

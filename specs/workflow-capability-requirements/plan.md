@@ -2,15 +2,15 @@
 
 ## Status
 
-Reviewed specification and task sequence. C1–C3 and C4.1 are implemented and
-verified. C4.2–C4.4 are verified: descriptor-only staging rejects malformed,
-digest-mismatched, and invalid bindings; policy admission precedes runtime and
-asset loading; selected provider IDs are private registration bindings; and
-unavailability fails closed before converter load, model preparation/execution,
-and ingress. Draft
-`workflow-model-materials/plan.md` and `tasks.md` now name the lock/parser
-seams, but C5 remains blocked until their approval. The capability catalog is a
-new package-level compatibility system. It must not reinterpret the existing
+Reviewed specification and task sequence. C1–C5 are implemented and verified:
+descriptor-only staging rejects malformed, digest-mismatched, and invalid
+bindings; policy admission precedes runtime and asset loading; selected provider
+IDs are private registration bindings; and unavailability fails closed before
+converter load, model preparation/execution, and ingress. C5.6 makes the
+existing receiver-local capability catalog a public `LocalWorkflowHost.open()`
+composition input and propagates it to every host admission and revalidation
+boundary. The capability catalog is a new package-level compatibility system.
+It must not reinterpret the existing
 string-only `WorkflowPolicy.required_capabilities`, which continues to describe
 current workflow operational requirements.
 
@@ -165,21 +165,20 @@ every unavailable result is `capability_unavailable` and redacted.
 Exit: each unsatisfied requirement leaves every side-effect sentinel at zero;
 no fallback or partial execution path remains.
 
-### S5 — Model-material, runner, and converter integration (blocked)
+### S5 — Model-material, runner, and converter integration (complete)
 
-1. Draft `specs/workflow-model-materials/plan.md` and `tasks.md` now name its
-   lock/parser implementation and test seams. Obtain approval before C5
-   implementation begins.
-2. Add fake-only mapping tests to the future model-material path: preparation
+1. Approved `specs/workflow-model-materials/plan.md` and `tasks.md` named the
+   lock/parser implementation and test seams before C5 implementation began.
+2. Added fake-only mapping tests to the model-material path: preparation
    entries directly match one required preparation capability; runner/profile
    pairs match one model-execution capability; converter manifests match one
    converter-host capability.
-3. Update `workflow-model-materials` implementation seams only after S1–S4 and
-   the approved model-material task dependency:
+3. Updated `workflow-model-materials` implementation seams after S1–S4 and
+   the approved model-material task dependency to
    bind the capability-requirements digest into `ModelExecutionBinding`; keep
    material transport, hashes, credentials, cache layout, and network policy
    universal DAR behavior rather than capabilities.
-4. Update runner and converter admission to request the resolver's private
+4. Updated runner and converter admission to request the resolver's private
    selected provider. Do not bind a receiver-installed execution-plugin
    identity into package data; retain it only in DAR-private audit records.
 
@@ -187,6 +186,21 @@ Exit: missing or incompatible preparation, runner, or converter-host capability
 fails before its first corresponding side effect. Package-local converter assets
 remain valid under their own sealed-asset contract but cannot provide a DAR
 capability.
+
+### S6 — Host capability-catalog composition (complete)
+
+1. Added a keyword-only `capability_catalog` input to `LocalWorkflowHost.open()`.
+   It remains receiver-local and is used by the host-owned registration
+   admission.
+2. Passed that same catalog to `WorkflowInvocationPreparationService` and
+   `WorkflowRunner` without exposing or persisting selected provider identity.
+3. Added fake-only host tests for the public open/register/prepare/run path, a
+   requirements package without a catalog failing closed, and an unchanged
+   legacy-package path.
+
+Exit: an integration caller never mutates host-private attributes to execute a
+sealed requirements package, and no catalog registry or configuration file is
+introduced.
 
 ## Validation Strategy
 

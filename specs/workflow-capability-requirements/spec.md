@@ -3,8 +3,7 @@
 ## Metadata
 
 - Feature slug: `workflow-capability-requirements`
-- Status: C1–C4 are implemented and verified. C5 is blocked pending approval
-  of the drafted model-material plan and tasks.
+- Status: C1–C5.6 are implemented and verified.
 - Owner: dynamic-agent-runner package, capability, and workflow-host boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`
