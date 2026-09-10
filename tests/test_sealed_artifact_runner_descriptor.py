@@ -265,3 +265,26 @@ def test_verifier_requires_one_matching_callback_child_contract(tmp_path) -> Non
     ).hexdigest()
     with pytest.raises(SealedArtifactRunnerDescriptorError, match="child contract"):
         verify_sealed_artifact_runner_files(tmp_path, _canonical(descriptor))
+
+
+def test_verifier_requires_unbound_child_contract(tmp_path) -> None:
+    asset = b"def run(context):\n    return None\n"
+    child = _canonical({"consumer_contract": "v1"})
+    child_digest = hashlib.sha256(child).hexdigest()
+    descriptor = _descriptor()
+    descriptor["asset"]["sha256"] = hashlib.sha256(asset).hexdigest()
+    descriptor["child_contract_digests"] = [child_digest]
+    unsigned = dict(descriptor)
+    del unsigned["artifact_runner_digest"]
+    descriptor["artifact_runner_digest"] = hashlib.sha256(
+        _canonical(unsigned)
+    ).hexdigest()
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "example.py").write_bytes(asset)
+
+    with pytest.raises(SealedArtifactRunnerDescriptorError, match="child contract"):
+        verify_sealed_artifact_runner_files(tmp_path, _canonical(descriptor))
+
+    (tmp_path / "contracts").mkdir()
+    (tmp_path / "contracts" / "consumer.json").write_bytes(child)
+    verify_sealed_artifact_runner_files(tmp_path, _canonical(descriptor))

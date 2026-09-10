@@ -46,6 +46,7 @@ class SealedArtifactRunnerDescriptor:
     asset_path: str
     asset_digest: str
     schema_assets: tuple["SealedArtifactSchemaAsset", ...]
+    child_contract_digests: tuple[str, ...]
     callbacks: tuple["SealedArtifactCallback", ...]
     output_roles: tuple[str, ...]
 
@@ -122,6 +123,7 @@ def parse_sealed_artifact_runner_descriptor(
         asset_path=asset_path,
         asset_digest=asset_digest,
         schema_assets=schema_assets,
+        child_contract_digests=child_digests,
         callbacks=callbacks,
         output_roles=output_roles,
     )
@@ -136,8 +138,14 @@ def verify_sealed_artifact_runner_files(
     _file_digest(root, descriptor.asset_path, descriptor.asset_digest)
     for schema in descriptor.schema_assets:
         _validate_schema(_file_digest(root, schema.path, schema.digest))
+    child_contracts = {
+        digest: _child_contract_mapping(root, digest)
+        for digest in descriptor.child_contract_digests
+    }
     for callback in descriptor.callbacks:
-        _validate_child_contract(root, callback)
+        _validate_callback_child_contract(
+            child_contracts[callback.child_contract_digest], callback
+        )
     return descriptor
 
 
@@ -548,7 +556,7 @@ def _validate_schema(value: bytes) -> None:
         ) from error
 
 
-def _validate_child_contract(root: Path, callback: SealedArtifactCallback) -> None:
+def _child_contract_mapping(root: Path, digest: str) -> Mapping[str, object]:
     matches: list[bytes] = []
     for candidate in root.rglob("*"):
         try:
@@ -560,14 +568,24 @@ def _validate_child_contract(root: Path, callback: SealedArtifactCallback) -> No
             raise SealedArtifactRunnerDescriptorError(
                 "sealed artifact child contract is unavailable"
             ) from error
-        if hashlib.sha256(content).hexdigest() == callback.child_contract_digest:
+        if hashlib.sha256(content).hexdigest() == digest:
             matches.append(content)
     if len(matches) != 1:
         raise SealedArtifactRunnerDescriptorError(
             "sealed artifact child contract is unavailable"
         )
     try:
-        mapping = _canonical_mapping(matches[0])
+        return _canonical_mapping(matches[0])
+    except SealedArtifactRunnerDescriptorError as error:
+        raise SealedArtifactRunnerDescriptorError(
+            "sealed artifact child contract is invalid"
+        ) from error
+
+
+def _validate_callback_child_contract(
+    mapping: Mapping[str, object], callback: SealedArtifactCallback
+) -> None:
+    try:
         _require_exact_keys(
             mapping,
             {"body", "callback_name", "capability_requirement", "format_version"},
