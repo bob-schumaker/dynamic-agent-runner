@@ -10,6 +10,7 @@ from pathlib import Path
 _ROOT = Path(__file__).parents[1]
 _FIXTURE = _ROOT / "tests/fixtures/embedding-index-e5-2/model-material.json"
 _HARNESS = _ROOT / "tests/manual/run_embedding_index_e5_2.py"
+_EVIDENCE = _ROOT / "tests/fixtures/embedding-index-e5-2/acceptance-evidence.json"
 
 
 def test_e5_2_material_fixture_is_pinned_and_not_a_dar_contract() -> None:
@@ -46,3 +47,26 @@ def test_e5_2_harness_accepts_only_the_host_prepared_fixture_snapshot() -> None:
 
     assert len(snapshot.documents) == 1
     assert "acceptance document" not in repr(snapshot)
+
+
+def test_e5_2_acceptance_evidence_is_redacted_to_identities_and_counts() -> None:
+    evidence = json.loads(_EVIDENCE.read_text(encoding="utf-8"))
+
+    assert set(evidence) == {
+        "bundle_digest",
+        "counts",
+        "coverage_report_digest",
+        "embedding_capability_contract_digest",
+        "embedding_material_lock_digest",
+        "index_builder_digest",
+        "package_digest",
+    }
+    assert evidence["counts"] == {
+        "chunk_count": 1,
+        "deleted_count": 0,
+        "document_count": 1,
+        "error_count": 0,
+        "indexed_count": 1,
+        "skipped_count": 0,
+    }
+    assert "acceptance document" not in json.dumps(evidence)

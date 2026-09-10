@@ -1,0 +1,16 @@
+{
+  "bundle_digest": "6f5c9cc9c30b042e5aafb809e95a21afdc735c9237211d9479161fd8f5e644b8",
+  "counts": {
+    "chunk_count": 1,
+    "deleted_count": 0,
+    "document_count": 1,
+    "error_count": 0,
+    "indexed_count": 1,
+    "skipped_count": 0
+  },
+  "coverage_report_digest": "e0234d6d0e6dc2a3b99fd67a0b6a9a76d40cadd32af2095eed99fd0324a235f8",
+  "embedding_capability_contract_digest": "0c4befa5dab5b6513d2d85d02b6138f57f986f1ca6695aa5346200149f80f1af",
+  "embedding_material_lock_digest": "5e9dae9ce847cd02836b7ad0c2120b6d5176a6da6f2184a4e8f331807ac0d4c7",
+  "index_builder_digest": "55d77957ed58a9c35cd38f60bd721d345da14d5f6d90581f509d577f435f5034",
+  "package_digest": "64ac89493c8a9f4b798d29d0cbeb5b12f1932cf3e1039c99a312094446f64397"
+}

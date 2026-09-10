@@ -138,10 +138,16 @@
   - Evidence: 2026-09-10 focused embedding-index suites passed; full
     `poetry run pytest -q` passed (2042 passed, 1 skipped, 7 deselected), full
     `poetry run ruff check src tests` passed, and `git diff --check` passed.
-- [ ] E5.2 [manual gate] With explicit authorization, execute one approved
+- [x] E5.2 [manual gate] With explicit authorization, execute one approved
   package on a non-sensitive host-prepared snapshot and locked embedding model.
   Retain only digest identities and aggregate coverage counts; verify the
   returned coverage report has no per-document or raw-content fields.
   - Depends on: E5.1.
   - The manually maintained test harness supplies and verifies its scenario
     material pin; no scenario material identity belongs in this task contract.
+  - Evidence: on 2026-09-10, the owner-authorized E5.2 fixture ran through
+    llama.cpp on local Metal. Its retained test-harness receipt contains only
+    bundle/report/binding/package digests and aggregate counts: one document,
+    one chunk, one indexed, and zero skipped/deleted/errors. The harness checks
+    that no document, path, content, text, vector, or bundle field can enter
+    the coverage-report receipt.
