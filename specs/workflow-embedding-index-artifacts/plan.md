@@ -13,11 +13,12 @@
 - Version 1 admits only deterministic embedding providers: identical locked
   inputs and execution parameters must produce identical bundle and report
   bytes.
-- S3 and S4 require the host-only bounded result collector from
-  `sandbox-workspace-runtime` to be wired through an approved untrusted-asset
-  isolation backend from `local-tool-sandbox-hardening`. Until that backend
-  exists, DAR may validate ingress and embedding capability contracts but must
-  not execute an index-builder asset.
+- S3 and S4 use an explicit owner-authorized experimental profile while DAR is
+  evaluating personal-use scenarios. It runs only the exact sealed builder
+  digest, requires a local host-owner opt-in, makes no isolation claim, and
+  cannot admit a package received from another party. General-release and
+  untrusted-package execution remain gated on the approved isolation backend
+  from `local-tool-sandbox-hardening`.
 
 ## S1 — Snapshot and bundle contracts
 
@@ -55,11 +56,12 @@ import, sealed document ingress, or builder execution.
 
 ## S3 — Bounded index-builder execution
 
-1. Use the implemented host-only `sandbox-workspace-runtime` result collector
-   only through an approved `local-tool-sandbox-hardening` OS/runtime isolation
-   backend for untrusted assets. That backend is presently deferred, so no
-   builder asset is executable yet.
-2. Once the gate is met, define the narrow sandbox tool ABI and sealed builder
+1. Define the owner-authorized experimental profile: a local host owner opts in
+   to one exact sealed package digest and builder asset digest; it exposes no
+   directory, network, subprocess, or persistent storage API and makes no
+   isolation claim. Keep ordinary/untrusted-package execution unavailable until
+   the `local-tool-sandbox-hardening` release gate is met.
+2. Define the narrow sandbox tool ABI and sealed builder
    descriptor for snapshot records, optional prior bundle, bounded embedding
    batches, empty result location, and manifests. The descriptor binds the
    exact builder asset and all chunking/index configuration into
@@ -72,8 +74,9 @@ import, sealed document ingress, or builder execution.
    embedder doubles, asserting aggregate-only report egress and no raw artifact
    content in ordinary results or traces.
 
-Exit: after the sandbox gate, a sealed workflow can produce a validated opaque
-bundle entirely through the reviewed artifact and capability paths.
+Exit: a personal experimental workflow can produce a validated opaque bundle
+through the reviewed artifact and capability paths; general-release execution
+remains gated on approved untrusted-asset isolation.
 
 ## S4 — Incremental bundles and package fixture
 
@@ -86,9 +89,9 @@ bundle entirely through the reviewed artifact and capability paths.
    DAR owns none of those semantics.
 4. Run focused suites, full pytest, Ruff, and `git diff --check`.
 
-Exit: after S3's sandbox gate, an example portable package demonstrates initial
-and incremental index artifact production without a live model or a persistent
-external store.
+Exit: an owner-authorized personal example package demonstrates initial and
+incremental index artifact production without a live model or a persistent
+external store. General-release distribution remains separately gated.
 
 ## Manual Acceptance
 

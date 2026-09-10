@@ -17,16 +17,18 @@
 This requirement is deferred. DAR does not currently admit an OS/runtime
 isolation backend for untrusted executable workflow assets.
 
-Consequently, `workflow-embedding-index-artifacts` may implement sealed
-document ingress, opaque artifact validation, and embedding-provider admission,
-but it must not execute its workflow-local index-builder asset. That feature's
-E4 and E5 work remains unavailable until this specification supplies an
-implemented and approved backend together with the bounded result-location
-primitive required by `sandbox-workspace-runtime`.
+This blocks general-release and untrusted-package admission, including any
+workflow received from another party. It does not block an explicitly
+owner-authorized personal experimental workflow while DAR is evaluating
+real-world scenarios. Such a profile must make no isolation claim, require a
+local host-owner opt-in for the exact sealed package digest, and remain
+ineligible for ordinary third-party distribution or automatic admission.
 
-This is a safety gate, not an alternate trusted-in-process execution mode. The
-existing trusted-fixture boundary remains available only for its stated tests
-and implementation-owned fixtures.
+Consequently, `workflow-embedding-index-artifacts` may use that experimental
+profile to evaluate an index builder against non-sensitive local inputs. Its
+general-release/untrusted execution profile remains unavailable until this
+specification supplies an implemented and approved backend together with the
+bounded result-location primitive required by `sandbox-workspace-runtime`.
 
 ## Objective
 
@@ -74,8 +76,9 @@ tool named "sandbox."
 
 This slice does not:
 
-- change the trusted-fixture test assumption for existing DAR workflow-local
-  tools;
+- change the owner-authorized experimental-profile assumption for existing DAR
+  workflow-local tools; that profile is not an isolation claim or an admission
+  route for untrusted packages;
 - add a binary-format registry or teach DAR SVG, PCAP, protobuf, or other
   domain semantics;
 - install, discover, download, or configure arbitrary tool packages;

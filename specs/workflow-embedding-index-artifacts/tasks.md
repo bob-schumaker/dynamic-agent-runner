@@ -51,9 +51,9 @@
     required before E4 can begin.
   - Evidence: `sandbox-workspace-runtime` now has a host-only bounded in-memory
     result collector, but `local-tool-sandbox-hardening` admits no OS/runtime
-    isolation backend for untrusted executable assets. The collector must be
-    wired through that backend before E4 can begin; E3 remains a host-only,
-    no-builder slice.
+    isolation backend for untrusted executable assets. That is a general-release
+    gate; E4 may use the explicit owner-authorized experimental profile while
+    DAR evaluates personal-use scenarios.
 
 ## E2 — Sealed artifacts
 

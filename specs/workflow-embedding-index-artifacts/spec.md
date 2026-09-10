@@ -220,9 +220,12 @@ never an unsealed mutable workspace.
 
 Package-local index-builder code remains subject to
 `sandbox-workspace-runtime` and `local-tool-sandbox-hardening`. DAR has only a
-host-only in-memory bounded result collector today; until it is wired through
-an approved OS/runtime isolation backend, DAR must not claim that untrusted
-index-builder code is safely executable. Raw document content, chunks, vectors,
+host-only in-memory bounded result collector today. General-release and
+untrusted-package execution require that collector to be wired through an
+approved OS/runtime isolation backend. During personal scenario evaluation, an
+explicit local host-owner opt-in may execute the exact sealed builder digest
+through the experimental profile; it makes no isolation claim and does not
+admit a package received from another party. Raw document content, chunks, vectors,
 index bytes, and source-path mappings are sensitive artifacts and must not
 enter ordinary traces, error text, capability reports, or debug diagnostics.
 
