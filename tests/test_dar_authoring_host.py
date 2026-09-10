@@ -53,6 +53,9 @@ from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     LocalModelProfileControlPlane,
 )
 from dynamic_agent_runner.workflow_host.policy import PolicyCompilationError  # noqa: E402
+from dynamic_agent_runner.workflow_host.package_export import (  # noqa: E402
+    export_staged_package,
+)
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa: E402
     ReviewedToolPackageBinding,
@@ -273,9 +276,14 @@ def test_local_host_rejects_tampered_sealed_asset_before_callback_or_egress(
     host = LocalWorkflowHost.open(
         tmp_path / "state", sealed_artifact_callback_resolver=resolver
     )
+    staged = host.preview_package(
+        package_source_handle=host.select_package(source, now=NOW), now=NOW
+    )
+    archive = package_root / "document-helper.zip"
+    export_staged_package(staged=staged, destination=archive)
     registration = host.register(
         workflow_id="document-helper",
-        package_source_handle=host.select_package(source, now=NOW),
+        package_source_handle=host.select_package(archive, now=NOW),
         now=NOW,
     )
     prepared = host.prepare_sealed_artifact_input(
