@@ -5,9 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import stat
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from dynamic_agent_runner.workflow_host.state import (
@@ -40,7 +42,17 @@ class SealedArtifactRunnerDescriptor:
 
     digest: str
     asset_path: str
+    asset_digest: str
+    schema_assets: tuple["SealedArtifactSchemaAsset", ...]
     output_roles: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class SealedArtifactSchemaAsset:
+    """One schema file bound by a runner descriptor."""
+
+    path: str
+    digest: str
 
 
 @dataclass(frozen=True)
@@ -81,10 +93,11 @@ def parse_sealed_artifact_runner_descriptor(
     del unsigned["artifact_runner_digest"]
     if hashlib.sha256(_canonical_bytes(unsigned)).hexdigest() != declared_digest:
         raise SealedArtifactRunnerDescriptorError("descriptor digest does not match")
-    asset_path = _asset(mapping["asset"])
+    asset_path, asset_digest = _asset(mapping["asset"])
     _digest(mapping["capability_requirements_digest"])
     _digest(mapping["profile_digest"])
-    schema_digests = _schemas(mapping["schemas"])
+    schema_assets = _schemas(mapping["schemas"])
+    schema_digests = frozenset(item.digest for item in schema_assets)
     _artifacts(mapping["inputs"], output=False, schema_digests=schema_digests)
     output_roles = _artifacts(
         mapping["outputs"], output=True, schema_digests=schema_digests
@@ -95,8 +108,22 @@ def parse_sealed_artifact_runner_descriptor(
     return SealedArtifactRunnerDescriptor(
         digest=declared_digest,
         asset_path=asset_path,
+        asset_digest=asset_digest,
+        schema_assets=schema_assets,
         output_roles=output_roles,
     )
+
+
+def verify_sealed_artifact_runner_files(
+    root: Path, descriptor_bytes: bytes
+) -> SealedArtifactRunnerDescriptor:
+    """Verify descriptor-referenced asset and schema files below one package root."""
+
+    descriptor = parse_sealed_artifact_runner_descriptor(descriptor_bytes)
+    _file_digest(root, descriptor.asset_path, descriptor.asset_digest)
+    for schema in descriptor.schema_assets:
+        _file_digest(root, schema.path, schema.digest)
+    return descriptor
 
 
 class SealedArtifactRunnerAdmission:
@@ -290,7 +317,7 @@ def _canonical_bytes(value: object) -> bytes:
         raise SealedArtifactRunnerDescriptorError("descriptor is invalid") from error
 
 
-def _asset(value: object) -> str:
+def _asset(value: object) -> tuple[str, str]:
     mapping = _mapping(value)
     _require_exact_keys(mapping, {"abi_version", "entrypoint", "path", "sha256"})
     if mapping["abi_version"] != 1 or mapping["entrypoint"] != "run":
@@ -298,28 +325,26 @@ def _asset(value: object) -> str:
     path = _path(mapping["path"])
     if not path.endswith(".py"):
         _invalid()
-    _digest(mapping["sha256"])
-    return path
+    return path, _digest(mapping["sha256"])
 
 
-def _schemas(value: object) -> frozenset[str]:
+def _schemas(value: object) -> tuple[SealedArtifactSchemaAsset, ...]:
     items = _list(value)
     paths: list[str] = []
-    digests: list[str] = []
+    assets: list[SealedArtifactSchemaAsset] = []
     for item in items:
         mapping = _mapping(item)
         _require_exact_keys(mapping, {"dialect", "path", "sha256"})
         if mapping["dialect"] != "json-schema-draft-2020-12":
             _invalid()
-        paths.append(_path(mapping["path"]))
-        digests.append(_digest(mapping["sha256"]))
-    if (
-        paths != sorted(paths)
-        or len(set(paths)) != len(paths)
-        or len(set(digests)) != len(digests)
-    ):
+        path = _path(mapping["path"])
+        paths.append(path)
+        assets.append(SealedArtifactSchemaAsset(path, _digest(mapping["sha256"])))
+    if paths != sorted(paths) or len(set(paths)) != len(paths):
         _invalid()
-    return frozenset(digests)
+    if len({item.digest for item in assets}) != len(assets):
+        _invalid()
+    return tuple(assets)
 
 
 def _artifacts(
@@ -459,6 +484,23 @@ def _require_exact_keys(mapping: Mapping[str, object], keys: set[str]) -> None:
 
 def _invalid() -> None:
     raise SealedArtifactRunnerDescriptorError("descriptor is invalid")
+
+
+def _file_digest(root: Path, path: str, expected_digest: str) -> None:
+    try:
+        candidate = root.joinpath(*path.split("/"))
+        metadata = candidate.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            _invalid()
+        content = candidate.read_bytes()
+    except OSError as error:
+        raise SealedArtifactRunnerDescriptorError(
+            "sealed artifact runner file is unavailable"
+        ) from error
+    if hashlib.sha256(content).hexdigest() != expected_digest:
+        raise SealedArtifactRunnerDescriptorError(
+            "sealed artifact runner file is invalid"
+        )
 
 
 def _handle_fields(

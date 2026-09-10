@@ -63,7 +63,11 @@ def test_parser_accepts_the_normative_v1_canonicalization_vector() -> None:
 
     parsed = parse_sealed_artifact_runner_descriptor(_canonical(descriptor))
 
-    assert parsed.digest == descriptor["artifact_runner_digest"]
+    assert (
+        parsed.digest
+        == "2c3ed7f8dc3c1aefe51d97bfc699bb7de6c5c5239a6b7a0df025acbf2ebb13f4"
+    )
+    assert descriptor["artifact_runner_digest"] == parsed.digest
     assert parsed.asset_path == "assets/example.py"
     assert parsed.output_roles == ("result",)
 

@@ -26,7 +26,7 @@ from dynamic_agent_runner.workflow_host.material_sets import (
 from dynamic_agent_runner.workflow_host.staging import StagedPackage
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactRunnerDescriptorError,
-    parse_sealed_artifact_runner_descriptor,
+    verify_sealed_artifact_runner_files,
 )
 
 
@@ -224,8 +224,8 @@ def _verify_sealed_artifact_runner_digest(
             raise PackageExportError("sealed artifact runner does not match manifest")
         return
     try:
-        digest = parse_sealed_artifact_runner_descriptor(
-            _read_regular_file(root, _SEALED_ARTIFACT_RUNNER_NAME)
+        digest = verify_sealed_artifact_runner_files(
+            root, _read_regular_file(root, _SEALED_ARTIFACT_RUNNER_NAME)
         ).digest
     except (SealedArtifactRunnerDescriptorError, PackageExportError) as error:
         raise PackageExportError("sealed artifact runner is invalid") from error

@@ -31,7 +31,10 @@ from dynamic_agent_runner.workflow_host.material_sets import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
 )  # noqa: E402
-from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager  # noqa: E402
+from dynamic_agent_runner.workflow_host.staging import (  # noqa: E402
+    PackageStagingError,
+    PrivatePackageStager,
+)
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 
 
@@ -112,6 +115,7 @@ def _stage(
     with_model_materials: bool = False,
     with_model_material_sets: bool = False,
     with_sealed_artifact_runner: bool = False,
+    sealed_asset_body: str = "def run(context):\n    return None\n",
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -149,7 +153,7 @@ def _stage(
     if with_sealed_artifact_runner:
         (source / "assets").mkdir()
         (source / "assets" / "runner.py").write_text(
-            "def run(context):\n    return None\n", encoding="utf-8"
+            sealed_asset_body, encoding="utf-8"
         )
         (source / "sealed-artifact-runner.json").write_bytes(
             _sealed_artifact_descriptor()
@@ -253,6 +257,15 @@ def test_export_and_import_bind_sealed_artifact_runner_digest(tmp_path: Path) ->
     assert staged_manifest["sealed_artifact_runner_digest"] == expected
     assert exported_manifest["sealed_artifact_runner_digest"] == expected
     assert imported.digest == staged.digest
+
+
+def test_staging_rejects_a_sealed_runner_with_tampered_asset(tmp_path: Path) -> None:
+    with pytest.raises(PackageStagingError, match="sealed artifact runner"):
+        _stage(
+            tmp_path,
+            with_sealed_artifact_runner=True,
+            sealed_asset_body="def run(context):\n    raise RuntimeError()\n",
+        )
 
 
 def test_export_rejects_a_tampered_model_materials_digest(tmp_path: Path) -> None:

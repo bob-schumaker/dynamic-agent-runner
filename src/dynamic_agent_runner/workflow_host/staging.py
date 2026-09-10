@@ -37,7 +37,7 @@ from dynamic_agent_runner.workflow_host.material_sets import (
 )
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactRunnerDescriptorError,
-    parse_sealed_artifact_runner_descriptor,
+    verify_sealed_artifact_runner_files,
 )
 
 from dynamic_agent_runner.workflow_host.profiles import InstallationIdentityProvider
@@ -542,8 +542,8 @@ def _package_compatibility(root: Path) -> dict[str, object]:  # noqa: C901
     if sealed_artifact_runner_path.exists():
         try:
             compatibility["sealed_artifact_runner_digest"] = (
-                parse_sealed_artifact_runner_descriptor(
-                    sealed_artifact_runner_path.read_bytes()
+                verify_sealed_artifact_runner_files(
+                    root, sealed_artifact_runner_path.read_bytes()
                 ).digest
             )
         except (OSError, SealedArtifactRunnerDescriptorError) as error:
