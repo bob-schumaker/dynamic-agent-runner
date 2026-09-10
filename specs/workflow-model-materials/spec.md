@@ -257,7 +257,10 @@ An inference-capable package with more than one locked model uses a separate
 Each entry contains a unique `[a-z][a-z0-9_]{0,63}` `role` and one complete
 `ModelDependencyLock v1` mapping. The optional declared
 `material_sets_digest` is the SHA-256 of those canonical bytes and is excluded
-from its own digest.
+from its own digest. The package manifest, compiled policy, and immutable host
+registration each bind that digest when the declaration is present; the
+registration digest includes it. Legacy registrations without a material-set
+digest remain readable.
 
 A descriptor inference role names one distinct material-set role. DAR compares
 that relation before any asset read, cache access, download, preparation, model

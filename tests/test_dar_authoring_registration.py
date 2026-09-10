@@ -170,6 +170,33 @@ def test_registration_persists_the_model_materials_digest(tmp_path: Path) -> Non
     assert changed.registration_digest != registration.registration_digest
 
 
+def test_registration_persists_the_model_material_sets_digest(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    policy = replace(_policy(), model_material_sets_digest="d" * 64)
+
+    registration = service.register(
+        workflow_id="document-helper",
+        policy=policy,
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+
+    assert registration.model_material_sets_digest == "d" * 64
+    record = json.loads((tmp_path / "registrations" / "registrations.json").read_text())
+    assert (
+        record["registrations"]["document-helper"]["model_material_sets_digest"]
+        == "d" * 64
+    )
+    assert service.resolve("document-helper") == registration
+
+    changed = service.register(
+        workflow_id="changed-model-material-sets",
+        policy=replace(_policy(), model_material_sets_digest="e" * 64),
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+
+    assert changed.registration_digest != registration.registration_digest
+
+
 def test_registration_binds_the_model_execution_binding_digest(tmp_path: Path) -> None:
     service = _service(tmp_path)
     registration = service.register(

@@ -134,14 +134,19 @@ fake-only and test-first.
   - Evidence: `ModelMaterialSets v1` is a separate canonical declaration; it
     leaves the legacy single-lock artifact unchanged and requires distinct named
     role bindings before deferred execution.
-- [ ] M7.2 [tests, RED] Add parser/package/registration vectors for duplicate,
+- [x] M7.2 [tests, RED] Add parser/package/registration vectors for duplicate,
   missing, reordered, and substituted material roles before any cache, load,
   provider, or package asset action.
+  - Evidence: `tests/test_workflow_material_sets.py` rejects malformed,
+    reordered, duplicate, and substituted roles; the ZIP export/import vector
+    binds the canonical set digest; and the registration vector proves a set
+    digest is persisted and changes the immutable registration identity.
 - [x] M7.3 [implementation] Bind the material-set digest and exact inference
   role/material role relation into package policy and private execution binding.
   - Evidence: `ModelMaterialSets` and `InferenceRoles` derive distinct private
-    `LockedInferenceBinding` values before runtime package loading; policy and
-    deterministic ZIP manifests bind the material-set and inference-role digests.
+    `LockedInferenceBinding` values before runtime package loading; policy,
+    deterministic ZIP manifests, and registrations bind the material-set and
+    inference-role digests.
 - [x] M7.4 [tests, GREEN] Prove role isolation and unchanged legacy package
   import/export behavior.
   - Evidence: focused fake-only material-set/inference-role parser and binding
