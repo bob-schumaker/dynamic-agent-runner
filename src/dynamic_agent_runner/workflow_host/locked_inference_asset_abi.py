@@ -7,6 +7,8 @@ from typing import Mapping
 
 from dynamic_agent_runner.workflow_host.sandbox_result_location import (
     DeclaredResultArtifact,
+    ResultLocation,
+    create_result_location,
 )
 
 
@@ -20,6 +22,11 @@ class LockedInferenceAssetAbi:
     authorized_roles: tuple[str, ...]
     sealed_inputs: tuple[str, ...]
     result_declarations: tuple[DeclaredResultArtifact, ...]
+
+    def create_result_location(self) -> ResultLocation:
+        """Allocate only this ABI's ordered, bounded output slots."""
+
+        return create_result_location(self.result_declarations)
 
     @classmethod
     def from_mapping(cls, value: object) -> "LockedInferenceAssetAbi":
