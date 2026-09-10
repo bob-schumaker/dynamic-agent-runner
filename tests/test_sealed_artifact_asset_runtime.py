@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactAssetRuntime,
+    SealedArtifactCallback,
     SealedArtifactExecutionContext,
     SealedArtifactExecutionError,
     SealedArtifactInput,
@@ -86,3 +89,27 @@ def test_asset_runtime_rejects_imports_before_execution() -> None:
         SealedArtifactAssetRuntime().execute(
             asset=b"import os\ndef run(context):\n    return None\n", context=context
         )
+
+
+def test_context_rejects_oversized_callback_request_before_provider_entry() -> None:
+    descriptor = replace(
+        _descriptor(),
+        callbacks=(
+            SealedArtifactCallback(
+                name="generate",
+                requirement="model.generate.v1",
+                child_contract_digest="d" * 64,
+                max_calls=1,
+                max_concurrency=1,
+                max_request_bytes=3,
+                max_response_bytes=4,
+                max_total_request_bytes=3,
+                max_total_response_bytes=4,
+                timeout_milliseconds=1,
+            ),
+        ),
+    )
+    context, _collector = _context(descriptor)
+
+    with pytest.raises(SealedArtifactExecutionError, match="callback"):
+        context.invoke_callback("generate", b"long")

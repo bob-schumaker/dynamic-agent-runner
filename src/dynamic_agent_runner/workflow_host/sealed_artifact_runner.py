@@ -100,6 +100,13 @@ class SealedArtifactCallback:
     name: str
     requirement: str
     child_contract_digest: str
+    max_calls: int
+    max_concurrency: int
+    max_request_bytes: int
+    max_response_bytes: int
+    max_total_request_bytes: int
+    max_total_response_bytes: int
+    timeout_milliseconds: int
 
 
 @dataclass(frozen=True)
@@ -334,7 +341,16 @@ class SealedArtifactOutputCollector:
 class SealedArtifactExecutionContext:
     """The narrow, non-introspectable ABI surface for one verified asset."""
 
-    __slots__ = ("_callback", "_collector", "_descriptor", "_read_input", "_reads")
+    __slots__ = (
+        "_callback",
+        "_callback_counts",
+        "_callback_request_bytes",
+        "_callback_response_bytes",
+        "_collector",
+        "_descriptor",
+        "_read_input",
+        "_reads",
+    )
 
     def __init__(
         self,
@@ -358,6 +374,9 @@ class SealedArtifactExecutionContext:
         object.__setattr__(self, "_callback", invoke_callback)
         object.__setattr__(self, "_collector", collector)
         object.__setattr__(self, "_reads", set())
+        object.__setattr__(self, "_callback_counts", {})
+        object.__setattr__(self, "_callback_request_bytes", {})
+        object.__setattr__(self, "_callback_response_bytes", {})
 
     def __getattribute__(self, name: str) -> object:
         if name in {"read_input", "invoke_callback", "write_output"}:
@@ -382,18 +401,38 @@ class SealedArtifactExecutionContext:
         """Invoke one descriptor-declared callback with opaque bytes."""
 
         descriptor = object.__getattribute__(self, "_descriptor")
+        matches = [item for item in descriptor.callbacks if item.name == name]
+        if not isinstance(request, bytes) or len(matches) != 1:
+            raise SealedArtifactExecutionError(
+                "sealed artifact callback is unavailable"
+            )
+        callback = matches[0]
+        counts = object.__getattribute__(self, "_callback_counts")
+        request_bytes = object.__getattribute__(self, "_callback_request_bytes")
+        response_bytes = object.__getattribute__(self, "_callback_response_bytes")
+        count = counts.get(name, 0)
+        total_request = request_bytes.get(name, 0)
         if (
-            not isinstance(request, bytes)
-            or len([item for item in descriptor.callbacks if item.name == name]) != 1
+            count >= callback.max_calls
+            or len(request) > callback.max_request_bytes
+            or total_request + len(request) > callback.max_total_request_bytes
         ):
             raise SealedArtifactExecutionError(
                 "sealed artifact callback is unavailable"
             )
+        counts[name] = count + 1
+        request_bytes[name] = total_request + len(request)
         response = object.__getattribute__(self, "_callback")(name, request)
-        if not isinstance(response, bytes):
+        total_response = response_bytes.get(name, 0)
+        if (
+            not isinstance(response, bytes)
+            or len(response) > callback.max_response_bytes
+            or total_response + len(response) > callback.max_total_response_bytes
+        ):
             raise SealedArtifactExecutionError(
                 "sealed artifact callback is unavailable"
             )
+        response_bytes[name] = total_response + len(response)
         return response
 
     def write_output(self, role: str, media_type: str, content: bytes) -> None:
@@ -848,6 +887,13 @@ def _callbacks(
                 name=name,
                 requirement=mapping["requirement"],  # type: ignore[arg-type]
                 child_contract_digest=child,
+                max_calls=mapping["max_calls"],  # type: ignore[arg-type]
+                max_concurrency=mapping["max_concurrency"],  # type: ignore[arg-type]
+                max_request_bytes=mapping["max_request_bytes"],  # type: ignore[arg-type]
+                max_response_bytes=mapping["max_response_bytes"],  # type: ignore[arg-type]
+                max_total_request_bytes=mapping["max_total_request_bytes"],  # type: ignore[arg-type]
+                max_total_response_bytes=mapping["max_total_response_bytes"],  # type: ignore[arg-type]
+                timeout_milliseconds=mapping["timeout_milliseconds"],  # type: ignore[arg-type]
             )
         )
         for key, item_value in mapping.items():

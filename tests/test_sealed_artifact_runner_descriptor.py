@@ -110,6 +110,40 @@ def test_parser_retains_declared_output_contract() -> None:
     assert parsed.outputs[0].schema_digest is None
 
 
+def test_parser_retains_declared_callback_limits() -> None:
+    descriptor = _descriptor()
+    child_digest = "d" * 64
+    descriptor["child_contract_digests"] = [child_digest]
+    descriptor["callbacks"] = [
+        {
+            "child_contract_digest": child_digest,
+            "max_calls": 2,
+            "max_concurrency": 1,
+            "max_request_bytes": 3,
+            "max_response_bytes": 4,
+            "max_total_request_bytes": 5,
+            "max_total_response_bytes": 6,
+            "name": "generate",
+            "requirement": "model.generate.v1",
+            "timeout_milliseconds": 7,
+        }
+    ]
+    unsigned = dict(descriptor)
+    del unsigned["artifact_runner_digest"]
+    descriptor["artifact_runner_digest"] = hashlib.sha256(
+        _canonical(unsigned)
+    ).hexdigest()
+
+    parsed = parse_sealed_artifact_runner_descriptor(_canonical(descriptor))
+
+    callback = parsed.callbacks[0]
+    assert callback.max_calls == 2
+    assert callback.max_request_bytes == 3
+    assert callback.max_response_bytes == 4
+    assert callback.max_total_request_bytes == 5
+    assert callback.max_total_response_bytes == 6
+
+
 @pytest.mark.parametrize(
     ("mutate", "expected"),
     [
