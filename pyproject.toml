@@ -23,6 +23,7 @@ huggingface = ["huggingface-hub>=1.18.0,<2.0.0"]
 llamacpp = ["llama-cpp-python>=0.3.29,<0.4.0"]
 apple-foundation-models = ["apple-fm-sdk>=0.2.0"]
 mlx = ["mlx-lm>=0.31.3,<0.32.0"]
+mlx-embedding = ["mlx==0.32.2; platform_system == 'Darwin'"]
 transformers-peft = [
     "transformers>=5.0.0,<6.0.0",
     "peft>=0.19.1,<0.20.0",
@@ -52,6 +53,7 @@ llama-cpp-python = {version = "^0.3.29", optional = true}
 huggingface-hub = {version = "^1.18.0", optional = true}
 apple-fm-sdk = {version = ">=0.2.0", optional = true}
 mlx-lm = {version = ">=0.31.3,<0.32.0", optional = true}
+mlx = {version = "0.32.2", optional = true, markers = "platform_system == 'Darwin' and extra == 'mlx-embedding'"}
 transformers = {version = ">=5.0.0,<6.0.0", optional = true}
 peft = {version = ">=0.19.1,<0.20.0", optional = true}
 torch = {version = ">=2.9.0,<3.0.0", optional = true}

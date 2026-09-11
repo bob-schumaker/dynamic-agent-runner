@@ -68,7 +68,9 @@
   factories with package-owned errors and no generation-adapter change.
   - Depends on: MLE2.1.
   - Evidence: `mlx_local_embedding.py` provides the dedicated closed direct
-    adapter and factories, with no change to the generation adapter.
+    adapter and factories, with no change to the generation adapter;
+    `mlx-embedding` is a separate Darwin-only extra pinned to
+    `mlx==0.32.2`, while the generation-only `mlx` extra remains `mlx-lm`.
 - [x] MLE2.3 [tests, GREEN] Prove rejected platform, dependency, or material
   states make no backend/tokenizer/model call and preserve static versus
   receiver-resolved capability metadata.
