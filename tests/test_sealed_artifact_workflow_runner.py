@@ -11,12 +11,30 @@ from types import SimpleNamespace
 
 import pytest
 
-from dynamic_agent_runner.workflow_host.capabilities import CapabilityRequirements
+from dynamic_agent_runner.workflow_host.capabilities import (
+    CapabilityRequirement,
+    CapabilityRequirements,
+)
+from dynamic_agent_runner.workflow_host.locked_inference import (
+    InferenceLimits,
+    InferenceRole,
+    InferenceRoles,
+    SealedAsset,
+)
+from dynamic_agent_runner.workflow_host.locked_inference_execution import (
+    LockedInferenceExecutionService,
+    LockedInferenceHostLimits,
+    LockedInferenceProvider,
+)
+from dynamic_agent_runner.workflow_host.locked_inference_sealed_artifact_callback import (
+    LockedInferenceSealedArtifactCallbackResolver,
+)
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactHandleService,
     SealedArtifactOutputHandleService,
     SealedArtifactRunnerAdmissionError,
     parse_sealed_artifact_runner_descriptor,
+    verify_sealed_artifact_runner_files,
 )
 from dynamic_agent_runner.workflow_host.sealed_artifact_workflow_runner import (
     SealedArtifactInvocation,
@@ -260,3 +278,205 @@ def test_tampered_asset_stops_before_handle_or_provider_or_egress(
     assert not store.active_records(
         kind="sealed_artifact_output_set", owner=_OWNER, now=NOW
     )
+
+
+def test_locked_inference_callback_runs_only_through_sealed_asset_context(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import dynamic_agent_runner.workflow_host.sealed_artifact_workflow_runner as module
+
+    request_schema = json.dumps(
+        {
+            "max_depth": 2,
+            "max_items": 1,
+            "properties": {"value": {"max_string_bytes": 16, "type": "string"}},
+            "required": ["value"],
+            "type": "object",
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    root = tmp_path / "package"
+    asset = (
+        b"def run(context):\n"
+        b"    request = context.read_input('request')\n"
+        b"    response = context.invoke_callback('suggest', request)\n"
+        b"    context.write_output('result', 'application/json', response)\n"
+    )
+    child = json.dumps(
+        {
+            "body": {},
+            "callback_name": "suggest",
+            "capability_requirement": "model.generate.v1",
+            "format_version": 1,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    schema_digest = hashlib.sha256(request_schema).hexdigest()
+    child_digest = hashlib.sha256(child).hexdigest()
+    asset_digest = hashlib.sha256(asset).hexdigest()
+    (root / "assets").mkdir(parents=True)
+    (root / "assets" / "runner.py").write_bytes(asset)
+    (root / "schemas").mkdir()
+    (root / "schemas" / "value.json").write_bytes(request_schema)
+    (root / "contracts").mkdir()
+    (root / "contracts" / "suggest.json").write_bytes(child)
+    generation = CapabilityRequirement(
+        "model.generate.v1", "1", "d" * 64, ("structured",)
+    )
+    requirements = CapabilityRequirements((generation,), {})
+    descriptor_value = {
+        "asset": {
+            "abi_version": 1,
+            "entrypoint": "run",
+            "path": "assets/runner.py",
+            "sha256": asset_digest,
+        },
+        "callbacks": [
+            {
+                "child_contract_digest": child_digest,
+                "max_calls": 1,
+                "max_concurrency": 1,
+                "max_request_bytes": 100,
+                "max_response_bytes": 100,
+                "max_total_request_bytes": 100,
+                "max_total_response_bytes": 100,
+                "name": "suggest",
+                "requirement": "model.generate.v1",
+                "timeout_milliseconds": 100,
+            }
+        ],
+        "capability_requirements_digest": requirements.digest,
+        "child_contract_digests": [child_digest],
+        "format_version": 1,
+        "inputs": [
+            {
+                "max_bytes": 100,
+                "media_type": "application/json",
+                "required": True,
+                "role": "request",
+                "schema_digest": schema_digest,
+            }
+        ],
+        "limits": {
+            "max_concurrency": 1,
+            "max_cpu_milliseconds": 1,
+            "max_io_bytes": 1000,
+            "max_memory_bytes": 1,
+            "max_runtime_milliseconds": 100,
+        },
+        "outputs": [
+            {
+                "max_bytes": 100,
+                "media_type": "application/json",
+                "role": "result",
+                "schema_digest": schema_digest,
+            }
+        ],
+        "profile_digest": _PROFILE,
+        "schemas": [
+            {
+                "dialect": "json-schema-draft-2020-12",
+                "path": "schemas/value.json",
+                "sha256": schema_digest,
+            }
+        ],
+    }
+    descriptor_value["artifact_runner_digest"] = hashlib.sha256(
+        json.dumps(descriptor_value, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    descriptor_bytes = json.dumps(
+        descriptor_value, sort_keys=True, separators=(",", ":")
+    ).encode()
+    (root / "sealed-artifact-runner.json").write_bytes(descriptor_bytes)
+    descriptor = verify_sealed_artifact_runner_files(root, descriptor_bytes)
+    roles = InferenceRoles(
+        (
+            InferenceRole(
+                role="suggest",
+                material_role="suggest",
+                capability_id="model.generate.v1",
+                instruction_asset=SealedAsset("assets/instruction.txt", "a" * 64),
+                request_schema_asset=SealedAsset("schemas/request.json", "b" * 64),
+                response_schema_asset=SealedAsset("schemas/response.json", "c" * 64),
+                authorized_asset_digests=(asset_digest,),
+                limits=InferenceLimits(1, 100, 100, 100, 1),
+            ),
+        )
+    )
+
+    class Provider(LockedInferenceProvider):
+        calls = 0
+
+        def generate(self, **_kwargs: object) -> bytes:
+            self.calls += 1
+            return b'{"value":"ok"}'
+
+    provider = Provider()
+    execution = LockedInferenceExecutionService(
+        providers={"suggest": provider},
+        bindings={"suggest": object()},
+        instructions={"suggest": b"sealed instruction"},
+        request_schemas={"suggest": request_schema},
+        response_schemas={"suggest": request_schema},
+        package_limits={"suggest": LockedInferenceHostLimits(1, 100, 100, 100, 1)},
+        host_limits=LockedInferenceHostLimits(1, 100, 100, 100, 1),
+        revalidate=lambda role: role == "suggest",
+    )
+    store = PrivateStateStore(tmp_path / "state")
+    inputs = SealedArtifactHandleService(store=store, owner=_OWNER)
+    input_handle = inputs.prepare(
+        descriptor=descriptor,
+        receiver_id=_OWNER,
+        revision_digest=_REVISION,
+        invocation_id="invocation",
+        role="request",
+        media_type="application/json",
+        schema_digest=schema_digest,
+        content=b'{"value":"request"}',
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    class Registrations:
+        def resolve(self, _workflow_id: str) -> _Registration:
+            return _Registration()
+
+    class Catalog:
+        def revision(self, _package_id: str, _revision_digest: str) -> _Revision:
+            return _Revision(root)
+
+    monkeypatch.setattr(
+        module,
+        "compile_workflow_policy",
+        lambda _revision, capability_catalog=None: SimpleNamespace(
+            policy_digest="c" * 64,
+            capability_requirements=requirements,
+            inference_roles=roles,
+        ),
+    )
+    runner = SealedArtifactWorkflowRunner(
+        registrations=Registrations(),
+        catalog=Catalog(),
+        handles=inputs,
+        outputs=SealedArtifactOutputHandleService(store=store, owner=_OWNER),
+        callback_resolver=LockedInferenceSealedArtifactCallbackResolver(
+            execution=execution
+        ),
+        identity=_Identity(),
+        output_ttl=timedelta(minutes=1),
+    )
+
+    result = runner.run(
+        SealedArtifactInvocation(
+            workflow_id="example",
+            invocation_id="invocation",
+            input_handles={"request": input_handle.handle_id},
+        ),
+        now=NOW,
+    )
+
+    assert [handle.role for handle in result.outputs] == ["result"]
+    assert result.receipt["status"] == "completed"
+    assert provider.calls == 1
