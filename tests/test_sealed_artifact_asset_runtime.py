@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import replace
 from threading import Event
 from time import monotonic
@@ -151,6 +153,49 @@ def test_context_rejects_oversized_callback_request_before_provider_entry() -> N
 
     with pytest.raises(SealedArtifactExecutionError, match="callback"):
         context.invoke_callback("generate", b"long")
+
+
+def test_context_exposes_only_a_declared_callback_identity() -> None:
+    descriptor = replace(
+        _descriptor(),
+        callbacks=(
+            SealedArtifactCallback(
+                name="generate",
+                requirement="model.generate.v1",
+                child_contract_digest="d" * 64,
+                max_calls=1,
+                max_concurrency=1,
+                max_request_bytes=3,
+                max_response_bytes=4,
+                max_total_request_bytes=3,
+                max_total_response_bytes=4,
+                timeout_milliseconds=1,
+            ),
+        ),
+    )
+    context, _collector = _context(descriptor)
+
+    identity = context.callback_identity("generate")
+
+    assert identity == {
+        "asset_digest": "b" * 64,
+        "child_contract_digest": "d" * 64,
+        "digest": hashlib.sha256(
+            json.dumps(
+                {"asset_digest": "b" * 64, "child_contract_digest": "d" * 64},
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode()
+        ).hexdigest(),
+    }
+    with pytest.raises(SealedArtifactExecutionError, match="callback"):
+        context.callback_identity("unknown")
+
+    def access_descriptor() -> object:
+        return context._descriptor  # type: ignore[attr-defined]
+
+    with pytest.raises(AttributeError, match="unavailable"):
+        access_descriptor()
 
 
 def test_context_revalidates_callback_provider_immediately_before_entry() -> None:

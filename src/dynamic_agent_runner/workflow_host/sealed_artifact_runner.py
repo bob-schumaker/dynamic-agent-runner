@@ -442,9 +442,41 @@ class SealedArtifactExecutionContext:
         object.__setattr__(self, "_revoked", False)
 
     def __getattribute__(self, name: str) -> object:
-        if name in {"read_input", "invoke_callback", "write_output"}:
+        if name in {
+            "callback_identity",
+            "read_input",
+            "invoke_callback",
+            "write_output",
+        }:
             return object.__getattribute__(self, name)
         raise AttributeError("sealed artifact context member is unavailable")
+
+    def callback_identity(self, name: str) -> dict[str, str]:
+        """Return the binding identity for one declared callback."""
+
+        object.__getattribute__(self, "_require_active")(
+            "sealed artifact callback is unavailable"
+        )
+        descriptor = object.__getattribute__(self, "_descriptor")
+        matches = [item for item in descriptor.callbacks if item.name == name]
+        if len(matches) != 1:
+            raise SealedArtifactExecutionError(
+                "sealed artifact callback is unavailable"
+            )
+        child_contract_digest = matches[0].child_contract_digest
+        asset_digest = descriptor.asset_digest
+        return {
+            "asset_digest": asset_digest,
+            "child_contract_digest": child_contract_digest,
+            "digest": hashlib.sha256(
+                _canonical_bytes(
+                    {
+                        "asset_digest": asset_digest,
+                        "child_contract_digest": child_contract_digest,
+                    }
+                )
+            ).hexdigest(),
+        }
 
     def read_input(self, role: str) -> bytes:
         """Return one declared input exactly once."""
