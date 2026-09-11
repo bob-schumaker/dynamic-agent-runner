@@ -86,3 +86,7 @@
 - [ ] I3.4 [verification] Run focused suites, full pytest, Ruff, diff checks,
   then a separately authorized manual acceptance under exact owner
   authorization or the approved isolation backend.
+  - Automated evidence: focused receiver suites and the full repository suite
+    passed on 2026-09-10 (`2169 passed, 1 skipped, 7 deselected`); Ruff and
+    `git diff --check` passed; `poetry build` produced the `0.1.17` sdist and
+    wheel. The final manual acceptance remains awaiting explicit authorization.
