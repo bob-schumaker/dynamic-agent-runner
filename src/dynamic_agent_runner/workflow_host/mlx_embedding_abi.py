@@ -21,6 +21,7 @@ from dynamic_agent_runner.workflow_host.execution_descriptors import (
     ExecutionDescriptorAbi,
     ExecutionDescriptorError,
 )
+from dynamic_agent_runner.workflow_host.embedding_execution import EmbeddingBatchLimits
 
 
 BERT_ENCODER_MLX_V1_ABI = ExecutionDescriptorAbi(
@@ -156,6 +157,29 @@ class BertEncoderMlxV1DescriptorValidator:
             or not 0 <= error <= 0.1
         ):
             _invalid()
+
+
+def bert_encoder_mlx_v1_embedding_batch_limits(
+    descriptor: ExecutionDescriptor,
+) -> EmbeddingBatchLimits:
+    """Project one admitted BERT ABI descriptor to private generic batch limits."""
+
+    try:
+        BertEncoderMlxV1DescriptorValidator().validate(descriptor)
+        fields = descriptor.abi_fields
+        limits = fields["limits"]
+        encoder = fields["encoder"]
+        if not isinstance(limits, Mapping) or not isinstance(encoder, Mapping):
+            raise ValueError
+        return EmbeddingBatchLimits(
+            max_items=limits["max_items"],  # type: ignore[arg-type]
+            max_item_utf8_bytes=limits["max_item_bytes"],  # type: ignore[arg-type]
+            max_total_utf8_bytes=limits["max_aggregate_bytes"],  # type: ignore[arg-type]
+            max_vector_dimension=encoder["hidden_size"],  # type: ignore[arg-type]
+            max_total_vectors=limits["max_vectors"],  # type: ignore[arg-type]
+        )
+    except Exception as error:  # noqa: BLE001 - sealed ABI boundary.
+        raise EmbeddingExecutionError("MLX embedding limits are unavailable") from error
 
 
 def _mapping(value: object, keys: set[str]) -> Mapping[str, object]:

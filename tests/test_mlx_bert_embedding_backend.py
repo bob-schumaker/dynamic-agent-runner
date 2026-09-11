@@ -24,6 +24,7 @@ from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
     BertEncoderMlxV1EmbeddingBackend,
     BertEncoderMlxV1DescriptorValidator,
     _bert_tensor_shapes,
+    bert_encoder_mlx_v1_embedding_batch_limits,
 )
 from dynamic_agent_runner.mlx_local_embedding import (
     MLXLocalEmbeddingConfig,
@@ -99,6 +100,18 @@ def _materials(
             }
         )
     )
+
+
+def test_bert_abi_projects_descriptor_limits_without_material_read() -> None:
+    descriptor = _materials(max_items=2, max_vectors=4).execution_descriptor
+
+    limits = bert_encoder_mlx_v1_embedding_batch_limits(descriptor)
+
+    assert limits.max_items == 2
+    assert limits.max_item_utf8_bytes == 1024
+    assert limits.max_total_utf8_bytes == 1024
+    assert limits.max_vector_dimension == 2
+    assert limits.max_total_vectors == 4
 
 
 TensorHeader = dict[str, dict[str, object]]

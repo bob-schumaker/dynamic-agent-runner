@@ -15,11 +15,17 @@ from dynamic_agent_runner.workflow_host.embedding_execution import (
     EmbeddingBatchLimits,
     EmbeddingExecutionBindingError,
     EmbeddingExecutionService,
+    EmbeddingLimitProjectorBinding,
+    EmbeddingLimitProjectorRegistry,
     EmbeddingProviderCatalog,
     EmbeddingTextItem,
     EmbeddingVector,
     LocalEmbeddingAdapterProvider,
     derive_embedding_execution_binding,
+)
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorAbi,
+    parse_execution_descriptor,
 )
 from dynamic_agent_runner.workflow_host.model_execution_binding import (
     ModelExecutionBinding,
@@ -75,6 +81,51 @@ def _limits() -> EmbeddingBatchLimits:
         max_vector_dimension=3,
         max_total_vectors=4,
     )
+
+
+def test_exact_abi_projects_private_embedding_limits_without_material_access() -> None:
+    identity = ExecutionDescriptorAbi("example-encoder-v1", "1", "d" * 64)
+    descriptor = parse_execution_descriptor(
+        {
+            "format_version": 1,
+            "architecture_abi": identity.to_mapping(),
+            "material_roles": ["tokenizer", "weights"],
+            "abi_fields": {"bounded": True},
+        }
+    )
+    calls: list[object] = []
+
+    def project(admitted: object) -> EmbeddingBatchLimits:
+        calls.append(admitted)
+        return _limits()
+
+    limits = EmbeddingLimitProjectorRegistry(
+        (EmbeddingLimitProjectorBinding(identity, project),)
+    ).project(descriptor)
+
+    assert limits == _limits()
+    assert calls == [descriptor]
+
+
+def test_embedding_limit_projection_has_no_abi_fallback() -> None:
+    identity = ExecutionDescriptorAbi("example-encoder-v1", "1", "d" * 64)
+    descriptor = parse_execution_descriptor(
+        {
+            "format_version": 1,
+            "architecture_abi": {
+                "id": "other-encoder-v1",
+                "version": "1",
+                "contract_digest": "d" * 64,
+            },
+            "material_roles": ["tokenizer", "weights"],
+            "abi_fields": {},
+        }
+    )
+
+    with pytest.raises(EmbeddingExecutionBindingError, match="limits"):
+        EmbeddingLimitProjectorRegistry(
+            (EmbeddingLimitProjectorBinding(identity, lambda _descriptor: _limits()),)
+        ).project(descriptor)
 
 
 @dataclass

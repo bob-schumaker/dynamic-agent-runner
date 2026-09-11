@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import re
 from hashlib import sha256
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -16,6 +16,10 @@ from dynamic_agent_runner.workflow_host.capabilities import (
 )
 from dynamic_agent_runner.workflow_host.model_execution_binding import (
     ModelExecutionBinding,
+)
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptor,
+    ExecutionDescriptorAbi,
 )
 
 
@@ -49,6 +53,57 @@ class EmbeddingBatchLimits:
             )
         ):
             raise EmbeddingExecutionBindingError("embedding batch limits are invalid")
+
+
+@dataclass(frozen=True)
+class EmbeddingLimitProjectorBinding:
+    """One exact receiver-owned ABI projection to private embedding limits."""
+
+    identity: ExecutionDescriptorAbi
+    projector: Callable[[ExecutionDescriptor], EmbeddingBatchLimits]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.identity, ExecutionDescriptorAbi) or not callable(
+            self.projector
+        ):
+            raise EmbeddingExecutionBindingError(
+                "embedding limit projector is unavailable"
+            )
+
+
+class EmbeddingLimitProjectorRegistry:
+    """Resolve limits only through one exact receiver-installed embedding ABI."""
+
+    def __init__(self, bindings: Sequence[EmbeddingLimitProjectorBinding]) -> None:
+        resolved: dict[ExecutionDescriptorAbi, EmbeddingLimitProjectorBinding] = {}
+        for binding in bindings:
+            if (
+                not isinstance(binding, EmbeddingLimitProjectorBinding)
+                or binding.identity in resolved
+            ):
+                raise EmbeddingExecutionBindingError(
+                    "embedding limit projector is unavailable"
+                )
+            resolved[binding.identity] = binding
+        self._bindings = resolved
+
+    def project(self, descriptor: ExecutionDescriptor) -> EmbeddingBatchLimits:
+        """Project one already-admitted exact ABI descriptor without material work."""
+
+        if not isinstance(descriptor, ExecutionDescriptor):
+            raise EmbeddingExecutionBindingError("embedding limits are unavailable")
+        binding = self._bindings.get(descriptor.architecture_abi)
+        if binding is None:
+            raise EmbeddingExecutionBindingError("embedding limits are unavailable")
+        try:
+            limits = binding.projector(descriptor)
+        except Exception as error:  # noqa: BLE001 - receiver ABI boundary.
+            raise EmbeddingExecutionBindingError(
+                "embedding limits are unavailable"
+            ) from error
+        if not isinstance(limits, EmbeddingBatchLimits):
+            raise EmbeddingExecutionBindingError("embedding limits are unavailable")
+        return limits
 
 
 @dataclass(frozen=True)
