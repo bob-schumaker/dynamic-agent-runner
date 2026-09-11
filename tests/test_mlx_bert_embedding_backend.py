@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import struct
 from collections.abc import Callable
 from io import BytesIO
 from types import SimpleNamespace
@@ -22,7 +23,9 @@ from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
 )
 
 
-def _materials(**limit_overrides: int) -> SimpleNamespace:
+def _materials(
+    *, pooling: str = "cls", normalization: str = "none", **limit_overrides: int
+) -> SimpleNamespace:
     limits = {
         "max_items": 1,
         "max_item_bytes": 1024,
@@ -72,8 +75,8 @@ def _materials(**limit_overrides: int) -> SimpleNamespace:
                         "max_positions": 4,
                         "type_vocab_size": 1,
                     },
-                    "pooling": "cls",
-                    "normalization": "none",
+                    "pooling": pooling,
+                    "normalization": normalization,
                     "limits": limits,
                     "conformance": {
                         "fixture_filename": "conformance-fixture.json",
@@ -138,13 +141,24 @@ def _weights_header(*, mutate: HeaderMutation | None = None) -> bytes:
     return json.dumps(header).encode()
 
 
-def _weights_blob(*, mutate: HeaderMutation | None = None) -> bytes:
+def _weights_blob(
+    *,
+    mutate: HeaderMutation | None = None,
+    values: dict[str, list[float]] | None = None,
+) -> bytes:
     header = _weights_header(mutate=mutate)
     descriptor = _materials().execution_descriptor
     payload_size = sum(
         4 * math.prod(shape) for shape in _bert_tensor_shapes(descriptor).values()
     )
-    return len(header).to_bytes(8, "little") + header + b"\0" * payload_size
+    payload = bytearray(payload_size)
+    if values is not None:
+        metadata = json.loads(header)
+        for name, tensor_values in values.items():
+            start, end = metadata[name]["data_offsets"]
+            assert end - start == 4 * len(tensor_values)
+            struct.pack_into(f"<{len(tensor_values)}f", payload, start, *tensor_values)
+    return len(header).to_bytes(8, "little") + header + payload
 
 
 class _NumpyMlx:
@@ -388,6 +402,46 @@ def test_backend_truncation_retains_required_sep_token() -> None:
     backend.embed((EmbeddingInputItem("entry", "one two"),), _materials())
 
     assert mlx.arrays[0].tolist() == [[101, 100, 102]]
+
+
+@pytest.mark.parametrize(
+    ("pooling", "normalization", "expected"),
+    [
+        ("cls", "none", (1.0, -1.0)),
+        ("cls", "l2", (math.sqrt(0.5), -math.sqrt(0.5))),
+        ("masked_mean", "none", (0.0, 0.0)),
+    ],
+)
+def test_backend_applies_declared_pooling(
+    pooling: str, normalization: str, expected: tuple[float, float]
+) -> None:
+    layer_norm_weights = {
+        "embeddings.LayerNorm.weight": [1.0, 1.0],
+        "encoder.layer.0.attention.output.LayerNorm.weight": [1.0, 1.0],
+        "encoder.layer.0.output.LayerNorm.weight": [1.0, 1.0],
+    }
+    word_embeddings = [0.0] * 400
+    word_embeddings[200:204] = [0.0, 0.0, 1.0, -1.0]
+    word_embeddings[204:206] = [-1.0, 1.0]
+    weights = _weights_blob(
+        values={
+            "embeddings.word_embeddings.weight": word_embeddings,
+            **layer_norm_weights,
+        }
+    )
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda role: (
+            _tokenizer_bytes() if role == "tokenizer" else weights
+        ),
+        mlx_loader=_NumpyMlx,
+    )
+
+    result = backend.embed(
+        (EmbeddingInputItem("entry", "text"),),
+        _materials(pooling=pooling, normalization=normalization),
+    )
+
+    assert result.items[0].vector == pytest.approx(expected)
 
 
 def test_backend_rejects_invalid_wordpiece_tokenizer_before_weights_read() -> None:
