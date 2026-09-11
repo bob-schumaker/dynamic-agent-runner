@@ -431,6 +431,11 @@ def test_private_dar_guidance_keeps_artifact_workflows_on_the_no_tool_template()
     assert "Copy the canonical no-tool template files" in guidance
     assert "only YAML fields that may change" in guidance
     assert "Do not normalize artifact role names" in guidance
+    assert "## Caller-owned guardrails" in guidance
+    assert "<declared-input-guardrail-id>" in guidance
+    assert "phase: tool_input" in guidance
+    assert "## Package-local skill bundle" in guidance
+    assert "skills/<skill-id>/SKILL.md" in guidance
     assert "OAuth reconnect workflow" in guidance
 
 

@@ -93,6 +93,42 @@ Do not normalize artifact role names: copy each declared role exactly into
 `allowed_artifact_roles`, preserving case and punctuation. For example,
 `risk-artifact` is not `risk_artifact`.
 
+## Caller-owned guardrails
+
+A guardrail identifier and phase are part of the declared authoring input. Do
+not invent either one, and do not implement a guardrail handler in the package:
+the caller-owned host registry supplies that handler at invocation.
+
+For a declared input guardrail, start from
+`references/dar-authoring-templates/` and add exactly this declaration to the
+runtime's `extensions` mapping, substituting the declared identifier:
+
+```yaml
+guardrails:
+  declarations:
+    - id: <declared-input-guardrail-id>
+      phase: input
+      behavior_on_tripwire: abort
+```
+
+For a declared tool-input guardrail, start from the matching reviewed tool
+template, retain its bounded tool contract, and add the same declaration with
+`phase: tool_input`. A tool-input guardrail must use
+`behavior_on_tripwire: abort`; it cannot add a tool, expand its schema, or
+replace the reviewed tool template. In both cases, do not add a custom
+extension schema, registry configuration, credential, or adapter code.
+
+## Package-local skill bundle
+
+Use a package-local skill only when the declared authoring input names the
+skill and provides its bounded instruction content. Declare its exact skill ID
+in the descriptor's `skills`, write the bundle file at
+`skills/<skill-id>/SKILL.md`, and bind the runtime skill to that exact
+`bundled_path`. Set `runtime.execution_policy.skill_source_resolution` to
+`enabled: true` with `allowed_sources: [package_bundle]`, then refer to that
+skill only from the bounded node that needs it. Do not load installed skills,
+paths outside the package, or model-suggested support files.
+
 ## Reviewed MCP template selection
 
 Use a tool template only when the explicit DAR request names its bounded

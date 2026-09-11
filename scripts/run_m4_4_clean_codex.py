@@ -771,6 +771,7 @@ def run_scenario(
                         package_name,
                         contract.expected_status,
                         artifact_roles=contract.required_artifact_roles,
+                        guardrails=_declared_guardrails(fixtures.fixture_ids),
                     ),
                     author_workspace,
                     build_clean_codex_environment(
@@ -1388,6 +1389,7 @@ def _author_request(
     expected_status: str,
     *,
     artifact_roles: tuple[str, ...] = (),
+    guardrails: tuple[tuple[str, str], ...] = (),
 ) -> str:
     suffix = (
         "This requires unavailable multi-agent/subagent capability; report capability_unavailable and do not create a package."
@@ -1406,13 +1408,31 @@ def _author_request(
         if "email_body" in artifact_roles and "email" in author_prompt.lower()
         else ""
     )
+    guardrail_guidance = (
+        " Declared caller-owned guardrails: "
+        + ", ".join(f"{guardrail_id} ({phase})" for guardrail_id, phase in guardrails)
+        + "; declare them exactly and do not implement a handler."
+        if guardrails
+        else ""
+    )
     return (
         f"{author_prompt}\n\nUse the installed agent-engineering agent-development "
         f"skill to author a DAR workflow. The declared material_set_id is "
         f"`{material_set_id}` and the requested package name is `{package_name}`. "
-        f"{artifact_guidance}{operation_guidance} "
+        f"{artifact_guidance}{operation_guidance}{guardrail_guidance} "
         f"{suffix}"
     )
+
+
+def _declared_guardrails(fixture_ids: tuple[str, ...]) -> tuple[tuple[str, str], ...]:
+    """Expose only fixture-declared guardrail identities to the author actor."""
+
+    declarations: list[tuple[str, str]] = []
+    if "input-guardrail-registry" in fixture_ids:
+        declarations.append(("require_input", "input"))
+    if "tool-input-guardrail-registry" in fixture_ids:
+        declarations.append(("require_tool_input", "tool_input"))
+    return tuple(declarations)
 
 
 def _run_request(package_name: str, run_prompt: str, *, requires_approval: bool) -> str:

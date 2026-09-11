@@ -1189,6 +1189,21 @@ def test_email_artifact_author_prompt_requires_reviewed_write_template() -> None
     assert "do not choose the no-tool starter" in prompt
 
 
+def test_successor_author_prompt_declares_caller_owned_guardrail_contract() -> None:
+    module = _harness_module()
+
+    prompt = module._author_request(
+        "Author the declared DAR input-guardrail workflow.",
+        "material-id",
+        "guardrail-input",
+        "pass",
+        guardrails=(("require_input", "input"),),
+    )
+
+    assert "Declared caller-owned guardrails: require_input (input)" in prompt
+    assert "do not implement a handler" in prompt
+
+
 def test_successor_run_prompt_names_only_the_saved_package_and_request() -> None:
     module = _harness_module()
 
