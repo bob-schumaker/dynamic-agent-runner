@@ -363,6 +363,7 @@
       "capability_id": "guardrails",
       "configured_fixture_ids": [
         "local-model-profile",
+        "reviewed-mcp-connection",
         "tool-input-guardrail-registry"
       ],
       "expected_status": "pass",
@@ -376,7 +377,8 @@
       ],
       "capability_id": "guardrails",
       "configured_fixture_ids": [
-        "local-model-profile"
+        "local-model-profile",
+        "reviewed-mcp-connection"
       ],
       "expected_status": "expected_capability_unavailable",
       "expected_terminal_phase": "capability_preflight",

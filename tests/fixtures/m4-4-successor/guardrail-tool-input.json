@@ -9,6 +9,7 @@
   ],
   "required_host_fixtures": [
     "local-model-profile",
+    "reviewed-mcp-connection",
     "tool-input-guardrail-registry"
   ],
   "scenario_id": "guardrail-tool-input-v1",

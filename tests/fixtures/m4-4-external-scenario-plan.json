@@ -117,6 +117,7 @@
       "author_request": "Request the declared DAR tool-input guardrail workflow and report capability unavailable when its registry is absent.",
       "fixture_ids": [
         "local-model-profile",
+        "reviewed-mcp-connection",
         "tool-input-guardrail-registry"
       ],
       "package_name": "m44-guardrail-tool-missing",
@@ -125,9 +126,10 @@
       "workflow_id": "m44-guardrail-tool-missing"
     },
     {
-      "author_request": "Author the declared DAR tool-input guardrail workflow.",
+      "author_request": "Author the declared DAR reviewed read-only MCP workflow with the declared tool-input guardrail.",
       "fixture_ids": [
         "local-model-profile",
+        "reviewed-mcp-connection",
         "tool-input-guardrail-registry"
       ],
       "package_name": "m44-guardrail-tool",
@@ -181,7 +183,7 @@
       "workflow_id": "m44-mcp-missing"
     },
     {
-      "author_request": "Author the declared DAR no-tool graph with its package-local skill.",
+      "author_request": "Author the declared DAR no-tool graph with package-local skill `review-guide`; its sole bounded instruction is `Review the submitted request and produce a concise answer.`",
       "fixture_ids": [
         "local-model-profile"
       ],
