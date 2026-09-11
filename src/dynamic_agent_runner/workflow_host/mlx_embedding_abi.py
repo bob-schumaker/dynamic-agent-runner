@@ -181,6 +181,15 @@ class BertEncoderMlxV1EmbeddingBackend:
             value = json.loads(tokenizer_bytes.decode("utf-8"))
             if not isinstance(value, Mapping):
                 raise ValueError
+            weights = self._artifact_reader("weights")
+            if not isinstance(weights, bytes) or len(weights) < 8:
+                raise ValueError
+            header_size = int.from_bytes(weights[:8], "little")
+            if header_size > 16 * 1024 * 1024 or len(weights) < 8 + header_size:
+                raise ValueError
+            header = json.loads(weights[8 : 8 + header_size].decode("utf-8"))
+            if not isinstance(header, Mapping):
+                raise ValueError
         except Exception as error:  # noqa: BLE001 - sealed artifact boundary.
             raise EmbeddingExecutionError(
                 "MLX embedding material is unavailable"

@@ -23,3 +23,22 @@ def test_backend_rejects_malformed_artifacts_before_tokenizer_or_model_work() ->
         backend.embed((EmbeddingInputItem("entry", "text"),), object())
 
     assert calls == ["artifact"]
+
+
+def test_backend_rejects_malformed_weights_before_tokenizer_or_model_work() -> None:
+    calls: list[str] = []
+
+    def artifact_reader(role: str) -> bytes:
+        calls.append(role)
+        return b"{}" if role == "tokenizer" else b"malformed"
+
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=artifact_reader,
+        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
+        encoder=lambda _tokens: calls.append("encoder-call") or (),
+    )
+
+    with pytest.raises(EmbeddingExecutionError, match="material"):
+        backend.embed((EmbeddingInputItem("entry", "text"),), object())
+
+    assert calls == ["tokenizer", "weights"]
