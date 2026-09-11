@@ -349,5 +349,64 @@ def test_factory_rejects_a_requirement_that_no_longer_matches_the_binding(
         factory.create(policy=policy, revision=SimpleNamespace(package_root=tmp_path))
 
 
+def test_factory_rejects_an_unavailable_provider_before_reading_role_assets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import dynamic_agent_runner.workflow_host.locked_inference_sealed_artifact_callback as module
+
+    contract = CapabilityContract("model.generate.v1", "1", "2" * 64, ("structured",))
+    catalog = CapabilityCatalog(
+        (contract,),
+        (CapabilityProvider("generate-provider", contract, conformance_passed=True),),
+        availability_provider=lambda _provider: ProviderAvailability.DISABLED,
+    )
+    factory = LockedInferenceExecutionFactory(
+        capability_catalog=catalog,
+        provider_registry=LockedInferenceProviderRegistry(
+            (
+                LockedInferenceProviderBinding(
+                    "generate-provider", contract, _Provider()
+                ),
+            )
+        ),
+        host_limits=LockedInferenceHostLimits(1, 100, 100, 100, 1),
+    )
+    roles = _roles()
+    policy = SimpleNamespace(
+        inference_roles=roles,
+        locked_inference_bindings=(
+            LockedInferenceBinding(
+                "generate",
+                "model",
+                SimpleNamespace(material_lock_digest="4" * 64),
+                "1",
+                contract.contract_digest,
+            ),
+        ),
+        model_material_sets=SimpleNamespace(
+            for_role=lambda _role: SimpleNamespace(digest="4" * 64)
+        ),
+        capability_requirements=CapabilityRequirements(
+            (
+                CapabilityRequirement(
+                    "model.generate.v1", "1", contract.contract_digest, ("structured",)
+                ),
+            )
+        ),
+        selected_capability_provider_ids=("generate-provider",),
+    )
+    monkeypatch.setattr(
+        module,
+        "read_verified_inference_role_assets",
+        lambda **_kwargs: pytest.fail("role assets were read"),
+    )
+
+    with pytest.raises(
+        LockedInferenceSealedArtifactCallbackError,
+        match="locked inference callback is unavailable",
+    ):
+        factory.create(policy=policy, revision=SimpleNamespace(package_root=tmp_path))
+
+
 def _asset(path: str, value: bytes) -> SealedAsset:
     return SealedAsset(path, hashlib.sha256(value).hexdigest())
