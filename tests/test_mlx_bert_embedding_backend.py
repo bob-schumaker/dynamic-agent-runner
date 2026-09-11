@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import struct
+import asyncio
 from collections.abc import Callable
 from io import BytesIO
 from types import SimpleNamespace
@@ -15,11 +16,20 @@ import pytest
 from dynamic_agent_runner.errors import EmbeddingExecutionError
 from dynamic_agent_runner.local_models import EmbeddingBatchResult, EmbeddingInputItem
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorValidatorRegistry,
     parse_execution_descriptor,
 )
 from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
+    BERT_ENCODER_MLX_V1_ABI,
     BertEncoderMlxV1EmbeddingBackend,
+    BertEncoderMlxV1DescriptorValidator,
     _bert_tensor_shapes,
+)
+from dynamic_agent_runner.mlx_local_embedding import (
+    MLXLocalEmbeddingConfig,
+    MLXPreparedEmbeddingArtifacts,
+    create_mlx_local_embedding_adapter,
+    create_mlx_local_embedding_async_adapter,
 )
 
 
@@ -159,6 +169,18 @@ def _weights_blob(
             assert end - start == 4 * len(tensor_values)
             struct.pack_into(f"<{len(tensor_values)}f", payload, start, *tensor_values)
     return len(header).to_bytes(8, "little") + header + payload
+
+
+def _prepared_materials() -> MLXPreparedEmbeddingArtifacts:
+    descriptor = _materials().execution_descriptor
+    return MLXPreparedEmbeddingArtifacts(
+        execution_abi_id=BERT_ENCODER_MLX_V1_ABI.abi_id,
+        execution_abi_version=BERT_ENCODER_MLX_V1_ABI.version,
+        execution_abi_contract_digest=BERT_ENCODER_MLX_V1_ABI.contract_digest,
+        execution_descriptor_digest=descriptor.digest,
+        material_lock_digest="c" * 64,
+        execution_descriptor=descriptor,
+    )
 
 
 class _NumpyMlx:
@@ -442,6 +464,37 @@ def test_backend_applies_declared_pooling(
     )
 
     assert result.items[0].vector == pytest.approx(expected)
+
+
+def test_backend_has_sync_async_adapter_parity_without_mlx_import() -> None:
+    weights = _weights_blob()
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda role: (
+            _tokenizer_bytes() if role == "tokenizer" else weights
+        ),
+        mlx_loader=_NumpyMlx,
+    )
+    config = MLXLocalEmbeddingConfig(
+        material_resolver=_prepared_materials,
+        descriptor_validators=ExecutionDescriptorValidatorRegistry(
+            (BertEncoderMlxV1DescriptorValidator(),)
+        ),
+    )
+    kwargs = {
+        "backend": backend,
+        "dependency_loader": lambda: "0.32.2",
+        "platform_system": lambda: "Darwin",
+        "macos_version": lambda: (14, 0),
+        "machine": lambda: "arm64",
+    }
+    items = (EmbeddingInputItem("entry", "text"),)
+
+    sync = create_mlx_local_embedding_adapter(config, **kwargs).embed(items)
+    asynchronous = asyncio.run(
+        create_mlx_local_embedding_async_adapter(config, **kwargs).embed(items)
+    )
+
+    assert asynchronous == sync
 
 
 def test_backend_rejects_invalid_wordpiece_tokenizer_before_weights_read() -> None:
