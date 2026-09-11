@@ -38,8 +38,11 @@
     before sealed-handle issuance or caller-byte copying.
     `test_local_host_runs_locked_inference_from_a_staged_zip` now also proves
     that a real provider failure after receiver entry seals no collector output
-    and publishes no additional output handle. Remaining route-specific
-    sentinels are open. `tests/test_locked_inference_sealed_artifact_callback.py`
+    and publishes no additional output handle. Staging rejects malformed roles
+    before registration/model preparation; catalog tampering stops at policy
+    recompilation before descriptor verification, callback resolution, handle
+    reservation, collector allocation, asset/input reads, or provider entry.
+    `tests/test_locked_inference_sealed_artifact_callback.py`
     proves a selected provider that becomes unavailable prevents role-asset
     reading before the preparation resolver could copy caller bytes.
     `test_locked_inference_registration_rejects_tampered_role_before_preparation`
