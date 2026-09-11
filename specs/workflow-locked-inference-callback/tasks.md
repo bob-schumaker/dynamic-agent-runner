@@ -76,8 +76,13 @@
     `SealedArtifactOutputCollector` remain the single callback/slot/collector
     path; `sandbox_result_location` remains because embedding code owns its
     separate use.
-- [ ] I3.3 [tests, GREEN] Prove deterministic ZIP import/invocation, declared
+- [x] I3.3 [tests, GREEN] Prove deterministic ZIP import/invocation, declared
   result-slot sealing, and aggregate-only egress on a receiving fake host.
+  - Evidence: `test_local_host_runs_locked_inference_from_a_staged_zip` stages
+    a package, deterministically exports/reimports its ZIP, binds exact model
+    materials and the receiver provider, prepares a sealed JSON handle, and
+    invokes the callback-enabled sealed asset. It proves one provider entry,
+    one declared opaque `result` handle, and only aggregate receipt fields.
 - [ ] I3.4 [verification] Run focused suites, full pytest, Ruff, diff checks,
   then a separately authorized manual acceptance under exact owner
   authorization or the approved isolation backend.

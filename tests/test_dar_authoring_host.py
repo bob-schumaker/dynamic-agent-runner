@@ -38,6 +38,7 @@ from dynamic_agent_runner.workflow_host.connections import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
     BUILTIN_CAPABILITY_CONTRACTS,
     CapabilityCatalog,
+    CapabilityContract,
     CapabilityProvider,
     CapabilityRequirement,
     CapabilityRequirements,
@@ -200,6 +201,203 @@ def _write_portable_manifest(source: Path) -> None:
     )
 
 
+def _write_locked_inference_sealed_package(
+    source: Path,
+    *,
+    profile_digest: str,
+    contract: CapabilityContract,
+    runner_contract: CapabilityContract,
+) -> bytes:
+    runner_requirement = CapabilityRequirement(
+        runner_contract.capability_id,
+        runner_contract.contract_version,
+        runner_contract.contract_digest,
+        (),
+    )
+    requirement = CapabilityRequirement(
+        contract.capability_id,
+        contract.contract_version,
+        contract.contract_digest,
+        ("structured",),
+    )
+    requirements = CapabilityRequirements(
+        (runner_requirement, requirement),
+        {"runner": runner_requirement.capability_id},
+    )
+    schema = (
+        b'{"max_depth":2,"max_items":1,"properties":{"value":'
+        b'{"max_string_bytes":16,"type":"string"}},"required":["value"],'
+        b'"type":"object"}'
+    )
+    instruction = b"sealed instruction"
+    asset = (
+        b"def run(context):\n"
+        b"    request = context.read_input('request')\n"
+        b"    response = context.invoke_callback('suggest', request)\n"
+        b"    context.write_output('result', 'application/json', response)\n"
+    )
+    child = json.dumps(
+        {
+            "body": {},
+            "callback_name": "suggest",
+            "capability_requirement": "model.generate.v1",
+            "format_version": 1,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    asset_digest = hashlib.sha256(asset).hexdigest()
+    schema_digest = hashlib.sha256(schema).hexdigest()
+    child_digest = hashlib.sha256(child).hexdigest()
+    (source / "assets").mkdir()
+    (source / "assets" / "runner.py").write_bytes(asset)
+    (source / "assets" / "instruction.txt").write_bytes(instruction)
+    (source / "schemas").mkdir()
+    (source / "schemas" / "value.json").write_bytes(schema)
+    (source / "contracts").mkdir()
+    (source / "contracts" / "suggest.json").write_bytes(child)
+    descriptor_path = source / "workflow-descriptor.yaml"
+    descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+    descriptor["dar_runtime"]["required_version"] = "0.1.17"
+    descriptor["capability_requirements"] = {
+        "format_version": 1,
+        "required_capabilities": [
+            runner_requirement.to_mapping(),
+            requirement.to_mapping(),
+        ],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {"runner": {"capability_id": runner_requirement.capability_id}},
+    }
+    descriptor["inference_roles"] = {
+        "format_version": 1,
+        "roles": [
+            {
+                "role": "suggest",
+                "material_role": "suggest",
+                "capability_id": "model.generate.v1",
+                "instruction_asset": {
+                    "path": "assets/instruction.txt",
+                    "sha256": hashlib.sha256(instruction).hexdigest(),
+                },
+                "request_schema_asset": {
+                    "path": "schemas/value.json",
+                    "sha256": schema_digest,
+                },
+                "response_schema_asset": {
+                    "path": "schemas/value.json",
+                    "sha256": schema_digest,
+                },
+                "authorized_asset_digests": [asset_digest],
+                "limits": {
+                    "max_calls": 1,
+                    "max_input_bytes": 100,
+                    "max_output_bytes": 100,
+                    "timeout_milliseconds": 100,
+                    "max_concurrency": 1,
+                },
+            }
+        ],
+    }
+    descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
+    (source / "model-material-sets.json").write_text(
+        json.dumps(
+            {
+                "format_version": 1,
+                "material_sets": [
+                    {
+                        "role": "suggest",
+                        "model_materials": {
+                            "format_version": 1,
+                            "logical_model_id": "test-model",
+                            "runner_contract": {"id": "test", "version": "1"},
+                            "loader_profile_contract": {"id": "test", "version": "1"},
+                            "sources": [
+                                {
+                                    "role": "base_model",
+                                    "group": "base",
+                                    "source_type": "huggingface_file",
+                                    "repository": "example/test-model",
+                                    "revision": "a" * 40,
+                                    "filename": "model.gguf",
+                                    "sha256": "b" * 64,
+                                }
+                            ],
+                            "preparation": [],
+                        },
+                    }
+                ],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+    runner = {
+        "asset": {
+            "abi_version": 1,
+            "entrypoint": "run",
+            "path": "assets/runner.py",
+            "sha256": asset_digest,
+        },
+        "callbacks": [
+            {
+                "child_contract_digest": child_digest,
+                "max_calls": 1,
+                "max_concurrency": 1,
+                "max_request_bytes": 100,
+                "max_response_bytes": 100,
+                "max_total_request_bytes": 100,
+                "max_total_response_bytes": 100,
+                "name": "suggest",
+                "requirement": "model.generate.v1",
+                "timeout_milliseconds": 100,
+            }
+        ],
+        "capability_requirements_digest": requirements.digest,
+        "child_contract_digests": [child_digest],
+        "format_version": 1,
+        "inputs": [
+            {
+                "max_bytes": 100,
+                "media_type": "application/json",
+                "required": True,
+                "role": "request",
+                "schema_digest": schema_digest,
+            }
+        ],
+        "limits": {
+            "max_concurrency": 1,
+            "max_cpu_milliseconds": 1,
+            "max_io_bytes": 1000,
+            "max_memory_bytes": 1,
+            "max_runtime_milliseconds": 100,
+        },
+        "outputs": [
+            {
+                "max_bytes": 100,
+                "media_type": "application/json",
+                "role": "result",
+                "schema_digest": schema_digest,
+            }
+        ],
+        "profile_digest": profile_digest,
+        "schemas": [
+            {
+                "dialect": "json-schema-draft-2020-12",
+                "path": "schemas/value.json",
+                "sha256": schema_digest,
+            }
+        ],
+    }
+    runner["artifact_runner_digest"] = hashlib.sha256(
+        json.dumps(runner, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    (source / "sealed-artifact-runner.json").write_text(
+        json.dumps(runner, sort_keys=True, separators=(",", ":")), encoding="utf-8"
+    )
+    return b'{"value":"request"}'
+
+
 def test_local_host_open_uses_an_injected_controller_mcp_client(
     tmp_path: Path,
 ) -> None:
@@ -325,6 +523,111 @@ def test_local_host_composes_locked_inference_callback_from_receiver_inputs(
         host._sealed_artifact_runner._callback_resolver,
         LockedInferenceSealedArtifactCallbackResolver,
     )
+
+
+def test_local_host_runs_locked_inference_from_a_staged_zip(
+    tmp_path: Path,
+) -> None:
+    package_root = tmp_path / "packages"
+    source = package_root / "locked-inference"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    configuration = configure_local_host(
+        root=tmp_path / "state",
+        package_root=package_root,
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    profile = LocalModelProfileControlPlane(
+        store=PrivateStateStore(tmp_path / "state")
+    ).load(configuration.profile_id)
+    contract = next(
+        item
+        for item in BUILTIN_CAPABILITY_CONTRACTS
+        if item.capability_id == "model.generate.v1"
+    )
+    runner_contract = CapabilityContract("model.execution.test.v1", "1", "c" * 64, ())
+    request = _write_locked_inference_sealed_package(
+        source,
+        profile_digest=profile.profile_digest,
+        contract=contract,
+        runner_contract=runner_contract,
+    )
+
+    class Provider:
+        calls = 0
+
+        def generate(self, **_kwargs: object) -> bytes:
+            self.calls += 1
+            return b'{"value":"ok"}'
+
+    provider = Provider()
+    catalog = CapabilityCatalog(
+        (*BUILTIN_CAPABILITY_CONTRACTS, runner_contract),
+        (
+            CapabilityProvider(
+                "receiver-generate",
+                contract,
+                conformance_passed=True,
+                conformance_vector_ids=frozenset(
+                    {"bounded_io", "deadline", "redacted_failure", "structured_value"}
+                ),
+            ),
+            CapabilityProvider(
+                "receiver-runner", runner_contract, conformance_passed=True
+            ),
+        ),
+    )
+    host = LocalWorkflowHost.open(
+        tmp_path / "state",
+        capability_catalog=catalog,
+        locked_inference_provider_registry=LockedInferenceProviderRegistry(
+            (LockedInferenceProviderBinding("receiver-generate", contract, provider),)
+        ),
+        locked_inference_host_limits=LockedInferenceHostLimits(1, 100, 100, 100, 1),
+    )
+    staged = host.preview_package(
+        package_source_handle=host.select_package(source, now=NOW), now=NOW
+    )
+    archive = package_root / "locked-inference.zip"
+    export_staged_package(staged=staged, destination=archive)
+    registration = host.register(
+        workflow_id="locked-inference",
+        package_source_handle=host.select_package(archive, now=NOW),
+        now=NOW,
+    )
+    prepared = host.prepare_sealed_artifact_input(
+        workflow_id=registration.workflow_id,
+        invocation_id="run-1",
+        role="request",
+        media_type="application/json",
+        schema_digest=hashlib.sha256(
+            b'{"max_depth":2,"max_items":1,"properties":{"value":'
+            b'{"max_string_bytes":16,"type":"string"}},"required":["value"],'
+            b'"type":"object"}'
+        ).hexdigest(),
+        content=request,
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    result = host.run_sealed_artifact(
+        SealedArtifactInvocation(
+            workflow_id=registration.workflow_id,
+            invocation_id="run-1",
+            input_handles={"request": prepared.handle_id},
+        ),
+        now=NOW,
+    )
+
+    assert provider.calls == 1
+    assert [output.role for output in result.outputs] == ["result"]
+    assert result.receipt == {
+        "callback_count": 1,
+        "descriptor_digest": result.receipt["descriptor_digest"],
+        "output_bytes": len(b'{"value":"ok"}'),
+        "output_count": 1,
+        "status": "completed",
+    }
 
 
 def test_local_host_rejects_partial_locked_inference_configuration(
