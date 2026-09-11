@@ -58,11 +58,11 @@ Version 1 supports only the existing Hugging Face per-file transport, complete
 closure validation owned by a versioned DAR loader profile, a finite ordered
 list of deterministic preparation operations selected through required DAR
 capabilities, and the built-in
-`transformers-peft-v1` and `llama-cpp-v1` runner contracts defined below. An
-embedding workflow may use the same lock format with a DAR-supported embedding
-runner/profile; its distinct execution operation is governed by the exact
-`embedding.execute.v1` requirement under `workflow-embedding-index-artifacts`.
-It
+`transformers-peft-v1` and `llama-cpp-v1` runner contracts defined below. A
+later DAR-supported embedding runner/profile uses the same lock format and the
+same required `bindings.runner` capability mapping; its distinct execution
+operation is governed by the exact `embedding.execute.v1` requirement under
+`workflow-embedding-index-artifacts`. It
 does not standardize a general model registry, a transform graph language, or
 an unrestricted execution environment.
 

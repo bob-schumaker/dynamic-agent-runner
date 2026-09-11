@@ -135,10 +135,11 @@ version, a model path, cache location, or a provider implementation.
 
 The direct adapter accepts only a verified `PreparedArtifactSet` from the
 receiver-private material resolver, never a repository, path, revision, or
-pooling setting. A workflow provider is deferred until the generic capability
-and model-material specifications define a non-llama.cpp runner binding for an
-embedding profile. That generic extension, not this feature, determines package
-declaration shape. No provider fallback is allowed.
+pooling setting. A workflow provider uses the existing generic
+`bindings.runner` material binding plus the `embedding.execute.v1` requirement
+once a DAR-owned embedding runner/profile is available. It does not need an
+MLX-specific manifest field or a parallel execution path. No provider fallback
+is allowed.
 
 ## Functional Requirements
 
@@ -243,6 +244,6 @@ behavior.
 
 Implementation begins only after the material lock records the exact source
 file hashes, parser ceilings, and reference-vector fixture/tolerance. Workflow
-provider registration additionally requires the generic non-llama.cpp embedding
-runner-binding extension, the approved `embedding.execute.v1` contract, and its
+provider registration additionally requires an approved DAR-owned embedding
+runner/profile, the approved `embedding.execute.v1` contract, and its
 sealed-runner prerequisites.

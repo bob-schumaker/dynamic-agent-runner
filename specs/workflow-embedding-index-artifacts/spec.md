@@ -133,12 +133,13 @@ DAR-supported embedding runner/profile and immutable source material under
 `workflow-model-materials`. The receiver resolves the provider before sealed
 input ingress, model download, package-local tool load, or index materialization.
 
-The package declares exactly one `embedding.execute.v1` requirement. It is not
-an additional `bindings` entry: the capability ID itself identifies this
-single-purpose operation, while the same material lock's existing `runner`
-binding identifies the DAR-supported embedding runner/profile. DAR derives an
-internal `EmbeddingExecutionBinding` from the material-execution binding and
-the exact required capability contract. Its content is the material-lock and
+The package declares one `embedding.execute.v1` requirement and, because it
+has a model-material declaration, one additional DAR-owned runner capability
+requirement named by `capability_requirements.bindings.runner`. The runner
+requirement identifies the compatible runner/profile; it is not an `embedding`
+binding or a provider selector. DAR derives an internal
+`EmbeddingExecutionBinding` from that generic material-execution binding and
+the exact embedding capability contract. Its content is the material-lock and
 runner/profile identities plus the embedding capability contract identity; it
 contains no receiver provider ID, model path, or execution settings. The
 receiver resolves that binding before ingress and revalidates the selected
@@ -209,8 +210,9 @@ glob, URL, archive-extraction option, or source path.
 
 ### FR-2: Exact embedding binding
 
-An embedding-index workflow shall declare one embedding model binding and an
-exact `embedding.execute.v1` capability requirement. DAR shall verify its
+An embedding-index workflow shall declare one embedding model binding, the
+runner capability required by that model-material declaration, and an exact
+`embedding.execute.v1` capability requirement. DAR shall verify its
 model-material-lock digest, runner/profile compatibility, and selected provider
 before every deferred side effect. Missing, disabled, changed, or
 contract-incompatible providers fail closed with a redacted classification and
@@ -299,8 +301,9 @@ gated on the approved isolation backend.
 
 ## Dependencies and Delivery Gate
 
-Implementation depends on an approved extension of `workflow-model-materials`
-for embedding runners/profiles, an approved `embedding.execute.v1` provider
-contract in `workflow-capability-requirements`, and the artifact/result-location
-isolation required by `sandbox-workspace-runtime`. This spec authorizes neither
-those changes nor arbitrary package-local execution by itself.
+Implementation depends on an approved DAR-owned embedding runner/profile using
+the existing `workflow-model-materials` and `bindings.runner` contract, an
+approved `embedding.execute.v1` provider contract in
+`workflow-capability-requirements`, and the artifact/result-location isolation
+required by `sandbox-workspace-runtime`. This spec authorizes neither those
+changes nor arbitrary package-local execution by itself.

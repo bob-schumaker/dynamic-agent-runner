@@ -2,14 +2,20 @@
 
 ## MLE0 — Generic embedding binding
 
-- [ ] MLE0.1 [spec/plan] Amend the generic model-material and capability
-  requirements artifacts with a non-llama.cpp embedding runner/profile binding
-  and a receiver-private verified-material composition path.
+- [x] MLE0.1 [spec/plan] Reconcile the generic model-material, capability, and
+  embedding-index artifacts: a material declaration requires a declared runner
+  capability named by `bindings.runner`, and `embedding.execute.v1` is a
+  separate single-purpose requirement.
+  - Evidence: `derive_model_execution_binding()` already derives the generic
+    binding from `bindings.runner`; the three governing specs now match it.
   - Acceptance: a sealed package can bind an embedding provider without an
     MLX-specific manifest field, fake llama.cpp runner, or parallel ABI.
-- [ ] MLE0.2 [tests, RED/GREEN] Implement and test generic binding, selected
-  provider identity, and immediate availability revalidation before provider
-  entry.
+- [ ] MLE0.2 [tests, RED/GREEN] Require the selected embedding provider to
+  support the sealed runner/profile/material binding before provider entry;
+  reject an embedding-capability-compatible but binding-incompatible provider.
+  - Evidence: current focused tests prove generic runner binding derivation,
+    but not provider compatibility; `LocalEmbeddingAdapterProvider` currently
+    discards the binding.
   - Depends on: MLE0.1.
 
 ## MLE1 — GTE Tiny material and reference lock

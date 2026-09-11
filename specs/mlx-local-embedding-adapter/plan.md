@@ -11,17 +11,19 @@
 - Do not run a real model until deterministic material/admission tests pass and
   the user explicitly authorizes the Mac competency protocol.
 
-## S0 — Close generic binding prerequisites
+## S0 — Confirm generic binding prerequisites
 
-1. Amend the generic model-material and capability requirements artifacts to
-   bind an embedding runner/profile without pretending it is a llama.cpp model
-   execution runner.
-2. Define the generic runner/loader-profile contract extension and the exact
-   receiver-private path from verified `PreparedArtifactSet` to provider entry.
-3. Add fake-only admission/revalidation tests at that generic boundary.
+1. Reconcile the generic model-material, capability, and embedding-index
+   artifacts: a package with `model-materials.json` requires a declared runner
+   capability named by `bindings.runner`, while `embedding.execute.v1` remains
+   a separate single-purpose requirement.
+2. Add generic provider admission that proves the selected embedding provider
+   supports the sealed runner/profile/material binding before provider entry;
+   existing embedding-provider resolution validates only its capability.
 
-Exit: the MLX provider has a generic package binding to satisfy; it does not
-invent an MLX-specific manifest field or a parallel execution path.
+Exit: the MLX provider uses the existing generic package binding and creates no
+MLX-specific manifest field or parallel execution path; a capability-compatible
+but binding-incompatible embedding provider fails before model entry.
 
 ## S1 — Lock the GTE Tiny profile
 

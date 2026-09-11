@@ -119,12 +119,12 @@ binary, download source, execution profile, or fallback. A package may require,
 for example, a standard local GGUF multimodal runner, a standard deterministic
 GGUF quantization operation, or a standard sealed-image conversion contract.
 
-Some single-purpose operations do not require a `bindings` entry because their
-capability ID is their only valid role. In particular, an embedding-index
-workflow declares exactly one `embedding.execute.v1` requirement. DAR binds it
-to the package's separately required model-material runner/profile internally;
-the workflow does not name a provider or add an `embedding` selector to
-`bindings`.
+Some single-purpose operations do not require their own `bindings` entry
+because their capability ID is their only valid role. In particular, an
+embedding-index workflow declares one `embedding.execute.v1` requirement in
+addition to the required runner capability named by `bindings.runner` for its
+model-material declaration. DAR binds the two internally; the workflow does
+not name a provider or add an `embedding` selector to `bindings`.
 
 The proposed `model.generate.v1` operation is likewise single-purpose, but its
 generic inference role binds to a sealed model-material-set entry rather than a
