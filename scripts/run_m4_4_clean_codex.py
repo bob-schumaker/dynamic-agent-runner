@@ -1404,7 +1404,8 @@ def _author_request(
     )
     operation_guidance = (
         " This is an approved email-send operation: use the reviewed write-MCP "
-        "template with its sole mail_send tool; do not choose the no-tool starter."
+        "template at references/dar-authoring-write-mcp-template/ with its sole "
+        "mail_send tool; do not choose the no-tool starter."
         if "email" in author_prompt.lower()
         else ""
     )
@@ -1423,8 +1424,9 @@ def _author_request(
         else ""
     )
     read_only_mcp_guidance = (
-        " This is a read-only MCP workflow: use the reviewed read-only MCP template; "
-        "do not construct its graph from scratch."
+        " This is a read-only MCP workflow: use the reviewed read-only MCP template "
+        "at references/dar-authoring-read-only-mcp-template/; do not construct its "
+        "graph from scratch."
         if any(
             workflow in author_prompt.lower()
             for workflow in ("mailbox-triage", "oauth reconnect")

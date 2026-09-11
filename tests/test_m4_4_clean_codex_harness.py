@@ -1186,6 +1186,7 @@ def test_email_artifact_author_prompt_requires_reviewed_write_template() -> None
 
     assert "approved email-send operation" in prompt
     assert "reviewed write-MCP template" in prompt
+    assert "references/dar-authoring-write-mcp-template/" in prompt
     assert "do not choose the no-tool starter" in prompt
 
 
@@ -1234,6 +1235,7 @@ def test_mailbox_triage_author_prompt_requires_the_read_only_template() -> None:
 
     assert "read-only MCP workflow" in prompt
     assert "reviewed read-only MCP template" in prompt
+    assert "references/dar-authoring-read-only-mcp-template/" in prompt
     assert "do not construct its graph from scratch" in prompt
 
 
@@ -1249,6 +1251,7 @@ def test_oauth_reconnect_author_prompt_requires_the_read_only_template() -> None
 
     assert "read-only MCP workflow" in prompt
     assert "reviewed read-only MCP template" in prompt
+    assert "references/dar-authoring-read-only-mcp-template/" in prompt
     assert "do not construct its graph from scratch" in prompt
 
 
