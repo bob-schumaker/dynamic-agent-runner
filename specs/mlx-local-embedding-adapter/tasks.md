@@ -96,6 +96,9 @@
 
 ## MLE5 — Workflow capability provider
 
+- [ ] MLE5.0 [tests, RED/GREEN] Define and prove the generic private
+  embedding-limit projection from an admitted exact ABI descriptor, including
+  receiver tightening and no material/MLX/provider use during projection.
 - [ ] MLE5.1 [tests, RED] Add fake-only `embedding.execute.v1` provider and
   descriptor/material-binding conformance tests.
   - Depends on: MLE1.4, MLE4.1, and the approved embedding-index spec.

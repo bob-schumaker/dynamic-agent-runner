@@ -179,6 +179,14 @@
     package-selected validator, provider, model, or index implementation.
     Ponytail accepted one existing callback-integration seam rather than a
     parallel embedding runner or registry.
+- [x] E6.1b [design addendum] Require each exact receiver-supported embedding
+  ABI to project its validated execution descriptor to private batch limits;
+  the portable callback body remains only a schema binding.
+  - Evidence: the existing generic embedding service needs item, byte, vector,
+    and total-vector bounds, while the portable child contract deliberately
+    contains only request/response schema digests. The projection keeps ABI
+    fields and model dimensions out of the portable descriptor and permits a
+    receiver only to tighten limits.
 - [ ] E6.2 [tests, RED] Add ZIP receiver-admission vectors proving malformed,
   unbound, or unauthorized packages load no asset, model, provider, ingress, or
   result collector.

@@ -218,6 +218,15 @@ failure destroys every candidate and publishes no output handle. This is
 receiver composition, not package-selected validation code or a new
 index-specific runner field.
 
+Each receiver-supported embedding ABI projects its sealed execution descriptor
+to a private `EmbeddingBatchLimits` value: item count, item and aggregate UTF-8
+bytes, vector dimension, and total vectors. The projection is validated by the
+exact ABI implementation and is never selected by package callback JSON or an
+invocation. The receiver may tighten these limits but never relax them. This
+provides the package-declared bounds required for embedding execution without
+making a named model or ABI-specific fields part of the portable runner
+descriptor.
+
 ## Functional Requirements
 
 ### FR-1: Sealed snapshot ingress

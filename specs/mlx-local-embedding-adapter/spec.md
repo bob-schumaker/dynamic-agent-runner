@@ -299,6 +299,13 @@ token-count, vector-dimension, and observed-memory limits. MLX in-process
 execution provides no hard memory or timeout isolation guarantee; a workflow
 may tighten but cannot relax host/provider limits.
 
+For portable embedding callbacks, this ABI projects its sealed `limits` and
+`encoder.hidden_size` fields to DAR's private `EmbeddingBatchLimits` contract:
+`max_items`, `max_item_bytes`, `max_aggregate_bytes`, `hidden_size`, and
+`max_vectors`. This projection is receiver-owned, deterministic, and performs
+no material read or MLX import. It is not a named-model profile or a portable
+runner-descriptor field.
+
 ### FR-4: conservative capability reporting
 
 Static adapter metadata performs no material or dependency admission and reports
