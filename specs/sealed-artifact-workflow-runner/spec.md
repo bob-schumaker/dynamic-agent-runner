@@ -137,7 +137,7 @@ declared callback; and
 `context.callback_identity(name) -> {"asset_digest", "child_contract_digest",
 "digest"}` permits an asset to read only the exact identity of one callback it
 already declares. `digest` is the SHA-256 of canonical ASCII JSON
-`{"asset_digest": asset_digest, "child_contract_digest": child_contract_digest}`.
+`{"asset_digest": asset_digest, "builder_contract_digest": child_contract_digest}`.
 It exposes no package path, descriptor bytes, provider, material, handle, or
 execution setting. This closes the otherwise circular case where a sealed asset
 must bind an output to an identity that includes its own digest; and

@@ -204,6 +204,7 @@ def test_embedding_callback_validates_the_private_index_output_triple() -> None:
         (SnapshotDocument("document-a", "text/plain", b"note"),),
         policy=DocumentSnapshotPolicy(1, 16, 16, ("text/plain",)),
     )
+    assert sha256(snapshot.wire_bytes).hexdigest() != snapshot.snapshot_digest
     index_binding = IndexArtifactBinding(
         binding.material_lock_digest,
         binding.capability_contract_digest,

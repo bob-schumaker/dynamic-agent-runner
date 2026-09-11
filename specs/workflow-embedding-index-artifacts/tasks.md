@@ -194,13 +194,32 @@
     while that identity includes the asset SHA-256. The record reveals only
     declared digest identities, not provider, material, path, or descriptor
     state; the sealed-runner specification owns its generic ABI.
-- [ ] E6.2 [tests, RED] Add ZIP receiver-admission vectors proving malformed,
+- [x] E6.2 [tests, RED] Add ZIP receiver-admission vectors proving malformed,
   unbound, or unauthorized packages load no asset, model, provider, ingress, or
   result collector. Include canonical portable snapshot-wire decoding and a
   candidate manifest whose semantic snapshot binding differs from the raw
   sealed-input digest.
-- [ ] E6.3 [implementation] Route authorized portable package invocation
+  - Evidence: `tests/test_dar_authoring_host.py` stages, exports, registers,
+    and invokes a real portable embedding ZIP after tampering its sealed asset;
+    its receiver event trace stops at descriptor verification before callback
+    resolution, model execution, handle ingress, collector allocation, asset
+    import, or egress. `tests/test_sealed_artifact_workflow_runner.py` retains
+    the generic unbound/foreign-owner admission vectors, while
+    `tests/test_embedding_sealed_artifact_callback.py` verifies a candidate
+    index manifest uses the semantic decoded snapshot digest rather than the
+    raw sealed-wire SHA-256.
+- [x] E6.3 [implementation] Route authorized portable package invocation
   through descriptor-only admission and the sealed builder runtime; eliminate
   test-fixture injection from the portable path.
-- [ ] E6.4 [tests, GREEN] Prove deterministic ZIP import/invocation and
+  - Evidence: `EmbeddingSealedArtifactCallbackResolver` composes the exact
+    sealed callback from the receiver's policy/material binding and the generic
+    `SealedArtifactWorkflowRunner` invokes the ZIP asset without a test-fixture
+    execution path. The E6 ZIP vector uses only the descriptor, child contract,
+    sealed handles, and receiver-provided generic execution service.
+- [x] E6.4 [tests, GREEN] Prove deterministic ZIP import/invocation and
   aggregate-only result egress on a receiving host.
+  - Evidence: `test_portable_embedding_zip_rejects_tampering_before_receiver_ingress`
+    restores its verified ZIP asset, prepares a canonical snapshot wire artifact,
+    invokes `embedding.execute.v1`, validates and atomically publishes the exact
+    three output handles, and asserts that private document content does not
+    enter the receipt or public handle representation.

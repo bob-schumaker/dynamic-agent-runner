@@ -79,11 +79,20 @@ from dynamic_agent_runner.workflow_host.embedding_execution import (  # noqa: E4
     EmbeddingLimitProjectorBinding,
     EmbeddingLimitProjectorRegistry,
 )
+from dynamic_agent_runner.workflow_host.embedding_index_artifacts import (  # noqa: E402
+    DocumentSnapshot,
+    DocumentSnapshotPolicy,
+    SnapshotDocument,
+)
 from dynamic_agent_runner.workflow_host.embedding_sealed_artifact_callback import (  # noqa: E402
     EmbeddingSealedArtifactCallbackResolver,
 )
 from dynamic_agent_runner.workflow_host.execution_descriptors import (  # noqa: E402
     ExecutionDescriptorAbi,
+    ExecutionDescriptorValidatorRegistry,
+)
+from dynamic_agent_runner.workflow_host.model_materials import (  # noqa: E402
+    parse_model_dependency_lock,
 )
 
 
@@ -409,6 +418,262 @@ def _write_locked_inference_sealed_package(
     return b'{"value":"request"}'
 
 
+def _write_portable_embedding_sealed_package(
+    source: Path,
+    *,
+    profile_digest: str,
+    embedding_contract: CapabilityContract,
+    runner_contract: CapabilityContract,
+    abi: ExecutionDescriptorAbi,
+    snapshot: DocumentSnapshot,
+) -> None:
+    runner_requirement = CapabilityRequirement(
+        runner_contract.capability_id,
+        runner_contract.contract_version,
+        runner_contract.contract_digest,
+        (),
+    )
+    embedding_requirement = CapabilityRequirement(
+        embedding_contract.capability_id,
+        embedding_contract.contract_version,
+        embedding_contract.contract_digest,
+        ("deterministic",),
+    )
+    requirements = CapabilityRequirements(
+        (embedding_requirement, runner_requirement),
+        {"runner": runner_requirement.capability_id},
+    )
+    request_schema = b'{"additionalProperties":false,"properties":{"items":{"items":{"additionalProperties":false,"properties":{"id":{"type":"string"},"text":{"type":"string"}},"required":["id","text"],"type":"object"},"type":"array"}},"required":["items"],"type":"object"}'
+    response_schema = b'{"additionalProperties":false,"properties":{"items":{"items":{"additionalProperties":false,"properties":{"id":{"type":"string"},"vector":{"items":{"type":"number"},"type":"array"}},"required":["id","vector"],"type":"object"},"type":"array"}},"required":["items"],"type":"object"}'
+    child = json.dumps(
+        {
+            "body": {
+                "embed_request_schema_digest": hashlib.sha256(
+                    request_schema
+                ).hexdigest(),
+                "embed_response_schema_digest": hashlib.sha256(
+                    response_schema
+                ).hexdigest(),
+            },
+            "callback_name": "embed",
+            "capability_requirement": "embedding.execute.v1",
+            "format_version": 1,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    child_digest = hashlib.sha256(child).hexdigest()
+    execution_descriptor = json.dumps(
+        {
+            "abi_fields": {},
+            "architecture_abi": abi.to_mapping(),
+            "format_version": 1,
+            "material_roles": ["tokenizer", "weights"],
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    materials = {
+        "execution_descriptor": {
+            "filename": "execution-descriptor.json",
+            "sha256": hashlib.sha256(execution_descriptor).hexdigest(),
+        },
+        "format_version": 2,
+        "logical_model_id": "test-embedding",
+        "preparation": [],
+        "runner_contract": {"id": "test-runner", "version": "1"},
+        "sources": [
+            {
+                "filename": "tokenizer.json",
+                "group": "embedding",
+                "repository": "example/test-embedding",
+                "revision": "a" * 40,
+                "role": "tokenizer",
+                "sha256": "b" * 64,
+                "source_type": "huggingface_file",
+            },
+            {
+                "filename": "weights.safetensors",
+                "group": "embedding",
+                "repository": "example/test-embedding",
+                "revision": "a" * 40,
+                "role": "weights",
+                "sha256": "c" * 64,
+                "source_type": "huggingface_file",
+            },
+        ],
+    }
+    material_bytes = json.dumps(
+        materials, sort_keys=True, separators=(",", ":")
+    ).encode()
+    material_digest = parse_model_dependency_lock(material_bytes).digest
+    bundle = b"index"
+    bundle_digest = hashlib.sha256(bundle).hexdigest()
+    manifest_prefix = (
+        b'{"bundle_sha256":"'
+        + bundle_digest.encode()
+        + b'","chunk_count":1,"deleted_count":0,"document_count":1,'
+        + b'"embedding_capability_contract_digest":"'
+        + embedding_contract.contract_digest.encode()
+        + b'","embedding_material_lock_digest":"'
+        + material_digest.encode()
+        + b'","error_count":0,"format_version":1,"index_builder_digest":"'
+    )
+    manifest_suffix = (
+        b'","indexed_count":1,"skipped_count":0,"snapshot_digest":"'
+        + snapshot.snapshot_digest.encode()
+        + b'"}'
+    )
+    report_prefix = (
+        b'{"chunk_count":1,"deleted_count":0,"document_count":1,'
+        + b'"embedding_capability_contract_digest":"'
+        + embedding_contract.contract_digest.encode()
+        + b'","embedding_material_lock_digest":"'
+        + material_digest.encode()
+        + b'","error_classifications":[],"error_count":0,"format_version":1,'
+        + b'"index_builder_digest":"'
+    )
+    report_suffix = (
+        b'","indexed_count":1,"prior_bundle_digest":null,"skipped_count":0,'
+        + b'"snapshot_digest":"'
+        + snapshot.snapshot_digest.encode()
+        + b'"}'
+    )
+    asset = (
+        b"def run(context):\n"
+        b"    context.read_input('snapshot')\n"
+        b'    context.invoke_callback(\'embed\', b\'{"items":[{"id":"chunk","text":"body"}]}\')\n'
+        b"    builder = context.callback_identity('embed')['digest'].encode()\n"
+        b"    context.write_output('coverage_report', 'application/json', "
+        + repr(report_prefix).encode()
+        + b" + builder + "
+        + repr(report_suffix).encode()
+        + b")\n"
+        b"    context.write_output('index_bundle', 'application/octet-stream', b'index')\n"
+        b"    context.write_output('index_manifest', 'application/json', "
+        + repr(manifest_prefix).encode()
+        + b" + builder + "
+        + repr(manifest_suffix).encode()
+        + b")\n"
+    )
+    asset_digest = hashlib.sha256(asset).hexdigest()
+    (source / "assets").mkdir()
+    (source / "assets" / "runner.py").write_bytes(asset)
+    (source / "schemas").mkdir()
+    (source / "schemas" / "embed-request.json").write_bytes(request_schema)
+    (source / "schemas" / "embed-response.json").write_bytes(response_schema)
+    (source / "contracts").mkdir()
+    (source / "contracts" / "embed.json").write_bytes(child)
+    (source / "execution-descriptor.json").write_bytes(execution_descriptor)
+    descriptor_path = source / "workflow-descriptor.yaml"
+    descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+    descriptor["capability_requirements"] = {
+        "format_version": 1,
+        "required_capabilities": [
+            embedding_requirement.to_mapping(),
+            runner_requirement.to_mapping(),
+        ],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {"runner": {"capability_id": runner_requirement.capability_id}},
+    }
+    descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
+    (source / "model-materials.json").write_bytes(material_bytes)
+    runner = {
+        "asset": {
+            "abi_version": 1,
+            "entrypoint": "run",
+            "path": "assets/runner.py",
+            "sha256": asset_digest,
+        },
+        "callbacks": [
+            {
+                "child_contract_digest": child_digest,
+                "max_calls": 1,
+                "max_concurrency": 1,
+                "max_request_bytes": 1024,
+                "max_response_bytes": 1024,
+                "max_total_request_bytes": 1024,
+                "max_total_response_bytes": 1024,
+                "name": "embed",
+                "requirement": "embedding.execute.v1",
+                "timeout_milliseconds": 100,
+            }
+        ],
+        "capability_requirements_digest": requirements.digest,
+        "child_contract_digests": [child_digest],
+        "format_version": 1,
+        "inputs": [
+            {
+                "max_bytes": 1024,
+                "media_type": "application/octet-stream",
+                "required": False,
+                "role": "prior_bundle",
+                "schema_digest": None,
+            },
+            {
+                "max_bytes": 1024,
+                "media_type": "application/json",
+                "required": False,
+                "role": "prior_index_manifest",
+                "schema_digest": None,
+            },
+            {
+                "max_bytes": 1024,
+                "media_type": "application/json",
+                "required": True,
+                "role": "snapshot",
+                "schema_digest": None,
+            },
+        ],
+        "limits": {
+            "max_concurrency": 1,
+            "max_cpu_milliseconds": 1,
+            "max_io_bytes": 4096,
+            "max_memory_bytes": 1,
+            "max_runtime_milliseconds": 100,
+        },
+        "outputs": [
+            {
+                "max_bytes": 1024,
+                "media_type": "application/json",
+                "role": "coverage_report",
+                "schema_digest": None,
+            },
+            {
+                "max_bytes": 1024,
+                "media_type": "application/octet-stream",
+                "role": "index_bundle",
+                "schema_digest": None,
+            },
+            {
+                "max_bytes": 1024,
+                "media_type": "application/json",
+                "role": "index_manifest",
+                "schema_digest": None,
+            },
+        ],
+        "profile_digest": profile_digest,
+        "schemas": [
+            {
+                "dialect": "json-schema-draft-2020-12",
+                "path": "schemas/embed-request.json",
+                "sha256": hashlib.sha256(request_schema).hexdigest(),
+            },
+            {
+                "dialect": "json-schema-draft-2020-12",
+                "path": "schemas/embed-response.json",
+                "sha256": hashlib.sha256(response_schema).hexdigest(),
+            },
+        ],
+    }
+    runner["artifact_runner_digest"] = hashlib.sha256(
+        json.dumps(runner, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    (source / "sealed-artifact-runner.json").write_text(
+        json.dumps(runner, sort_keys=True, separators=(",", ":")), encoding="utf-8"
+    )
+
+
 def test_local_host_open_uses_an_injected_controller_mcp_client(
     tmp_path: Path,
 ) -> None:
@@ -571,6 +836,180 @@ def test_local_host_composes_embedding_callback_from_receiver_inputs(
         host._sealed_artifact_runner._callback_resolver,
         EmbeddingSealedArtifactCallbackResolver,
     )
+
+
+def test_portable_embedding_zip_rejects_tampering_before_receiver_ingress(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package_root = tmp_path / "packages"
+    source = package_root / "portable-embedding"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    configuration = configure_local_host(
+        root=tmp_path / "state",
+        package_root=package_root,
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    profile = LocalModelProfileControlPlane(
+        store=PrivateStateStore(tmp_path / "state")
+    ).load(configuration.profile_id)
+    snapshot = DocumentSnapshot.create(
+        (SnapshotDocument("note", "text/plain", b"body"),),
+        policy=DocumentSnapshotPolicy(1, 16, 64, ("text/plain",)),
+    )
+    embedding = CapabilityContract(
+        "embedding.execute.v1", "1", "a" * 64, ("deterministic",)
+    )
+    runner_contract = CapabilityContract("model.execution.test.v1", "1", "b" * 64, ())
+    abi = ExecutionDescriptorAbi("test-embedding-abi", "1", "c" * 64)
+    _write_portable_embedding_sealed_package(
+        source,
+        profile_digest=profile.profile_digest,
+        embedding_contract=embedding,
+        runner_contract=runner_contract,
+        abi=abi,
+        snapshot=snapshot,
+    )
+
+    class Validator:
+        identity = abi
+
+        def validate(self, _descriptor: object) -> None:
+            return None
+
+    class Execution:
+        calls = 0
+
+        def execute(self, **_kwargs: object) -> tuple[object, ...]:
+            self.calls += 1
+            return ()
+
+    execution = Execution()
+    catalog = CapabilityCatalog(
+        (embedding, runner_contract),
+        (
+            CapabilityProvider(
+                "receiver-embedding", embedding, conformance_passed=True
+            ),
+            CapabilityProvider(
+                "receiver-runner", runner_contract, conformance_passed=True
+            ),
+        ),
+    )
+    host = LocalWorkflowHost.open(
+        tmp_path / "state",
+        capability_catalog=catalog,
+        descriptor_validators=ExecutionDescriptorValidatorRegistry((Validator(),)),
+        embedding_execution=execution,
+        embedding_limit_projectors=EmbeddingLimitProjectorRegistry(
+            (
+                EmbeddingLimitProjectorBinding(
+                    abi, lambda _descriptor: EmbeddingBatchLimits(1, 32, 32, 2, 1)
+                ),
+            )
+        ),
+    )
+    staged = host.preview_package(
+        package_source_handle=host.select_package(source, now=NOW), now=NOW
+    )
+    archive = package_root / "portable-embedding.zip"
+    export_staged_package(staged=staged, destination=archive)
+    registration = host.register(
+        workflow_id="portable-embedding",
+        package_source_handle=host.select_package(archive, now=NOW),
+        now=NOW,
+    )
+    revision = host._catalog.revision(
+        registration.package_id, registration.revision_digest
+    )
+    asset = revision.package_root / "assets" / "runner.py"
+    original_asset = asset.read_bytes()
+    asset.chmod(0o600)
+    asset.write_bytes(b"tampered")
+    resolver = host._sealed_artifact_runner._callback_resolver
+    events = _observe_sealed_artifact_receiver(host, resolver, monkeypatch)
+
+    with pytest.raises(LocalWorkflowHostError, match="sealed artifact runner"):
+        host.run_sealed_artifact(
+            SealedArtifactInvocation(
+                workflow_id=registration.workflow_id,
+                invocation_id="run-1",
+                input_handles={"snapshot": "unreadable"},
+            ),
+            now=NOW,
+        )
+
+    assert execution.calls == 0
+    assert events == [
+        "registration",
+        "catalog_revision",
+        "policy_compile",
+        "descriptor_manifest_verify",
+    ]
+    asset.write_bytes(original_asset)
+    prepared = host.prepare_sealed_artifact_input(
+        workflow_id=registration.workflow_id,
+        invocation_id="run-2",
+        role="snapshot",
+        media_type="application/json",
+        schema_digest=None,
+        content=snapshot.wire_bytes,
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    events.clear()
+
+    result = host.run_sealed_artifact(
+        SealedArtifactInvocation(
+            workflow_id=registration.workflow_id,
+            invocation_id="run-2",
+            input_handles={"snapshot": prepared.handle_id},
+        ),
+        now=NOW,
+    )
+
+    assert execution.calls == 1
+    assert [output.role for output in result.outputs] == [
+        "coverage_report",
+        "index_bundle",
+        "index_manifest",
+    ]
+    assert result.receipt["status"] == "completed"
+    assert b"body" not in repr((result.outputs, result.receipt)).encode()
+    repeat = host.prepare_sealed_artifact_input(
+        workflow_id=registration.workflow_id,
+        invocation_id="run-3",
+        role="snapshot",
+        media_type="application/json",
+        schema_digest=None,
+        content=snapshot.wire_bytes,
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    repeated_result = host.run_sealed_artifact(
+        SealedArtifactInvocation(
+            workflow_id=registration.workflow_id,
+            invocation_id="run-3",
+            input_handles={"snapshot": repeat.handle_id},
+        ),
+        now=NOW,
+    )
+
+    assert execution.calls == 2
+    assert repeated_result.receipt == result.receipt
+
+
+def test_portable_snapshot_wire_digest_is_not_its_semantic_snapshot_digest() -> None:
+    snapshot = DocumentSnapshot.create(
+        (SnapshotDocument("note", "text/plain", b"body"),),
+        policy=DocumentSnapshotPolicy(1, 16, 64, ("text/plain",)),
+    )
+
+    decoded = DocumentSnapshot.from_wire_bytes(snapshot.wire_bytes)
+
+    assert decoded.snapshot_digest == snapshot.snapshot_digest
+    assert hashlib.sha256(snapshot.wire_bytes).hexdigest() != snapshot.snapshot_digest
 
 
 def test_local_host_rejects_partial_embedding_callback_configuration(

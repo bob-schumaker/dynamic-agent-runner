@@ -472,7 +472,7 @@ class SealedArtifactExecutionContext:
                 _canonical_bytes(
                     {
                         "asset_digest": asset_digest,
-                        "child_contract_digest": child_contract_digest,
+                        "builder_contract_digest": child_contract_digest,
                     }
                 )
             ).hexdigest(),

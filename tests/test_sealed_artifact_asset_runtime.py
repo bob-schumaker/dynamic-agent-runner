@@ -182,7 +182,7 @@ def test_context_exposes_only_a_declared_callback_identity() -> None:
         "child_contract_digest": "d" * 64,
         "digest": hashlib.sha256(
             json.dumps(
-                {"asset_digest": "b" * 64, "child_contract_digest": "d" * 64},
+                {"asset_digest": "b" * 64, "builder_contract_digest": "d" * 64},
                 separators=(",", ":"),
                 sort_keys=True,
             ).encode()
