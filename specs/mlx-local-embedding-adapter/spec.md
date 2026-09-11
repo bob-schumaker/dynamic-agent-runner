@@ -7,6 +7,7 @@
 - Owner: dynamic-agent-runner local-model and embedding-capability boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`
+- Locked material profile: `gte-tiny-material-profile.md`
 - Related specifications:
   - `specs/mlx-local-model-adapter/spec.md`
   - `specs/llama-cpp-local-model/spec.md`
@@ -140,6 +141,11 @@ pooling setting. A workflow provider uses the existing generic
 once a DAR-owned embedding runner/profile is available. It does not need an
 MLX-specific manifest field or a parallel execution path. No provider fallback
 is allowed.
+
+`gte-tiny-material-profile.md` is the closed profile authority for the exact
+role/path/hash/byte predicate, parser/allocation order, tensor shape table,
+tokenizer semantics, and MLX distribution admission. Those model-specific facts
+remain outside the generic material-lock schema.
 
 ## Functional Requirements
 

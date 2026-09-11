@@ -22,17 +22,31 @@
 
 ## MLE1 — GTE Tiny material and reference lock
 
-- [ ] MLE1.1 [discovery] Record `TaylorAI/gte-tiny` revision
+- [x] MLE1.1 [discovery] Record `TaylorAI/gte-tiny` revision
   `4cc5e73d86a67c601897257b467187234aa3bca3`, `mlx==0.32.2`, BERT model
   configuration, source artifact list/SHA-256 values, tokenizer assets,
   512-token limit, 384 dimensions, masked-mean pooling, and
   `normalization: none`, closed role/path map, source-file SHA-256 values,
   byte ceilings, safe parser order, macOS/arm64 floor, and MLX distribution
   admission policy.
+  - Evidence: `gte-tiny-material-profile.md` records the closed predicate,
+    exact source table, 16,384-byte safetensors-header ceiling, allocation
+    order, tokenizer behavior, and the separate `mlx-embedding` policy.
+    the raw lock fixture produces canonical digest
+    `c2fc8b91d1b4514f2411f30c4d81fa3a702e902b70ae8a7eb83567696a158c87`;
+    the machine-readable profile proves changed role path, hash, or byte size
+    is rejected;
+    `poetry run pytest tests/test_mlx_gte_tiny_material_lock.py -q` passed.
   - Acceptance: no runtime behavior depends on an unpinned repository, file,
     package, pooling rule, or undocumented `mlx-lm` API.
 - [ ] MLE1.2 [decision] Approve the synthetic reference-vector fixture,
   precision, and numerical tolerance.
+  - Depends on: MLE1.1.
+- [ ] MLE1.3 [release gate] Record an explicit source-license decision before
+  offering `TaylorAI/gte-tiny` as a portable workflow material option.
+  - Evidence: the pinned Hugging Face API/model card does not provide a
+    machine-readable license. DAR does not bundle these materials; this gate
+    applies to an approved receiver download option, not fixture testing.
   - Depends on: MLE1.1.
 
 ## MLE2 — Direct adapter admission
@@ -76,11 +90,11 @@
 - [ ] MLE5.1 [tests, RED] Add fake-only `embedding.execute.v1` provider and
   locked-material binding conformance tests once the generic contract and
   sealed-runner prerequisites are complete.
-  - Depends on: MLE0.2, MLE4.1, and the approved embedding-index artifacts
-    spec.
+  - Depends on: MLE0.2, MLE1.3, MLE4.1, and the approved embedding-index
+    artifacts spec.
 - [ ] MLE5.2 [implementation] Register `mlx-gte-tiny-v1` as an optional
   provider selected only by the capability catalog.
-  - Depends on: MLE5.1.
+  - Depends on: MLE1.3 and MLE5.1.
 - [ ] MLE5.3 [tests, GREEN] Prove unavailable/changed provider failure occurs
   before model load, embedding execution, builder import, or artifact egress.
   - Depends on: MLE5.2 and MLE0.2.
