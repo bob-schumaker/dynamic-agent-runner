@@ -1410,7 +1410,8 @@ def _author_request(
     )
     skill_bundle_guidance = (
         " This is a package-local skill workflow: use the reviewed skill-bundle "
-        "template; do not construct its graph from scratch."
+        "template at references/dar-authoring-skill-bundle-template/; do not "
+        "construct its graph from scratch."
         if "package-local skill" in author_prompt.lower()
         else ""
     )
@@ -1430,6 +1431,14 @@ def _author_request(
         )
         else ""
     )
+    structured_review_guidance = (
+        " This is a structured single-model review: start from the canonical no-tool "
+        "template at references/dar-authoring-templates/, then declare the matching "
+        "review_result terminal output contract with its required message field in "
+        "both package files."
+        if "structured single-model review" in author_prompt.lower()
+        else ""
+    )
     guardrail_guidance = (
         " Declared caller-owned guardrails: "
         + ", ".join(f"{guardrail_id} ({phase})" for guardrail_id, phase in guardrails)
@@ -1441,7 +1450,7 @@ def _author_request(
         f"{author_prompt}\n\nUse the installed agent-engineering agent-development "
         f"skill to author a DAR workflow. The declared material_set_id is "
         f"`{material_set_id}` and the requested package name is `{package_name}`. "
-        f"{artifact_guidance}{operation_guidance}{skill_bundle_guidance}{no_tool_guidance}{read_only_mcp_guidance}{guardrail_guidance} "
+        f"{artifact_guidance}{operation_guidance}{skill_bundle_guidance}{no_tool_guidance}{read_only_mcp_guidance}{structured_review_guidance}{guardrail_guidance} "
         f"{suffix}"
     )
 

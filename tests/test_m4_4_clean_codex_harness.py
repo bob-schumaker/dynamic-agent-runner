@@ -1252,6 +1252,21 @@ def test_oauth_reconnect_author_prompt_requires_the_read_only_template() -> None
     assert "do not construct its graph from scratch" in prompt
 
 
+def test_structured_review_author_prompt_requires_its_terminal_contract() -> None:
+    module = _harness_module()
+
+    prompt = module._author_request(
+        "Author the declared DAR structured single-model review workflow.",
+        "material-id",
+        "structured-review",
+        "pass",
+    )
+
+    assert "canonical no-tool template" in prompt
+    assert "review_result" in prompt
+    assert "required message field" in prompt
+
+
 def test_skill_bundle_author_prompt_requires_the_review_template() -> None:
     module = _harness_module()
 
@@ -1264,6 +1279,7 @@ def test_skill_bundle_author_prompt_requires_the_review_template() -> None:
 
     assert "package-local skill workflow" in prompt
     assert "skill-bundle template" in prompt
+    assert "references/dar-authoring-skill-bundle-template/" in prompt
     assert "do not construct its graph from scratch" in prompt
 
 
