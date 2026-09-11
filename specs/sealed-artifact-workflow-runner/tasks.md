@@ -16,6 +16,14 @@
   - [ ] Extend sentinels to actual ZIP/manifest readers, handle-byte access,
     provider revalidation/material load, output sealing, publication, and
     egress rather than fake asset-execution internals.
+    - Partial evidence: `tests/test_dar_authoring_host.py` now stages and
+      registers a real ZIP, then records the actual registration, catalog,
+      policy, descriptor/manifest verification, callback-resolution, handle,
+      collector, asset-read, and output-publication collaborators. Tampered
+      assets stop before callback resolution or handle access; a missing handle
+      stops before collector allocation, asset read, input-byte consumption, or
+      publication. Provider-entry/material-load and caller egress sentinels
+      remain pending the generic provider composition in C6.
 - [x] S3 [implementation] Add receiver composition and sealed artifact runner.
   - [x] Retain declared output slots and add an ordered atomic private collector
     that destroys candidates on invalid or incomplete execution.

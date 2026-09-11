@@ -75,6 +75,90 @@ TEMPLATE_ROOT = (
 )
 
 
+def _observe_sealed_artifact_receiver(  # noqa: C901
+    host: LocalWorkflowHost, resolver: object, monkeypatch: pytest.MonkeyPatch
+) -> list[str]:
+    import dynamic_agent_runner.workflow_host.sealed_artifact_workflow_runner as runner_module
+
+    receiver = host._sealed_artifact_runner
+    assert receiver is not None
+    events: list[str] = []
+    registration_resolve = host._registrations.resolve
+    catalog_revision = host._catalog.revision
+    policy_compile = runner_module.compile_workflow_policy
+    descriptor_verify = runner_module.verify_sealed_artifact_runner_files
+    collector_type = runner_module.SealedArtifactOutputCollector
+    asset_read = runner_module._asset_bytes
+    handle_reserve = receiver._handles.reserve
+    handle_consume = receiver._handles.consume
+    output_publish = receiver._outputs.publish
+    resolver_resolve = resolver.resolve  # type: ignore[attr-defined]
+
+    def observe_registration(*args, **kwargs):
+        events.append("registration")
+        return registration_resolve(*args, **kwargs)
+
+    def observe_catalog(*args, **kwargs):
+        events.append("catalog_revision")
+        return catalog_revision(*args, **kwargs)
+
+    def observe_policy(*args, **kwargs):
+        events.append("policy_compile")
+        return policy_compile(*args, **kwargs)
+
+    def observe_descriptor(*args, **kwargs):
+        events.append("descriptor_manifest_verify")
+        return descriptor_verify(*args, **kwargs)
+
+    def observe_collector(*args, **kwargs):
+        events.append("collector_allocation")
+        collector = collector_type(*args, **kwargs)
+        collector_seal = collector.seal
+
+        def observe_seal():
+            events.append("collector_seal")
+            return collector_seal()
+
+        collector.seal = observe_seal
+        return collector
+
+    def observe_asset(*args, **kwargs):
+        events.append("asset_read")
+        return asset_read(*args, **kwargs)
+
+    def observe_reserve(*args, **kwargs):
+        events.append("handle_reservation")
+        return handle_reserve(*args, **kwargs)
+
+    def observe_consume(*args, **kwargs):
+        events.append("input_byte_read")
+        return handle_consume(*args, **kwargs)
+
+    def observe_publish(*args, **kwargs):
+        events.append("output_handle_publication")
+        return output_publish(*args, **kwargs)
+
+    def observe_callback_provider(*args, **kwargs):
+        events.append("callback_provider_resolution")
+        return resolver_resolve(*args, **kwargs)
+
+    monkeypatch.setattr(host._registrations, "resolve", observe_registration)
+    monkeypatch.setattr(host._catalog, "revision", observe_catalog)
+    monkeypatch.setattr(runner_module, "compile_workflow_policy", observe_policy)
+    monkeypatch.setattr(
+        runner_module, "verify_sealed_artifact_runner_files", observe_descriptor
+    )
+    monkeypatch.setattr(
+        runner_module, "SealedArtifactOutputCollector", observe_collector
+    )
+    monkeypatch.setattr(runner_module, "_asset_bytes", observe_asset)
+    monkeypatch.setattr(receiver._handles, "reserve", observe_reserve)
+    monkeypatch.setattr(receiver._handles, "consume", observe_consume)
+    monkeypatch.setattr(receiver._outputs, "publish", observe_publish)
+    monkeypatch.setattr(resolver, "resolve", observe_callback_provider)
+    return events
+
+
 def _write_portable_manifest(source: Path) -> None:
     digest = hashlib.sha256()
     files = []
@@ -182,6 +266,7 @@ def test_local_host_enables_sealed_artifact_runner_only_with_a_resolver(
 
 def test_local_host_rejects_tampered_asset_and_missing_handle_before_execution(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     package_root = tmp_path / "packages"
     source = package_root / "document-helper"
@@ -305,6 +390,7 @@ def test_local_host_rejects_tampered_asset_and_missing_handle_before_execution(
     staged_asset.chmod(0o600)
     staged_asset.write_bytes(b"tampered")
     output_store = PrivateStateStore(tmp_path / "state")
+    events = _observe_sealed_artifact_receiver(host, resolver, monkeypatch)
 
     with pytest.raises(LocalWorkflowHostError, match="sealed artifact runner"):
         host.run_sealed_artifact(
@@ -317,12 +403,19 @@ def test_local_host_rejects_tampered_asset_and_missing_handle_before_execution(
         )
 
     assert resolver.calls == 0
+    assert events == [
+        "registration",
+        "catalog_revision",
+        "policy_compile",
+        "descriptor_manifest_verify",
+    ]
     assert not output_store.active_records(
         kind="sealed_artifact_output_set",
         owner=InstallationIdentityProvider().principal,
         now=NOW,
     )
     staged_asset.write_bytes(asset)
+    events.clear()
 
     with pytest.raises(LocalWorkflowHostError, match="sealed artifact runner"):
         host.run_sealed_artifact(
@@ -335,11 +428,20 @@ def test_local_host_rejects_tampered_asset_and_missing_handle_before_execution(
         )
 
     assert resolver.calls == 1
+    assert events == [
+        "registration",
+        "catalog_revision",
+        "policy_compile",
+        "descriptor_manifest_verify",
+        "callback_provider_resolution",
+        "handle_reservation",
+    ]
     assert not output_store.active_records(
         kind="sealed_artifact_output_set",
         owner=InstallationIdentityProvider().principal,
         now=NOW,
     )
+    events.clear()
 
     result = host.run_sealed_artifact(
         SealedArtifactInvocation(
@@ -353,6 +455,19 @@ def test_local_host_rejects_tampered_asset_and_missing_handle_before_execution(
     assert [handle.role for handle in result.outputs] == ["result"]
     assert result.receipt["status"] == "completed"
     assert resolver.calls == 2
+    assert events == [
+        "registration",
+        "catalog_revision",
+        "policy_compile",
+        "descriptor_manifest_verify",
+        "callback_provider_resolution",
+        "handle_reservation",
+        "collector_allocation",
+        "asset_read",
+        "input_byte_read",
+        "collector_seal",
+        "output_handle_publication",
+    ]
 
 
 def test_local_host_configures_one_reviewed_tool_package(tmp_path: Path) -> None:
