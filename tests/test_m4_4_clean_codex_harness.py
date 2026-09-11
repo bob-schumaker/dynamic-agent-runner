@@ -1171,6 +1171,8 @@ def test_successor_author_prompt_declares_exact_artifact_roles() -> None:
 
     assert "Declared artifact roles: email_body" in prompt
     assert "copy each role exactly" in prompt
+    assert "mail_send body argument source" in prompt
+    assert "artifact_role:email_body" in prompt
 
 
 def test_email_artifact_author_prompt_requires_reviewed_write_template() -> None:
