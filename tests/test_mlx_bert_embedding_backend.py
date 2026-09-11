@@ -8,6 +8,7 @@ import struct
 import asyncio
 from collections.abc import Callable
 from io import BytesIO
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -15,9 +16,27 @@ import pytest
 
 from dynamic_agent_runner.errors import EmbeddingExecutionError
 from dynamic_agent_runner.local_models import EmbeddingBatchResult, EmbeddingInputItem
+from dynamic_agent_runner.workflow_host.capabilities import (
+    CapabilityCatalog,
+    CapabilityContract,
+    CapabilityProvider,
+    CapabilityRequirement,
+    CapabilityRequirements,
+)
+from dynamic_agent_runner.workflow_host.embedding_execution import (
+    EmbeddingBatchLimits,
+    EmbeddingExecutionService,
+    EmbeddingProviderCatalog,
+    EmbeddingTextItem,
+    LocalEmbeddingAdapterProvider,
+    derive_embedding_execution_binding,
+)
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
     ExecutionDescriptorValidatorRegistry,
     parse_execution_descriptor,
+)
+from dynamic_agent_runner.workflow_host.model_execution_binding import (
+    ModelExecutionBinding,
 )
 from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
     BERT_ENCODER_MLX_V1_ABI,
@@ -238,8 +257,10 @@ class _NumpyMlx:
         return None
 
     @staticmethod
-    def load(source: BytesIO) -> dict[str, np.ndarray]:
-        payload = source.read()
+    def load(source: str | BytesIO) -> dict[str, np.ndarray]:
+        payload = (
+            Path(source).read_bytes() if isinstance(source, str) else source.read()
+        )
         header_size = int.from_bytes(payload[:8], "little")
         header = json.loads(payload[8 : 8 + header_size])
         data = payload[8 + header_size :]
@@ -263,6 +284,15 @@ class _RecordingNumpyMlx(_NumpyMlx):
         array = np.array(value, dtype=dtype)
         self.arrays.append(array)
         return array
+
+
+class _PathOnlyNumpyMlx(_NumpyMlx):
+    @staticmethod
+    def load(source: str) -> dict[str, np.ndarray]:
+        assert isinstance(source, str)
+        path = Path(source)
+        assert path.name == "weights.safetensors"
+        return _NumpyMlx.load(BytesIO(path.read_bytes()))
 
 
 def test_backend_rejects_malformed_artifacts_before_tokenizer_or_model_work() -> None:
@@ -383,6 +413,7 @@ def test_backend_admits_exact_tensor_offsets_before_execution() -> None:
 
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=artifact_reader,
+        mlx_loader=object,
     )
 
     with pytest.raises(EmbeddingExecutionError, match="execution"):
@@ -577,6 +608,99 @@ def test_backend_has_sync_async_adapter_parity_without_mlx_import() -> None:
     )
 
     assert asynchronous == sync
+
+
+def test_generic_mlx_adapter_registers_only_through_exact_embedding_capability() -> (
+    None
+):
+    descriptor = _materials().execution_descriptor
+    contract = CapabilityContract(
+        "embedding.execute.v1", "1", "d" * 64, ("deterministic",)
+    )
+    requirements = CapabilityRequirements(
+        (
+            CapabilityRequirement(
+                contract.capability_id,
+                contract.contract_version,
+                contract.contract_digest,
+                contract.features,
+            ),
+        ),
+        {},
+    )
+    model_binding = ModelExecutionBinding(
+        logical_model_id="workflow-locked-model",
+        runner_contract_id="mlx-embedding-v1",
+        runner_contract_version="1",
+        loader_profile_contract_id="sealed-embedding-v1",
+        loader_profile_contract_version="1",
+        material_lock_digest="c" * 64,
+        capability_requirements_digest="e" * 64,
+        runner_capability_id="embedding.execute.v1",
+        runner_capability_version="1",
+        runner_capability_digest="f" * 64,
+    )
+    weights = _weights_blob()
+    adapter = create_mlx_local_embedding_adapter(
+        MLXLocalEmbeddingConfig(
+            material_resolver=_prepared_materials,
+            descriptor_validators=ExecutionDescriptorValidatorRegistry(
+                (BertEncoderMlxV1DescriptorValidator(),)
+            ),
+        ),
+        backend=BertEncoderMlxV1EmbeddingBackend(
+            artifact_reader=lambda role: (
+                _tokenizer_bytes() if role == "tokenizer" else weights
+            ),
+            mlx_loader=_NumpyMlx,
+        ),
+        dependency_loader=lambda: "0.32.2",
+        platform_system=lambda: "Darwin",
+        macos_version=lambda: (14, 0),
+        machine=lambda: "arm64",
+    )
+    provider = LocalEmbeddingAdapterProvider(
+        "receiver-mlx-bert", contract, adapter, model_binding
+    )
+    selected = CapabilityCatalog(
+        (contract,),
+        (
+            CapabilityProvider(
+                provider.provider_id,
+                contract,
+                conformance_passed=True,
+                conformance_vector_ids=frozenset({descriptor.digest}),
+            ),
+        ),
+    ).resolve(requirements)
+
+    result = EmbeddingExecutionService(
+        providers=EmbeddingProviderCatalog((provider,)),
+        host_limits=EmbeddingBatchLimits(1, 1024, 1024, 2, 1),
+    ).execute(
+        binding=derive_embedding_execution_binding(
+            model_binding=model_binding, requirements=requirements
+        ),
+        selected_provider_ids=selected.selected_provider_ids,
+        package_limits=EmbeddingBatchLimits(1, 1024, 1024, 2, 1),
+        items=(EmbeddingTextItem("entry", "text"),),
+    )
+
+    assert [(item.item_id, item.values) for item in result] == [("entry", (0.0, 0.0))]
+
+
+def test_backend_supplies_admitted_weights_as_a_scoped_named_safetensors_file() -> None:
+    weights = _weights_blob()
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda role: (
+            _tokenizer_bytes() if role == "tokenizer" else weights
+        ),
+        mlx_loader=_PathOnlyNumpyMlx,
+    )
+
+    result = backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
+
+    assert result.items[0].id == "entry"
 
 
 def test_backend_rejects_invalid_wordpiece_tokenizer_before_weights_read() -> None:

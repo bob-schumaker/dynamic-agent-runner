@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import math
 import json
+import tempfile
 from collections.abc import Mapping
 from collections.abc import Callable, Sequence
-from io import BytesIO
 from typing import Protocol
 import unicodedata
 
@@ -221,7 +221,11 @@ class BertEncoderMlxV1EmbeddingBackend:
         )
         try:
             mlx = self._mlx_loader()
-            tensors = mlx.load(BytesIO(weights))
+            with tempfile.TemporaryDirectory(prefix="dar-mlx-") as directory:
+                path = f"{directory}/weights.safetensors"
+                with open(path, "xb") as material_file:
+                    material_file.write(weights)
+                tensors = mlx.load(path)
             if not isinstance(tensors, Mapping) or set(tensors) != set(header):
                 raise ValueError
             return _execute_bert_encoder(

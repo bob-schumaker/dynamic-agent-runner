@@ -1,0 +1,60 @@
+{
+  "abi_fields": {
+    "conformance": {
+      "fixture_filename": "conformance-fixture.json",
+      "fixture_sha256": "aa870b69d887bff252774466f09c5edc0382b770b43cd55433b431d4db2863ed",
+      "max_error": 1e-05,
+      "metric": "max_abs",
+      "precision": "float32"
+    },
+    "encoder": {
+      "attention_heads": 1,
+      "dtype": "float32",
+      "hidden_size": 2,
+      "intermediate_size": 2,
+      "layers": 1,
+      "max_positions": 4,
+      "tensor_layout": "bert-encoder-safetensors-v1",
+      "type_vocab_size": 1,
+      "vocab_size": 200,
+      "weights_role": "weights"
+    },
+    "limits": {
+      "max_aggregate_bytes": 1024,
+      "max_conformance_fixture_bytes": 1024,
+      "max_item_bytes": 1024,
+      "max_items": 2,
+      "max_memory_bytes": 1048576,
+      "max_safetensors_header_bytes": 65536,
+      "max_tokenizer_bytes": 65536,
+      "max_tokens": 4,
+      "max_vectors": 2,
+      "max_weights_bytes": 1048576
+    },
+    "normalization": "none",
+    "pooling": "cls",
+    "tokenizer": {
+      "format": "wordpiece-json-v1",
+      "normalization": "nfc",
+      "pre_tokenizer": "bert-basic-v1",
+      "role": "tokenizer",
+      "special_token_ids": {
+        "cls": 101,
+        "pad": 0,
+        "sep": 102,
+        "unk": 100
+      },
+      "truncation": "longest-first"
+    }
+  },
+  "architecture_abi": {
+    "contract_digest": "2179662461bf786c7f55d88d9e3454a3d4dc59f5e818a96e248847abc62e4420",
+    "id": "bert-encoder-mlx-v1",
+    "version": "1"
+  },
+  "format_version": 1,
+  "material_roles": [
+    "tokenizer",
+    "weights"
+  ]
+}
