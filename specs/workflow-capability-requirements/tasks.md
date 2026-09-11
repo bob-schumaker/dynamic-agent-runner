@@ -337,5 +337,10 @@ targeted pre-commit hooks passed on 2026-09-09.
     rereads and verifies sealed role assets, resolves only the previously
     selected `model.generate.v1` provider by canonical requirement order, and
     revalidates that exact executable immediately before provider entry.
-- [ ] C6.4 [tests, GREEN] Prove exact matching, role isolation, no fallback,
+- [x] C6.4 [tests, GREEN] Prove exact matching, role isolation, no fallback,
   and legacy requirements-package compatibility.
+  - Evidence: the sealed-runner integration invokes only the factory-created
+    service using verified revision assets and the registration-selected
+    receiver provider. Factory and registry tests cover contract mismatch,
+    role isolation, selection revalidation, and no fallback; existing legacy
+    host coverage remains catalog-free.

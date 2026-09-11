@@ -12,6 +12,9 @@ from types import SimpleNamespace
 import pytest
 
 from dynamic_agent_runner.workflow_host.capabilities import (
+    CapabilityCatalog,
+    CapabilityContract,
+    CapabilityProvider,
     CapabilityRequirement,
     CapabilityRequirements,
 )
@@ -19,14 +22,19 @@ from dynamic_agent_runner.workflow_host.locked_inference import (
     InferenceLimits,
     InferenceRole,
     InferenceRoles,
+    LockedInferenceBinding,
     SealedAsset,
 )
 from dynamic_agent_runner.workflow_host.locked_inference_execution import (
-    LockedInferenceExecutionService,
     LockedInferenceHostLimits,
     LockedInferenceProvider,
 )
+from dynamic_agent_runner.workflow_host.locked_inference_provider_registry import (
+    LockedInferenceProviderBinding,
+    LockedInferenceProviderRegistry,
+)
 from dynamic_agent_runner.workflow_host.locked_inference_sealed_artifact_callback import (
+    LockedInferenceExecutionFactory,
     LockedInferenceSealedArtifactCallbackResolver,
 )
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
@@ -395,6 +403,10 @@ def test_locked_inference_callback_runs_only_through_sealed_asset_context(
     (root / "assets" / "runner.py").write_bytes(asset)
     (root / "schemas").mkdir()
     (root / "schemas" / "value.json").write_bytes(request_schema)
+    instruction = b"sealed instruction"
+    (root / "assets" / "instruction.txt").write_bytes(instruction)
+    (root / "schemas" / "request.json").write_bytes(request_schema)
+    (root / "schemas" / "response.json").write_bytes(request_schema)
     (root / "contracts").mkdir()
     (root / "contracts" / "suggest.json").write_bytes(child)
     generation = CapabilityRequirement(
@@ -472,9 +484,15 @@ def test_locked_inference_callback_runs_only_through_sealed_asset_context(
                 role="suggest",
                 material_role="suggest",
                 capability_id="model.generate.v1",
-                instruction_asset=SealedAsset("assets/instruction.txt", "a" * 64),
-                request_schema_asset=SealedAsset("schemas/request.json", "b" * 64),
-                response_schema_asset=SealedAsset("schemas/response.json", "c" * 64),
+                instruction_asset=SealedAsset(
+                    "assets/instruction.txt", hashlib.sha256(instruction).hexdigest()
+                ),
+                request_schema_asset=SealedAsset(
+                    "schemas/request.json", hashlib.sha256(request_schema).hexdigest()
+                ),
+                response_schema_asset=SealedAsset(
+                    "schemas/response.json", hashlib.sha256(request_schema).hexdigest()
+                ),
                 authorized_asset_digests=(asset_digest,),
                 limits=InferenceLimits(1, 100, 100, 100, 1),
             ),
@@ -489,15 +507,17 @@ def test_locked_inference_callback_runs_only_through_sealed_asset_context(
             return b'{"value":"ok"}'
 
     provider = Provider()
-    execution = LockedInferenceExecutionService(
-        providers={"suggest": provider},
-        bindings={"suggest": object()},
-        instructions={"suggest": b"sealed instruction"},
-        request_schemas={"suggest": request_schema},
-        response_schemas={"suggest": request_schema},
-        package_limits={"suggest": LockedInferenceHostLimits(1, 100, 100, 100, 1)},
+    contract = CapabilityContract("model.generate.v1", "1", "d" * 64, ("structured",))
+    capability_catalog = CapabilityCatalog(
+        (contract,),
+        (CapabilityProvider("receiver-generate", contract, conformance_passed=True),),
+    )
+    execution_factory = LockedInferenceExecutionFactory(
+        capability_catalog=capability_catalog,
+        provider_registry=LockedInferenceProviderRegistry(
+            (LockedInferenceProviderBinding("receiver-generate", contract, provider),)
+        ),
         host_limits=LockedInferenceHostLimits(1, 100, 100, 100, 1),
-        revalidate=lambda role: role == "suggest",
     )
     store = PrivateStateStore(tmp_path / "state")
     inputs = SealedArtifactHandleService(store=store, owner=_OWNER)
@@ -516,7 +536,9 @@ def test_locked_inference_callback_runs_only_through_sealed_asset_context(
 
     class Registrations:
         def resolve(self, _workflow_id: str) -> _Registration:
-            return _Registration()
+            return _Registration(
+                selected_capability_provider_ids=("receiver-generate",)
+            )
 
     class Catalog:
         def revision(self, _package_id: str, _revision_digest: str) -> _Revision:
@@ -529,6 +551,10 @@ def test_locked_inference_callback_runs_only_through_sealed_asset_context(
             policy_digest="c" * 64,
             capability_requirements=requirements,
             inference_roles=roles,
+            locked_inference_bindings=(
+                LockedInferenceBinding("suggest", "suggest", object(), "1", "d" * 64),
+            ),
+            selected_capability_provider_ids=("receiver-generate",),
         ),
     )
     runner = SealedArtifactWorkflowRunner(
@@ -537,8 +563,9 @@ def test_locked_inference_callback_runs_only_through_sealed_asset_context(
         handles=inputs,
         outputs=SealedArtifactOutputHandleService(store=store, owner=_OWNER),
         callback_resolver=LockedInferenceSealedArtifactCallbackResolver(
-            execution=execution
+            execution_factory=execution_factory
         ),
+        capability_catalog=capability_catalog,
         identity=_Identity(),
         output_ttl=timedelta(minutes=1),
     )
