@@ -25,6 +25,9 @@ from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.model_materials import (  # noqa: E402
     parse_model_dependency_lock,
 )
+from dynamic_agent_runner.workflow_host.execution_descriptors import (  # noqa: E402
+    parse_execution_descriptor,
+)
 from dynamic_agent_runner.workflow_host.material_sets import (  # noqa: E402
     parse_model_material_sets,
 )
@@ -64,6 +67,53 @@ def _model_materials() -> dict[str, object]:
                 "filename": "model.gguf",
                 "sha256": "b" * 64,
             }
+        ],
+        "preparation": [],
+    }
+
+
+def _execution_descriptor() -> dict[str, object]:
+    return {
+        "format_version": 1,
+        "architecture_abi": {
+            "id": "example-encoder-v1",
+            "version": "1",
+            "contract_digest": "d" * 64,
+        },
+        "material_roles": ["tokenizer", "weights"],
+        "abi_fields": {},
+    }
+
+
+def _v2_model_materials() -> dict[str, object]:
+    descriptor = parse_execution_descriptor(_execution_descriptor())
+    return {
+        "format_version": 2,
+        "logical_model_id": "example-embedding",
+        "runner_contract": {"id": "example-embedding-v1", "version": "1"},
+        "execution_descriptor": {
+            "filename": "execution-descriptor.json",
+            "sha256": descriptor.digest,
+        },
+        "sources": [
+            {
+                "role": "tokenizer",
+                "group": "base",
+                "source_type": "huggingface_file",
+                "repository": "example/embedding",
+                "revision": "a" * 40,
+                "filename": "tokenizer.json",
+                "sha256": "b" * 64,
+            },
+            {
+                "role": "weights",
+                "group": "base",
+                "source_type": "huggingface_file",
+                "repository": "example/embedding",
+                "revision": "a" * 40,
+                "filename": "weights.safetensors",
+                "sha256": "c" * 64,
+            },
         ],
         "preparation": [],
     }
@@ -113,6 +163,8 @@ def _stage(
     *,
     with_capability_requirements: bool = False,
     with_model_materials: bool = False,
+    model_materials: dict[str, object] | None = None,
+    execution_descriptor: dict[str, object] | None = None,
     with_model_material_sets: bool = False,
     with_sealed_artifact_runner: bool = False,
     sealed_asset_body: str = "def run(context):\n    return None\n",
@@ -135,7 +187,16 @@ def _stage(
         descriptor.write_text(yaml.safe_dump(value), encoding="utf-8")
     if with_model_materials:
         (source / "model-materials.json").write_text(
-            json.dumps(_model_materials(), sort_keys=True, separators=(",", ":")),
+            json.dumps(
+                model_materials or _model_materials(),
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            encoding="utf-8",
+        )
+    if execution_descriptor is not None:
+        (source / "execution-descriptor.json").write_text(
+            json.dumps(execution_descriptor, sort_keys=True, separators=(",", ":")),
             encoding="utf-8",
         )
     if with_model_material_sets:
@@ -196,6 +257,55 @@ def test_export_is_deterministic_and_round_trips_through_zip_import(
     assert first_receipt.content_digest == staged.digest
     assert second_receipt.byte_count == second.stat().st_size
     assert imported.digest == staged.digest
+
+
+def test_v2_execution_descriptor_round_trips_through_zip_import(
+    tmp_path: Path,
+) -> None:
+    execution_descriptor = _execution_descriptor()
+    model_materials = _v2_model_materials()
+    staged, store = _stage(
+        tmp_path,
+        with_model_materials=True,
+        model_materials=model_materials,
+        execution_descriptor=execution_descriptor,
+    )
+    archive = tmp_path / "exports" / "v2.zip"
+
+    export_staged_package(staged=staged, destination=archive)
+    handle = PackageSourceSelectionPolicy(
+        allowed_root=archive.parent, store=store
+    ).select_zip(archive, now=NOW)
+    imported = PrivatePackageStager(
+        store=store, private_root=tmp_path / "imports"
+    ).stage(handle, now=NOW)
+
+    descriptor = parse_execution_descriptor(execution_descriptor)
+    lock = parse_model_dependency_lock(model_materials)
+    with zipfile.ZipFile(archive) as exported:
+        assert exported.read("execution-descriptor.json") == descriptor.canonical_bytes
+    assert (imported.root / "execution-descriptor.json").read_bytes() == (
+        descriptor.canonical_bytes
+    )
+    assert imported.digest == staged.digest
+    assert lock.execution_descriptor is not None
+    assert lock.execution_descriptor.sha256 == descriptor.digest
+
+
+def test_export_rejects_tampered_v2_execution_descriptor(tmp_path: Path) -> None:
+    staged, _ = _stage(
+        tmp_path,
+        with_model_materials=True,
+        model_materials=_v2_model_materials(),
+        execution_descriptor=_execution_descriptor(),
+    )
+    staged.root.chmod(0o700)
+    descriptor = staged.root / "execution-descriptor.json"
+    descriptor.chmod(0o600)
+    descriptor.write_text('{"format_version":1}', encoding="utf-8")
+
+    with pytest.raises(PackageExportError, match="model-material lock"):
+        export_staged_package(staged=staged, destination=tmp_path / "v2.zip")
 
 
 def test_export_and_import_bind_declared_capability_requirements_digest(

@@ -95,7 +95,7 @@ def _v2_lock(*, descriptor_sha256: str):
     )
 
 
-def _v2_descriptor():
+def _v2_descriptor(*, abi_fields: dict[str, object] | None = None):
     return parse_execution_descriptor(
         {
             "format_version": 1,
@@ -105,7 +105,7 @@ def _v2_descriptor():
                 "contract_digest": "d" * 64,
             },
             "material_roles": ["tokenizer", "weights"],
-            "abi_fields": {},
+            "abi_fields": abi_fields or {},
         }
     )
 
@@ -185,3 +185,33 @@ def test_v2_binding_rejects_descriptor_mismatch_before_validator_work() -> None:
             descriptor_validators=_registry(calls=calls),
         )
     assert calls == []
+
+
+def test_v2_bindings_for_distinct_descriptors_remain_isolated_with_one_abi() -> None:
+    first_descriptor = _v2_descriptor(abi_fields={"pooling": "mean"})
+    second_descriptor = _v2_descriptor(abi_fields={"pooling": "cls"})
+    first = derive_model_execution_binding(
+        lock=_v2_lock(descriptor_sha256=first_descriptor.digest),
+        requirements=_requirements(),
+        execution_descriptor=first_descriptor,
+        descriptor_validators=_registry(),
+    )
+    second = derive_model_execution_binding(
+        lock=_v2_lock(descriptor_sha256=second_descriptor.digest),
+        requirements=_requirements(),
+        execution_descriptor=second_descriptor,
+        descriptor_validators=_registry(),
+    )
+    runner = ModelRunnerProvider(
+        "private-runner",
+        CapabilityContract("model.execution.test.v1", "1", "c" * 64, ()),
+        (),
+        (("bert-encoder-v1", "1", "d" * 64),),
+    )
+
+    assert first.execution_abi_id == second.execution_abi_id == "bert-encoder-v1"
+    assert first.execution_descriptor_digest != second.execution_descriptor_digest
+    assert first.material_lock_digest != second.material_lock_digest
+    assert first.digest != second.digest
+    assert ModelRunnerRegistry((runner,)).resolve(first) is runner
+    assert ModelRunnerRegistry((runner,)).resolve(second) is runner
