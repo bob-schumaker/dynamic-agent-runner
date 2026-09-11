@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from dataclasses import replace
+import os
 from pathlib import Path
 import socket
 import subprocess
@@ -14,6 +15,7 @@ from uuid import uuid4
 
 import pytest
 
+from conftest import _ORIGINAL_SOCKET_CONNECT
 from m4_4_clean_codex import (
     M44CleanCodexError,
     build_clean_codex_environment,
@@ -700,6 +702,132 @@ def test_controller_provisions_only_declared_positive_collaborators() -> None:
     assert unavailable.guardrail_registry is None
     assert "input-guardrail-registry" not in unavailable.fixture_ids
     assert "reviewed-mcp-connection" in mcp.fixture_ids
+
+
+def test_generated_root_launches_isolated_author_and_invocation_actors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The author is the only actor allowed to construct the package."""
+
+    module = _harness_module()
+    actor_log = tmp_path / "actors.jsonl"
+    fake_codex = tmp_path / "fake-codex"
+    template = (
+        REPO_ROOT
+        / "plugins"
+        / "agent-engineering"
+        / "payload"
+        / "dar-workflow-authoring"
+        / "references"
+        / "dar-authoring-templates"
+    )
+    files = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in sorted(template.iterdir())
+        if path.is_file()
+    }
+    files["agent-runtime.yaml"] = files["agent-runtime.yaml"].replace(
+        "package_id: dar-authoring-no-tool-template",
+        "package_id: m44-isolated-actors",
+    )
+    files["workflow-descriptor.yaml"] = files["workflow-descriptor.yaml"].replace(
+        "package_id: dar-authoring-no-tool-template",
+        "package_id: m44-isolated-actors",
+    )
+    fake_codex.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json\n"
+        "import os\n"
+        "import re\n"
+        "import subprocess\n"
+        "import sys\n"
+        f"LOG = {str(actor_log)!r}\n"
+        f"FILES = {files!r}\n"
+        "args = sys.argv[1:]\n"
+        "if args[:1] == ['plugin']:\n"
+        "    raise SystemExit(0)\n"
+        "if args[:1] != ['exec']:\n"
+        "    raise SystemExit(2)\n"
+        "os.chdir(args[args.index('--cd') + 1])\n"
+        "prompt = sys.stdin.read()\n"
+        "mode = 'author' if 'Create, write, and finalize' in prompt else 'invoke'\n"
+        "with open(LOG, 'a', encoding='utf-8') as stream:\n"
+        "    stream.write(json.dumps({'mode': mode, 'cwd': os.getcwd(), 'prompt': prompt, 'state_env': [key for key in os.environ if 'STATE_ROOT' in key or 'CONTROLLER_SOCKET' in key]}) + '\\n')\n"
+        "if mode == 'author':\n"
+        "    material = re.search(r'material_set_id is `([^`]+)`', prompt).group(1)\n"
+        "    package = re.search(r'package name is `([^`]+)`', prompt).group(1)\n"
+        "    def call(arguments, content=None):\n"
+        "        result = subprocess.run(['dar-package', *arguments], input=content, text=True, capture_output=True, check=True)\n"
+        "        print(result.stdout, end='')\n"
+        "        return json.loads(result.stdout)\n"
+        "    call(['project-authoring-materials', '--material-set-id', material])\n"
+        "    created = call(['create-authored-package', '--package-name', package])\n"
+        "    for name, content in FILES.items():\n"
+        "        call(['write-authored-package-file', '--authoring-output-id', created['authoring_output_id'], '--relative-path', name, '--content-stdin'], content)\n"
+        "    call(['finalize-authored-package', '--authoring-output-id', created['authoring_output_id'], '--material-set-id', material])\n"
+        "else:\n"
+        "    package = re.search(r'saved workflow `([^`]+)`', prompt).group(1)\n"
+        "    result = subprocess.run(['dar-package', 'invoke', '--package-name', package, '--prompt-stdin'], input='Summarize the supplied document.', text=True, capture_output=True, check=True)\n"
+        "    print(result.stdout, end='')\n",
+        encoding="utf-8",
+    )
+    os.chmod(fake_codex, 0o700)
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir(mode=0o700)
+    (codex_home / "auth.json").write_text("{}", encoding="utf-8")
+
+    def connect_loopback(
+        address: tuple[str, int], timeout: object = None, source_address: object = None
+    ) -> socket.socket:
+        assert address[0] == "127.0.0.1"
+        connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if timeout is not None:
+            connection.settimeout(timeout)
+        _ORIGINAL_SOCKET_CONNECT(connection, address)
+        return connection
+
+    monkeypatch.setattr(socket, "create_connection", connect_loopback)
+    monkeypatch.setenv("LITELLM_LOCAL_MODEL_COST_MAP", "true")
+    monkeypatch.setenv("UV_CACHE_DIR", str(tmp_path / "uv-cache"))
+
+    with module._fake_model_server() as base_url:
+        evidence = module.run_scenario(
+            scenario=(
+                REPO_ROOT
+                / "tests"
+                / "fixtures"
+                / "dar-authoring"
+                / "m4-4"
+                / "document-summary.json"
+            ),
+            codex_home=codex_home,
+            plugin_root=REPO_ROOT / ".codex-plugin" / "generated" / "agent-engineering",
+            wheel=REPO_ROOT / "dist" / "dynamic_agent_runner-0.1.17-py3-none-any.whl",
+            package_name="m44-isolated-actors",
+            workflow_id="m44-isolated-actors",
+            author_prompt="Author the declared DAR document-summary workflow.",
+            run_prompt="Summarize the supplied document.",
+            materials=REPO_ROOT / "tests" / "fixtures" / "m4-4-external-materials.json",
+            model_id="openai/local-model",
+            base_url=base_url,
+            evidence=None,
+            reviewer_id=None,
+            reviewer_decision="pending",
+            codex_executable=str(fake_codex),
+            timeout=20,
+        )
+
+    actors = [
+        json.loads(line) for line in actor_log.read_text(encoding="utf-8").splitlines()
+    ]
+    assert evidence.observed_status == "pending_human_review"
+    assert [actor["mode"] for actor in actors] == ["author", "invoke"]
+    assert actors[0]["cwd"] != actors[1]["cwd"]
+    assert actors[0]["state_env"] == []
+    assert actors[1]["state_env"] == []
+    assert "create-authored-package" not in actors[1]["prompt"]
+    assert "finalize-authored-package" not in actors[1]["prompt"]
+    assert "m44-isolated-actors" in actors[1]["prompt"]
 
 
 def test_controller_fixture_inventory_covers_every_positive_scenario() -> None:

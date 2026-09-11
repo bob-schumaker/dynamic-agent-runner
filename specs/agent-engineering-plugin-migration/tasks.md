@@ -207,7 +207,7 @@ not make a DAR release a prerequisite for a plugin-only release.
     only the reviewed M4.4 fixture tools (`list_unread`, `lookup_records`, or
     `mail_send`) and emits a deterministic completion after a tool result;
     it does not select arbitrary declared tool schemas.
-- [ ] RED/GREEN: add and pass fixture-backed contract tests for two separately
+- [x] RED/GREEN: add and pass fixture-backed contract tests for two separately
       launched clean Codex actors against the generated routed root:
       author/finalize, then saved-package invoke.
       The second actor receives only the finalized package name and text request;
