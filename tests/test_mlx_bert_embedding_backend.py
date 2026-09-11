@@ -19,7 +19,20 @@ from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
 )
 
 
-def _materials() -> SimpleNamespace:
+def _materials(**limit_overrides: int) -> SimpleNamespace:
+    limits = {
+        "max_items": 1,
+        "max_item_bytes": 1,
+        "max_aggregate_bytes": 1,
+        "max_tokens": 1,
+        "max_vectors": 1,
+        "max_memory_bytes": 1,
+        "max_tokenizer_bytes": 16 * 1024 * 1024,
+        "max_weights_bytes": 8 * 1024**3,
+        "max_safetensors_header_bytes": 16 * 1024 * 1024,
+        "max_conformance_fixture_bytes": 16 * 1024 * 1024,
+    }
+    limits.update(limit_overrides)
     return SimpleNamespace(
         execution_descriptor=parse_execution_descriptor(
             {
@@ -58,18 +71,7 @@ def _materials() -> SimpleNamespace:
                     },
                     "pooling": "cls",
                     "normalization": "none",
-                    "limits": {
-                        "max_items": 1,
-                        "max_item_bytes": 1,
-                        "max_aggregate_bytes": 1,
-                        "max_tokens": 1,
-                        "max_vectors": 1,
-                        "max_memory_bytes": 1,
-                        "max_tokenizer_bytes": 1,
-                        "max_weights_bytes": 1,
-                        "max_safetensors_header_bytes": 1,
-                        "max_conformance_fixture_bytes": 1,
-                    },
+                    "limits": limits,
                     "conformance": {
                         "fixture_filename": "conformance-fixture.json",
                         "fixture_sha256": "a" * 64,
@@ -184,3 +186,35 @@ def test_backend_rejects_wrong_tensor_metadata_before_tokenizer_or_model_work(
         backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
 
     assert calls == ["tokenizer", "weights"]
+
+
+@pytest.mark.parametrize(
+    ("limits", "expected_calls"),
+    [
+        ({"max_tokenizer_bytes": 1}, ["tokenizer"]),
+        ({"max_weights_bytes": 1}, ["tokenizer", "weights"]),
+        ({"max_safetensors_header_bytes": 1}, ["tokenizer", "weights"]),
+    ],
+)
+def test_backend_enforces_descriptor_artifact_byte_limits_before_execution(
+    limits: dict[str, int], expected_calls: list[str]
+) -> None:
+    calls: list[str] = []
+    header = _weights_header()
+
+    def artifact_reader(role: str) -> bytes:
+        calls.append(role)
+        return (
+            b"{}" if role == "tokenizer" else len(header).to_bytes(8, "little") + header
+        )
+
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=artifact_reader,
+        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
+        encoder=lambda _tokens: calls.append("encoder-call") or (),
+    )
+
+    with pytest.raises(EmbeddingExecutionError, match="material"):
+        backend.embed((EmbeddingInputItem("entry", "text"),), _materials(**limits))
+
+    assert calls == expected_calls

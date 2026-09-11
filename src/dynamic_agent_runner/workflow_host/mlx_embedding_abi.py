@@ -188,17 +188,29 @@ class BertEncoderMlxV1EmbeddingBackend:
                 raise ValueError
             descriptor = materials.execution_descriptor
             BertEncoderMlxV1DescriptorValidator().validate(descriptor)
+            limits = descriptor.abi_fields["limits"]
+            assert isinstance(limits, Mapping)
             tokenizer_bytes = self._artifact_reader("tokenizer")
-            if not isinstance(tokenizer_bytes, bytes):
+            if (
+                not isinstance(tokenizer_bytes, bytes)
+                or len(tokenizer_bytes) > limits["max_tokenizer_bytes"]
+            ):
                 raise ValueError
             value = json.loads(tokenizer_bytes.decode("utf-8"))
             if not isinstance(value, Mapping):
                 raise ValueError
             weights = self._artifact_reader("weights")
-            if not isinstance(weights, bytes) or len(weights) < 8:
+            if (
+                not isinstance(weights, bytes)
+                or len(weights) < 8
+                or len(weights) > limits["max_weights_bytes"]
+            ):
                 raise ValueError
             header_size = int.from_bytes(weights[:8], "little")
-            if header_size > 16 * 1024 * 1024 or len(weights) < 8 + header_size:
+            if (
+                header_size > limits["max_safetensors_header_bytes"]
+                or len(weights) < 8 + header_size
+            ):
                 raise ValueError
             header = json.loads(weights[8 : 8 + header_size].decode("utf-8"))
             if not isinstance(header, Mapping):
