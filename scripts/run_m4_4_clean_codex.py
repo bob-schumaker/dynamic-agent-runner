@@ -1068,12 +1068,27 @@ def _pass_evidence(
         invocation_event_trace=_event_trace(run_result.stdout, prefix="invocation"),
         **provenance,
     )
-    validate_m44_evidence(
-        contract,
-        result,
-        available_gates=_controller_available_gates(),
-        available_host_fixtures=available_host_fixtures,
-    )
+    try:
+        validate_m44_evidence(
+            contract,
+            result,
+            available_gates=_controller_available_gates(),
+            available_host_fixtures=available_host_fixtures,
+        )
+    except M44ScenarioError:
+        return _failure(
+            contract,
+            "invocation",
+            wheel,
+            material_set_id,
+            (author_duration_ms, invocation_duration_ms),
+            output_id,
+            plugin_identity,
+            provenance=provenance,
+            author_result=author_result,
+            invocation_result=run_result,
+            failure_reason="scenario_evidence_validation_failed",
+        )
     return result
 
 
