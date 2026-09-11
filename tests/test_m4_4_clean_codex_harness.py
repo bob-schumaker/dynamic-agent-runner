@@ -1289,8 +1289,9 @@ def test_skill_bundle_author_prompt_requires_the_review_template() -> None:
     assert "replace its package_id with the requested package name" in prompt
     assert "DAR-controlled authoring writes" in prompt
     assert "all five template files" in prompt
-    assert "skill_bundle_dir: ." in prompt
-    assert "review-guide skill binding" in prompt
+    assert "skill_bundle_dir: skill-bundle" in prompt
+    assert "skill-bundle/skills/review-guide/SKILL.md binding" in prompt
+    assert "do not call `dar-package version`" in prompt
     assert "do not construct its graph from scratch" in prompt
 
 
@@ -1357,3 +1358,9 @@ def test_debug_transcript_is_written_only_to_the_explicit_private_sink(
     assert (sink / "package-author.jsonl").read_text(
         encoding="utf-8"
     ) == "private output"
+
+    module._write_debug_transcript("package", "invocation", "private receipt")
+
+    assert (sink / "package-invocation.jsonl").read_text(
+        encoding="utf-8"
+    ) == "private receipt"

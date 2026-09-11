@@ -65,20 +65,21 @@ def _fake_response(request_body: bytes) -> dict[str, object]:
         if _has_tool_result(request)
         else _declared_fixture_tool_call(request.get("tools"), request)
     )
+    content = "proceed" if _request_text(request).startswith("Review ") else "summary"
     response: dict[str, object] = {
         "id": "m44-fake-response",
         "model": "openai/local-model",
         "object": "response",
-        "output_text": "summary",
+        "output_text": content,
         "status": "completed",
-        "choices": [{"message": {"content": "summary"}}],
+        "choices": [{"message": {"content": content}}],
         "output": [
             {
                 "type": "message",
                 "content": [
                     {
                         "type": "output_text",
-                        "text": "summary",
+                        "text": content,
                     }
                 ],
             }

@@ -29,6 +29,18 @@ def test_fake_model_returns_text_without_a_declared_tool() -> None:
     assert response["choices"][0]["message"]["content"] == "summary"
 
 
+def test_fake_model_returns_the_declared_review_graph_route() -> None:
+    module = _fixture_module()
+
+    response = module._fake_response(
+        json.dumps(
+            {"input": [{"role": "user", "content": "Review Complete the request."}]}
+        ).encode()
+    )
+
+    assert response["choices"][0]["message"]["content"] == "proceed"
+
+
 def test_fake_model_calls_the_first_declared_zero_argument_tool() -> None:
     module = _fixture_module()
 

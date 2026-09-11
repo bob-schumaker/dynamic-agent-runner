@@ -985,6 +985,7 @@ def _pass_evidence(
         ),
         timeout,
     )
+    _write_debug_transcript(package_name, "invocation", run_result.stdout)
     invocation_duration_ms = _actor_duration_ms(invocation_started)
     invoked = _receipt(run_result.stdout, "completed")
     if (
@@ -1421,8 +1422,12 @@ def _author_request(
         "template at references/dar-authoring-skill-bundle-template/. Copy its "
         "complete package bundle, replace its package_id with the requested package "
         "name in both YAML files, and use DAR-controlled authoring writes for all "
-        "five template files rather than shell copying. Preserve skill_bundle_dir: . "
-        "and the review-guide skill binding; do not construct its graph from scratch."
+        "five template files rather than shell copying. Preserve skill_bundle_dir: "
+        "skill-bundle and the skill-bundle/skills/review-guide/SKILL.md binding; "
+        "do not construct its graph from scratch. The clean host permits only "
+        "project-authoring-materials, create-authored-package, "
+        "write-authored-package-file, and finalize-authored-package; do not call "
+        "`dar-package version` or any other probe."
         if "package-local skill" in author_prompt.lower()
         else ""
     )
