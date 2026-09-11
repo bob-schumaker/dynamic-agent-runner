@@ -1067,10 +1067,13 @@ def test_local_host_runs_locked_inference_from_a_staged_zip(
 
     class Provider:
         calls = 0
+        fail = False
 
         def generate(self, **_kwargs: object) -> bytes:
             self.calls += 1
             events.append("provider_entry")
+            if self.fail:
+                raise RuntimeError("provider failure")
             return b'{"value":"ok"}'
 
     provider = Provider()
@@ -1202,6 +1205,51 @@ def test_local_host_runs_locked_inference_from_a_staged_zip(
         "collector_seal",
         "output_handle_publication",
     ]
+    output_store = PrivateStateStore(tmp_path / "state")
+    published_before = output_store.active_records(
+        kind="sealed_artifact_output_set",
+        owner=InstallationIdentityProvider().principal,
+        now=NOW,
+    )
+    failed = host.prepare_sealed_artifact_input(
+        workflow_id=registration.workflow_id,
+        invocation_id="run-2",
+        role="request",
+        media_type="application/json",
+        schema_digest=hashlib.sha256(
+            b'{"max_depth":2,"max_items":1,"properties":{"value":'
+            b'{"max_string_bytes":16,"type":"string"}},"required":["value"],'
+            b'"type":"object"}'
+        ).hexdigest(),
+        content=request,
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    provider.fail = True
+    events.clear()
+
+    with pytest.raises(LocalWorkflowHostError, match="sealed artifact runner"):
+        host.run_sealed_artifact(
+            SealedArtifactInvocation(
+                workflow_id=registration.workflow_id,
+                invocation_id="run-2",
+                input_handles={"request": failed.handle_id},
+            ),
+            now=NOW,
+        )
+
+    assert provider.calls == 2
+    assert (
+        output_store.active_records(
+            kind="sealed_artifact_output_set",
+            owner=InstallationIdentityProvider().principal,
+            now=NOW,
+        )
+        == published_before
+    )
+    assert events[-2:] == ["provider_revalidation", "provider_entry"]
+    assert "collector_seal" not in events
+    assert "output_handle_publication" not in events
 
 
 def test_local_host_rejects_partial_locked_inference_configuration(
