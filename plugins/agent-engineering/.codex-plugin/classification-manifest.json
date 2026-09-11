@@ -68,6 +68,36 @@
     },
     {
       "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-design.md",
+      "sha256": "78f8b90dfcbd201f444096840d742fa4289de2b31a3b71ca82d50a0e43b66897",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-design.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-graph.mmd",
+      "sha256": "0931ebf02f1473a0aad387085447c16a7f8a599567ea35faaaf8d51bc6bf5789",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-graph.mmd"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-runtime.yaml",
+      "sha256": "020853cd865baf6eceaaeae4c795027ed5c50edd31b247d4feb5ba9ffa82fae3",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-runtime.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/skills/review-guide/SKILL.md",
+      "sha256": "f5cb7725f10097c1b7941629d88cabbce9b70499e2cbb25c8963f0a84baef273",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/skills/review-guide/SKILL.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/workflow-descriptor.yaml",
+      "sha256": "2ff9516a148bdb0a0fd7fc01376669d3f4018d6237d96c6a0ef06a6bb4b13b8e",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/workflow-descriptor.yaml"
+    },
+    {
+      "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-templates/agent-design.md",
       "sha256": "bda3014b753320e5703f459e93357ac7319404b72fb2feddfc521142b89ffe61",
       "source_path": "payload/dar-workflow-authoring/references/dar-authoring-templates/agent-design.md"
@@ -123,7 +153,7 @@
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-development.md",
-      "sha256": "c647fb74f03978e21cdc6ff05bafbe75d91afd0e5e2fa5a75b7048f18a6aefc2",
+      "sha256": "9363e59af2f67c2b7d65f7bf1b89738b1ed9151d71813d729bf767691fce0891",
       "source_path": "payload/dar-workflow-authoring/references/dar-runtime-profile/agent-development.md"
     },
     {

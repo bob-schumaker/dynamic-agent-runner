@@ -1,0 +1,79 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: dar-authoring-skill-bundle-template
+name: DAR Authoring Skill-Bundle Template
+description: A bounded local workflow with one package-local review skill.
+entrypoint: route_request
+mermaid_diagram: agent-graph.mmd
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: .
+runtime:
+  execution_policy:
+    autonomy_level: assistive
+    allowed_execution_modes:
+      - sequential_fallback
+    external_backend_allowed: false
+    max_iterations: 1
+    max_steps: 4
+    model: local-model
+    skill_source_resolution:
+      enabled: true
+      allowed_sources:
+        - package_bundle
+      prompt_role: developer
+metadata:
+  patterns_present:
+    - basic-reasoning-agent
+  participant_groups: []
+  modes: []
+  phases: []
+  roles: []
+extensions: {}
+skills:
+  - id: review-guide
+    bundled_path: skills/review-guide/SKILL.md
+tools: []
+nodes:
+  - id: route_request
+    kind: llm_step
+    label: Route request
+    model: local-model
+    skill_refs:
+      - review-guide
+    prompt:
+      user_template: "Review {prompt}"
+      input_vars:
+        - prompt
+  - id: choose_path
+    kind: decision_step
+    decision_subtype: llm_route
+    route_from: route_request
+    decision_contract:
+      allowed_paths:
+        - id: proceed
+          target: finish_review
+      default_path: proceed
+  - id: finish_review
+    kind: llm_step
+    label: Finish review
+    model: local-model
+    prompt:
+      user_template: "Finish {prompt}"
+      input_vars:
+        - prompt
+edges:
+  - from: route_request
+    to: choose_path
+    edge_kind: sequential
+  - from: choose_path
+    to: finish_review
+    edge_kind: branch
+    condition: proceed
+output_contracts:
+  - id: final_answer
+    required_fields:
+      - message
+validation:
+  package_checks:
+    - Every node id is unique.

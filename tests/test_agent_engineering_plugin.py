@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 
 import pytest
+from dynamic_agent_runner import load_agent_package_workflow
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -437,6 +438,30 @@ def test_private_dar_guidance_keeps_artifact_workflows_on_the_no_tool_template()
     assert "## Package-local skill bundle" in guidance
     assert "skills/<skill-id>/SKILL.md" in guidance
     assert "OAuth reconnect workflow" in guidance
+
+
+def test_private_dar_skill_bundle_template_is_complete() -> None:
+    support = PLUGIN_ROOT / "payload" / "dar-workflow-authoring" / "references"
+    template = support / "dar-authoring-skill-bundle-template"
+    guidance = (support / "dar-runtime-profile" / "agent-development.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "dar-authoring-skill-bundle-template" in guidance
+    assert {
+        path.relative_to(template).as_posix()
+        for path in template.rglob("*")
+        if path.is_file()
+    } == {
+        "agent-design.md",
+        "agent-graph.mmd",
+        "agent-runtime.yaml",
+        "workflow-descriptor.yaml",
+        "skills/review-guide/SKILL.md",
+    }
+    workflow = load_agent_package_workflow(str(template))
+    assert workflow.runtime_manifest.package_id == "dar-authoring-skill-bundle-template"
+    assert workflow.runtime_manifest.skills[0].id == "review-guide"
 
 
 def test_dar_guidance_uses_closed_design_first_registration() -> None:

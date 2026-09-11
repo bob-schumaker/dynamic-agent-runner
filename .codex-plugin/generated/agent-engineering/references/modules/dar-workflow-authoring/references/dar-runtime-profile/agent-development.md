@@ -129,6 +129,13 @@ in the descriptor's `skills`, write the bundle file at
 skill only from the bounded node that needs it. Do not load installed skills,
 paths outside the package, or model-suggested support files.
 
+For the supported one-skill review graph, copy
+`references/dar-authoring-skill-bundle-template/` before changing the package
+identity, purpose, bounded skill instruction, and user-facing prompts. Retain
+its `skills/` bundle, `package_bundle` source-resolution policy, declared
+skill reference, and finite graph shape. Do not construct that graph from
+scratch or substitute an installed skill.
+
 ## Reviewed MCP template selection
 
 Use a tool template only when the explicit DAR request names its bounded

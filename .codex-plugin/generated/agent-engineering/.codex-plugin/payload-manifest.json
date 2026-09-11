@@ -134,6 +134,61 @@
     },
     {
       "acquisition_mode": "copied",
+      "content_hash": "78f8b90dfcbd201f444096840d742fa4289de2b31a3b71ca82d50a0e43b66897",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-design.md",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-design.md",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "copied",
+      "content_hash": "0931ebf02f1473a0aad387085447c16a7f8a599567ea35faaaf8d51bc6bf5789",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-graph.mmd",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-graph.mmd",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "copied",
+      "content_hash": "020853cd865baf6eceaaeae4c795027ed5c50edd31b247d4feb5ba9ffa82fae3",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-runtime.yaml",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-runtime.yaml",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "copied",
+      "content_hash": "f5cb7725f10097c1b7941629d88cabbce9b70499e2cbb25c8963f0a84baef273",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/skills/review-guide/SKILL.md",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/skills/review-guide/SKILL.md",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "copied",
+      "content_hash": "2ff9516a148bdb0a0fd7fc01376669d3f4018d6237d96c6a0ef06a6bb4b13b8e",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/workflow-descriptor.yaml",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/workflow-descriptor.yaml",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "copied",
       "content_hash": "bda3014b753320e5703f459e93357ac7319404b72fb2feddfc521142b89ffe61",
       "file_mode": "0o644",
       "file_type": "file",
@@ -244,7 +299,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "c647fb74f03978e21cdc6ff05bafbe75d91afd0e5e2fa5a75b7048f18a6aefc2",
+      "content_hash": "9363e59af2f67c2b7d65f7bf1b89738b1ed9151d71813d729bf767691fce0891",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -740,5 +795,5 @@
   ],
   "format_version": 1,
   "packager_format_version": 1,
-  "payload_fingerprint": "abb2c788946f218ec84d3c179e38df0459f312b2a61410b5e07fb0942cd3c566"
+  "payload_fingerprint": "f2fc78216a5316cff5a66f9b60d05cab987c40c0ae7460ffbe2ad5da11f05208"
 }
