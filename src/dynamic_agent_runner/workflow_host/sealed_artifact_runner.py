@@ -76,6 +76,7 @@ class SealedArtifactRunnerDescriptor:
     child_contract_digests: tuple[str, ...]
     callbacks: tuple["SealedArtifactCallback", ...]
     output_roles: tuple[str, ...]
+    child_contracts: tuple["SealedArtifactChildContract", ...] = ()
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,14 @@ class SealedArtifactSchemaAsset:
     path: str
     digest: str
     document: object | None = None
+
+
+@dataclass(frozen=True)
+class SealedArtifactChildContract:
+    """One verified canonical callback child contract retained for the host."""
+
+    digest: str
+    canonical_bytes: bytes
 
 
 @dataclass(frozen=True)
@@ -215,15 +224,23 @@ def verify_sealed_artifact_runner_files(
         )
         for schema in descriptor.schema_assets
     )
-    child_contracts = {
+    child_contract_mappings = {
         digest: _child_contract_mapping(root, digest)
         for digest in descriptor.child_contract_digests
     }
     for callback in descriptor.callbacks:
         _validate_callback_child_contract(
-            child_contracts[callback.child_contract_digest], callback
+            child_contract_mappings[callback.child_contract_digest], callback
         )
-    return replace(descriptor, schema_assets=schema_assets)
+    child_contracts = tuple(
+        SealedArtifactChildContract(digest, _canonical_bytes(mapping))
+        for digest, mapping in sorted(child_contract_mappings.items())
+    )
+    return replace(
+        descriptor,
+        schema_assets=schema_assets,
+        child_contracts=child_contracts,
+    )
 
 
 def validate_sealed_artifact_runner_capabilities(

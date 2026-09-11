@@ -319,7 +319,9 @@ def test_verifier_requires_one_matching_callback_child_contract(tmp_path) -> Non
     (tmp_path / "contracts").mkdir()
     (tmp_path / "contracts" / "generate.json").write_bytes(child)
 
-    verify_sealed_artifact_runner_files(tmp_path, _canonical(descriptor))
+    verified = verify_sealed_artifact_runner_files(tmp_path, _canonical(descriptor))
+    assert verified.child_contracts[0].digest == child_digest
+    assert verified.child_contracts[0].canonical_bytes == child
 
     (tmp_path / "contracts" / "duplicate.json").write_bytes(child)
     with pytest.raises(SealedArtifactRunnerDescriptorError, match="child contract"):
