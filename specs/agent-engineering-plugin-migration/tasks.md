@@ -184,7 +184,7 @@ not make a DAR release a prerequisite for a plugin-only release.
       maps each unique scenario ID to its package name, workflow ID, author
       request, run request, and declared fixture set; reject unknown, missing,
       duplicate, or fixture-mismatched plan entries before launching Codex.
-- [ ] RED/GREEN: add a deterministic external-harness controller for the
+- [x] RED/GREEN: add a deterministic external-harness controller for the
       complete manifest. It owns fake model, MCP/tool, approval, ingress,
       guardrail, and capability collaborators and passes only declared fixture
       inputs to each scenario. Unit tests must prove that this controller makes
@@ -201,6 +201,12 @@ not make a DAR release a prerequisite for a plugin-only release.
       acceptance evidence by itself: the deterministic model must emit the
       scenario-bound tool/continuation sequence needed to drive each supported
       fixture through the controller, not one generic text or tool response.
+  - Delivery: `run_m4_4_clean_codex.py` owns the loopback model fixture,
+    controller-only MCP client, approval, ingress, and guardrail collaborators.
+    It injects them only through its controller sockets. The fake model selects
+    only the reviewed M4.4 fixture tools (`list_unread`, `lookup_records`, or
+    `mail_send`) and emits a deterministic completion after a tool result;
+    it does not select arbitrary declared tool schemas.
 - [ ] RED/GREEN: add and pass fixture-backed contract tests for two separately
       launched clean Codex actors against the generated routed root:
       author/finalize, then saved-package invoke.
