@@ -514,7 +514,8 @@ def validate_m44_evidence(
     ):
         raise M44ScenarioError("controller fixture evidence is unavailable")
     if (
-        scenario.expected_status == "pass"
+        evidence.observed_status != "harness_failure"
+        and scenario.expected_status == "pass"
         and "reviewed-mcp-connection" in scenario.required_host_fixtures
     ):
         if evidence.mcp_snapshot_id is None or evidence.mcp_binding_id is None:
