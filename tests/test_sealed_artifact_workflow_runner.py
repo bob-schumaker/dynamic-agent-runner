@@ -56,6 +56,7 @@ class _Registration:
     revision_digest: str = _REVISION
     profile_digest: str = _PROFILE
     policy_digest: str = "c" * 64
+    selected_capability_provider_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -278,6 +279,80 @@ def test_tampered_asset_stops_before_handle_or_provider_or_egress(
     assert not store.active_records(
         kind="sealed_artifact_output_set", owner=_OWNER, now=NOW
     )
+
+
+def test_changed_selected_provider_stops_before_descriptor_or_callback(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import dynamic_agent_runner.workflow_host.sealed_artifact_workflow_runner as module
+
+    root = tmp_path / "package"
+    descriptor_bytes, requirements = _package(root)
+    descriptor = parse_sealed_artifact_runner_descriptor(descriptor_bytes)
+    store = PrivateStateStore(tmp_path / "state")
+    handles = SealedArtifactHandleService(store=store, owner=_OWNER)
+    input_handle = handles.prepare(
+        descriptor=descriptor,
+        receiver_id=_OWNER,
+        revision_digest=_REVISION,
+        invocation_id="invocation",
+        role="snapshot",
+        media_type="application/octet-stream",
+        schema_digest=None,
+        content=b"snapshot",
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    class Registrations:
+        def resolve(self, _workflow_id: str) -> _Registration:
+            return _Registration(selected_capability_provider_ids=("selected",))
+
+    class Catalog:
+        def revision(self, _package_id: str, _revision_digest: str) -> _Revision:
+            return _Revision(root)
+
+    class Resolver:
+        calls = 0
+
+        def resolve(self, _descriptor, _policy):
+            self.calls += 1
+            raise AssertionError("callback resolution must not happen")
+
+    resolver = Resolver()
+    monkeypatch.setattr(
+        module,
+        "compile_workflow_policy",
+        lambda _revision, capability_catalog=None: SimpleNamespace(
+            policy_digest="c" * 64,
+            capability_requirements=requirements,
+            selected_capability_provider_ids=("replacement",),
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "verify_sealed_artifact_runner_files",
+        lambda *_args: pytest.fail("descriptor verification must not happen"),
+    )
+    runner = SealedArtifactWorkflowRunner(
+        registrations=Registrations(),
+        catalog=Catalog(),
+        handles=handles,
+        outputs=SealedArtifactOutputHandleService(store=store, owner=_OWNER),
+        callback_resolver=resolver,
+        identity=_Identity(),
+        output_ttl=timedelta(minutes=1),
+    )
+
+    with pytest.raises(SealedArtifactRunnerAdmissionError, match="unavailable"):
+        runner.run(
+            SealedArtifactInvocation(
+                "example", "invocation", {"snapshot": input_handle.handle_id}
+            ),
+            now=NOW,
+        )
+
+    assert resolver.calls == 0
 
 
 def test_locked_inference_callback_runs_only_through_sealed_asset_context(

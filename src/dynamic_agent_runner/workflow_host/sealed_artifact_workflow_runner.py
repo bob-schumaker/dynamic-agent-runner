@@ -189,7 +189,9 @@ class SealedArtifactWorkflowRunner:
         policy = compile_workflow_policy(
             revision, capability_catalog=self._capability_catalog
         )
-        if policy.policy_digest != registration.policy_digest:
+        if policy.policy_digest != registration.policy_digest or tuple(
+            getattr(registration, "selected_capability_provider_ids", ())
+        ) != tuple(policy.selected_capability_provider_ids):
             raise SealedArtifactRunnerAdmissionError(
                 "sealed artifact runner is unavailable"
             )
