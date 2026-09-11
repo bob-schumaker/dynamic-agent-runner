@@ -1,4 +1,4 @@
-"""RED contract for the closed, direct MLX GTE Tiny embedding adapter."""
+"""RED contract for the sealed, direct generic MLX embedding adapter."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from dynamic_agent_runner.local_models import (
     EmbeddingVectorItem,
 )
 from dynamic_agent_runner.mlx_local_embedding import (
-    MLXGteTinyPreparedArtifacts,
+    MLXPreparedEmbeddingArtifacts,
     MLXLocalEmbeddingConfig,
     create_mlx_local_embedding_adapter,
     create_mlx_local_embedding_async_adapter,
@@ -22,43 +22,29 @@ from dynamic_agent_runner.mlx_local_embedding import (
 
 @dataclass
 class _Backend:
-    calls: list[tuple[tuple[EmbeddingInputItem, ...], MLXGteTinyPreparedArtifacts]] = (
-        field(default_factory=list)
-    )
+    calls: list[
+        tuple[tuple[EmbeddingInputItem, ...], MLXPreparedEmbeddingArtifacts]
+    ] = field(default_factory=list)
 
     def embed(
         self,
         items: tuple[EmbeddingInputItem, ...],
-        materials: MLXGteTinyPreparedArtifacts,
+        materials: MLXPreparedEmbeddingArtifacts,
     ) -> EmbeddingBatchResult:
         self.calls.append((items, materials))
         return EmbeddingBatchResult(
-            model="mlx-gte-tiny-v1",
-            items=(EmbeddingVectorItem(id="chunk-1", vector=(0.25,) * 384),),
+            model="test-embedding-model",
+            items=(EmbeddingVectorItem(id="chunk-1", vector=(0.25,)),),
         )
 
 
-def _materials() -> MLXGteTinyPreparedArtifacts:
-    return MLXGteTinyPreparedArtifacts(
-        runner_contract_id="mlx-gte-tiny-v1",
-        runner_contract_version="1",
-        loader_profile_contract_id="mlx-gte-tiny-v1",
-        loader_profile_contract_version="1",
-        material_lock_digest=(
-            "c2fc8b91d1b4514f2411f30c4d81fa3a702e902b70ae8a7eb83567696a158c87"
-        ),
-        roles=(
-            "bert_config",
-            "bert_weights",
-            "modules_manifest",
-            "pooling_config",
-            "sentence_transformer_config",
-            "tokenizer_added_tokens",
-            "tokenizer_config",
-            "tokenizer_json",
-            "tokenizer_special_tokens",
-            "tokenizer_vocab",
-        ),
+def _materials() -> MLXPreparedEmbeddingArtifacts:
+    return MLXPreparedEmbeddingArtifacts(
+        execution_abi_id="test-embedding-abi",
+        execution_abi_version="1",
+        execution_abi_contract_digest="a" * 64,
+        execution_descriptor_digest="b" * 64,
+        material_lock_digest="c" * 64,
     )
 
 
@@ -174,21 +160,18 @@ def test_mlx_embedding_admits_materials_after_dependency_and_reaches_backend() -
     result = adapter.embed((EmbeddingInputItem("chunk-1", "alpha"),))
 
     assert calls == ["dependency", "material"]
-    assert result.items[0].vector == (0.25,) * 384
+    assert result.items[0].vector == (0.25,)
     assert backend.calls == [((EmbeddingInputItem("chunk-1", "alpha"),), materials)]
 
 
 @pytest.mark.parametrize(
     "changed_materials",
     (
-        lambda: replace(_materials(), runner_contract_id="different-runner"),
-        lambda: replace(_materials(), runner_contract_version="2"),
-        lambda: replace(_materials(), loader_profile_contract_id="different-profile"),
-        lambda: replace(_materials(), loader_profile_contract_version="2"),
-        lambda: replace(_materials(), material_lock_digest="b" * 64),
-        lambda: replace(_materials(), roles=("bert_config",)),
-        lambda: replace(_materials(), roles=_materials().roles[::-1]),
-        lambda: replace(_materials(), roles=(*_materials().roles, "extra")),
+        lambda: replace(_materials(), execution_abi_id=""),
+        lambda: replace(_materials(), execution_abi_version=""),
+        lambda: replace(_materials(), execution_abi_contract_digest="bad"),
+        lambda: replace(_materials(), execution_descriptor_digest="bad"),
+        lambda: replace(_materials(), material_lock_digest="B" * 64),
     ),
 )
 def test_mlx_embedding_rejects_changed_materials_before_backend(

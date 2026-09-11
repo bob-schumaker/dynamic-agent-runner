@@ -109,7 +109,7 @@ from dynamic_agent_runner.mlx_models import (
 )
 from dynamic_agent_runner.mlx_local_embedding import (
     AsyncMLXLocalEmbeddingAdapter,
-    MLXGteTinyPreparedArtifacts,
+    MLXPreparedEmbeddingArtifacts,
     MLXLocalEmbeddingAdapter,
     MLXLocalEmbeddingConfig,
     MLXLocalEmbeddingBackend,
@@ -312,7 +312,7 @@ __all__ = [
     "LocalOpenAIEndpointConfig",
     "MLXLocalModelConfig",
     "AsyncMLXLocalEmbeddingAdapter",
-    "MLXGteTinyPreparedArtifacts",
+    "MLXPreparedEmbeddingArtifacts",
     "MLXLocalEmbeddingAdapter",
     "MLXLocalEmbeddingBackend",
     "MLXLocalEmbeddingConfig",

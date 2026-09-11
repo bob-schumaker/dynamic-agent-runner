@@ -2,16 +2,24 @@
 
 ## MLE0 — Retire the model-specific experiment from DAR runtime
 
-- [ ] MLE0.1 [tests, RED] Add production-boundary tests proving DAR source and
+- [x] MLE0.1 [tests, RED] Add production-boundary tests proving DAR source and
   distributable artifacts contain no named embedding model, repository,
   revision, role table, fixed dimension, or model-specific loader identity.
-- [ ] MLE0.2 [implementation] Replace the current model-named MLX adapter,
+  - Evidence: `tests/test_embedding_model_cleanup.py` failed red before
+    production cleanup and now scans every production Python module.
+- [x] MLE0.2 [implementation] Replace the current model-named MLX adapter,
   hard-coded material digest/roles, and public exports with generic descriptor
   and ABI names; retain any named experiment only below `tests/` or manual
   harness assets.
-- [ ] MLE0.3 [tests, GREEN] Prove the experimental fixture cannot affect
+  - Evidence: `MLXPreparedEmbeddingArtifacts` carries only generic execution
+    ABI, descriptor, and material identities; the model-named source helper and
+    its production-only tests are removed.
+- [x] MLE0.3 [tests, GREEN] Prove the experimental fixture cannot affect
   production import, adapter selection, package construction, or provider
   registration.
+  - Evidence: focused regressions passed; `poetry build` followed by a wheel
+    byte scan found no named experimental-model content; `poetry run pytest -q`
+    passed with 2,203 passed, 1 skipped, and 7 deselected on 2026-09-10.
 
 ## MLE1 — Sealed generic descriptor
 

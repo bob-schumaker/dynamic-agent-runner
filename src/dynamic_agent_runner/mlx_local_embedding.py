@@ -1,4 +1,4 @@
-"""Closed, macOS-only admission boundary for the MLX GTE Tiny adapter."""
+"""Sealed, macOS-only admission boundary for generic MLX embeddings."""
 
 from __future__ import annotations
 
@@ -13,33 +13,17 @@ from dynamic_agent_runner.local_models import EmbeddingBatchResult, EmbeddingInp
 
 
 _MLX_VERSION = "0.32.2"
-_MATERIAL_LOCK_DIGEST = (
-    "c2fc8b91d1b4514f2411f30c4d81fa3a702e902b70ae8a7eb83567696a158c87"
-)
-_ROLES = (
-    "bert_config",
-    "bert_weights",
-    "modules_manifest",
-    "pooling_config",
-    "sentence_transformer_config",
-    "tokenizer_added_tokens",
-    "tokenizer_config",
-    "tokenizer_json",
-    "tokenizer_special_tokens",
-    "tokenizer_vocab",
-)
 
 
 @dataclass(frozen=True)
-class MLXGteTinyPreparedArtifacts:
-    """Receiver-private, already-resolved materials for the one MLX profile."""
+class MLXPreparedEmbeddingArtifacts:
+    """Receiver-private, admitted material and execution-descriptor identity."""
 
-    runner_contract_id: str
-    runner_contract_version: str
-    loader_profile_contract_id: str
-    loader_profile_contract_version: str
+    execution_abi_id: str
+    execution_abi_version: str
+    execution_abi_contract_digest: str
+    execution_descriptor_digest: str
     material_lock_digest: str
-    roles: tuple[str, ...]
 
 
 class MLXLocalEmbeddingBackend(Protocol):
@@ -48,12 +32,12 @@ class MLXLocalEmbeddingBackend(Protocol):
     def embed(
         self,
         items: tuple[EmbeddingInputItem, ...],
-        materials: MLXGteTinyPreparedArtifacts,
+        materials: MLXPreparedEmbeddingArtifacts,
     ) -> EmbeddingBatchResult:
         """Embed one ordered batch using the admitted materials."""
 
 
-MaterialResolver = Callable[[], MLXGteTinyPreparedArtifacts]
+MaterialResolver = Callable[[], MLXPreparedEmbeddingArtifacts]
 DependencyLoader = Callable[[], str | None]
 PlatformSystem = Callable[[], str]
 MacOSVersion = Callable[[], tuple[int, int]]
@@ -68,7 +52,7 @@ class MLXLocalEmbeddingConfig:
 
 
 class MLXLocalEmbeddingAdapter:
-    """Synchronously admit and invoke the closed GTE Tiny backend."""
+    """Synchronously admit and invoke the sealed generic MLX backend."""
 
     def __init__(
         self,
@@ -135,14 +119,14 @@ class MLXLocalEmbeddingAdapter:
         if version != _MLX_VERSION:
             raise EmbeddingExecutionError("MLX embedding dependency is unavailable")
 
-    def _resolve_materials(self) -> MLXGteTinyPreparedArtifacts:
+    def _resolve_materials(self) -> MLXPreparedEmbeddingArtifacts:
         try:
             materials = self._config.material_resolver()
         except Exception as error:  # noqa: BLE001 - receiver material boundary.
             raise EmbeddingExecutionError(
                 "MLX embedding material is unavailable"
             ) from error
-        if not _has_expected_material_identity(materials):
+        if not _has_valid_material_identity(materials):
             raise EmbeddingExecutionError("MLX embedding material is unavailable")
         return materials
 
@@ -179,7 +163,7 @@ def create_mlx_local_embedding_adapter(
     macos_version: MacOSVersion | None = None,
     machine: Machine | None = None,
 ) -> MLXLocalEmbeddingAdapter:
-    """Build the synchronous closed MLX GTE Tiny adapter."""
+    """Build the synchronous sealed generic MLX embedding adapter."""
 
     return MLXLocalEmbeddingAdapter(
         config,
@@ -200,7 +184,7 @@ def create_mlx_local_embedding_async_adapter(
     macos_version: MacOSVersion | None = None,
     machine: Machine | None = None,
 ) -> AsyncMLXLocalEmbeddingAdapter:
-    """Build the asynchronous closed MLX GTE Tiny adapter."""
+    """Build the asynchronous sealed generic MLX embedding adapter."""
 
     return AsyncMLXLocalEmbeddingAdapter(
         create_mlx_local_embedding_adapter(
@@ -214,21 +198,21 @@ def create_mlx_local_embedding_async_adapter(
     )
 
 
-def _has_expected_material_identity(materials: object) -> bool:
-    return isinstance(materials, MLXGteTinyPreparedArtifacts) and (
-        materials.runner_contract_id,
-        materials.runner_contract_version,
-        materials.loader_profile_contract_id,
-        materials.loader_profile_contract_version,
-        materials.material_lock_digest,
-        materials.roles,
-    ) == (
-        "mlx-gte-tiny-v1",
-        "1",
-        "mlx-gte-tiny-v1",
-        "1",
-        _MATERIAL_LOCK_DIGEST,
-        _ROLES,
+def _has_valid_material_identity(materials: object) -> bool:
+    if not isinstance(materials, MLXPreparedEmbeddingArtifacts):
+        return False
+    return bool(
+        materials.execution_abi_id
+        and materials.execution_abi_version
+        and _is_sha256(materials.execution_abi_contract_digest)
+        and _is_sha256(materials.execution_descriptor_digest)
+        and _is_sha256(materials.material_lock_digest)
+    )
+
+
+def _is_sha256(value: str) -> bool:
+    return len(value) == 64 and all(
+        character in "0123456789abcdef" for character in value
     )
 
 
