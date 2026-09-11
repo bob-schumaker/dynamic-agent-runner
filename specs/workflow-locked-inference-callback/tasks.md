@@ -33,7 +33,10 @@
   - Partial evidence: parser and asset-dialect vectors live in
     `tests/test_workflow_locked_inference.py`; a catalog-revision policy test
     proves tampered role assets and a material-role mismatch stop before the
-    runtime manifest loader. The remaining route-specific sentinels are open.
+    runtime manifest loader. `tests/test_sealed_artifact_preparation.py` also
+    proves policy recompilation failure and real staged-catalog tampering stop
+    before sealed-handle issuance or caller-byte copying. The remaining
+    route-specific sentinels are open.
 - [x] I2.2 [implementation] Derive a private per-role inference binding and
   implement bounded canonical callback execution through a receiver-owned
   provider seam and bounded response reader.
