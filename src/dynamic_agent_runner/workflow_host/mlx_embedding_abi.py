@@ -205,6 +205,7 @@ class BertEncoderMlxV1EmbeddingBackend:
             value = json.loads(tokenizer_bytes.decode("utf-8"))
             if not isinstance(value, Mapping):
                 raise ValueError
+            _validate_wordpiece_tokenizer(value, descriptor)
             weights = self._artifact_reader("weights")
             if (
                 not isinstance(weights, bytes)
@@ -372,6 +373,58 @@ def _validate_embedding_inputs(
         if aggregate_bytes > limits["max_aggregate_bytes"]:
             raise EmbeddingExecutionError("MLX embedding input is invalid")
         seen_ids.add(item.id)
+
+
+def _validate_wordpiece_tokenizer(
+    tokenizer: Mapping[str, object], descriptor: ExecutionDescriptor
+) -> None:
+    fields = descriptor.abi_fields
+    descriptor_tokenizer = fields["tokenizer"]
+    encoder = fields["encoder"]
+    assert isinstance(descriptor_tokenizer, Mapping)
+    assert isinstance(encoder, Mapping)
+    model = tokenizer.get("model")
+    normalizer = tokenizer.get("normalizer")
+    pre_tokenizer = tokenizer.get("pre_tokenizer")
+    if not all(
+        isinstance(value, Mapping) for value in (model, normalizer, pre_tokenizer)
+    ):
+        raise ValueError
+    if model.get("type") != "WordPiece":
+        raise ValueError
+    vocab = model.get("vocab")
+    unk_token = model.get("unk_token")
+    vocab_size = encoder["vocab_size"]
+    if (
+        not isinstance(vocab, Mapping)
+        or not isinstance(unk_token, str)
+        or not unk_token
+        or not isinstance(vocab_size, int)
+        or len(vocab) != vocab_size
+    ):
+        raise ValueError
+    token_ids = set(range(vocab_size))
+    if (
+        any(not isinstance(token, str) or not token for token in vocab)
+        or any(
+            not isinstance(token_id, int) or isinstance(token_id, bool)
+            for token_id in vocab.values()
+        )
+        or set(vocab.values()) != token_ids
+    ):
+        raise ValueError
+    special_ids = descriptor_tokenizer["special_token_ids"]
+    assert isinstance(special_ids, Mapping)
+    if vocab.get(unk_token) != special_ids["unk"]:
+        raise ValueError
+    normalization = descriptor_tokenizer["normalization"]
+    expected_lowercase = normalization == "nfc-lowercase"
+    if (
+        normalizer.get("type") != "BertNormalizer"
+        or normalizer.get("lowercase") is not expected_lowercase
+        or pre_tokenizer.get("type") != "BertPreTokenizer"
+    ):
+        raise ValueError
 
 
 def _one_of(value: object, values: set[str]) -> None:

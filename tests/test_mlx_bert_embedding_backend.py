@@ -88,6 +88,33 @@ def _materials(**limit_overrides: int) -> SimpleNamespace:
 
 TensorHeader = dict[str, dict[str, object]]
 HeaderMutation = Callable[[TensorHeader], None]
+TokenizerAsset = dict[str, object]
+TokenizerMutation = Callable[[TokenizerAsset], None]
+
+
+def _tokenizer_bytes(*, mutate: TokenizerMutation | None = None) -> bytes:
+    vocab = {
+        (
+            "[PAD]"
+            if index == 0
+            else "[UNK]"
+            if index == 100
+            else "[CLS]"
+            if index == 101
+            else "[SEP]"
+            if index == 102
+            else f"token-{index}"
+        ): index
+        for index in range(200)
+    }
+    asset: TokenizerAsset = {
+        "model": {"type": "WordPiece", "unk_token": "[UNK]", "vocab": vocab},
+        "normalizer": {"type": "BertNormalizer", "lowercase": False},
+        "pre_tokenizer": {"type": "BertPreTokenizer"},
+    }
+    if mutate is not None:
+        mutate(asset)
+    return json.dumps(asset).encode()
 
 
 def _weights_header(*, mutate: HeaderMutation | None = None) -> bytes:
@@ -137,7 +164,7 @@ def test_backend_rejects_malformed_weights_before_tokenizer_or_model_work() -> N
 
     def artifact_reader(role: str) -> bytes:
         calls.append(role)
-        return b"{}" if role == "tokenizer" else b"malformed"
+        return _tokenizer_bytes() if role == "tokenizer" else b"malformed"
 
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=artifact_reader,
@@ -158,7 +185,9 @@ def test_backend_rejects_unknown_tensor_before_tokenizer_or_model_work() -> None
     def artifact_reader(role: str) -> bytes:
         calls.append(role)
         return (
-            b"{}" if role == "tokenizer" else len(header).to_bytes(8, "little") + header
+            _tokenizer_bytes()
+            if role == "tokenizer"
+            else len(header).to_bytes(8, "little") + header
         )
 
     backend = BertEncoderMlxV1EmbeddingBackend(
@@ -191,7 +220,9 @@ def test_backend_rejects_wrong_tensor_metadata_before_tokenizer_or_model_work(
     def artifact_reader(role: str) -> bytes:
         calls.append(role)
         return (
-            b"{}" if role == "tokenizer" else len(header).to_bytes(8, "little") + header
+            _tokenizer_bytes()
+            if role == "tokenizer"
+            else len(header).to_bytes(8, "little") + header
         )
 
     backend = BertEncoderMlxV1EmbeddingBackend(
@@ -218,7 +249,7 @@ def test_backend_rejects_invalid_tensor_offsets_before_tokenizer_or_model_work()
 
     def artifact_reader(role: str) -> bytes:
         calls.append(role)
-        return b"{}" if role == "tokenizer" else weights
+        return _tokenizer_bytes() if role == "tokenizer" else weights
 
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=artifact_reader,
@@ -238,7 +269,7 @@ def test_backend_admits_exact_tensor_offsets_before_execution() -> None:
 
     def artifact_reader(role: str) -> bytes:
         calls.append(role)
-        return b"{}" if role == "tokenizer" else weights
+        return _tokenizer_bytes() if role == "tokenizer" else weights
 
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=artifact_reader,
@@ -250,6 +281,23 @@ def test_backend_admits_exact_tensor_offsets_before_execution() -> None:
         backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
 
     assert calls == ["tokenizer", "weights"]
+
+
+def test_backend_rejects_invalid_wordpiece_tokenizer_before_weights_read() -> None:
+    calls: list[str] = []
+    tokenizer = _tokenizer_bytes(
+        mutate=lambda asset: asset["model"]["vocab"].pop("token-199")  # type: ignore[index]
+    )
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda _role: calls.append("artifact") or tokenizer,
+        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
+        encoder=lambda _tokens: calls.append("encoder-call") or (),
+    )
+
+    with pytest.raises(EmbeddingExecutionError, match="material"):
+        backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
+
+    assert calls == ["artifact"]
 
 
 @pytest.mark.parametrize(
@@ -304,7 +352,9 @@ def test_backend_enforces_descriptor_artifact_byte_limits_before_execution(
     def artifact_reader(role: str) -> bytes:
         calls.append(role)
         return (
-            b"{}" if role == "tokenizer" else len(header).to_bytes(8, "little") + header
+            (b"{}" if "max_tokenizer_bytes" in limits else _tokenizer_bytes())
+            if role == "tokenizer"
+            else len(header).to_bytes(8, "little") + header
         )
 
     backend = BertEncoderMlxV1EmbeddingBackend(

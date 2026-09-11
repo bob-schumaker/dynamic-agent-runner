@@ -159,6 +159,17 @@ at 128 bytes, accepts at most two material roles, and applies these ABI maxima:
 The output vector dimension is exactly `encoder.hidden_size`; it is not a
 separate descriptor setting.
 
+`wordpiece-json-v1` is a closed tokenizer-asset grammar, not a request to
+execute a tokenizer package. Its UTF-8 JSON root has `model`, `normalizer`,
+and `pre_tokenizer` objects. `model` has `type: "WordPiece"`, a string
+`unk_token`, and a `vocab` object mapping exactly `V` distinct nonempty token
+strings to each integer in `[0, V)`, once. The token at the declared `unk` ID
+equals `unk_token`. `normalizer` has `type: "BertNormalizer"` and a Boolean
+`lowercase` that is false for `nfc` and true for `nfc-lowercase`.
+`pre_tokenizer` has `type: "BertPreTokenizer"`. Unknown fields within those
+three required objects may not alter these semantics; no tokenizer asset may
+provide an import, executable callback, model path, or remote reference.
+
 The ABI owns this complete safetensors tensor-key and shape grammar, where `H`,
 `I`, `L`, `V`, `P`, and `T` are respectively `hidden_size`,
 `intermediate_size`, `layers`, `vocab_size`, `max_positions`, and
