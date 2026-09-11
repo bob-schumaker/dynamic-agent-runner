@@ -102,6 +102,7 @@ class EmbeddingProvider(Protocol):
     provider_id: str
     contract: CapabilityContract
     deterministic: bool
+    model_binding: ModelExecutionBinding
 
     def embed(
         self,
@@ -126,6 +127,7 @@ class LocalEmbeddingAdapterProvider:
     provider_id: str
     contract: CapabilityContract
     adapter: LocalEmbeddingAdapter
+    model_binding: ModelExecutionBinding
     deterministic: bool = True
 
     def embed(
@@ -136,7 +138,6 @@ class LocalEmbeddingAdapterProvider:
     ) -> tuple[EmbeddingVector, ...]:
         """Call the existing adapter without exposing its configuration to a package."""
 
-        del binding
         result = self.adapter.embed(
             tuple(EmbeddingInputItem(id=item.item_id, text=item.text) for item in items)
         )
@@ -159,11 +160,18 @@ class EmbeddingProviderCatalog:
     def __init__(self, providers: Sequence[EmbeddingProvider]) -> None:
         resolved: dict[str, EmbeddingProvider] = {}
         for provider in providers:
-            provider_id = getattr(provider, "provider_id", None)
+            try:
+                provider_id = provider.provider_id
+                model_binding = provider.model_binding
+            except Exception as error:  # noqa: BLE001 - receiver provider boundary.
+                raise EmbeddingExecutionBindingError(
+                    "embedding provider is unavailable"
+                ) from error
             if (
                 not isinstance(provider_id, str)
                 or not provider_id
                 or provider_id in resolved
+                or not isinstance(model_binding, ModelExecutionBinding)
             ):
                 raise EmbeddingExecutionBindingError(
                     "embedding provider is unavailable"
@@ -182,13 +190,20 @@ class EmbeddingProviderCatalog:
         if len(selected_provider_ids) != 1:
             raise EmbeddingExecutionBindingError("embedding provider is unavailable")
         provider = self._providers.get(selected_provider_ids[0])
-        if (
-            provider is None
-            or not provider.deterministic
-            or provider.contract.capability_id != binding.capability_id
-            or provider.contract.contract_version != binding.capability_contract_version
-            or provider.contract.contract_digest != binding.capability_contract_digest
-        ):
+        try:
+            compatible = (
+                provider is not None
+                and provider.deterministic
+                and provider.model_binding == binding.model_binding
+                and provider.contract.capability_id == binding.capability_id
+                and provider.contract.contract_version
+                == binding.capability_contract_version
+                and provider.contract.contract_digest
+                == binding.capability_contract_digest
+            )
+        except Exception:  # noqa: BLE001 - receiver provider boundary.
+            compatible = False
+        if not compatible:
             raise EmbeddingExecutionBindingError("embedding provider is unavailable")
         return provider
 

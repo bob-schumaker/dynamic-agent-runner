@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import pytest
 
@@ -85,6 +85,10 @@ class _FakeProvider:
     deterministic: bool = True
     calls: list[tuple[EmbeddingTextItem, ...]] = field(default_factory=list)
 
+    @property
+    def model_binding(self) -> ModelExecutionBinding:
+        return _model_binding()
+
     def embed(
         self,
         *,
@@ -144,6 +148,49 @@ def test_embedding_executes_only_against_selected_exact_provider() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    "changes",
+    (
+        {"material_lock_digest": "e" * 64},
+        {"runner_contract_id": "other-runner-v1"},
+    ),
+)
+def test_embedding_rejects_provider_with_wrong_model_binding_before_entry(
+    changes: dict[str, str],
+) -> None:
+    @dataclass
+    class IncompatibleProvider(_FakeProvider):
+        @property
+        def model_binding(self) -> ModelExecutionBinding:
+            return replace(_model_binding(), **changes)
+
+    provider = IncompatibleProvider(
+        _contract(), (EmbeddingVector("chunk-1", (0.25, 0.75)),)
+    )
+
+    with pytest.raises(EmbeddingExecutionBindingError, match="unavailable"):
+        _service(provider).execute(
+            binding=_binding(),
+            selected_provider_ids=(provider.provider_id,),
+            package_limits=_limits(),
+            items=(EmbeddingTextItem("chunk-1", "alpha"),),
+        )
+    assert provider.calls == []
+
+
+def test_embedding_catalog_rejects_provider_without_exact_model_binding() -> None:
+    class MalformedProvider:
+        provider_id = "receiver-private-provider"
+        contract = _contract()
+        deterministic = True
+
+        def embed(self, **_: object) -> tuple[EmbeddingVector, ...]:
+            raise AssertionError("malformed provider must not be called")
+
+    with pytest.raises(EmbeddingExecutionBindingError, match="unavailable"):
+        EmbeddingProviderCatalog((MalformedProvider(),))
+
+
 def test_local_adapter_is_only_a_receiver_owned_provider_bridge() -> None:
     from dynamic_agent_runner.local_models import (
         EmbeddingBatchResult,
@@ -163,7 +210,7 @@ def test_local_adapter_is_only_a_receiver_owned_provider_bridge() -> None:
 
     adapter = Adapter()
     provider = LocalEmbeddingAdapterProvider(
-        "receiver-private-provider", _contract(), adapter
+        "receiver-private-provider", _contract(), adapter, _model_binding()
     )
 
     result = _service(provider).execute(

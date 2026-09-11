@@ -10,12 +10,14 @@
     binding from `bindings.runner`; the three governing specs now match it.
   - Acceptance: a sealed package can bind an embedding provider without an
     MLX-specific manifest field, fake llama.cpp runner, or parallel ABI.
-- [ ] MLE0.2 [tests, RED/GREEN] Require the selected embedding provider to
+- [x] MLE0.2 [tests, RED/GREEN] Require the selected embedding provider to
   support the sealed runner/profile/material binding before provider entry;
   reject an embedding-capability-compatible but binding-incompatible provider.
-  - Evidence: current focused tests prove generic runner binding derivation,
-    but not provider compatibility; `LocalEmbeddingAdapterProvider` currently
-    discards the binding.
+  - Evidence: each provider now declares one exact `ModelExecutionBinding`;
+    `EmbeddingProviderCatalog` rejects incompatible material and runner
+    bindings before `embed()` and rejects malformed registrations.
+    `poetry run pytest tests/test_embedding_execution.py
+    tests/test_workflow_model_execution_binding.py -q` passed 22 tests.
   - Depends on: MLE0.1.
 
 ## MLE1 — GTE Tiny material and reference lock

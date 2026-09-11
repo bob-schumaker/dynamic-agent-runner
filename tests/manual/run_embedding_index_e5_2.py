@@ -174,7 +174,7 @@ def run(*, snapshot_path: Path) -> dict[str, object]:
         providers=EmbeddingProviderCatalog(
             (
                 LocalEmbeddingAdapterProvider(
-                    "manual-local-llama-cpp", contract, adapter
+                    "manual-local-llama-cpp", contract, adapter, model_binding
                 ),
             )
         ),
