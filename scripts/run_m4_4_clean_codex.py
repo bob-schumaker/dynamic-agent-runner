@@ -1411,8 +1411,9 @@ def _author_request(
     )
     skill_bundle_guidance = (
         " This is a package-local skill workflow: use the reviewed skill-bundle "
-        "template at references/dar-authoring-skill-bundle-template/; do not "
-        "construct its graph from scratch."
+        "template at references/dar-authoring-skill-bundle-template/. Copy its "
+        "complete package bundle, replace its package_id with the requested package "
+        "name in both YAML files, and do not construct its graph from scratch."
         if "package-local skill" in author_prompt.lower()
         else ""
     )

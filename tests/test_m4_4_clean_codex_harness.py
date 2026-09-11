@@ -1283,6 +1283,8 @@ def test_skill_bundle_author_prompt_requires_the_review_template() -> None:
     assert "package-local skill workflow" in prompt
     assert "skill-bundle template" in prompt
     assert "references/dar-authoring-skill-bundle-template/" in prompt
+    assert "Copy its complete package bundle" in prompt
+    assert "replace its package_id with the requested package name" in prompt
     assert "do not construct its graph from scratch" in prompt
 
 

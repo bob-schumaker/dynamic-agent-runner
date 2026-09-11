@@ -246,7 +246,7 @@
         "approval-broker"
       ],
       "package_name": "m44-side-effect-recovery",
-      "run_request": "Send the email to ada@example.test using the supplied vendor-ticket artifact as its body.",
+      "run_request": "Send the email to ada@example.test with body vendor ticket body.",
       "scenario_id": "side-effect-recovery-v1",
       "workflow_id": "m44-side-effect-recovery"
     },
