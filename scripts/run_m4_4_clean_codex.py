@@ -1408,6 +1408,12 @@ def _author_request(
         if "email_body" in artifact_roles and "email" in author_prompt.lower()
         else ""
     )
+    skill_bundle_guidance = (
+        " This is a package-local skill workflow: use the reviewed skill-bundle "
+        "template; do not construct its graph from scratch."
+        if "package-local skill" in author_prompt.lower()
+        else ""
+    )
     guardrail_guidance = (
         " Declared caller-owned guardrails: "
         + ", ".join(f"{guardrail_id} ({phase})" for guardrail_id, phase in guardrails)
@@ -1419,7 +1425,7 @@ def _author_request(
         f"{author_prompt}\n\nUse the installed agent-engineering agent-development "
         f"skill to author a DAR workflow. The declared material_set_id is "
         f"`{material_set_id}` and the requested package name is `{package_name}`. "
-        f"{artifact_guidance}{operation_guidance}{guardrail_guidance} "
+        f"{artifact_guidance}{operation_guidance}{skill_bundle_guidance}{guardrail_guidance} "
         f"{suffix}"
     )
 

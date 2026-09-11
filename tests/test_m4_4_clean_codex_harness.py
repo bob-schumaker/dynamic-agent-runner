@@ -1189,6 +1189,21 @@ def test_email_artifact_author_prompt_requires_reviewed_write_template() -> None
     assert "do not choose the no-tool starter" in prompt
 
 
+def test_skill_bundle_author_prompt_requires_the_review_template() -> None:
+    module = _harness_module()
+
+    prompt = module._author_request(
+        "Author the declared DAR no-tool graph with package-local skill `review-guide`.",
+        "material-id",
+        "no-tool-graph",
+        "pass",
+    )
+
+    assert "package-local skill workflow" in prompt
+    assert "skill-bundle template" in prompt
+    assert "do not construct its graph from scratch" in prompt
+
+
 def test_successor_author_prompt_declares_caller_owned_guardrail_contract() -> None:
     module = _harness_module()
 
