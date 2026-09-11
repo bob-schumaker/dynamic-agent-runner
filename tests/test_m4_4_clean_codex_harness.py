@@ -1287,6 +1287,10 @@ def test_skill_bundle_author_prompt_requires_the_review_template() -> None:
     assert "references/dar-authoring-skill-bundle-template/" in prompt
     assert "Copy its complete package bundle" in prompt
     assert "replace its package_id with the requested package name" in prompt
+    assert "DAR-controlled authoring writes" in prompt
+    assert "all five template files" in prompt
+    assert "skill_bundle_dir: ." in prompt
+    assert "review-guide skill binding" in prompt
     assert "do not construct its graph from scratch" in prompt
 
 
