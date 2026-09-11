@@ -10,6 +10,11 @@ from typing import Protocol
 
 from dynamic_agent_runner.errors import EmbeddingExecutionError
 from dynamic_agent_runner.local_models import EmbeddingBatchResult, EmbeddingInputItem
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptor,
+    ExecutionDescriptorError,
+    ExecutionDescriptorValidatorRegistry,
+)
 
 
 _MLX_VERSION = "0.32.2"
@@ -24,6 +29,7 @@ class MLXPreparedEmbeddingArtifacts:
     execution_abi_contract_digest: str
     execution_descriptor_digest: str
     material_lock_digest: str
+    execution_descriptor: ExecutionDescriptor
 
 
 class MLXLocalEmbeddingBackend(Protocol):
@@ -49,6 +55,7 @@ class MLXLocalEmbeddingConfig:
     """Configuration that deliberately excludes model paths and repositories."""
 
     material_resolver: MaterialResolver
+    descriptor_validators: ExecutionDescriptorValidatorRegistry
 
 
 class MLXLocalEmbeddingAdapter:
@@ -128,6 +135,12 @@ class MLXLocalEmbeddingAdapter:
             ) from error
         if not _has_valid_material_identity(materials):
             raise EmbeddingExecutionError("MLX embedding material is unavailable")
+        try:
+            self._config.descriptor_validators.validate(materials.execution_descriptor)
+        except ExecutionDescriptorError as error:
+            raise EmbeddingExecutionError(
+                "MLX embedding material is unavailable"
+            ) from error
         return materials
 
 
@@ -207,6 +220,15 @@ def _has_valid_material_identity(materials: object) -> bool:
         and _is_sha256(materials.execution_abi_contract_digest)
         and _is_sha256(materials.execution_descriptor_digest)
         and _is_sha256(materials.material_lock_digest)
+        and isinstance(materials.execution_descriptor, ExecutionDescriptor)
+        and materials.execution_descriptor.digest
+        == materials.execution_descriptor_digest
+        and materials.execution_descriptor.architecture_abi.abi_id
+        == materials.execution_abi_id
+        and materials.execution_descriptor.architecture_abi.version
+        == materials.execution_abi_version
+        and materials.execution_descriptor.architecture_abi.contract_digest
+        == materials.execution_abi_contract_digest
     )
 
 

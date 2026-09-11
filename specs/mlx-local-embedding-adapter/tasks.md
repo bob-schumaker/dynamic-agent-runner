@@ -51,13 +51,13 @@
 
 ## MLE2 — Direct adapter admission
 
-- [ ] MLE2.1 [tests, RED] Add fake-only tests for dedicated factory/import
+- [x] MLE2.1 [tests, RED] Add fake-only tests for dedicated factory/import
   behavior, macOS-14+/arm64 lazy failure, exact MLX dependency admission,
   descriptor/material rejection, and injected backend admission.
   - Depends on: MLE1.4.
-- [ ] MLE2.2 [implementation] Add generic sync/async factories with
+- [x] MLE2.2 [implementation] Add generic sync/async factories with
   package-owned errors and no generation-adapter change.
-- [ ] MLE2.3 [tests, GREEN] Prove rejected platform, dependency, descriptor,
+- [x] MLE2.3 [tests, GREEN] Prove rejected platform, dependency, descriptor,
   or material states make no backend/tokenizer/model call and preserve static
   versus receiver-resolved capability metadata.
 
