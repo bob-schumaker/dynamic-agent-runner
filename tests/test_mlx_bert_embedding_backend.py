@@ -469,6 +469,32 @@ def test_backend_rejects_nonfinite_materialized_vectors() -> None:
         backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
 
 
+def test_backend_execution_failure_redacts_input_content() -> None:
+    secret = "private-floorplan-or-vault-content"
+    word_embeddings = [0.0] * 400
+    word_embeddings[202:204] = [math.nan, 1.0]
+    weights = _weights_blob(
+        values={
+            "embeddings.word_embeddings.weight": word_embeddings,
+            "embeddings.LayerNorm.weight": [1.0, 1.0],
+            "encoder.layer.0.attention.output.LayerNorm.weight": [1.0, 1.0],
+            "encoder.layer.0.output.LayerNorm.weight": [1.0, 1.0],
+        }
+    )
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda role: (
+            _tokenizer_bytes() if role == "tokenizer" else weights
+        ),
+        mlx_loader=_NumpyMlx,
+    )
+
+    with pytest.raises(EmbeddingExecutionError) as raised:
+        backend.embed((EmbeddingInputItem("entry", secret),), _materials())
+
+    assert str(raised.value) == "MLX embedding execution failed"
+    assert secret not in str(raised.value)
+
+
 @pytest.mark.parametrize(
     ("pooling", "normalization", "expected"),
     [

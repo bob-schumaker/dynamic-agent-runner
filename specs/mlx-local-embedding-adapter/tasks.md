@@ -77,8 +77,14 @@
   - Evidence: `BertEncoderMlxV1EmbeddingBackend` parses admitted WordPiece and
     safetensors bytes, lazy-loads `mlx.core`, executes the fixed ABI math, and
     returns only validated `EmbeddingBatchResult` values.
-- [ ] MLE3.3 [tests, GREEN] Prove sync/async parity, conservative metadata,
+- [x] MLE3.3 [tests, GREEN] Prove sync/async parity, conservative metadata,
   redaction, and no MLX/Metal/network import or use in unit tests.
+  - Evidence: the BERT backend fake runtime covers ordered results, padding,
+    truncation, pooling, normalization, finite-value rejection, execution-error
+    redaction, and sync/async adapter parity. `tests/test_mlx_local_embedding.py`
+    retains static-versus-resolved conservative capability checks. These tests
+    inject a NumPy stand-in and never import MLX, use Metal, or make network
+    calls.
 
 ## MLE4 — Manual arithmetic conformance
 
