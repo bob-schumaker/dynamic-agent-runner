@@ -361,7 +361,7 @@ the pinned configured model ID, and leaves generic MLX factories text-only.
     the pinned configured model identity. They do not change generic MLX
     factories, add model-family detection, or add an executor/approval path.
 
-- [ ] T6.4.4 [tests/integration] Prove the built-in Qwen3 pair uses DAR's
+- [x] T6.4.4 [tests/integration] Prove the built-in Qwen3 pair uses DAR's
       ordinary sync and async tool/continuation flow.
   - Spec: FR-2, FR-3; M6.4 built-in Qwen3 acceptance.
   - Files: `tests/test_mlx_models.py`, `tests/test_executor.py`.
@@ -375,6 +375,12 @@ the pinned configured model ID, and leaves generic MLX factories text-only.
     remains fake-only and does not make the live model a pytest dependency.
   - Validation: `poetry run pytest -q tests/test_mlx_models.py
     tests/test_executor.py`.
+  - Delivery: fake-only sync and async executor coverage proves the pinned
+    helper normalizes one `search_repo` candidate, invokes the controlled
+    handler once, and renders the canonical assistant-call/tool-result
+    continuation before receiving text. The Qwen3 codec rejects `auto`,
+    `required`, and `none` before generation, and a per-adapter lock serializes
+    concurrent sync and async generation through the shared sync adapter.
 
 - [ ] T6.4.5 [manual acceptance] Run and record the pinned local Qwen3 MLX
       competency protocol after deterministic tests pass.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import platform
+import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -156,6 +157,7 @@ class MLXLocalModelAdapter:
         self._download_file = download_file
         self._download_snapshot = download_snapshot
         self._tool_codec = tool_codec
+        self._generation_lock = threading.Lock()
 
     def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         """Generate and normalize a local MLX model response."""
@@ -179,27 +181,28 @@ class MLXLocalModelAdapter:
             huggingface_file=self._config.huggingface_file,
             huggingface_snapshot=self._config.huggingface_snapshot,
         )
-        try:
-            generation_kwargs = _generation_kwargs(self._config, request)
-            _validate_supported_request(
-                request,
-                backend=backend,
-                tool_codec=self._tool_codec,
-            )
-            if request.tools:
-                return _generate_tool_response(
-                    backend,
-                    self._tool_codec,
+        with self._generation_lock:
+            try:
+                generation_kwargs = _generation_kwargs(self._config, request)
+                _validate_supported_request(
                     request,
-                    generation_kwargs,
+                    backend=backend,
+                    tool_codec=self._tool_codec,
                 )
-            content = _generate_with_backend(backend, request, generation_kwargs)
-        except ModelExecutionError:
-            raise
-        except Exception as exc:  # noqa: BLE001 - backend errors vary.
-            raise ModelExecutionError(
-                f"MLX local model generation failed for {request.model!r}: {exc}"
-            ) from exc
+                if request.tools:
+                    return _generate_tool_response(
+                        backend,
+                        self._tool_codec,
+                        request,
+                        generation_kwargs,
+                    )
+                content = _generate_with_backend(backend, request, generation_kwargs)
+            except ModelExecutionError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - backend errors vary.
+                raise ModelExecutionError(
+                    f"MLX local model generation failed for {request.model!r}: {exc}"
+                ) from exc
         return ModelResponse(content=str(content), raw=content)
 
     @property

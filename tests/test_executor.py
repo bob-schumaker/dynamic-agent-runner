@@ -5281,6 +5281,124 @@ def test_execute_workflow_runs_injected_mlx_tool_call_through_registry(
     assert tool_loop_events[0].payload["tool_id"] == "search_repo"
 
 
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_execute_workflow_runs_pinned_qwen3_tool_call_through_registry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    asynchronous: bool,
+) -> None:
+    from dynamic_agent_runner import (
+        PINNED_QWEN3_MLX_MODEL_ID,
+        create_qwen3_mlx_local_adapter,
+        create_qwen3_mlx_local_async_adapter,
+    )
+
+    class Tokenizer:
+        def __init__(self) -> None:
+            self.conversations: list[list[dict[str, object]]] = []
+
+        def apply_chat_template(
+            self,
+            conversation: list[dict[str, object]],
+            *,
+            tools: list[dict[str, object]] | None = None,
+            add_generation_prompt: bool,
+            tokenize: bool,
+        ) -> str:
+            assert tools is not None
+            assert add_generation_prompt is True
+            assert tokenize is False
+            self.conversations.append(conversation)
+            return "<native-qwen3-prompt>"
+
+    model_path = tmp_path / "mlx-model"
+    model_path.mkdir()
+    (model_path / "config.json").write_text("{}", encoding="utf-8")
+    (model_path / "tokenizer.model").write_text("", encoding="utf-8")
+    (model_path / "weights.npz").write_bytes(b"")
+    generations = [
+        '<tool_call>{"name":"search_repo","arguments":{"query":"agents"}}</tool_call>',
+        "final answer",
+    ]
+    monkeypatch.setitem(
+        sys.modules,
+        "mlx_lm",
+        SimpleNamespace(generate=lambda *_args, **_kwargs: generations.pop(0)),
+    )
+    tokenizer = Tokenizer()
+    factory = (
+        create_qwen3_mlx_local_async_adapter
+        if asynchronous
+        else create_qwen3_mlx_local_adapter
+    )
+    adapter = factory(
+        MLXLocalModelConfig(
+            model_aliases=("qwen3",),
+            model_path=model_path,
+            expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+        ),
+        model=object(),
+        tokenizer=tokenizer,
+        platform_system=lambda: "Darwin",
+    )
+    handler_calls: list[object] = []
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {
+                        "id": "search_repo",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"query": {"type": "string"}},
+                            "required": ["query"],
+                        },
+                    }
+                ),
+                lambda arguments: (
+                    handler_calls.append(arguments)
+                    or ToolResult(
+                        tool_id="search_repo",
+                        success=True,
+                        output={"raw": "secret raw"},
+                        model_output={"summary": "agents found"},
+                    )
+                ),
+            )
+        ]
+    )
+    workflow = loop_tool_workflow(execution_policy_extra={"model": "qwen3"})
+
+    if asynchronous:
+        result = asyncio.run(
+            execute_workflow_async(
+                workflow,
+                prompt="How?",
+                tool_registry=registry,
+                model_adapter=adapter,
+            )
+        )
+    else:
+        result = execute_workflow(
+            workflow,
+            prompt="How?",
+            tool_registry=registry,
+            model_adapter=adapter,
+        )
+
+    assert result.final_result == "final answer"
+    assert handler_calls == [{"query": "agents"}]
+    assistant_call, tool_result = tokenizer.conversations[1][-2:]
+    assert assistant_call["role"] == "assistant"
+    assert assistant_call["tool_calls"][0]["function"] == {
+        "name": "search_repo",
+        "arguments": '{"query":"agents"}',
+    }
+    assert tool_result["role"] == "tool"
+    assert tool_result["name"] == "search_repo"
+    assert tool_result["content"] == '{"summary": "agents found"}'
+
+
 def test_execute_workflow_awaits_adapter_returning_awaitable_response() -> None:
     class AwaitableAdapter:
         models = ("gpt-test",)
