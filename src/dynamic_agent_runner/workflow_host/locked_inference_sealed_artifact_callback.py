@@ -33,8 +33,12 @@ class LockedInferenceSealedArtifactCallbackResolver:
         self._execution = execution
 
     def resolve(
-        self, descriptor: SealedArtifactRunnerDescriptor, policy: object
+        self,
+        descriptor: SealedArtifactRunnerDescriptor,
+        policy: object,
+        revision: object,
     ) -> SealedArtifactCallbackProvider:
+        del revision
         roles = getattr(policy, "inference_roles", None)
         if not isinstance(roles, InferenceRoles):
             raise LockedInferenceSealedArtifactCallbackError(

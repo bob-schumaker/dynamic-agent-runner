@@ -248,7 +248,7 @@ def test_local_host_enables_sealed_artifact_runner_only_with_a_resolver(
     )
 
     class Resolver:
-        def resolve(self, _descriptor, _policy):
+        def resolve(self, _descriptor, _policy, _revision):
             return object()
 
     unavailable = LocalWorkflowHost.open(tmp_path / "state")
@@ -353,7 +353,7 @@ def test_local_host_rejects_tampered_asset_and_missing_handle_before_execution(
     class Resolver:
         calls = 0
 
-        def resolve(self, _descriptor, _policy) -> Callbacks:
+        def resolve(self, _descriptor, _policy, _revision) -> Callbacks:
             self.calls += 1
             return Callbacks()
 

@@ -165,7 +165,7 @@ def test_concrete_runner_reserves_consumes_and_publishes_atomically(
             raise AssertionError("no callback is declared")
 
     class CallbackResolver:
-        def resolve(self, _descriptor, _policy) -> Callbacks:
+        def resolve(self, _descriptor, _policy, _revision) -> Callbacks:
             return Callbacks()
 
     monkeypatch.setattr(
@@ -234,7 +234,7 @@ def test_tampered_asset_stops_before_handle_or_provider_or_egress(
     class CallbackResolver:
         calls = 0
 
-        def resolve(self, _descriptor, _policy):
+        def resolve(self, _descriptor, _policy, _revision):
             self.calls += 1
             raise AssertionError("provider resolution must not happen")
 
@@ -315,7 +315,7 @@ def test_changed_selected_provider_stops_before_descriptor_or_callback(
     class Resolver:
         calls = 0
 
-        def resolve(self, _descriptor, _policy):
+        def resolve(self, _descriptor, _policy, _revision):
             self.calls += 1
             raise AssertionError("callback resolution must not happen")
 

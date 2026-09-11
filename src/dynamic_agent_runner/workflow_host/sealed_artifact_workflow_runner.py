@@ -34,7 +34,10 @@ class SealedArtifactCallbackResolver(Protocol):
     """Resolve the already selected private callback provider for one policy."""
 
     def resolve(
-        self, descriptor: SealedArtifactRunnerDescriptor, policy: object
+        self,
+        descriptor: SealedArtifactRunnerDescriptor,
+        policy: object,
+        revision: object,
     ) -> SealedArtifactCallbackProvider: ...
 
 
@@ -191,7 +194,7 @@ class SealedArtifactWorkflowRunner:
         )
         if policy.policy_digest != registration.policy_digest or tuple(
             getattr(registration, "selected_capability_provider_ids", ())
-        ) != tuple(policy.selected_capability_provider_ids):
+        ) != tuple(getattr(policy, "selected_capability_provider_ids", ())):
             raise SealedArtifactRunnerAdmissionError(
                 "sealed artifact runner is unavailable"
             )
@@ -209,7 +212,9 @@ class SealedArtifactWorkflowRunner:
             raise SealedArtifactRunnerAdmissionError(
                 "sealed artifact runner is unavailable"
             )
-        callback_provider = self._callback_resolver.resolve(descriptor, policy)
+        callback_provider = self._callback_resolver.resolve(
+            descriptor, policy, revision
+        )
         declared = {item.role: item for item in descriptor.inputs}
         supplied = dict(invocation.input_handles)
         if (
