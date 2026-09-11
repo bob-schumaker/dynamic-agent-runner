@@ -70,6 +70,129 @@ validates against an installed ABI. A new architecture family needs a later
 reviewed DAR ABI, but another model within an existing ABI does not require a
 DAR release.
 
+### Initial closed encoder ABI: `bert-encoder-mlx-v1`
+
+The initial ABI is deliberately narrow. Its exact identity is
+`{"id":"bert-encoder-mlx-v1","version":"1","contract_digest":"2179662461bf786c7f55d88d9e3454a3d4dc59f5e818a96e248847abc62e4420"}`.
+It covers BERT encoder weights represented in the ABI's fixed safetensors
+layout and a WordPiece tokenizer; it does not claim compatibility with every
+encoder-like model.
+
+For this ABI, `execution-descriptor.json` must declare exactly the sorted
+material roles `tokenizer` and `weights`. Its `abi_fields` object has exactly
+these keys:
+
+```json
+{
+  "tokenizer": {
+    "role": "tokenizer",
+    "format": "wordpiece-json-v1",
+    "normalization": "nfc" | "nfc-lowercase",
+    "pre_tokenizer": "bert-basic-v1",
+    "special_token_ids": {"cls": 101, "sep": 102, "pad": 0, "unk": 100},
+    "truncation": "longest-first"
+  },
+  "encoder": {
+    "weights_role": "weights",
+    "tensor_layout": "bert-encoder-safetensors-v1",
+    "dtype": "float16" | "bfloat16" | "float32",
+    "vocab_size": 1,
+    "hidden_size": 1,
+    "layers": 1,
+    "attention_heads": 1,
+    "intermediate_size": 1,
+    "max_positions": 1,
+    "type_vocab_size": 1
+  },
+  "pooling": "cls" | "masked_mean",
+  "normalization": "none" | "l2",
+  "limits": {
+    "max_items": 1,
+    "max_item_bytes": 1,
+    "max_aggregate_bytes": 1,
+    "max_tokens": 1,
+    "max_vectors": 1,
+    "max_memory_bytes": 1,
+    "max_tokenizer_bytes": 1,
+    "max_weights_bytes": 1,
+    "max_safetensors_header_bytes": 1,
+    "max_conformance_fixture_bytes": 1
+  },
+  "conformance": {
+    "fixture_filename": "conformance-fixture.json",
+    "fixture_sha256": "<64 lowercase hexadecimal characters>",
+    "precision": "float32",
+    "metric": "max_abs",
+    "max_error": 0.0
+  }
+}
+```
+
+All integer fields are plain JSON integers (never booleans) and positive except
+the four non-negative token IDs. The special-token IDs are distinct and less
+than `vocab_size`; `hidden_size` is divisible by `attention_heads`; and
+`max_tokens` is no greater than `max_positions`. The validator bounds strings
+at 128 bytes, accepts at most two material roles, and applies these ABI maxima:
+`vocab_size` 500,000; `hidden_size` 4,096; `layers` 48;
+`attention_heads` 64; `intermediate_size` 16,384; `max_positions` 4,096;
+`type_vocab_size` 16; `max_items` 256; `max_item_bytes` 1 MiB;
+`max_aggregate_bytes` 16 MiB; `max_tokens` 4,096; `max_vectors` 16,384; and
+`max_memory_bytes` and `max_weights_bytes` 8 GiB; `max_tokenizer_bytes` and
+`max_conformance_fixture_bytes` 16 MiB; and `max_safetensors_header_bytes`
+16 MiB. `max_error` is finite, non-negative, and at most `0.1`.
+
+The output vector dimension is exactly `encoder.hidden_size`; it is not a
+separate descriptor setting.
+
+The ABI owns this complete safetensors tensor-key and shape grammar, where `H`,
+`I`, `L`, `V`, `P`, and `T` are respectively `hidden_size`,
+`intermediate_size`, `layers`, `vocab_size`, `max_positions`, and
+`type_vocab_size`; every listed tensor uses the declared `dtype`:
+
+| Keys | Shape |
+| --- | --- |
+| `embeddings.word_embeddings.weight` | `[V, H]` |
+| `embeddings.position_embeddings.weight` | `[P, H]` |
+| `embeddings.token_type_embeddings.weight` | `[T, H]` |
+| `embeddings.LayerNorm.{weight,bias}` | `[H]` |
+| `encoder.layer.{0..L-1}.attention.self.{query,key,value}.{weight,bias}` | `[H, H]` for `weight`; `[H]` for `bias` |
+| `encoder.layer.{0..L-1}.attention.output.dense.{weight,bias}` | `[H, H]` for `weight`; `[H]` for `bias` |
+| `encoder.layer.{0..L-1}.attention.output.LayerNorm.{weight,bias}` | `[H]` |
+| `encoder.layer.{0..L-1}.intermediate.dense.{weight,bias}` | `[I, H]` for `weight`; `[I]` for `bias` |
+| `encoder.layer.{0..L-1}.output.dense.{weight,bias}` | `[H, I]` for `weight`; `[H]` for `bias` |
+| `encoder.layer.{0..L-1}.output.LayerNorm.{weight,bias}` | `[H]` |
+
+No other tensor key is accepted. The descriptor provides no regex, expression,
+arbitrary tensor predicate, import, loader, runtime-version, device, or provider
+field. After verified material resolution, the backend validates the actual
+tokenizer bytes and safetensors header against those byte ceilings and this
+grammar before allocation. It computes with checked integer arithmetic the
+declared parameter bytes plus `4 * max_items * max_tokens * hidden_size`
+activation bytes and rejects an estimate greater than the tighter descriptor or
+host memory ceiling before MLX allocation. This is a pre-allocation admission
+bound, not a claim that in-process MLX gives a hard memory limit.
+
+The fixture filename is exactly `conformance-fixture.json`, a unique regular
+package-manifest entry; its SHA-256 and descriptor byte ceiling are verified
+before it is parsed. It supplies synthetic inputs, masks, expected vectors, and
+tolerance evidence but does not select a model or authorize the provider. The
+receiver's MLX dependency/version admission remains host-owned, not descriptor
+data.
+
+The ABI fixes encoder math as follows: embed each token by summing word,
+absolute-position, and token-type vectors, then apply LayerNorm with population
+variance and epsilon `1e-12`; do not apply dropout. Convert a binary attention
+mask to additive `0` for accepted keys and `-10000` for rejected keys. For each
+layer, compute scaled dot-product attention as `QKᵀ / sqrt(H / heads)`, add the
+mask, and softmax over the final (key) axis; apply the output dense layer,
+residual, and the same LayerNorm. Apply the exact-error-function GELU
+`0.5 * x * (1 + erf(x / sqrt(2)))` in the intermediate block, then output
+dense, residual, and LayerNorm. `pooling: "cls"` returns the final hidden state
+at position zero; it never uses a pooler projection, and a pooler tensor is not
+accepted. `pooling: "masked_mean"` averages final hidden states over accepted
+mask positions. Finally apply the declared normalization. These are ABI
+constants, not descriptor settings.
+
 The backend shall:
 
 - lazy-import `mlx` and `mlx.nn` only on the first eligible embedding call;
@@ -123,9 +246,9 @@ fallback.
 
 ### FR-2: descriptor and material admission
 
-Before material access, tokenization, or MLX allocation, DAR shall canonicalize
-and validate the descriptor through the exact receiver-installed ABI contract,
-then bind its package-declared role references to the parsed material lock.
+Before tokenization or MLX allocation/evaluation, DAR shall canonicalize and
+validate the descriptor through the exact receiver-installed ABI contract, then
+bind its package-declared role references to the parsed material lock.
 It validates every required role, path, hash, size ceiling, safe header, tensor
 predicate, and tokenizer asset; and enforces ABI and host resource maxima. It
 rejects unknown or wrong ABI ID/version/digest, schema mismatch, missing, extra,

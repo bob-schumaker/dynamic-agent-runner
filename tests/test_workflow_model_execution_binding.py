@@ -22,6 +22,7 @@ from dynamic_agent_runner.workflow_host.execution_descriptors import (
 )
 from dynamic_agent_runner.workflow_host.model_materials import (
     parse_model_dependency_lock,
+    transformation_digest,
 )
 
 
@@ -60,7 +61,44 @@ def _requirements(*, converter: bool = False):
     return CapabilityRequirements(tuple(entries), bindings)
 
 
-def _v2_lock(*, descriptor_sha256: str):
+def _v2_lock(*, descriptor_sha256: str, prepared_weights: bool = False):
+    sources: list[dict[str, object]] = [
+        {
+            "role": "tokenizer",
+            "group": "base",
+            "source_type": "huggingface_file",
+            "repository": "example/model",
+            "revision": "a" * 40,
+            "filename": "tokenizer.json",
+            "sha256": "b" * 64,
+        },
+        {
+            "role": "weights" if not prepared_weights else "source_weights",
+            "group": "base",
+            "source_type": "huggingface_file",
+            "repository": "example/model",
+            "revision": "a" * 40,
+            "filename": "weights.safetensors",
+            "sha256": "c" * 64,
+        },
+    ]
+    sources.sort(key=lambda item: str(item["role"]))
+    preparation: list[dict[str, object]] = []
+    if prepared_weights:
+        operation: dict[str, object] = {
+            "capability_id": "model.prepare.test.v1",
+            "contract_version": "1",
+            "contract_digest": "e" * 64,
+            "inputs": ["source_weights"],
+            "output": {
+                "role": "weights",
+                "group": "base",
+                "filename": "prepared.safetensors",
+                "sha256": "f" * 64,
+            },
+        }
+        operation["transformation_digest"] = transformation_digest(operation)
+        preparation.append(operation)
     return parse_model_dependency_lock(
         {
             "format_version": 2,
@@ -70,27 +108,8 @@ def _v2_lock(*, descriptor_sha256: str):
                 "filename": "execution-descriptor.json",
                 "sha256": descriptor_sha256,
             },
-            "sources": [
-                {
-                    "role": "tokenizer",
-                    "group": "base",
-                    "source_type": "huggingface_file",
-                    "repository": "example/model",
-                    "revision": "a" * 40,
-                    "filename": "tokenizer.json",
-                    "sha256": "b" * 64,
-                },
-                {
-                    "role": "weights",
-                    "group": "base",
-                    "source_type": "huggingface_file",
-                    "repository": "example/model",
-                    "revision": "a" * 40,
-                    "filename": "weights.safetensors",
-                    "sha256": "c" * 64,
-                },
-            ],
-            "preparation": [],
+            "sources": sources,
+            "preparation": preparation,
         }
     )
 
@@ -185,6 +204,19 @@ def test_v2_binding_rejects_descriptor_mismatch_before_validator_work() -> None:
             descriptor_validators=_registry(calls=calls),
         )
     assert calls == []
+
+
+def test_v2_binding_accepts_a_descriptor_role_from_preparation_output() -> None:
+    descriptor = _v2_descriptor()
+
+    binding = derive_model_execution_binding(
+        lock=_v2_lock(descriptor_sha256=descriptor.digest, prepared_weights=True),
+        requirements=_requirements(),
+        execution_descriptor=descriptor,
+        descriptor_validators=_registry(),
+    )
+
+    assert binding.execution_descriptor_digest == descriptor.digest
 
 
 def test_v2_bindings_for_distinct_descriptors_remain_isolated_with_one_abi() -> None:

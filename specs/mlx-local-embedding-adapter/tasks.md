@@ -25,13 +25,24 @@
 
 - [ ] MLE1.1 [spec/design] Define ABI-neutral `execution-descriptor.json`, its
   canonical digest, non-circular material-lock binding, and initial BERT-style
-  ABI identity (ID, version, contract digest).
+  ABI identity (ID, version, contract digest) with one closed finite
+  `abi_fields` grammar.
   - Acceptance: the descriptor has no executable code, model registry key,
-    source endpoint, path, device setting, or provider selector.
+    source endpoint, path, device setting, runtime version, or provider
+    selector; tensor grammar is ABI-owned rather than descriptor-provided.
 - [ ] MLE1.2 [tests, RED] Add fake canonical-byte and rejection vectors for
   non-circular lock/descriptor construction, descriptor/lock mismatch, unknown
   or wrong ABI ID/version/digest, ABI-schema mismatch, invalid roles/tensor
-  rules, invalid limits, and malformed conformance records.
+  rules, invalid limits, malformed conformance records, and generic
+  source-or-preparation-output role closure.
+  - Acceptance: vectors cover exact nested keys; JSON integers rather than
+    booleans; distinct non-negative token IDs below vocabulary size; head-size
+    divisibility; token/position ordering; all byte and allocation ceilings;
+    literal fixture asset path, declaration, size, and digest; and missing,
+    extra, malformed, or wrong-shaped ABI-owned tensor entries before material,
+    framework, or MLX work. Vectors also prove output dimension equals hidden
+    size and each fixed BERT operation (embedding order, mask, attention,
+    LayerNorm, GELU, pooling, and normalization) has one interpretation.
 - [ ] MLE1.3 [implementation] Resolve the exact ABI through a pure
   receiver-installed validator registry, then parse, validate, and bind the
   descriptor through generic model-material and embedding execution bindings.

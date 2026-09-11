@@ -17,9 +17,11 @@
 1. Extend the generic model-material contract with a descriptor digest and a
    fixed ABI-neutral `execution-descriptor.json` file. Its descriptor does not
    contain the material-lock digest, avoiding a circular construction.
-2. Define the initial BERT-style `architecture_abi` identity (ID, version,
-   contract digest) and its vocabulary for roles, tokenizer, tensor, pooling,
-   normalization, bounds, and conformance.
+2. Define the initial closed BERT-style `architecture_abi` identity (ID,
+   version, contract digest) and its finite vocabulary for exact tokenizer,
+   tensor-layout, pooling, normalization, bounds, and synthetic-conformance
+   fields. The ABI owns tensor grammar; a descriptor cannot carry predicates,
+   expressions, imports, loader settings, runtime versions, or a model ID.
 3. Resolve the exact ABI through a pure receiver-installed validator registry
    before material/framework work, then bind descriptor digest into private
    model and embedding execution bindings without an MLX-specific manifest.

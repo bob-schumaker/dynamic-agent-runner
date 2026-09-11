@@ -164,10 +164,11 @@ def _validate_execution_descriptor(
         raise ModelExecutionBindingError("runner_unavailable")
     if lock.execution_descriptor.sha256 != descriptor.digest:
         raise ModelExecutionBindingError("runner_unavailable")
-    if any(
-        role not in {source.role for source in lock.sources}
-        for role in descriptor.material_roles
-    ):
+    declared_roles = {
+        *(source.role for source in lock.sources),
+        *(operation.output.role for operation in lock.preparation),
+    }
+    if any(role not in declared_roles for role in descriptor.material_roles):
         raise ModelExecutionBindingError("runner_unavailable")
     try:
         validators.validate(descriptor)
