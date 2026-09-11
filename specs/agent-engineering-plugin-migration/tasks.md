@@ -156,12 +156,16 @@ not make a DAR release a prerequisite for a plugin-only release.
       marketplace selector, and installed Codex source path agree. Release the
       changed payload as plugin version `0.1.2` with a receipt-backed local
       publication and enabled-install verification.
-- [ ] RED/GREEN: reapply routed packaging after `V` injection and rerun the
+- [x] RED/GREEN: reapply routed packaging after `V` injection and rerun the
       generated-tree, classification/source-map, payload-receipt, and staged
       clean-harness contract tests for the runtime-version-bearing output.
       Earlier pre-linkage packaging evidence does not prove that output; it does
       not invalidate a plugin-only release that retains its compatible runtime
       selector unchanged.
+  - Delivery: the native router packager regenerated the disposable
+    `agent-engineering` root from the checked-in invocation. Its generated-tree
+    validator, classification/source-map verifier, runtime-selector verifier,
+    and focused staged clean-harness tests passed for `V` `0.1.17`.
 - [x] RED/GREEN: extend the clean-Codex harness to stage only the generated
       routed root. Statically prove that the router is the sole initial visible
       skill surface, then prove DAR-targeted bounded author/finalize/invoke
