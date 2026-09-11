@@ -337,7 +337,8 @@ OpenAI-compatible local server, use ``LocalOpenAIEndpointConfig`` instead.
 Structured output, embeddings, multimodal IO, streaming public APIs,
 conversion, and server lifecycle helpers remain unsupported feature surfaces.
 
-For the pinned ``mlx-community/Qwen3-4B-Instruct-2507-nvfp4`` artifact,
+For the pinned ``mlx-community/Qwen3-4B-Instruct-2507-nvfp4`` artifact at
+revision ``111ab717db337468c86004a79bd9df19c6e3986d``,
 ``create_qwen3_mlx_local_adapter(...)`` and
 ``create_qwen3_mlx_local_async_adapter(...)`` package a strict native-envelope
 codec with a compatible backend. The caller loads the exact local model and
@@ -378,6 +379,9 @@ It accepts only an omitted ``tool_choice`` and exactly one pure native
 duplicate JSON keys, and non-object arguments fail before tool dispatch. This
 is explicit opt-in, not Qwen-family detection; the generic MLX helpers remain
 text-only unless a caller supplies their own compatible codec/backend pair.
+The dated local manual competency receipt is in
+``specs/mlx-local-model-tool-use/validation.md``; it is not pytest, CI, release,
+or arbitrary-model compatibility evidence.
 
 .. header2:: Apple Foundation Models
 

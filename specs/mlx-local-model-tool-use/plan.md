@@ -1,6 +1,6 @@
 # MLX Local-Model Tool-Use Implementation Plan
 
-Status: M6.1–M6.3 delivered; M6.4 owned-codec source delivery in progress
+Status: delivered
 
 ## Goal
 
@@ -119,7 +119,8 @@ strict parser and sync/async Qwen3 helpers in a separate source module. The
 helpers require a caller-loaded model/tokenizer pair and the pinned configured
 model identity; they support only omitted `tool_choice` and leave generic MLX
 factories text-only. Manual model competency remains separate from the fake-only
-source contract tests.
+source contract tests. The dated, bounded local result is recorded in
+[`validation.md`](validation.md); it does not change CI or release eligibility.
 
 ## Superseded M6.4 Approach — Built-in Qwen3 MLX Codec
 

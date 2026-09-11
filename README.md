@@ -375,9 +375,10 @@ tool-result continuation. Structured output, embeddings, multimodal IO,
 streaming public APIs, conversion, and server lifecycle helpers remain separate
 unsupported feature surfaces.
 
-For the pinned `mlx-community/Qwen3-4B-Instruct-2507-nvfp4` artifact, DAR also
-ships explicit sync and async convenience helpers. Load that exact local model
-first, then pass its pair to `create_qwen3_mlx_local_adapter` or
+For the pinned `mlx-community/Qwen3-4B-Instruct-2507-nvfp4` artifact at
+revision `111ab717db337468c86004a79bd9df19c6e3986d`, DAR also ships explicit
+sync and async convenience helpers. Load that exact local model first, then
+pass its pair to `create_qwen3_mlx_local_adapter` or
 `create_qwen3_mlx_local_async_adapter`; the configuration must use
 `PINNED_QWEN3_MLX_MODEL_ID` as `expected_model_id`:
 
@@ -414,7 +415,10 @@ This helper owns strict parsing of exactly one pure native
 `<tool_call>…</tool_call>` envelope. It accepts only an omitted `tool_choice`;
 mixed prose, malformed envelopes, duplicate JSON keys, and non-object arguments
 fail before a tool is dispatched. It does not detect arbitrary Qwen models or
-change the text-only behavior of `create_mlx_local_adapter()`.
+change the text-only behavior of `create_mlx_local_adapter()`. Its dated manual
+local competency evidence is recorded in
+[`specs/mlx-local-model-tool-use/validation.md`](specs/mlx-local-model-tool-use/validation.md);
+it is not a pytest, CI, release, or arbitrary-model compatibility claim.
 
 For Apple's system-managed Foundation Model, install the optional Apple SDK
 extra on an eligible Apple-silicon Mac with Apple Intelligence enabled:
