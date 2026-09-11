@@ -90,16 +90,20 @@
 
 ## MLE4 — Manual arithmetic conformance
 
-- [ ] MLE4.1 [manual] With explicit authorization, run one workflow-defined
+- [x] MLE4.1 [manual] With explicit authorization, run one workflow-defined
   descriptor against its synthetic reference fixture on a compatible Mac;
   record redacted tolerance, shape, padding/truncation, duration, and memory
   evidence only.
   - Depends on: MLE1.4 and MLE3.3.
-  - Attempt (2026-09-11): explicit authorization was granted on Darwin/arm64,
-    but `import mlx.core` failed before fixture admission with redacted
-    `metal::load_device` / no-Metal-device availability. This headless or
-    virtualized host is not eligible; retry only on an interactive Apple Silicon
-    host with Metal access. No model material, fixture, or user data was read.
+  - Evidence (2026-09-11): the normal sandbox cannot expose Metal, but the
+    explicitly elevated Darwin/arm64 competency run completed with
+    `mlx==0.32.2`. The sealed generic synthetic descriptor
+    `a9b1…571f9` and fixture `aa87…63ed` produced a 2×2 finite result with
+    `max_abs_error: 0.0`, one padding token, four truncation tokens,
+    190.861 ms duration, and 71,450,624 bytes maximum RSS. No model material,
+    network, user text, or workflow output was used. The real run also exposed
+    and fixed the path-only `mlx.core.load` contract; admitted weights are now
+    held in a scoped temporary safetensors file and removed before return.
 
 ## MLE5 — Workflow capability provider
 
@@ -112,11 +116,27 @@
     fields and maps item/byte/vector bounds without an artifact read or MLX
     import; the existing embedding execution host ceiling remains the receiver
     tightening boundary.
-- [ ] MLE5.1 [tests, RED] Add fake-only `embedding.execute.v1` provider and
+- [x] MLE5.1 [tests, RED/GREEN] Add fake-only `embedding.execute.v1` provider and
   descriptor/material-binding conformance tests.
   - Depends on: MLE1.4, MLE4.1, and the approved embedding-index spec.
-- [ ] MLE5.2 [implementation] Register one generic MLX ABI provider through
+  - Evidence: `test_generic_mlx_adapter_registers_only_through_exact_embedding_capability`
+    confirms the existing receiver-owned generic bridge: a sealed MLX adapter,
+    exact material binding, exact `embedding.execute.v1` contract, capability
+    selection, and bounded embedding execution compose without an MLX import or
+    model identity. The test was immediately green because the generic bridge
+    predates this adapter; no duplicate MLX-specific provider was added.
+- [x] MLE5.2 [implementation] Register one generic MLX ABI provider through
   the capability catalog. The registration identifies only the capability and
   ABI contract; it must not name, fetch, or select an embedding model.
-- [ ] MLE5.3 [tests, GREEN] Prove unavailable/changed providers fail before
+  - Evidence: `CapabilityCatalog` selects the receiver-private provider ID only
+    after exact contract/conformance admission, while
+    `LocalEmbeddingAdapterProvider` carries the sealed direct adapter into the
+    existing `EmbeddingProviderCatalog`. Both components are generic and do not
+    add an MLX-specific or model-specific public provider surface.
+- [x] MLE5.3 [tests, GREEN] Prove unavailable/changed providers fail before
   model load, embedding execution, builder import, or artifact egress.
+  - Evidence: `tests/test_embedding_execution.py` rejects changed,
+    nondeterministic, and wrong-binding providers before their adapter is called;
+    the MLE5.1 composition test verifies the generic MLX path uses that same
+    catalog. The sealed-artifact callback tests retain unavailable-provider and
+    pre-egress coverage.
