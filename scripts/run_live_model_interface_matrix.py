@@ -16,8 +16,9 @@ import inspect
 import json
 import os
 import re
+import signal
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -100,6 +101,10 @@ class LiveMatrixError(RuntimeError):
     """Raised when an operator's live-matrix request is incomplete or fails."""
 
 
+class LiveMatrixTimeout(LiveMatrixError):
+    """Raised when one bounded manual scenario exceeds its deadline."""
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", choices=_TARGETS, required=True)
@@ -111,6 +116,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--expected-model-id")
     parser.add_argument("--authorization-reference")
     parser.add_argument("--max-tokens", type=int, default=256)
+    parser.add_argument("--seed", type=int, default=20_260_830)
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--timeout-seconds", type=float, default=120.0)
     return parser
 
 
@@ -218,6 +226,14 @@ def _preflight(arguments: argparse.Namespace) -> str | None:
         return "invalid_authorization_reference"
     if arguments.target == "endpoint" and not _safe_base_url(arguments.base_url):
         return "invalid_base_url"
+    if arguments.target == "mlx_qwen3" and (
+        getattr(arguments, "seed", 20_260_830) < 0
+        or not isinstance(getattr(arguments, "temperature", 0.0), float)
+        or not 0.0 <= getattr(arguments, "temperature", 0.0) <= 2.0
+        or not isinstance(getattr(arguments, "timeout_seconds", 120.0), float)
+        or getattr(arguments, "timeout_seconds", 120.0) <= 0.0
+    ):
+        return "invalid_generation_controls"
     if arguments.target in {"llama_cpp", "mlx_qwen3"}:
         path_value = getattr(arguments, "model_path", None)
         if (
@@ -246,15 +262,39 @@ def _configuration(arguments: argparse.Namespace) -> dict[str, object]:
             "digest": _digest(str(arguments.model_path)),
         }
     configuration["max_tokens"] = getattr(arguments, "max_tokens", 256)
+    if arguments.target == "mlx_qwen3":
+        configuration["seed"] = getattr(arguments, "seed", 20_260_830)
+        configuration["temperature"] = getattr(arguments, "temperature", 0.0)
+        configuration["timeout_seconds"] = getattr(arguments, "timeout_seconds", 120.0)
     return configuration
 
 
 def _generation_settings(arguments: argparse.Namespace) -> dict[str, object]:
     """Return only the generation controls supported by the selected target."""
 
-    if arguments.target in {"endpoint", "llama_cpp", "mlx_qwen3"}:
+    if arguments.target == "mlx_qwen3":
+        return {"max_tokens": getattr(arguments, "max_tokens", 256)}
+    if arguments.target in {"endpoint", "llama_cpp"}:
         return {"max_tokens": getattr(arguments, "max_tokens", 256)}
     return {}
+
+
+def _run_with_deadline(seconds: float, operation: Callable[[], object]) -> object:
+    """Run one manual scenario under a main-thread wall-clock deadline."""
+
+    if seconds <= 0:
+        raise LiveMatrixTimeout("manual scenario deadline is invalid")
+
+    def expired(_signal: int, _frame: object) -> None:
+        raise LiveMatrixTimeout("manual scenario timed out")
+
+    previous_handler = signal.signal(signal.SIGALRM, expired)
+    previous_timer = signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        return operation()
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, *previous_timer)
+        signal.signal(signal.SIGALRM, previous_handler)
 
 
 def _uses_tool_choice_policy(arguments: argparse.Namespace) -> bool:
@@ -328,12 +368,20 @@ class _RecordingAdapter:
                 observation["normalized_calls"] = _safe_value(
                     getattr(completed, "tool_calls", ())
                 )
+                raw = getattr(completed, "raw", None)
+                observation["raw_output_digest"] = (
+                    _digest(raw) if isinstance(raw, str) else "unavailable"
+                )
                 fact["calls"] = tuple(getattr(completed, "tool_calls", ()))
                 return completed
 
             return record_response()
         observation["normalized_calls"] = _safe_value(
             getattr(response, "tool_calls", ())
+        )
+        raw = getattr(response, "raw", None)
+        observation["raw_output_digest"] = (
+            _digest(raw) if isinstance(raw, str) else "unavailable"
         )
         fact["calls"] = tuple(getattr(response, "tool_calls", ()))
         return response
@@ -476,13 +524,20 @@ def _adapter(arguments: argparse.Namespace, *, asynchronous: bool) -> object:
     if arguments.target == "mlx_qwen3":
         if not arguments.model_path:
             raise LiveMatrixError("--model-path is required for mlx_qwen3")
+        import mlx.core as mx
         from mlx_lm import load
+        from mlx_lm.sample_utils import make_sampler
 
+        mx.random.seed(arguments.seed)
         loaded_model, tokenizer = load(arguments.model_path)
         config = MLXLocalModelConfig(
             model_aliases=(model,),
             model_path=arguments.model_path,
             expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+            generation_kwargs={
+                "max_tokens": arguments.max_tokens,
+                "sampler": make_sampler(temp=arguments.temperature),
+            },
         )
         factory = (
             create_qwen3_mlx_local_async_adapter
@@ -638,6 +693,7 @@ def _run_scenario(
                 if error
                 else "positive_invariant_failed"
             ),
+            "error_category": type(error).__name__ if error is not None else None,
             "failure_locus": "not_applicable"
             if passed
             else (
@@ -720,7 +776,12 @@ def run_live_matrix(arguments: argparse.Namespace) -> dict[str, object]:
             )
         else:
             rows.extend(
-                _run_scenario(arguments, scenario, asynchronous=mode == "async")
+                _run_with_deadline(
+                    getattr(arguments, "timeout_seconds", 120.0),
+                    lambda scenario=scenario, asynchronous=mode == "async": (
+                        _run_scenario(arguments, scenario, asynchronous=asynchronous)
+                    ),
+                )
                 for scenario in scenarios
             )
     status, counts = _summary(rows)

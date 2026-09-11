@@ -89,6 +89,18 @@ def test_live_runner_parser_defaults_to_a_bounded_token_limit() -> None:
     assert arguments.max_tokens == 256
 
 
+def test_live_runner_parser_defaults_to_fixed_mlx_competency_controls() -> None:
+    module = _runner_module()
+
+    arguments = module._parser().parse_args(
+        ["--target", "mlx_qwen3", "--model", "qwen3"]
+    )
+
+    assert arguments.seed == 20_260_830
+    assert arguments.temperature == 0.0
+    assert arguments.timeout_seconds == 120.0
+
+
 def test_live_runner_uses_the_token_limit_only_for_local_targets() -> None:
     module = _runner_module()
 
@@ -99,6 +111,21 @@ def test_live_runner_uses_the_token_limit_only_for_local_targets() -> None:
         module._generation_settings(SimpleNamespace(target="openai", max_tokens=256))
         == {}
     )
+
+
+def test_live_runner_keeps_qwen3_temperature_out_of_request_parameters() -> None:
+    module = _runner_module()
+
+    assert module._generation_settings(
+        SimpleNamespace(target="mlx_qwen3", max_tokens=256, temperature=0.0)
+    ) == {"max_tokens": 256}
+
+
+def test_live_runner_deadline_interrupts_a_slow_scenario() -> None:
+    module = _runner_module()
+
+    with pytest.raises(module.LiveMatrixTimeout, match="timed out"):
+        module._run_with_deadline(0.001, lambda: __import__("time").sleep(0.1))
 
 
 def test_live_runner_omits_tool_choice_policy_for_native_tool_targets() -> None:
@@ -151,6 +178,25 @@ def test_shared_registry_is_harmless_and_records_one_invocation() -> None:
     ) == {"record_id": "record-created"}
     assert invocations == [("create_record", {"title": "DAR", "body": "controlled"})]
     assert results == [("create_record", {"record_id": "record-created"})]
+
+
+def test_recording_adapter_retains_only_a_raw_output_digest() -> None:
+    module = _runner_module()
+    observations: list[dict[str, object]] = []
+    facts: list[dict[str, object]] = []
+
+    class Adapter:
+        def create_response(self, _request: object) -> object:
+            return SimpleNamespace(tool_calls=(), raw="synthetic raw output")
+
+    response = module._RecordingAdapter(Adapter(), observations, facts).create_response(
+        SimpleNamespace(tools=(), tool_choice=None, messages=())
+    )
+
+    assert response.raw == "synthetic raw output"
+    assert observations[0]["raw_output_digest"] == module._digest(
+        "synthetic raw output"
+    )
 
 
 def test_live_runner_requires_explicit_environment_opt_in(monkeypatch) -> None:
@@ -289,6 +335,10 @@ def test_live_runner_continues_after_row_local_adapter_errors(
     assert [row["status"] for row in receipt["rows"]] == [
         "adapter_error",
         "adapter_error",
+    ]
+    assert [row["error_category"] for row in receipt["rows"]] == [
+        "RuntimeError",
+        "RuntimeError",
     ]
     assert "credential=should-not-appear" not in repr(receipt)
 
