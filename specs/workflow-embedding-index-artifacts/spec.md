@@ -3,7 +3,8 @@
 ## Metadata
 
 - Feature slug: `workflow-embedding-index-artifacts`
-- Status: E1–E5 experimental bridge complete; portable package-runtime work is planned
+- Status: implemented through the portable sealed-artifact runtime; legacy
+  bridge retired
 - Owner: dynamic-agent-runner workflow-package, model-material, and artifact boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`
@@ -188,8 +189,8 @@ identity, not executable configuration supplied by the caller.
 
 ### Portable package runtime
 
-E1–E5 provide a host-private experimental bridge, not a portable workflow
-package path. A portable package uses the generic
+The retired E1–E5 experimental bridge is not an execution path. A portable
+package uses the generic
 `sealed-artifact-runner.json` descriptor and its normal package manifest. The
 outer descriptor declares only generic artifact roles, media types, schemas,
 limits, the sealed asset, and bounded callback requirements. It declares:

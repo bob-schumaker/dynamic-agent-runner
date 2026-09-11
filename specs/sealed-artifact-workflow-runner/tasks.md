@@ -55,9 +55,10 @@
 - [x] S4 [tests, GREEN] Prove atomic outputs, provider revalidation, revocation,
   cancellation/late-result disposal, redacted receipts, and deterministic
   receiving-host execution.
-- [ ] S5 [migration] Route embedding-index and locked-inference package assets
+- [x] S5 [migration] Route embedding-index and locked-inference package assets
   through the generic runner; remove parallel invocation paths.
-  - Partial evidence: the abandoned standalone locked-inference ABI/runtime and
-    its tests were removed after the 2026-09-10 Council/Ponytail review. The
-    generic sealed runner is now the sole locked-inference callback path;
-    embedding migration remains open.
+  - Evidence: the abandoned standalone locked-inference ABI/runtime and its
+    tests were removed after the 2026-09-10 Council/Ponytail review. The
+    portable embedding ZIP now uses the same generic runner, and the
+    `embedding_index_builder` experimental bridge, its injected-builder tests,
+    and its manual harness were removed.

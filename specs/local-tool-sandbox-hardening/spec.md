@@ -76,9 +76,8 @@ tool named "sandbox."
 
 This slice does not:
 
-- change the owner-authorized experimental-profile assumption for existing DAR
-  workflow-local tools; that profile is not an isolation claim or an admission
-  route for untrusted packages;
+- change the sealed-artifact runner's local-owner admission boundary; it is not
+  an isolation claim or an admission route for untrusted packages;
 - add a binary-format registry or teach DAR SVG, PCAP, protobuf, or other
   domain semantics;
 - install, discover, download, or configure arbitrary tool packages;

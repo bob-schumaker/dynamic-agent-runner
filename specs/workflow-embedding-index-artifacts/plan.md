@@ -17,12 +17,10 @@
 - Version 1 admits only deterministic embedding providers: identical locked
   inputs and execution parameters must produce identical bundle and report
   bytes.
-- S3 and S4 use an explicit owner-authorized experimental profile while DAR is
-  evaluating personal-use scenarios. It runs only the exact sealed builder
-  digest, requires a local host-owner opt-in, makes no isolation claim, and
-  cannot admit a package received from another party. General-release and
-  untrusted-package execution remain gated on the approved isolation backend
-  from `local-tool-sandbox-hardening`.
+- The retired experimental S3/S4 bridge is not retained as a second execution
+  route. Portable assets run only through the sealed-artifact receiver; its
+  local-owner admission remains distinct from the deferred general-release
+  isolation backend in `local-tool-sandbox-hardening`.
 
 ## S1 — Snapshot and bundle contracts
 
@@ -59,7 +57,7 @@ Exit: a sealed package can lock its embedding model material closure and exact c
 the host fails closed before provider execution, model preparation, package
 import, sealed document ingress, or builder execution.
 
-## S3 — Bounded index-builder execution
+## S3 — Retired experimental index-builder execution
 
 1. Define the owner-authorized experimental profile: a local host owner opts in
    to one exact sealed package digest and builder asset digest; it exposes no
@@ -80,11 +78,10 @@ import, sealed document ingress, or builder execution.
    embedder doubles, asserting aggregate-only report egress and no raw artifact
    content in ordinary results or traces.
 
-Exit: a personal experimental workflow can produce a validated opaque bundle
-through the reviewed artifact and capability paths; general-release execution
-remains gated on approved untrusted-asset isolation.
+Exit: superseded by S5. The owner-authorized builder runtime, fake builder
+catalog, and manual harness are removed rather than retained in parallel.
 
-## S4 — Incremental bundles and package fixture
+## S4 — Retired experimental incremental fixture
 
 1. Add paired prior-bundle/prior-index-manifest admission, manifest
    compatibility, bundle-checksum, and identical-byte determinism tests.
@@ -95,9 +92,7 @@ remains gated on approved untrusted-asset isolation.
    DAR owns none of those semantics.
 4. Run focused suites, full pytest, Ruff, and `git diff --check`.
 
-Exit: an owner-authorized personal example package demonstrates initial and
-incremental index artifact production without a live model or a persistent
-external store. General-release distribution remains separately gated.
+Exit: superseded by the portable ZIP fixture in S5.
 
 ## Manual Acceptance
 
@@ -108,9 +103,9 @@ only. Verify that export is an explicit caller action and that no source bytes,
 vectors, paths, or non-aggregate report content appear in standard traces or
 diagnostics.
 
-The manually maintained test harness selects its own pinned material and uses
-the standard Hugging Face cache. No scenario model identifier, revision, file,
-or file digest is a DAR package or generic-contract value.
+Historical manual acceptance did not become a durable execution path. No
+scenario model identifier, revision, file, or file digest is a DAR package or
+generic-contract value.
 
 ## S5 — Portable package runtime
 

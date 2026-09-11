@@ -52,8 +52,7 @@
   - Evidence: `sandbox-workspace-runtime` now has a host-only bounded in-memory
     result collector, but `local-tool-sandbox-hardening` admits no OS/runtime
     isolation backend for untrusted executable assets. That is a general-release
-    gate; E4 may use the explicit owner-authorized experimental profile while
-    DAR evaluates personal-use scenarios.
+    gate; the retired E4 bridge is not retained as an execution alternative.
 
 ## E2 — Sealed artifacts
 
@@ -109,26 +108,20 @@
   builder descriptor, narrow snapshot/prior-bundle/embedding/result-location
   ABI, and no arbitrary writes.
   - Depends on: E1.3, E2.3, E3.3.
-  - Evidence: `tests/test_embedding_index_builder.py` failed with the expected
-    missing-module error before the experimental bridge existed; it now proves
-    exact owner authorization, data-only ABI, declared output slots, and zero
-    builder calls for rejected admission.
+  - Historical evidence: the predecessor bridge was verified before its
+    removal. E6 replaces its runtime behavior with a portable ZIP vector.
 - [x] E4.2 [implementation] Route the builder through the approved sandbox and
   artifact boundary; expose no directory, network, subprocess, or storage API.
   - Depends on: E4.1.
-  - Evidence: the owner-authorized experimental bridge passes only the sealed
-    snapshot, optional bounded prior bundle, exact binding, embedding callback,
-    and in-memory declared result collector. It parses and validates the bundle
-    manifest/report before returning a host-private receipt; the profile makes
-    no untrusted-package isolation claim.
+  - Superseded: E6 routes the same generic artifact/callback behavior through
+    the sealed-artifact runner; the bridge was removed to prevent parallel
+    invocation paths.
 - [x] E4.3 [tests, GREEN] Add a deterministic toy package fixture proving
   initial and incremental identical-byte bundle/report identity, rebuild
   boundaries, aggregate-only report egress, and redaction.
   - Depends on: E4.2.
-  - Evidence: `tests/fixtures/embedding-index-toy-builder/toy_builder.py` is
-    injected only by the fake host. Focused tests prove repeat initial and
-    incremental byte identity, prior-bundle report binding, changed-builder
-    rejection, and absence of source/vector values from host result reprs.
+  - Superseded: the injected toy builder fixture was removed with the bridge;
+    E6 proves sealed ZIP egress without fixture injection.
 
 ## E5 — Verification and manual gate
 
@@ -143,11 +136,10 @@
   Retain only digest identities and aggregate coverage counts; verify the
   returned coverage report has no per-document or raw-content fields.
   - Depends on: E5.1.
-  - The manually maintained test harness supplies and verifies its scenario
-    material pin; no scenario material identity belongs in this task contract.
-  - Evidence: on 2026-09-10, the owner-authorized host-private E5.2 fixture
+  - No scenario material identity belongs in this task contract.
+  - Historical evidence: on 2026-09-10, the owner-authorized host-private E5.2 fixture
     ran through
-    llama.cpp on local Metal. Its retained test-harness receipt contains only
+    llama.cpp on local Metal. Its receipt contained only
     bundle/report/binding/package digests and aggregate counts: one document,
     one chunk, one indexed, and zero skipped/deleted/errors. The harness checks
     that no document, path, content, text, vector, or bundle field can enter
