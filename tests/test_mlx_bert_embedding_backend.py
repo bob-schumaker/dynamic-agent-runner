@@ -283,6 +283,25 @@ def test_backend_admits_exact_tensor_offsets_before_execution() -> None:
     assert calls == ["tokenizer", "weights"]
 
 
+def test_backend_loads_mlx_only_after_sealed_material_admission() -> None:
+    calls: list[str] = []
+    weights = _weights_blob()
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda role: (
+            calls.append(role)
+            or (_tokenizer_bytes() if role == "tokenizer" else weights)
+        ),
+        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
+        encoder=lambda _tokens: calls.append("encoder-call") or (),
+        mlx_loader=lambda: calls.append("mlx") or object(),
+    )
+
+    with pytest.raises(EmbeddingExecutionError, match="backend"):
+        backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
+
+    assert calls == ["tokenizer", "weights", "mlx"]
+
+
 def test_backend_rejects_invalid_wordpiece_tokenizer_before_weights_read() -> None:
     calls: list[str] = []
     tokenizer = _tokenizer_bytes(

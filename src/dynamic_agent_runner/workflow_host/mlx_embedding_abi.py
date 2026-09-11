@@ -163,7 +163,7 @@ class _EmbeddingMaterialReceipt(Protocol):
 
 
 class BertEncoderMlxV1EmbeddingBackend:
-    """Validate sealed artifacts before any injected tokenizer or encoder call."""
+    """Admit sealed BERT material before loading the MLX runtime."""
 
     def __init__(
         self,
@@ -171,10 +171,12 @@ class BertEncoderMlxV1EmbeddingBackend:
         artifact_reader: Callable[[str], bytes],
         tokenizer: Callable[[tuple[EmbeddingInputItem, ...]], object],
         encoder: Callable[[object], object],
+        mlx_loader: Callable[[], object] | None = None,
     ) -> None:
         self._artifact_reader = artifact_reader
         self._tokenizer = tokenizer
         self._encoder = encoder
+        self._mlx_loader = mlx_loader or _load_mlx_core
 
     def embed(
         self,
@@ -231,6 +233,12 @@ class BertEncoderMlxV1EmbeddingBackend:
         except Exception as error:  # noqa: BLE001 - sealed artifact boundary.
             raise EmbeddingExecutionError(
                 "MLX embedding material is unavailable"
+            ) from error
+        try:
+            self._mlx_loader()
+        except Exception as error:  # noqa: BLE001 - dependency boundary.
+            raise EmbeddingExecutionError(
+                "MLX embedding backend is unavailable"
             ) from error
         raise EmbeddingExecutionError("MLX embedding backend is unavailable")
 
@@ -296,6 +304,12 @@ def _bert_tensor_shapes(
             }
         )
     return shapes
+
+
+def _load_mlx_core() -> object:
+    import mlx.core as mx
+
+    return mx
 
 
 def _validate_bert_tensor_header(
