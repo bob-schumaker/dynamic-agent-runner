@@ -134,6 +134,13 @@ the experimental profile. `context.read_input(role) -> bytes` permits at most
 one read for each declared role after validation.
 `context.invoke_callback(name, request: bytes) -> bytes` permits only a
 declared callback; and
+`context.callback_identity(name) -> {"asset_digest", "child_contract_digest",
+"digest"}` permits an asset to read only the exact identity of one callback it
+already declares. `digest` is the SHA-256 of canonical ASCII JSON
+`{"asset_digest": asset_digest, "child_contract_digest": child_contract_digest}`.
+It exposes no package path, descriptor bytes, provider, material, handle, or
+execution setting. This closes the otherwise circular case where a sealed asset
+must bind an output to an identity that includes its own digest; and
 `context.write_output(role, media_type, content: bytes) -> None` permits exactly
 the next unresolved output role in descriptor order. An out-of-order, repeated,
 or extra write destroys the collector. The host validates the supplied media

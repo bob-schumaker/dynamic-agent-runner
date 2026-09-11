@@ -41,9 +41,15 @@ or output-destination semantics to DAR.
 The production runner remains the only asset execution route. Test observers
 may wrap real collaborators, but they are not a public plugin API and must not
 become a second generic admission pipeline. Asset code continues to receive
-only `read_input`, `invoke_callback`, and `write_output`; it cannot receive
+only `read_input`, `invoke_callback`, declared-callback `callback_identity`,
+and `write_output`; it cannot receive
 host paths, raw handle records, capability objects, provider identities, or
 unsealed collector/output bytes.
+
+`callback_identity` exposes only the exact asset/child-contract identity and
+its canonical digest for an already declared callback. It is not descriptor
+introspection or a provider/material surface; it lets an asset bind output
+metadata without an impossible self-digest literal.
 
 The experimental personal profile is not an isolation claim. It admits only a
 locally selected owner package with exact registration, revision, asset, and

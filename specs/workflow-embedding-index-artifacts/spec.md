@@ -221,6 +221,12 @@ capabilities/materials before it loads the asset or accepts the input. The
 outer descriptor deliberately does not repeat a model name, repository,
 revision, dimension, architecture, or backend setting.
 
+The sealed asset obtains that already-declared composite identity only through
+the generic `context.callback_identity("embed")` record. It uses that record's
+`digest` as `index_builder_digest`; it does not embed its own asset digest in
+source code, which would be circular, nor receive any provider or material
+setting.
+
 The receiver-owned sealed callback integration is the only portable-runtime
 integration seam. Before either sealed-input preparation copies caller bytes or
 the sealed runner reserves a handle, it recompiles the registered policy,

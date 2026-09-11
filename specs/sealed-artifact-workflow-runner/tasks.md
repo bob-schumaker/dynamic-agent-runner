@@ -48,6 +48,9 @@
   - [x] Add callback concurrency/deadline enforcement, cancellation, and
     aggregate runtime limits.
   - [x] Add redacted receipts.
+  - [ ] Expose only a declared callback's digest-safe asset/child-contract
+    identity to its asset, with no descriptor, provider, material, path, or
+    handle disclosure. Add fake-only ABI and negative-name vectors.
 - [x] S4 [tests, GREEN] Prove atomic outputs, provider revalidation, revocation,
   cancellation/late-result disposal, redacted receipts, and deterministic
   receiving-host execution.

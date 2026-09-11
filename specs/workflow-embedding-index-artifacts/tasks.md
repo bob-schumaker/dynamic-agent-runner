@@ -187,6 +187,13 @@
     contains only request/response schema digests. The projection keeps ABI
     fields and model dimensions out of the portable descriptor and permits a
     receiver only to tighten limits.
+- [x] E6.1c [design addendum] Provide a generic declared-callback identity
+  record so a sealed asset can bind output metadata to the composite
+  asset/child-contract digest without a self-digest literal.
+  - Evidence: an E6 ZIP fixture cannot truthfully author `index_builder_digest`
+    while that identity includes the asset SHA-256. The record reveals only
+    declared digest identities, not provider, material, path, or descriptor
+    state; the sealed-runner specification owns its generic ABI.
 - [ ] E6.2 [tests, RED] Add ZIP receiver-admission vectors proving malformed,
   unbound, or unauthorized packages load no asset, model, provider, ingress, or
   result collector. Include canonical portable snapshot-wire decoding and a
