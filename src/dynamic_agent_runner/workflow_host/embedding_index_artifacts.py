@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from base64 import b64decode, b64encode
 from dataclasses import dataclass, field
 from hashlib import sha256
 from typing import Mapping, Sequence
@@ -83,11 +84,59 @@ class DocumentSnapshot:
         _validate_documents(normalized, policy)
         return cls(normalized, sha256(_snapshot_manifest_bytes(normalized)).hexdigest())
 
+    @classmethod
+    def from_wire_bytes(
+        cls, content: bytes, *, policy: DocumentSnapshotPolicy
+    ) -> "DocumentSnapshot":
+        """Decode exactly one canonical sealed snapshot wire representation."""
+
+        if not isinstance(content, bytes) or content.startswith(b"\xef\xbb\xbf"):
+            raise DocumentSnapshotError("document snapshot is invalid")
+        try:
+            value = json.loads(
+                content.decode("utf-8"), object_pairs_hook=_no_duplicate_object
+            )
+            if (
+                not isinstance(value, dict)
+                or _canonical_json(value) != content
+                or set(value) != {"format_version", "documents"}
+                or value["format_version"] != 1
+                or not isinstance(value["documents"], list)
+            ):
+                raise ValueError
+            documents = tuple(_wire_document(item) for item in value["documents"])
+            return cls.create(documents, policy=policy)
+        except (
+            TypeError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            ValueError,
+        ) as error:
+            raise DocumentSnapshotError("document snapshot is invalid") from error
+
     @property
     def manifest_bytes(self) -> bytes:
         """Return canonical private manifest bytes without document content."""
 
         return _snapshot_manifest_bytes(self.documents)
+
+    @property
+    def wire_bytes(self) -> bytes:
+        """Return the canonical sealed input encoding, including private bytes."""
+
+        return _canonical_json(
+            {
+                "format_version": 1,
+                "documents": [
+                    {
+                        "content_base64": b64encode(document.content).decode("ascii"),
+                        "document_id": document.document_id,
+                        "media_type": document.media_type,
+                    }
+                    for document in self.documents
+                ],
+            }
+        )
 
 
 @dataclass(frozen=True)
@@ -450,6 +499,26 @@ def _validate_documents(
         raise DocumentSnapshotError("document snapshot is invalid")
 
 
+def _wire_document(value: object) -> SnapshotDocument:
+    if not isinstance(value, dict) or set(value) != {
+        "content_base64",
+        "document_id",
+        "media_type",
+    }:
+        raise ValueError
+    encoded = value["content_base64"]
+    if (
+        not isinstance(encoded, str)
+        or not isinstance(value["document_id"], str)
+        or not isinstance(value["media_type"], str)
+    ):
+        raise ValueError
+    content = b64decode(encoded.encode("ascii"), validate=True)
+    if b64encode(content).decode("ascii") != encoded:
+        raise ValueError
+    return SnapshotDocument(value["document_id"], value["media_type"], content)
+
+
 def _snapshot_manifest_bytes(documents: tuple[SnapshotDocument, ...]) -> bytes:
     return _canonical_json(
         {
@@ -489,6 +558,13 @@ def _canonical_json(value: object) -> bytes:
         separators=(",", ":"),
         allow_nan=False,
     ).encode("utf-8")
+
+
+def _no_duplicate_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    value = dict(pairs)
+    if len(value) != len(pairs):
+        raise ValueError
+    return value
 
 
 def _positive(value: object) -> bool:

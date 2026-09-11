@@ -88,6 +88,15 @@ the corresponding bounded document bytes. Document IDs are package-visible
 identifiers, not host filesystem paths. The ingress host builds and validates
 the snapshot before workflow code or model material is loaded.
 
+Its portable wire representation is canonical UTF-8 JSON with exactly
+`format_version: 1` and a lexically ordered `documents` array. Each document
+has exactly `content_base64`, `document_id`, and `media_type`; the content uses
+canonical standard Base64 with padding and decodes to the bounded document
+bytes. The receiver rejects duplicate JSON keys, noncanonical JSON/Base64,
+unsupported media types, and malformed or excess content before package asset
+loading. The wire bytes remain a sealed input: they are never placed in a
+receipt, trace, exception, or ordinary result.
+
 The manifest is deterministically ordered by document ID and carries a
 `snapshot_digest`, the SHA-256 of canonical manifest bytes plus the ordered
 content hashes. A caller may retain its source/path mapping outside DAR; DAR
@@ -223,12 +232,14 @@ binding/provider revalidation without fallback or reselection.
 After the asset writes the descriptor-declared output slots and before any
 output handle is published, that same receiver-owned integration validates the
 private candidate triple. It receives only the generic descriptor, policy,
-revision, sealed candidate bytes, and input digests captured by the runner. It
-verifies the index-bundle checksum, common snapshot/material/capability/builder
-bindings, optional prior-pair identity, and aggregate-only coverage report. A
-failure destroys every candidate and publishes no output handle. This is
-receiver composition, not package-selected validation code or a new
-index-specific runner field.
+revision, sealed candidate bytes, and private input bytes/digests captured by
+the runner. It decodes the declared snapshot wire artifact only inside the
+receiver to derive its semantic `snapshot_digest`, then verifies the
+index-bundle checksum, common snapshot/material/capability/builder bindings,
+optional prior-pair identity, and aggregate-only coverage report. A failure
+destroys every candidate and publishes no output handle. This is receiver
+composition, not package-selected validation code or a new index-specific
+runner field.
 
 Each receiver-supported embedding ABI projects its sealed execution descriptor
 to a private `EmbeddingBatchLimits` value: item count, item and aggregate UTF-8

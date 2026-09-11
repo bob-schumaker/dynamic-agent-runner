@@ -189,7 +189,9 @@
     receiver only to tighten limits.
 - [ ] E6.2 [tests, RED] Add ZIP receiver-admission vectors proving malformed,
   unbound, or unauthorized packages load no asset, model, provider, ingress, or
-  result collector.
+  result collector. Include canonical portable snapshot-wire decoding and a
+  candidate manifest whose semantic snapshot binding differs from the raw
+  sealed-input digest.
 - [ ] E6.3 [implementation] Route authorized portable package invocation
   through descriptor-only admission and the sealed builder runtime; eliminate
   test-fixture injection from the portable path.

@@ -64,6 +64,29 @@ def test_document_snapshot_is_canonical_and_opaque() -> None:
     assert "beta" not in repr(snapshot)
 
 
+def test_document_snapshot_round_trips_through_canonical_sealed_wire_bytes() -> None:
+    snapshot = _snapshot()
+
+    restored = DocumentSnapshot.from_wire_bytes(snapshot.wire_bytes, policy=_policy())
+
+    assert restored == snapshot
+    assert restored.snapshot_digest == snapshot.snapshot_digest
+
+
+@pytest.mark.parametrize(
+    "content",
+    (
+        b'{"documents":[{"content_base64":"YWxwaGE","document_id":"document-a","media_type":"text/plain"}],"format_version":1}',
+        b'{"format_version":1,"documents":[{"content_base64":"YWxwaGE","document_id":"document-a","media_type":"text/plain"}]} ',
+    ),
+)
+def test_document_snapshot_rejects_noncanonical_sealed_wire_bytes(
+    content: bytes,
+) -> None:
+    with pytest.raises(DocumentSnapshotError):
+        DocumentSnapshot.from_wire_bytes(content, policy=_policy())
+
+
 @pytest.mark.parametrize(
     "documents",
     [
