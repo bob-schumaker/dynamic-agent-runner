@@ -39,7 +39,8 @@ admission has accepted the exact capability requirements.
 1. Introduce one generic material admission value that accepts only the parsed
    lock, a selected private capability provider, and host-owned material policy.
 2. Validate sources and preparation operations against exact declared
-   capabilities; bind the lock runner/profile pair to the exact runner
+   capabilities; bind the lock's v1 runner/profile or v2 runner/descriptor
+   identity to the exact runner
    capability. Do not admit recipe IDs, paths, endpoints, commands, or provider
    identities from package data.
 3. Reuse a verified cache only after recomputing the lock/transformation hashes;
@@ -48,7 +49,7 @@ admission has accepted the exact capability requirements.
 ### M4 — Generic runner and converter integration
 
 1. Derive a private `ModelExecutionBinding` from the validated lock, capability
-   requirements digest, runner/profile contract, and sealed converter binding.
+   requirements digest, execution identity, and sealed converter binding.
 2. Route generic runner and converter admission through it. Preserve unrelated
    compatibility paths only until their separately scoped migrations; do not
    add new domain-named constructors.
@@ -80,6 +81,20 @@ admission has accepted the exact capability requirements.
 3. Coordinate the exact generation capability mapping with
    `workflow-locked-inference-callback`; do not add domain model names or
    provider configuration.
+
+### M8 — Sealed declarative execution descriptors
+
+1. Add v2 model-material lock parsing and package binding for one fixed
+   descriptor file and its canonical digest, preserving all v1 behavior.
+2. Define the generic execution-ABI registry boundary: a descriptor selects an
+   installed ABI by contract, never a model, loader profile, factory, import,
+   provider, or path.
+3. Derive the descriptor digest through `ModelExecutionBinding` and
+   `EmbeddingExecutionBinding`; reject mismatch before materialization, loader
+   import, converter import, or ingress.
+4. Prove two distinct descriptors under one ABI remain isolated and that no
+   named experimental model, source revision, tensor table, or fixed dimension
+   reaches production source or package construction.
 
 ## Validation
 

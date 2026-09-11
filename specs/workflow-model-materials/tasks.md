@@ -55,7 +55,8 @@ fake-only and test-first.
 
 ## M4 — Runner and Converter Binding
 
-- [x] M4.1 [tests, RED] Add fake binding tests for exact lock runner/profile,
+- [x] M4.1 [tests, RED] Add fake binding tests for exact v1 runner/profile or
+  v2 runner/descriptor,
   model-execution capability, and converter-host capability mappings.
   - Evidence: focused binding vectors failed before the sealed binding module
     existed on 2026-09-09.
@@ -152,3 +153,22 @@ fake-only and test-first.
   - Evidence: focused fake-only material-set/inference-role parser and binding
     tests prove distinct role isolation; staging/export regression coverage
     proves deterministic legacy single-lock and new material-set ZIP behavior.
+
+## M8 — Sealed Declarative Execution Descriptors
+
+- [ ] M8.1 [tests, RED] Add v2 lock/package/binding vectors for non-circular
+  lock/descriptor construction, descriptor canonical bytes and digest,
+  lock/descriptor mismatch, unknown or wrong ABI ID/version/digest,
+  ABI-schema mismatch, unknown fields, duplicate descriptor assets, v1/v2
+  mixing, and pre-side-effect rejection.
+- [ ] M8.2 [implementation] Resolve an exact descriptor ABI through a pure
+  receiver-installed validator registry, then parse and bind the v2 execution
+  descriptor as immutable package data; preserve v1 parser, identity, and
+  runner behavior.
+- [ ] M8.3 [tests, GREEN] Prove a v2 descriptor reaches only an exact
+  receiver-installed generic execution ABI through the pure validator registry
+  and cannot select a model registry entry, loader profile, factory, import,
+  endpoint, path, device, or provider.
+- [ ] M8.4 [tests, GREEN] Prove two model descriptors using one ABI remain
+  isolated and production source/package construction contain no named
+  embedding-model material, dimension, role table, or model loader identity.

@@ -128,19 +128,21 @@ dimension for a single invocation. It exposes no provider path, credentials,
 model-selection control, raw request, or raw response to workflow code.
 
 The package declares this exact capability under
-`workflow-capability-requirements`. The embedding material lock binds a
-DAR-supported embedding runner/profile and immutable source material under
+`workflow-capability-requirements`. The embedding material lock binds immutable
+source material and a workflow-owned sealed execution descriptor interpreted by
+a DAR-supported generic embedding ABI under
 `workflow-model-materials`. The receiver resolves the provider before sealed
 input ingress, model download, package-local tool load, or index materialization.
 
 The package declares one `embedding.execute.v1` requirement and, because it
 has a model-material declaration, one additional DAR-owned runner capability
 requirement named by `capability_requirements.bindings.runner`. The runner
-requirement identifies the compatible runner/profile; it is not an `embedding`
+requirement identifies the compatible generic execution ABI; it is not an `embedding`
 binding or a provider selector. DAR derives an internal
 `EmbeddingExecutionBinding` from that generic material-execution binding and
-the exact embedding capability contract. Its content is the material-lock and
-runner/profile identities plus the embedding capability contract identity; it
+the exact embedding capability contract. Its content is the material-lock,
+execution-descriptor, descriptor-ABI, and runner-ABI identities plus the
+embedding capability contract identity; it
 contains no receiver provider ID, model path, or execution settings. The
 receiver resolves that binding before ingress and revalidates the selected
 provider immediately before embedding.
@@ -213,7 +215,8 @@ glob, URL, archive-extraction option, or source path.
 An embedding-index workflow shall declare one embedding model binding, the
 runner capability required by that model-material declaration, and an exact
 `embedding.execute.v1` capability requirement. DAR shall verify its
-model-material-lock digest, runner/profile compatibility, and selected provider
+model-material-lock digest, execution-descriptor/runner-ABI compatibility, and
+selected provider
 before every deferred side effect. Missing, disabled, changed, or
 contract-incompatible providers fail closed with a redacted classification and
 no fallback or package/model/index execution.
@@ -301,7 +304,8 @@ gated on the approved isolation backend.
 
 ## Dependencies and Delivery Gate
 
-Implementation depends on an approved DAR-owned embedding runner/profile using
+Implementation depends on an approved DAR-owned generic embedding execution ABI
+using
 the existing `workflow-model-materials` and `bindings.runner` contract, an
 approved `embedding.execute.v1` provider contract in
 `workflow-capability-requirements`, and the artifact/result-location isolation

@@ -170,8 +170,9 @@ no fallback or partial execution path remains.
 1. Approved `specs/workflow-model-materials/plan.md` and `tasks.md` named the
    lock/parser implementation and test seams before C5 implementation began.
 2. Added fake-only mapping tests to the model-material path: preparation
-   entries directly match one required preparation capability; runner/profile
-   pairs match one model-execution capability; converter manifests match one
+   entries directly match one required preparation capability; v1 runner/profile
+   pairs or v2 runner/descriptor bindings match one model-execution capability;
+   converter manifests match one
    converter-host capability.
 3. Updated `workflow-model-materials` implementation seams after S1–S4 and
    the approved model-material task dependency to

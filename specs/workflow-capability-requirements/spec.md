@@ -111,7 +111,8 @@ exactly `capability_id`, which must name one declared requirement. The runner
 binding is required whenever `model-materials.json` is present; the converter
 binding is required exactly when an input-converter manifest is present. A
 preparation operation continues to reference its requirement directly. The
-selected capability contract defines which locked runner/profile or converter
+selected capability contract defines which locked execution identity (a v1
+runner/profile pair or v2 runner/descriptor binding) or converter
 ABI it accepts; DAR rejects an incompatible or duplicate binding.
 
 The requirement asks DAR for behavior. It does not name a provider, preference,
@@ -260,7 +261,8 @@ converter; they cannot implement, shadow, register, or extend a DAR capability.
 The following mapping is normative. Material transport, locked file download,
 cache layout, credentials, and network policy remain universal DAR behavior and
 are not package capability requirements. A preparation operation directly
-references one requirement entry. A runner/profile pair maps to exactly one
+references one requirement entry. A v1 runner/profile pair or v2
+runner/descriptor binding maps to exactly one
 required model-execution capability whose contract defines that pair and any
 required features. A sealed converter manifest maps to exactly one required
 converter-host capability whose contract defines its ABI and compatible runner

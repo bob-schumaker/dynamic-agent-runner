@@ -1,118 +1,72 @@
 # macOS Generic MLX Embedding Execution Tasks
 
-## MLE0 — Generic embedding binding
+## MLE0 — Retire the model-specific experiment from DAR runtime
 
-- [x] MLE0.1 [spec/plan] Reconcile the generic model-material, capability, and
-  embedding-index artifacts: a material declaration requires a declared runner
-  capability named by `bindings.runner`, and `embedding.execute.v1` is a
-  separate single-purpose requirement.
-  - Evidence: `derive_model_execution_binding()` already derives the generic
-    binding from `bindings.runner`; the three governing specs now match it.
-  - Acceptance: a sealed package can bind an embedding provider without an
-    MLX-specific manifest field, fake llama.cpp runner, or parallel ABI.
-- [x] MLE0.2 [tests, RED/GREEN] Require the selected embedding provider to
-  support the sealed runner/profile/material binding before provider entry;
-  reject an embedding-capability-compatible but binding-incompatible provider.
-  - Evidence: each provider now declares one exact `ModelExecutionBinding`;
-    `EmbeddingProviderCatalog` rejects incompatible material and runner
-    bindings before `embed()` and rejects malformed registrations.
-    `poetry run pytest tests/test_embedding_execution.py
-    tests/test_workflow_model_execution_binding.py -q` passed 22 tests.
-  - Depends on: MLE0.1.
+- [ ] MLE0.1 [tests, RED] Add production-boundary tests proving DAR source and
+  distributable artifacts contain no named embedding model, repository,
+  revision, role table, fixed dimension, or model-specific loader identity.
+- [ ] MLE0.2 [implementation] Replace the current model-named MLX adapter,
+  hard-coded material digest/roles, and public exports with generic descriptor
+  and ABI names; retain any named experiment only below `tests/` or manual
+  harness assets.
+- [ ] MLE0.3 [tests, GREEN] Prove the experimental fixture cannot affect
+  production import, adapter selection, package construction, or provider
+  registration.
 
-## MLE1 — Workflow-owned material and reference lock
+## MLE1 — Sealed generic descriptor
 
-- [x] MLE1.1 [discovery] Record `TaylorAI/gte-tiny` revision
-  `4cc5e73d86a67c601897257b467187234aa3bca3`, `mlx==0.32.2`, BERT model
-  configuration, source artifact list/SHA-256 values, tokenizer assets,
-  512-token limit, 384 dimensions, masked-mean pooling, and
-  `normalization: none`, closed role/path map, source-file SHA-256 values,
-  byte ceilings, safe parser order, macOS/arm64 floor, and MLX distribution
-  admission policy.
-  - Evidence: `gte-tiny-material-profile.md` records the closed predicate,
-    exact source table, 16,384-byte safetensors-header ceiling, allocation
-    order, tokenizer behavior, and the separate `mlx-embedding` policy.
-    the raw lock fixture produces canonical digest
-    `c2fc8b91d1b4514f2411f30c4d81fa3a702e902b70ae8a7eb83567696a158c87`;
-    the machine-readable profile proves changed role path, hash, or byte size
-    is rejected;
-    `poetry run pytest tests/test_mlx_gte_tiny_material_lock.py -q` passed.
-  - Acceptance: no runtime behavior depends on an unpinned repository, file,
-    package, pooling rule, or undocumented `mlx-lm` API.
-- [x] MLE1.2 [decision] Approve the synthetic reference-vector fixture,
-  precision, and numerical tolerance.
-  - Evidence: `reference-vector-contract.json` fixes CPU-only local reference
-    provenance, five synthetic cases, float32 masked-mean pooling, no
-    normalization, exact token/mask checks, and the predeclared coordinate and
-    cosine bounds. It deliberately has no vectors; MLE4 is the only authorized
-    producer of derived numerical values.
-  - Depends on: MLE1.1.
-- [ ] MLE1.3 [release gate] Record an explicit source-license decision before
-  offering `TaylorAI/gte-tiny` as a portable workflow material option.
-  - Evidence: the pinned Hugging Face API/model card does not provide a
-    machine-readable license. DAR does not bundle these materials; this gate
-    applies to an approved receiver download option, not fixture testing.
-  - Depends on: MLE1.1.
+- [ ] MLE1.1 [spec/design] Define ABI-neutral `execution-descriptor.json`, its
+  canonical digest, non-circular material-lock binding, and initial BERT-style
+  ABI identity (ID, version, contract digest).
+  - Acceptance: the descriptor has no executable code, model registry key,
+    source endpoint, path, device setting, or provider selector.
+- [ ] MLE1.2 [tests, RED] Add fake canonical-byte and rejection vectors for
+  non-circular lock/descriptor construction, descriptor/lock mismatch, unknown
+  or wrong ABI ID/version/digest, ABI-schema mismatch, invalid roles/tensor
+  rules, invalid limits, and malformed conformance records.
+- [ ] MLE1.3 [implementation] Resolve the exact ABI through a pure
+  receiver-installed validator registry, then parse, validate, and bind the
+  descriptor through generic model-material and embedding execution bindings.
+- [ ] MLE1.4 [tests, GREEN] Prove two distinct model descriptors accepted by
+  the same ABI remain isolated and that no model identity is compiled into DAR.
 
 ## MLE2 — Direct adapter admission
 
-- [x] MLE2.1 [tests, RED] Add fake-only tests for dedicated factory/import
+- [ ] MLE2.1 [tests, RED] Add fake-only tests for dedicated factory/import
   behavior, macOS-14+/arm64 lazy failure, exact MLX dependency admission,
-  material role/hash/identity rejection, and injected backend admission.
-  - Depends on: MLE1.2.
-  - Evidence: `tests/test_mlx_local_embedding.py` failed at collection before
-    the module existed, then records lazy sync/async construction, macOS/arm64
-    pre-admission, exact dependency admission including load failure, the full
-    closed material identity, and injected-backend reachability.
-- [x] MLE2.2 [implementation] Add separate sync/async configuration and
-  factories with package-owned errors and no generation-adapter change.
-  - Depends on: MLE2.1.
-  - Evidence: `mlx_local_embedding.py` provides the dedicated closed direct
-    adapter and factories, with no change to the generation adapter;
-    `mlx-embedding` is a separate Darwin-only extra pinned to
-    `mlx==0.32.2`, while the generation-only `mlx` extra remains `mlx-lm`.
-- [x] MLE2.3 [tests, GREEN] Prove rejected platform, dependency, or material
-  states make no backend/tokenizer/model call and preserve static versus
-  receiver-resolved capability metadata.
-  - Depends on: MLE2.2.
-  - Evidence: `poetry run pytest tests/test_mlx_local_embedding.py
-    tests/test_mlx_models.py -q` passed 114 tests. Rejected admission states
-    do not reach the injected backend, while static capability metadata is
-    inert and receiver-resolved metadata repeats dependency and material
-    admission before reporting embeddings available.
+  descriptor/material rejection, and injected backend admission.
+  - Depends on: MLE1.4.
+- [ ] MLE2.2 [implementation] Add generic sync/async factories with
+  package-owned errors and no generation-adapter change.
+- [ ] MLE2.3 [tests, GREEN] Prove rejected platform, dependency, descriptor,
+  or material states make no backend/tokenizer/model call and preserve static
+  versus receiver-resolved capability metadata.
 
-## MLE3 — Closed descriptor-defined MLX encoder
+## MLE3 — Generic BERT-style encoder
 
-- [ ] MLE3.1 [tests, RED] Add fake-only pre-allocation parser-ceiling,
-  configuration/tensor/tokenizer, truncation, padding, masked-mean,
-  materialization, normalization, bounds, order, ID, finite-value, emptiness,
-  and 384-dimension conformance tests.
+- [ ] MLE3.1 [tests, RED] Add fake-only parser-ceiling, tensor/tokenizer,
+  truncation, padding, pooling, materialization, normalization, bounds, order,
+  ID, finite-value, emptiness, and descriptor-defined dimension tests.
   - Depends on: MLE2.3.
-- [ ] MLE3.2 [implementation] Implement the private `mlx-gte-tiny-v1` BERT
-  loader/encoder using only public `mlx` / `mlx.nn` APIs and locked assets.
-  - Depends on: MLE3.1.
-- [ ] MLE3.3 [tests, GREEN] Prove sync/async parity, conservative capability
-  metadata, redaction, and no MLX/Metal/network import or use in unit tests.
-  - Depends on: MLE3.2.
+- [ ] MLE3.2 [implementation] Implement the BERT-style ABI interpreter using
+  public `mlx` / `mlx.nn` APIs and only verified descriptor/material inputs.
+- [ ] MLE3.3 [tests, GREEN] Prove sync/async parity, conservative metadata,
+  redaction, and no MLX/Metal/network import or use in unit tests.
 
 ## MLE4 — Manual arithmetic conformance
 
-- [ ] MLE4.1 [manual] With explicit authorization, run the locked GTE Tiny
-  materials on a compatible Mac against the approved synthetic reference
-  fixture; record redacted tolerance, shape, padding/truncation, duration, and
-  memory evidence only.
-  - Depends on: MLE1.2, MLE1.3, and MLE3.3.
+- [ ] MLE4.1 [manual] With explicit authorization, run one workflow-defined
+  descriptor against its synthetic reference fixture on a compatible Mac;
+  record redacted tolerance, shape, padding/truncation, duration, and memory
+  evidence only.
+  - Depends on: MLE1.4 and MLE3.3.
 
 ## MLE5 — Workflow capability provider
 
 - [ ] MLE5.1 [tests, RED] Add fake-only `embedding.execute.v1` provider and
-  locked-material binding conformance tests once the generic contract and
-  sealed-runner prerequisites are complete.
-  - Depends on: MLE0.2, MLE1.3, MLE4.1, and the approved embedding-index
-    artifacts spec.
-- [ ] MLE5.2 [implementation] Register `mlx-gte-tiny-v1` as an optional
-  provider selected only by the capability catalog.
-  - Depends on: MLE1.3 and MLE5.1.
-- [ ] MLE5.3 [tests, GREEN] Prove unavailable/changed provider failure occurs
-  before model load, embedding execution, builder import, or artifact egress.
-  - Depends on: MLE5.2 and MLE0.2.
+  descriptor/material-binding conformance tests.
+  - Depends on: MLE1.4, MLE4.1, and the approved embedding-index spec.
+- [ ] MLE5.2 [implementation] Register one generic MLX ABI provider through
+  the capability catalog.
+- [ ] MLE5.3 [tests, GREEN] Prove unavailable/changed providers fail before
+  model load, embedding execution, builder import, or artifact egress.

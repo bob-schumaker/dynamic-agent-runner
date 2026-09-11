@@ -53,21 +53,22 @@ This feature defines:
 2. construction-time validation and package-digest binding of that declaration;
 3. receiver-side verified cache reuse, download, and deterministic preparation;
 4. exact binding from material declaration to a DAR-supported generic execution
-   ABI plus a workflow-owned sealed profile descriptor; and
+   ABI plus a workflow-owned sealed execution descriptor; and
 5. generic runner-registry and host-policy boundaries; and
 6. failure, portability, and validation requirements for an executable package.
 
 Version 1 supports only the existing Hugging Face per-file transport, complete
 closure validation owned by a versioned DAR loader profile, a finite ordered
 list of deterministic preparation operations selected through required DAR
-capabilities, and the built-in
-`transformers-peft-v1` and `llama-cpp-v1` runner contracts defined below. A
-later DAR-supported embedding runner/profile uses the same lock format and the
-same required `bindings.runner` capability mapping; its distinct execution
-operation is governed by the exact `embedding.execute.v1` requirement under
-`workflow-embedding-index-artifacts`. It
-does not standardize a general model registry, a transform graph language, or
-an unrestricted execution environment.
+capabilities, and the built-in `transformers-peft-v1` and `llama-cpp-v1` runner
+contracts defined below. Version 2 retains the same transport and preparation
+rules but replaces a DAR-owned loader profile with a package-owned sealed
+execution descriptor interpreted by a DAR-supported generic execution ABI. A
+later embedding runner uses v2 and the same required `bindings.runner` mapping;
+its distinct execution operation remains governed by the exact
+`embedding.execute.v1` requirement under `workflow-embedding-index-artifacts`.
+Neither version standardizes a model registry, transform graph language, or
+unrestricted execution environment.
 
 The proposed locked-inference callback requires a canonical material set:
 ordered named roles each hold one existing immutable lock, and a declared
@@ -120,8 +121,9 @@ receiver-installed DAR capability, never loader code fetched from this package.
 ### Model-material declaration
 
 A model-material declaration is the immutable dependency lock for one model
-execution binding. It names a DAR-supported runner and loader profile, and
-enumerates every required source and generated artifact. Every source member
+execution binding. It names a DAR-supported runner and, in v2, a sealed
+workflow-owned execution descriptor interpreted by that runner's generic ABI.
+It enumerates every required source and generated artifact. Every source member
 has a role, repository identifier, immutable revision, filename, and SHA-256.
 Every generated member has one required preparation capability, declared inputs,
 output role, filename, SHA-256, and a recomputable transformation digest.
@@ -159,7 +161,7 @@ either digest. Registration stores and hashes this non-circular tuple:
 
 ```text
 (package_content_digest, material_lock_digest, capability_requirements_digest,
- runner_contract, loader_profile_contract, converter_asset_digest?,
+ runner_contract, execution_descriptor_digest?, loader_profile_contract?, converter_asset_digest?,
  converter_host_capability_contract?)
 ```
 
@@ -215,13 +217,13 @@ Each `preparation` item has exactly `capability_id`, `contract_version`,
 `contract_digest`, `inputs`, `output`, and `transformation_digest`. `inputs` is
 a nonempty ordered list of earlier unique roles. The capability fields must
 exactly match one entry in the package's canonical `required_capabilities`
-list. The lock's `runner_contract` and `loader_profile_contract` must match the
-package `capability_requirements.bindings.runner` contract. `output` has
+list. The lock's v1 `runner_contract` and `loader_profile_contract` must match
+the package `capability_requirements.bindings.runner` contract. `output` has
 exactly `role`, `group`, `filename`, and `sha256`; its role
 is new and its hash is lowercase 64-hex. A transformation may consume source or
 earlier output roles only. DAR rejects cycles, orphan outputs, duplicate roles,
 unconsumed nonterminal outputs, absent or mismatched capability requirements,
-or a transformation incompatible with the locked runner/profile.
+or a transformation incompatible with the locked v1 runner/profile.
 
 DAR computes the transformation digest at construction after authoring
 preparation succeeds, records it with the expected output hash, and recomputes
@@ -250,6 +252,60 @@ The loader-profile contract owns exact required groups, roles, and loader
 arguments. DAR rejects incomplete, additional, or incompatible closure members
 before a framework import. It shall not infer members from a filename, Hub
 snapshot, model card, or similarly named artifact.
+
+## ModelDependencyLock v2 and sealed execution descriptors
+
+New generic embedding workflows use `format_version: 2`. The v2 lock retains
+`logical_model_id`, `runner_contract`, `sources`, and `preparation`, replaces
+`loader_profile_contract` with `execution_descriptor`, and keeps every v1
+transport, canonicalization, source, and preparation rule unless explicitly
+superseded here. Its only additional information is:
+
+```json
+{
+  "format_version": 2,
+  "logical_model_id": "example-embedding-model",
+  "runner_contract": {"id": "mlx-embedding-v1", "version": "1"},
+  "execution_descriptor": {
+    "filename": "execution-descriptor.json",
+    "sha256": "<64 lowercase hexadecimal characters>"
+  },
+  "sources": [],
+  "preparation": []
+}
+```
+
+The descriptor filename is ABI-neutral and fixed; its hash is the SHA-256 of
+its canonical bytes. The package contains exactly that file. The lock digest
+therefore binds the descriptor and the package digest binds both. The descriptor
+does not contain the material-lock digest: DAR derives their binding from the
+parsed lock and descriptor, avoiding a circular digest. It is parsed and
+validated before any artifact read, cache access, downloader use, framework
+import, converter import, or sealed-input ingress.
+
+An execution descriptor contains an exact `architecture_abi` object with ID,
+version, and contract digest. `runner_contract` selects a receiver-installed
+pure descriptor-validator registry, which resolves that ABI before material or
+framework work. An execution descriptor has a fixed schema selected by the
+resolved ABI; it is not a generic configuration object. The selected DAR
+execution ABI specifies
+the accepted architecture family, required material roles, safe parser and
+allocation bounds, tokenizer, tensor, pooling, normalization, vector-dimension,
+runtime-compatibility, and synthetic conformance fields. Descriptor data must
+not contain a repository, revision, endpoint, credential, path, cache location,
+device setting, provider ID, Python/module import, command, native library,
+arbitrary tensor expression, or executable code. A workflow author chooses
+those sealed source assets and any source-license decision at construction;
+DAR's host policy may allow or reject their materialization but does not choose
+them.
+
+A receiver accepts a v2 lock only when it implements the exact declared generic
+runner capability and resolves the descriptor's ABI ID, version, and contract
+digest through its validator registry. This is compatibility by declarative ABI,
+not by model identity. A new model that satisfies an installed ABI requires no
+DAR model registry entry; a new architecture family requires a later reviewed
+ABI implementation. v1 locks remain valid only for their existing loader-profile
+contracts and are not silently translated into v2.
 
 ## ModelMaterialSets v1
 
@@ -313,15 +369,17 @@ under `workflow-capability-requirements`, then derives one immutable
 `ModelExecutionBinding` from the package descriptor, material lock, and any
 sealed converter asset. It is a host-private value, not an additional
 caller-facing package format. Its exact content is the package-local logical
-model ID, runner contract, loader-profile contract, material-lock digest,
-capability-requirements digest, and converter binding when the profile requires
-one. The Package binding includes its deterministic digest.
+model ID, runner contract, material-lock digest, capability-requirements digest,
+converter binding when required, and exactly one execution identity: a v1
+loader-profile contract or a v2 sealed execution-descriptor digest plus its
+exact ABI ID, version, and contract digest. The Package binding includes its
+deterministic digest.
 
 DAR resolves that binding through one `ModelRunnerRegistry`, after capability
-resolution has succeeded. The material lock's exact runner/profile pair maps to
-the `capability_requirements.bindings.runner` required model-execution
-capability under `workflow-capability-requirements`; the registry chooses an
-available provider
+resolution has succeeded. The material lock's exact runner plus its v1 profile
+or v2 descriptor identity maps to the
+`capability_requirements.bindings.runner` required model-execution capability
+under `workflow-capability-requirements`; the registry chooses an available provider
 of that contract. A selected provider receives the binding, a lazy resolver for
 the verified private artifact set, and the receiving host's policy; it never
 receives a workflow-supplied path, constructor mapping, or unrestricted package
@@ -341,7 +399,7 @@ function, or native library. A non-built-in runner is a receiver-installed,
 reviewed DAR capability with an exact public contract verified during package
 admission.
 
-An embedding workflow retains this runner/profile binding and additionally
+An embedding workflow retains this generic execution binding and additionally
 declares exactly one `embedding.execute.v1` requirement. That operation does
 not add a descriptor `bindings` key: its capability ID is unambiguous. DAR
 derives its host-private embedding binding from the material execution binding
@@ -381,7 +439,8 @@ import DAR's private `workflow_host` modules.
 
 DAR shall accept `model-materials.json` only during authorized workflow
 construction. Before sealing, it shall validate canonical bytes, schema, exact
-runner/profile compatibility, profile closure, source pins, preparation order,
+runner/profile or runner/descriptor compatibility, closure, source pins,
+preparation order,
 required capability contracts, recomputed transformation digests, and
 package-contained converter compatibility.
 
@@ -434,7 +493,7 @@ built-in runner or register its own runner factory.
 
 DAR shall fail before model loading and before sealed-input consumption when
 package provenance, package/DAR compatibility, material-lock digest,
-runner/profile contract, source availability, source hash, preparation output
+execution identity, source availability, source hash, preparation output
 hash, or required runtime dependency is invalid or unavailable. It shall not
 fall back to a different revision, branch, file, model, runner, plugin, or cache
 location.
@@ -464,7 +523,7 @@ input supplied by the workflow user.
   hashes, performs only the declared preparation, and invokes the locked runner.
 - Given a complete verified cache, when that package executes, then DAR makes
   no network call and uses only material matching its material-lock digest.
-- Given a changed declaration, package, runner/profile binding, source hash, or
+- Given a changed declaration, package, execution identity, source hash, or
   generated-artifact hash, when execution begins, then DAR rejects it before
   loading a model or consuming the sealed input.
 - Given a caller supplies a model name, path, revision, runner, or material
@@ -485,7 +544,8 @@ input supplied by the workflow user.
   request; text, bytes, or converter output cannot select model material,
   hardware configuration, or a llama.cpp adapter.
 - Given a sealed ModelExecutionBinding, when DAR creates an adapter, then it
-  resolves the exact runner/profile through ModelRunnerRegistry and passes only
+  resolves the exact v1 runner/profile or v2 runner/descriptor identity through
+  ModelRunnerRegistry and passes only
   the binding, verified artifacts, and HostRunnerPolicy; no domain adapter ID
   or package-supplied factory participates in dispatch.
 - Given a workflow requires a non-built-in execution capability, when the
@@ -494,8 +554,9 @@ input supplied by the workflow user.
 - Given a legacy named host profile, when a new workflow package is
   constructed, then DAR rejects it as a package model binding; only explicit
   read-only compatibility for an already-issued profile may remain.
-- Given package import or registration, when the package selects a built-in
-  runner/profile, then the generic control plane admits it without invoking a
+- Given package import or registration, when the package selects a built-in v1
+  runner/profile or v2 generic ABI, then the generic control plane admits it
+  without invoking a
   model- or domain-named configuration command.
 - Given the same workflow ZIP on another compatible DAR installation, when its
   locked artifacts are downloadable and host policy permits, then it resolves

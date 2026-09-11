@@ -37,12 +37,12 @@
     counts, and redacted classifications.
 - [x] E1.2 [design] Reconcile `embedding.execute.v1` with
   `workflow-model-materials` and `workflow-capability-requirements`, including
-  the exact embedding runner/profile binding and conformance vectors.
+  the exact embedding runner-ABI/descriptor binding and conformance vectors.
   - Depends on: E1.1.
   - Acceptance: a receiving DAR installation can decide compatibility before
     package import, model download, or input ingress.
   - Evidence: the exact embedding requirement is single-purpose rather than a
-    new descriptor binding; the existing material-lock runner/profile binding
+    new descriptor binding; the existing material-lock runner-ABI/descriptor binding
     plus the requirement derive a host-private `EmbeddingExecutionBinding`.
 - [x] E1.3 [design] Confirm the sandbox result-location primitive can enforce
   index-builder egress without arbitrary package-local filesystem writes.
@@ -85,12 +85,12 @@
   - Depends on: E1.2.
   - Evidence: `tests/test_embedding_execution.py` failed with the expected
     missing-module error before the host execution seam existed.
-- [x] E3.2 [implementation] Add the embedding runner/profile and
+- [x] E3.2 [implementation] Add the embedding runner ABI and
   `embedding.execute.v1` capability contract, reusing the existing local
   embedding adapter only behind the generic provider seam.
   - Depends on: E3.1.
   - Evidence: `workflow_host.embedding_execution` derives a private binding
-    from the existing sealed material runner/profile binding and exact
+    from the existing sealed material runner-ABI/descriptor binding and exact
     `embedding.execute.v1` requirement; its receiver-owned adapter bridge
     wraps the existing direct local embedding interface without exposing loader
     configuration to package data.

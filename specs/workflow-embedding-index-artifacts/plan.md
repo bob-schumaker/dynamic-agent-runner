@@ -36,8 +36,9 @@ bundle and generic-report artifacts without importing workflow-local code.
 
 ## S2 — Embedding capability and material binding
 
-1. Reuse the existing locked material execution binding's exact runner/profile
-   identity and derive a private embedding binding from exactly one required
+1. Reuse the existing locked material execution binding's exact runner-ABI and
+   sealed descriptor identity and derive a private embedding binding from one
+   exact required
    `embedding.execute.v1` capability. This single-purpose capability does not
    add a descriptor `bindings` entry or expose a provider selector.
 2. Define `embedding.execute.v1` with strict batch input/result models, host

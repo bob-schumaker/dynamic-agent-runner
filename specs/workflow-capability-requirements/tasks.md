@@ -243,18 +243,19 @@ targeted pre-commit hooks passed on 2026-09-09.
 - [x] C5.2 [workflow-model-materials implementation] Add RED mapping
   tests when the model-material lock/parser implementation exists: each
   preparation operation directly matches one required preparation capability;
-  each runner/profile pair matches one model-execution capability; and each
+  each v1 runner/profile pair or v2 runner/descriptor binding matches one
+  model-execution capability; and each
   converter manifest matches one converter-host capability.
   - Spec: FR-5; `../workflow-model-materials/spec.md`; and
     `../workflow-input-converter-plugin/spec.md`.
   - Depends on: C4.4, C5.1, and the approved
     `workflow-model-materials/tasks.md` implementation task.
-  - Gate: cover missing and duplicate bindings, wrong runner/profile or
+  - Gate: cover missing and duplicate bindings, wrong execution identity or
     converter-ABI contract, and mapping rejection before provider load or
     converter asset import. Material transport, download, cache, credentials,
     and network policy stay universal DAR behavior, never requirements.
   - Evidence: policy admission now checks every preparation operation against
-    its exact declared requirement and derives the exact runner/profile and
+    its exact declared requirement and derives the exact execution identity and
     converter-capability binding before package-owned runtime loading.
 - [x] C5.3 Bind the requirements digest into the private model
   execution binding and use only the selected DAR provider. Remove any
