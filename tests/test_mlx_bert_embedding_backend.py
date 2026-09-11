@@ -27,7 +27,7 @@ def _materials(**limit_overrides: int) -> SimpleNamespace:
         "max_aggregate_bytes": 1024,
         "max_tokens": 1,
         "max_vectors": 1,
-        "max_memory_bytes": 1,
+        "max_memory_bytes": 8 * 1024**3,
         "max_tokenizer_bytes": 16 * 1024 * 1024,
         "max_weights_bytes": 8 * 1024**3,
         "max_safetensors_header_bytes": 16 * 1024 * 1024,
@@ -331,6 +331,23 @@ def test_backend_rejects_invalid_inputs_before_artifact_reads(
 
     with pytest.raises(EmbeddingExecutionError, match="input"):
         backend.embed(items, _materials(**limits))
+
+    assert calls == []
+
+
+def test_backend_rejects_declared_memory_overage_before_artifact_reads() -> None:
+    calls: list[str] = []
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda _role: calls.append("artifact") or b"{}",
+        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
+        encoder=lambda _tokens: calls.append("encoder-call") or (),
+    )
+
+    with pytest.raises(EmbeddingExecutionError, match="material"):
+        backend.embed(
+            (EmbeddingInputItem("entry", "text"),),
+            _materials(max_memory_bytes=1),
+        )
 
     assert calls == []
 

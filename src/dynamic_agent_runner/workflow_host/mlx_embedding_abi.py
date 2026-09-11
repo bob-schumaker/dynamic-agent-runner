@@ -195,6 +195,7 @@ class BertEncoderMlxV1EmbeddingBackend:
                 "MLX embedding material is unavailable"
             ) from error
         _validate_embedding_inputs(items, limits)
+        _validate_declared_memory(descriptor, limits, item_count=len(items))
         try:
             tokenizer_bytes = self._artifact_reader("tokenizer")
             if (
@@ -303,13 +304,7 @@ def _validate_bert_tensor_header(
     shapes = _bert_tensor_shapes(descriptor)
     if set(header) != set(shapes):
         raise ValueError
-    encoder = descriptor.abi_fields["encoder"]
-    assert isinstance(encoder, Mapping)
-    expected_dtype, item_bytes = {
-        "float16": ("F16", 2),
-        "bfloat16": ("BF16", 2),
-        "float32": ("F32", 4),
-    }[encoder["dtype"]]
+    expected_dtype, item_bytes = _bert_dtype_details(descriptor)
     spans: list[tuple[int, int]] = []
     for name, expected_shape in shapes.items():
         metadata = header[name]
@@ -373,6 +368,31 @@ def _validate_embedding_inputs(
         if aggregate_bytes > limits["max_aggregate_bytes"]:
             raise EmbeddingExecutionError("MLX embedding input is invalid")
         seen_ids.add(item.id)
+
+
+def _validate_declared_memory(
+    descriptor: ExecutionDescriptor, limits: Mapping[str, object], *, item_count: int
+) -> None:
+    _, item_bytes = _bert_dtype_details(descriptor)
+    parameter_bytes = sum(
+        math.prod(shape) * item_bytes
+        for shape in _bert_tensor_shapes(descriptor).values()
+    )
+    encoder = descriptor.abi_fields["encoder"]
+    assert isinstance(encoder, Mapping)
+    activation_bytes = 4 * item_count * limits["max_tokens"] * encoder["hidden_size"]
+    if parameter_bytes + activation_bytes > limits["max_memory_bytes"]:
+        raise EmbeddingExecutionError("MLX embedding material is unavailable")
+
+
+def _bert_dtype_details(descriptor: ExecutionDescriptor) -> tuple[str, int]:
+    encoder = descriptor.abi_fields["encoder"]
+    assert isinstance(encoder, Mapping)
+    return {
+        "float16": ("F16", 2),
+        "bfloat16": ("BF16", 2),
+        "float32": ("F32", 4),
+    }[encoder["dtype"]]
 
 
 def _validate_wordpiece_tokenizer(
