@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import math
+import json
 from collections.abc import Mapping
+from collections.abc import Callable, Sequence
 
+from dynamic_agent_runner.errors import EmbeddingExecutionError
+from dynamic_agent_runner.local_models import EmbeddingInputItem
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
     ExecutionDescriptor,
     ExecutionDescriptorAbi,
@@ -151,6 +155,37 @@ def _mapping(value: object, keys: set[str]) -> Mapping[str, object]:
     if not isinstance(value, Mapping) or set(value) != keys:
         _invalid()
     return value
+
+
+class BertEncoderMlxV1EmbeddingBackend:
+    """Validate sealed artifacts before any injected tokenizer or encoder call."""
+
+    def __init__(
+        self,
+        *,
+        artifact_reader: Callable[[str], bytes],
+        tokenizer: Callable[[tuple[EmbeddingInputItem, ...]], object],
+        encoder: Callable[[object], object],
+    ) -> None:
+        self._artifact_reader = artifact_reader
+        self._tokenizer = tokenizer
+        self._encoder = encoder
+
+    def embed(self, items: Sequence[EmbeddingInputItem], _materials: object) -> object:
+        """Reject malformed tokenizer material before any execution collaborator."""
+
+        try:
+            tokenizer_bytes = self._artifact_reader("tokenizer")
+            if not isinstance(tokenizer_bytes, bytes):
+                raise ValueError
+            value = json.loads(tokenizer_bytes.decode("utf-8"))
+            if not isinstance(value, Mapping):
+                raise ValueError
+        except Exception as error:  # noqa: BLE001 - sealed artifact boundary.
+            raise EmbeddingExecutionError(
+                "MLX embedding material is unavailable"
+            ) from error
+        raise EmbeddingExecutionError("MLX embedding backend is unavailable")
 
 
 def _one_of(value: object, values: set[str]) -> None:
