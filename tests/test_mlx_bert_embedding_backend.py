@@ -210,8 +210,6 @@ def test_backend_rejects_malformed_artifacts_before_tokenizer_or_model_work() ->
     calls: list[str] = []
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=lambda _role: calls.append("artifact") or b"malformed",
-        tokenizer=lambda _items: calls.append("tokenizer") or (),
-        encoder=lambda _tokens: calls.append("encoder") or (),
     )
 
     with pytest.raises(EmbeddingExecutionError, match="material"):
@@ -229,8 +227,6 @@ def test_backend_rejects_malformed_weights_before_tokenizer_or_model_work() -> N
 
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=artifact_reader,
-        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
-        encoder=lambda _tokens: calls.append("encoder-call") or (),
     )
 
     with pytest.raises(EmbeddingExecutionError, match="material"):
@@ -253,8 +249,6 @@ def test_backend_rejects_unknown_tensor_before_tokenizer_or_model_work() -> None
 
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=artifact_reader,
-        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
-        encoder=lambda _tokens: calls.append("encoder-call") or (),
     )
 
     with pytest.raises(EmbeddingExecutionError, match="material"):
@@ -288,8 +282,6 @@ def test_backend_rejects_wrong_tensor_metadata_before_tokenizer_or_model_work(
 
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=artifact_reader,
-        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
-        encoder=lambda _tokens: calls.append("encoder-call") or (),
     )
 
     with pytest.raises(EmbeddingExecutionError, match="material"):
@@ -314,8 +306,6 @@ def test_backend_rejects_invalid_tensor_offsets_before_tokenizer_or_model_work()
 
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=artifact_reader,
-        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
-        encoder=lambda _tokens: calls.append("encoder-call") or (),
     )
 
     with pytest.raises(EmbeddingExecutionError, match="material"):
@@ -334,8 +324,6 @@ def test_backend_admits_exact_tensor_offsets_before_execution() -> None:
 
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=artifact_reader,
-        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
-        encoder=lambda _tokens: calls.append("encoder-call") or (),
     )
 
     with pytest.raises(EmbeddingExecutionError, match="execution"):
@@ -352,8 +340,6 @@ def test_backend_loads_mlx_only_after_sealed_material_admission() -> None:
             calls.append(role)
             or (_tokenizer_bytes() if role == "tokenizer" else weights)
         ),
-        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
-        encoder=lambda _tokens: calls.append("encoder-call") or (),
         mlx_loader=lambda: calls.append("mlx") or object(),
     )
 
@@ -369,8 +355,6 @@ def test_backend_executes_sealed_bert_encoder_with_fake_mlx() -> None:
         artifact_reader=lambda role: (
             _tokenizer_bytes() if role == "tokenizer" else weights
         ),
-        tokenizer=lambda _items: (),
-        encoder=lambda _tokens: (),
         mlx_loader=_NumpyMlx,
     )
 
@@ -388,8 +372,6 @@ def test_backend_rejects_invalid_wordpiece_tokenizer_before_weights_read() -> No
     )
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=lambda _role: calls.append("artifact") or tokenizer,
-        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
-        encoder=lambda _tokens: calls.append("encoder-call") or (),
     )
 
     with pytest.raises(EmbeddingExecutionError, match="material"):
@@ -423,8 +405,6 @@ def test_backend_rejects_invalid_inputs_before_artifact_reads(
     calls: list[str] = []
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=lambda _role: calls.append("artifact") or b"{}",
-        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
-        encoder=lambda _tokens: calls.append("encoder-call") or (),
     )
 
     with pytest.raises(EmbeddingExecutionError, match="input"):
@@ -437,8 +417,6 @@ def test_backend_rejects_declared_memory_overage_before_artifact_reads() -> None
     calls: list[str] = []
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=lambda _role: calls.append("artifact") or b"{}",
-        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
-        encoder=lambda _tokens: calls.append("encoder-call") or (),
     )
 
     with pytest.raises(EmbeddingExecutionError, match="material"):
@@ -474,8 +452,6 @@ def test_backend_enforces_descriptor_artifact_byte_limits_before_execution(
 
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=artifact_reader,
-        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
-        encoder=lambda _tokens: calls.append("encoder-call") or (),
     )
 
     with pytest.raises(EmbeddingExecutionError, match="material"):

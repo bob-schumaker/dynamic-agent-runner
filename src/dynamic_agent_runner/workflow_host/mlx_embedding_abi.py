@@ -175,13 +175,9 @@ class BertEncoderMlxV1EmbeddingBackend:
         self,
         *,
         artifact_reader: Callable[[str], bytes],
-        tokenizer: Callable[[tuple[EmbeddingInputItem, ...]], object],
-        encoder: Callable[[object], object],
         mlx_loader: Callable[[], object] | None = None,
     ) -> None:
         self._artifact_reader = artifact_reader
-        self._tokenizer = tokenizer
-        self._encoder = encoder
         self._mlx_loader = mlx_loader or _load_mlx_core
 
     def embed(
