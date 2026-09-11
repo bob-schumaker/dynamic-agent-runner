@@ -157,17 +157,25 @@ release metadata. It must preserve the public manifest and branding assets, and
 must reject any undeclared support-file ownership rather than making source
 support files implicitly model-visible.
 
-DAR runtime release linkage is separate from plugin versioning. Each release
-preparation run carries one explicit PEP 440 runtime version `V` in the
+DAR runtime compatibility is separate from plugin versioning. A plugin-only
+guidance, routing, metadata, or marketplace release may change the plugin
+version while retaining an already-compatible runtime `V` (or carrying no
+runtime selector); it must not require a DAR source-version change, a new DAR
+wheel, or a DAR publication. Conversely, a DAR release may change `V` without
+a plugin-version change. `V` is a payload compatibility pin, never a derived
+plugin version or a synchronized release number.
+
+When a release-preparation run creates or changes a runtime-version-bearing
+payload, it carries one explicit PEP 440 runtime version `V` in the
 source-owned `.codex-plugin/dar-runtime-release.json` descriptor. That
 descriptor and `pyproject.toml`'s `dynamic-agent-runner` version are updated
-together for the release target; the built wheel metadata is the post-build
+together for that DAR release target; the built wheel metadata is the post-build
 authority. The built wheel metadata, the release descriptor, every
 runtime-version-bearing generated payload field (including workflow
 `required_version` values), and every payload-owned fallback `uv run`
-launcher selector must equal `V`. The plugin distribution version remains
-independent. Clean-Codex acceptance uses its controller-provided
-`dar-package` directly and never resolves the release wheel through `uv`.
+launcher selector must equal `V`. Clean-Codex acceptance uses its
+controller-provided `dar-package` directly and never resolves the release wheel
+through `uv`.
 
 The release verifier records the authoritative descriptor digest, `V`, wheel
 filename and metadata digest, generated payload digest, and selector-list

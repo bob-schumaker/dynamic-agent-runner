@@ -221,6 +221,11 @@ class AuthorThenRunEvidence:
     payload_manifest_digest: str | None = None
     source_map_digest: str | None = None
     release_metadata_digest: str | None = None
+    dar_runtime_version: str | None = None
+    dar_runtime_wheel_filename: str | None = None
+    dar_runtime_wheel_metadata_digest: str | None = None
+    dar_runtime_release_descriptor_digest: str | None = None
+    dar_runtime_payload_selector_list_digest: str | None = None
     actor_durations_ms: tuple[int, ...] = ()
     author_return_code: int | None = None
     invocation_return_code: int | None = None
@@ -282,6 +287,15 @@ class AuthorThenRunEvidence:
             "payload_manifest_digest": self.payload_manifest_digest,
             "source_map_digest": self.source_map_digest,
             "release_metadata_digest": self.release_metadata_digest,
+            "dar_runtime_version": self.dar_runtime_version,
+            "dar_runtime_wheel_filename": self.dar_runtime_wheel_filename,
+            "dar_runtime_wheel_metadata_digest": self.dar_runtime_wheel_metadata_digest,
+            "dar_runtime_release_descriptor_digest": (
+                self.dar_runtime_release_descriptor_digest
+            ),
+            "dar_runtime_payload_selector_list_digest": (
+                self.dar_runtime_payload_selector_list_digest
+            ),
             "actor_durations_ms": list(self.actor_durations_ms),
             "author_return_code": self.author_return_code,
             "invocation_return_code": self.invocation_return_code,
@@ -389,12 +403,26 @@ def _validate_optional_digests(evidence: AuthorThenRunEvidence) -> None:
         (evidence.payload_manifest_digest, "payload_manifest_digest"),
         (evidence.source_map_digest, "source_map_digest"),
         (evidence.release_metadata_digest, "release_metadata_digest"),
+        (
+            evidence.dar_runtime_wheel_metadata_digest,
+            "dar_runtime_wheel_metadata_digest",
+        ),
+        (
+            evidence.dar_runtime_release_descriptor_digest,
+            "dar_runtime_release_descriptor_digest",
+        ),
+        (
+            evidence.dar_runtime_payload_selector_list_digest,
+            "dar_runtime_payload_selector_list_digest",
+        ),
     ):
         if value is not None:
             _digest(value, label)
     for value, label in (
         (evidence.authoring_material_set_id, "authoring_material_set_id"),
         (evidence.authoring_output_id, "authoring_output_id"),
+        (evidence.dar_runtime_version, "dar_runtime_version"),
+        (evidence.dar_runtime_wheel_filename, "dar_runtime_wheel_filename"),
     ):
         if value is not None:
             _text(value, label)

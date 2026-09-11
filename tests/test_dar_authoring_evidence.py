@@ -183,6 +183,11 @@ def test_author_then_run_evidence_binds_a_positive_handoff_without_raw_content(
         payload_manifest_digest="3" * 64,
         source_map_digest="4" * 64,
         release_metadata_digest="5" * 64,
+        dar_runtime_version="0.1.17",
+        dar_runtime_wheel_filename="dynamic_agent_runner-0.1.17-py3-none-any.whl",
+        dar_runtime_wheel_metadata_digest="6" * 64,
+        dar_runtime_release_descriptor_digest="7" * 64,
+        dar_runtime_payload_selector_list_digest="8" * 64,
         actor_durations_ms=(125, 250),
     )
 
@@ -199,6 +204,13 @@ def test_author_then_run_evidence_binds_a_positive_handoff_without_raw_content(
     assert recorded["payload_manifest_digest"] == "3" * 64
     assert recorded["source_map_digest"] == "4" * 64
     assert recorded["release_metadata_digest"] == "5" * 64
+    assert recorded["dar_runtime_version"] == "0.1.17"
+    assert recorded["dar_runtime_wheel_filename"] == (
+        "dynamic_agent_runner-0.1.17-py3-none-any.whl"
+    )
+    assert recorded["dar_runtime_wheel_metadata_digest"] == "6" * 64
+    assert recorded["dar_runtime_release_descriptor_digest"] == "7" * 64
+    assert recorded["dar_runtime_payload_selector_list_digest"] == "8" * 64
     assert recorded["actor_durations_ms"] == [125, 250]
     assert "prompt" not in recorded
     assert "material_content" not in recorded

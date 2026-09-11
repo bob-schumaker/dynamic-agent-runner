@@ -1,0 +1,390 @@
+{
+  "entries": [
+    {
+      "disposition": "release_preparation_input",
+      "output_path": null,
+      "sha256": "f1ae0a943815e298ed58073bb7ff1ca7d55219c50d90de13bda0c38ff8b920f9",
+      "source_path": ".codex-plugin/dar-runtime-release.json"
+    },
+    {
+      "disposition": "generated_public_manifest",
+      "output_path": ".codex-plugin/plugin.json",
+      "sha256": "da3c727754eada0f8c7a60a6c22c18d4615b47da2d10e4c7d726eaefacfb29cf",
+      "source_path": ".codex-plugin/plugin.json"
+    },
+    {
+      "disposition": "copied_asset",
+      "output_path": "assets/agent-engineering.png",
+      "sha256": "f439620de9548f892fd4cb0e9ff22a9a854d2edbc1aa2c8b0303ea458e6fabc3",
+      "source_path": "assets/agent-engineering.png"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/agent-development-procedure.md",
+      "sha256": "72403d92cf978d9a5a167b2f54d5397c054a76a65bfbdfd2f5765096bbb9a3f2",
+      "source_path": "payload/dar-workflow-authoring/references/agent-development-procedure.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-evaluation-templates/eval-plan.md",
+      "sha256": "b8a5c9a5f987ea0aaca34a82c0ce134c84924b05ca72ee7160f8028f48df676b",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-evaluation-templates/eval-plan.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-evaluation-templates/evaluation-fixtures.json",
+      "sha256": "b74b1426ce4a752e64114b159f6e7b416783d961146ea32aea540f87c6111d62",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-evaluation-templates/evaluation-fixtures.json"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-evaluation-templates/regression-gate.yaml",
+      "sha256": "4a3221020b73876b3ac3996ecc16d229dfb7ea2741b8a768dbe728e032883674",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-evaluation-templates/regression-gate.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/agent-design.md",
+      "sha256": "db04d358e7a06d5bc810e477fac9f6b67a20e0db0838ca306ab00d36fef5489d",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/agent-design.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/agent-graph.mmd",
+      "sha256": "4e156531d1bf39ac6f85a64fe930a05b7ed4d63dee2fd5861a00ef6218dc10b7",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/agent-graph.mmd"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/agent-runtime.yaml",
+      "sha256": "d4a18e7b294997ee6adcc44d72b59be37df46a076e9950ad2cb2dd0d670314c7",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/agent-runtime.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/workflow-descriptor.yaml",
+      "sha256": "740d1252da3d72c88849c59d7ddf01d5ebf496650c7fcdeddf76b78d09c09499",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/workflow-descriptor.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-templates/agent-design.md",
+      "sha256": "bda3014b753320e5703f459e93357ac7319404b72fb2feddfc521142b89ffe61",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-templates/agent-design.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-templates/agent-graph.mmd",
+      "sha256": "4bf495d5a86c9399e532fb2177b551c1219071665e3c15d6c2cb665c6925478b",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-templates/agent-graph.mmd"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-templates/agent-runtime.yaml",
+      "sha256": "ae5058835b1699dc292037d778a7fb85744771f2a76915b51a22fca9f1c3cdda",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-templates/agent-runtime.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-templates/workflow-descriptor.yaml",
+      "sha256": "aa1cda3fd8d735f3e683f5724a4881f67f5f96f2642bece6292fe7e5f3c20ad3",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-templates/workflow-descriptor.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-tool-templates/tool-index.yaml",
+      "sha256": "96e65ecffd38ecf75f6fa4456f6007cac7cacb6d9732d1bd6996e6078781e161",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-tool-templates/tool-index.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-write-mcp-template/agent-design.md",
+      "sha256": "c765abda159bb6da5ad04ba4cf2f3d820e87e6d769124cb87eb4c89f1310aa1b",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-write-mcp-template/agent-design.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-write-mcp-template/agent-graph.mmd",
+      "sha256": "2dc78c0851ddd2955ed414f6e22dc42649351258b81a09e1816da0700dc6981f",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-write-mcp-template/agent-graph.mmd"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-write-mcp-template/agent-runtime.yaml",
+      "sha256": "f01e6b84c99240825819b7e31f2136eba614f596269ec27ccf2cbb4d3440a14e",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-write-mcp-template/agent-runtime.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-write-mcp-template/workflow-descriptor.yaml",
+      "sha256": "bd73fb709ffcab6806b8acecc2c452bb440ae146b35355941b92f6955b7c28d0",
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-write-mcp-template/workflow-descriptor.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-development.md",
+      "sha256": "9326f18891668f113ab91c0c6dc3c6c4fe233e3cbce115f22a40f69000a73e62",
+      "source_path": "payload/dar-workflow-authoring/references/dar-runtime-profile/agent-development.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-evaluation.md",
+      "sha256": "03cdd6fdbdde869dd1cbc44752062cd8ad45e0eca668df4c867906c7ff3055b2",
+      "source_path": "payload/dar-workflow-authoring/references/dar-runtime-profile/agent-evaluation.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-tool-contract-design.md",
+      "sha256": "cd3e46bd15d5dfb20906c8b86b4001e5fb6d5842cf67a73c02fd5a2d57776db1",
+      "source_path": "payload/dar-workflow-authoring/references/dar-runtime-profile/agent-tool-contract-design.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile.md",
+      "sha256": "370a416af084929a4c2a01563d55b8f149d2280ea6c707309718478790d1cbad",
+      "source_path": "payload/dar-workflow-authoring/references/dar-runtime-profile.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/legacy-adapted-skill-provenance.yaml",
+      "sha256": "4581ee477895cd78e123879c5d2fd93d346cf7830bd3bb8498568877fe184072",
+      "source_path": "payload/dar-workflow-authoring/references/legacy-adapted-skill-provenance.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/dar-workflow-authoring/references/migration-manifest.json",
+      "sha256": "8c0ff8a3101a17ed6eaa5e9d08ffa3cce45f3cc2c1698f96a37aafe0bd97207e",
+      "source_path": "payload/dar-workflow-authoring/references/migration-manifest.json"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/agent-development-mechanics.md",
+      "sha256": "8addf344e09e3575b46671b8dc407f7dcf603c004ee1c54d05b06930514caafe",
+      "source_path": "payload/general-agent-development/references/agent-development-mechanics.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/agent-runtime-package.md",
+      "sha256": "cc620de9d26fce564f68a2189f7685dda751e72c2bea3db9884d4892e945d731",
+      "source_path": "payload/general-agent-development/references/agent-runtime-package.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/agent-pattern-examples.md",
+      "sha256": "7ec06040d7689f89c4b98bc8ea190b5cd0ba67802039a2ada2b7b9488538ac3e",
+      "source_path": "payload/general-agent-development/references/examples/agent-pattern-examples.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/event-driven-triage-agent-graph.mmd",
+      "sha256": "adefe10bdec0f8be23e64eaf0f91a37601936103bc1ce15ab563c7b8747f57ca",
+      "source_path": "payload/general-agent-development/references/examples/event-driven-triage-agent-graph.mmd"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/event-driven-triage-agent-runtime.yaml",
+      "sha256": "5d9ab895d11c23104105bb84eeb1512f114476a16961af72f7b13725c5068070",
+      "source_path": "payload/general-agent-development/references/examples/event-driven-triage-agent-runtime.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/evidence-loop-research-agent-graph.mmd",
+      "sha256": "4efa7c6e5791afc1fa4217b9fed39ac3bb60436c5dd461f256cbc4c573779f83",
+      "source_path": "payload/general-agent-development/references/examples/evidence-loop-research-agent-graph.mmd"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/evidence-loop-research-agent-runtime.yaml",
+      "sha256": "418af36d257c014a66879d75ed418b1631f4e7eeab6778c57275b3d1e3a109dd",
+      "source_path": "payload/general-agent-development/references/examples/evidence-loop-research-agent-runtime.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/multi-agent-coordination-agent-graph.mmd",
+      "sha256": "8f71b4987b3524ca8284959ce296ed56e6d8a8fecc18421e6a15bba30e5bec19",
+      "source_path": "payload/general-agent-development/references/examples/multi-agent-coordination-agent-graph.mmd"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/multi-agent-coordination-agent-runtime.yaml",
+      "sha256": "393cd0b413e34e65b455a0086804cecd34c175b4924fdaab1b8c853c7699daa2",
+      "source_path": "payload/general-agent-development/references/examples/multi-agent-coordination-agent-runtime.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/persistent-goal-workflow-graph.mmd",
+      "sha256": "99fec4645c138221448ae15dd7e68ab67aeddeae1b3d09cea64033f5cbb8995d",
+      "source_path": "payload/general-agent-development/references/examples/persistent-goal-workflow-graph.mmd"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/persistent-goal-workflow-runtime.yaml",
+      "sha256": "7e061f4879121b68d8ca4430a067da96a2cf4cf65709737f290ce46bd88b3258",
+      "source_path": "payload/general-agent-development/references/examples/persistent-goal-workflow-runtime.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/react-tool-agent-design.md",
+      "sha256": "44a9d7ee430e75c9f69d393b5d2b8fcdcac9ea34a1e76f59421c6e11d43d0952",
+      "source_path": "payload/general-agent-development/references/examples/react-tool-agent-design.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/react-tool-agent-graph.mmd",
+      "sha256": "4285796e47a80a2832a2ebd396cd598319a5232bdc3e07af8574cf5db69310e7",
+      "source_path": "payload/general-agent-development/references/examples/react-tool-agent-graph.mmd"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/react-tool-agent-host-pseudocode.md",
+      "sha256": "5774c5c27291f2b393b1c3bfa00c39d4ac792eef243e06b5c7617bee33607ca0",
+      "source_path": "payload/general-agent-development/references/examples/react-tool-agent-host-pseudocode.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/react-tool-agent-runtime.yaml",
+      "sha256": "088971268fc341ced84a3f6b3ca6e9fef134c117f907662e2429901731b7e7cf",
+      "source_path": "payload/general-agent-development/references/examples/react-tool-agent-runtime.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/runtime-package-agent-design.md",
+      "sha256": "41ea0e28a8557c4ac11e7323aa1dfea0dd5d2d0c05a363f38dd326cb2a056411",
+      "source_path": "payload/general-agent-development/references/examples/runtime-package-agent-design.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/runtime-package-review-agent-graph.mmd",
+      "sha256": "884481dab47bae098a8f9fa914aa501a10c1165e62be624f1373ea40b46fa607",
+      "source_path": "payload/general-agent-development/references/examples/runtime-package-review-agent-graph.mmd"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/runtime-package-review-agent-runtime.yaml",
+      "sha256": "58ceca8c8261f30876c82c2a6f1ee8c0530da14c6a69a8373a8bfc630f69662c",
+      "source_path": "payload/general-agent-development/references/examples/runtime-package-review-agent-runtime.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/simple-tool-agent-graph.mmd",
+      "sha256": "8213aceb11726845c405db5bc0a55b48e0afe25a5d1afdd78246444d85528372",
+      "source_path": "payload/general-agent-development/references/examples/simple-tool-agent-graph.mmd"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/simple-tool-agent-runtime.yaml",
+      "sha256": "7b802ba2dd46e6aef9625cbb6f1ae6b6b3f01bcf88d0c7045cc9d1ef459290fb",
+      "source_path": "payload/general-agent-development/references/examples/simple-tool-agent-runtime.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/examples/tool-index.yaml",
+      "sha256": "af4e9894003b5530aebcf36b8d29534437fdb328556765393ee1444226c47cde",
+      "source_path": "payload/general-agent-development/references/examples/tool-index.yaml"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/loop-engineering.md",
+      "sha256": "59879472bde5d9ea04be16ee8741c19a658b1252492b2fbfb79619de99a7116a",
+      "source_path": "payload/general-agent-development/references/loop-engineering.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/modules/agent-action-review/instructions.md",
+      "sha256": "53ca86e9e7a2a436a8f3acafdf8409d50ad7e01811491a7ada4721409fbc0de1",
+      "source_path": "payload/general-agent-development/references/modules/agent-action-review/instructions.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/modules/agent-action-review/references/action-packet-checklist.md",
+      "sha256": "9dbd04079e459f22f2cc29d67bc7252aec3e9bd5f9e232e728bbd934531b0f12",
+      "source_path": "payload/general-agent-development/references/modules/agent-action-review/references/action-packet-checklist.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/modules/agent-action-review/references/control-matrix.md",
+      "sha256": "67a67c61f5546f36ebfb56570d18ac8e2b97ddce4b01dea8a2c64d2efe0dcaa3",
+      "source_path": "payload/general-agent-development/references/modules/agent-action-review/references/control-matrix.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/modules/agent-environment-health/instructions.md",
+      "sha256": "3e6d9eed3a83a8782d4b662640280e44ba46085593af0ceef9bd2300fccd1866",
+      "source_path": "payload/general-agent-development/references/modules/agent-environment-health/instructions.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/modules/agent-evaluation/instructions.md",
+      "sha256": "8c367817ae23ed832219f931c4b5a250c7300628ea205eae968bbb2bce849d85",
+      "source_path": "payload/general-agent-development/references/modules/agent-evaluation/instructions.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/modules/agent-tool-contract-design/instructions.md",
+      "sha256": "cc86ef9030ef14998ee35918454aca1cf7d88ff2a730c48401e167ac79027dfc",
+      "source_path": "payload/general-agent-development/references/modules/agent-tool-contract-design/instructions.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/modules/agent-tool-contract-design/references/agent-friendly-cli.md",
+      "sha256": "ead233ab88b6c3f7e9b4d7327f330568e2bf5bef304227bbf931644ac4de3939",
+      "source_path": "payload/general-agent-development/references/modules/agent-tool-contract-design/references/agent-friendly-cli.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/references/workflow-efficiency-review.md",
+      "sha256": "271ca0684c138fff12d1426513c73a8d4dee7e6420a2c22fb2f01d49daaf6daf",
+      "source_path": "payload/general-agent-development/references/workflow-efficiency-review.md"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/schemas/agent-runtime.schema.json",
+      "sha256": "d46f0f80e36124ef37136a292962f62556d517812f53c81473930d428eb055c1",
+      "source_path": "payload/general-agent-development/schemas/agent-runtime.schema.json"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/scripts/validate_agent_runtime.py",
+      "sha256": "3f6fcdcb7c01e7207274cba956d93934bb4e5dfdc536f8e9595a7564c72125da",
+      "source_path": "payload/general-agent-development/scripts/validate_agent_runtime.py"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/templates/agent-design.md.template",
+      "sha256": "b322cf9f375bca253705fd79e8a5283d1243bd942344388aa9cbeef5bb3d218b",
+      "source_path": "payload/general-agent-development/templates/agent-design.md.template"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/templates/agent-graph.mmd.template",
+      "sha256": "d157dfabc62b5f898f89fc450359d85246d61f099a6dcf5d19bdc89673d7a6a9",
+      "source_path": "payload/general-agent-development/templates/agent-graph.mmd.template"
+    },
+    {
+      "disposition": "private_module_support",
+      "output_path": "references/modules/general-agent-development/templates/agent-runtime.yaml.template",
+      "sha256": "2c35630bf1ce8c57c900af419c1a29a86953bd4c2aa15e23664def718ba32a94",
+      "source_path": "payload/general-agent-development/templates/agent-runtime.yaml.template"
+    },
+    {
+      "disposition": "module_instruction",
+      "output_path": "skills/agent-development/references/modules/agent-development/instructions.md",
+      "sha256": "3597ccc44291a7e13db8e2605bd8d35d5fc2d93562e4d445e3ca32ff862fe53e",
+      "source_path": "skills/agent-development/SKILL.md"
+    },
+    {
+      "disposition": "module_instruction",
+      "output_path": "skills/agent-development/references/modules/dar-workflow-authoring/instructions.md",
+      "sha256": "328608f9b92f3a8681cc118dd5b745fb6cafddf44a2e65ffa32dd00aa8fbc7e7",
+      "source_path": "skills/dar-workflow-authoring/SKILL.md"
+    },
+    {
+      "disposition": "module_instruction",
+      "output_path": "skills/agent-development/references/modules/general-agent-development/instructions.md",
+      "sha256": "ba7c2f3756a0e0b4bba2d5dcd17238fb2f3cebad875873a61a376c2ed4941d5d",
+      "source_path": "skills/general-agent-development/SKILL.md"
+    }
+  ],
+  "format_version": 1,
+  "source_root": "plugins/agent-engineering"
+}

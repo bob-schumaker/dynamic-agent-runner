@@ -75,6 +75,13 @@ def _manifest_records(module: object) -> tuple[object, ...]:
                 reviewer_id=None,
                 reviewer_decision="pending",
                 marketplace_manifest_digest=digest if positive else None,
+                dar_runtime_version="0.1.17",
+                dar_runtime_wheel_filename=(
+                    "dynamic_agent_runner-0.1.17-py3-none-any.whl"
+                ),
+                dar_runtime_wheel_metadata_digest=digest,
+                dar_runtime_release_descriptor_digest=digest,
+                dar_runtime_payload_selector_list_digest=digest,
                 actor_durations_ms=(100, 200) if positive else (100,),
             )
         )
@@ -347,6 +354,15 @@ def test_manifest_evidence_requires_complete_fresh_redacted_record_set(
         record["actor_duration_ms"] for record in value["records"]
     )
     assert str(tmp_path) not in aggregate.read_text(encoding="utf-8")
+    record = json.loads(
+        (
+            evidence_directory
+            / value["records"][0]["scenario_id"]
+            / "author-then-run.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert record["dar_runtime_version"] == "0.1.17"
+    assert record["dar_runtime_wheel_filename"].endswith(".whl")
     with pytest.raises(module.HarnessError):
         module.write_manifest_evidence(
             evidence_directory=evidence_directory,
@@ -361,6 +377,22 @@ def test_manifest_evidence_requires_complete_fresh_redacted_record_set(
                 REPO_ROOT / "tests" / "fixtures" / "m4-4-successor",
             ),
             records=_manifest_records(module)[:-1],
+        )
+    records = _manifest_records(module)
+    with pytest.raises(module.HarnessError, match="runtime identities"):
+        module.write_manifest_evidence(
+            evidence_directory=(tmp_path / "mismatched-runtime-evidence").resolve(),
+            coverage_source=(
+                REPO_ROOT / "tests" / "fixtures" / "m4-4-successor-coverage.json"
+            ),
+            scenario_plan_source=(
+                REPO_ROOT / "tests" / "fixtures" / "m4-4-external-scenario-plan.json"
+            ),
+            scenario_roots=(
+                REPO_ROOT / "tests" / "fixtures" / "dar-authoring" / "m4-4",
+                REPO_ROOT / "tests" / "fixtures" / "m4-4-successor",
+            ),
+            records=(*records[:-1], replace(records[-1], dar_runtime_version="0.1.18")),
         )
     records = _manifest_records(module)
     with pytest.raises(module.HarnessError, match="actor durations"):
@@ -408,6 +440,19 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
             (original_ids, kwargs["plan"])
         ),
     )
+    runtime_release = module.RuntimeReleaseReceipt(
+        "0.1.17",
+        "dynamic_agent_runner-0.1.17-py3-none-any.whl",
+        "a" * 64,
+        "b" * 64,
+        "c" * 64,
+        "d" * 64,
+        "e" * 64,
+        ("0.1.3", "0.1.3"),
+    )
+    monkeypatch.setattr(
+        module, "_runtime_release_receipt", lambda **_kwargs: runtime_release
+    )
 
     aggregate = module.run_manifest(
         coverage=REPO_ROOT / "tests" / "fixtures" / "m4-4-successor-coverage.json",
@@ -424,6 +469,7 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
         plugin_root=(tmp_path / "plugin").resolve(),
         wheel=(tmp_path / "dar.whl").resolve(),
         materials=(tmp_path / "materials.json").resolve(),
+        runtime_release_descriptor=(tmp_path / "release.json").resolve(),
         model_id="openai/local-model",
         base_url="http://127.0.0.1:8080/v1",
         reviewer_id=None,
@@ -437,7 +483,17 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
     assert len(original_admission_calls) == 2
     assert set(fixture_contracts) == set(records)
     assert {call["evidence"] for call in calls} == {None}
-    assert len(json.loads(aggregate.read_text(encoding="utf-8"))["records"]) == 23
+    assert {call["runtime_release"] for call in calls} == {runtime_release}
+    aggregate_data = json.loads(aggregate.read_text(encoding="utf-8"))
+    assert len(aggregate_data["records"]) == 23
+    emitted = json.loads(
+        (
+            (tmp_path / "evidence")
+            / aggregate_data["records"][0]["scenario_id"]
+            / "author-then-run.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert emitted["dar_runtime_wheel_metadata_digest"] == "b" * 64
     progress = [
         json.loads(line)
         for line in (tmp_path / "progress.jsonl")
@@ -517,6 +573,8 @@ def test_external_command_owns_its_deterministic_fake_model(
                 str(tmp_path / "dar.whl"),
                 "--materials",
                 str(tmp_path / "materials.json"),
+                "--runtime-release-descriptor",
+                str(tmp_path / "dar-runtime-release.json"),
             )
         )
         == 0

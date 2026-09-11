@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
+import shutil
+
+import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +20,36 @@ DIRECT_BASELINE_MANIFEST = (
     REPO_ROOT / "tests" / "fixtures" / "m4-4-direct-baseline.json"
 )
 ROUTER_MEMBER_ROOT = PLUGIN_ROOT / "skills"
+RUNTIME_RELEASE_DESCRIPTOR = PLUGIN_ROOT / ".codex-plugin" / "dar-runtime-release.json"
+RUNTIME_RELEASE_VERIFIER = (
+    REPO_ROOT / "scripts" / "validate_agent_engineering_runtime_release.py"
+)
+CLASSIFICATION_MANIFEST = PLUGIN_ROOT / ".codex-plugin" / "classification-manifest.json"
+CLASSIFICATION_VERIFIER = (
+    REPO_ROOT / "scripts" / "validate_agent_engineering_classification.py"
+)
+
+
+def _runtime_release_verifier() -> object:
+    specification = importlib.util.spec_from_file_location(
+        "agent_engineering_runtime_release", RUNTIME_RELEASE_VERIFIER
+    )
+    assert specification is not None
+    assert specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
+def _classification_verifier() -> object:
+    specification = importlib.util.spec_from_file_location(
+        "agent_engineering_classification", CLASSIFICATION_VERIFIER
+    )
+    assert specification is not None
+    assert specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
 
 
 def _tree_digest(root: Path) -> str:
@@ -162,6 +196,143 @@ def test_plugin_payload_pins_the_released_dar_runtime_version() -> None:
         assert "required_version: 0.2.1" not in payload
         assert f"dynamic-agent-runner=={expected}" in payload
         assert f"required_version: {expected}" in payload
+
+
+def test_runtime_release_contract_binds_only_the_dar_runtime_selector() -> None:
+    verifier = _runtime_release_verifier()
+
+    receipt = verifier.validate_runtime_release_contract(
+        project_file=REPO_ROOT / "pyproject.toml",
+        descriptor_file=RUNTIME_RELEASE_DESCRIPTOR,
+        wheel_file=REPO_ROOT / "dist" / "dynamic_agent_runner-0.1.17-py3-none-any.whl",
+        payload_roots=(
+            PLUGIN_ROOT / "payload" / "dar-workflow-authoring",
+            GENERATED_ROOT / "references" / "modules" / "dar-workflow-authoring",
+        ),
+        plugin_manifest_files=(
+            PLUGIN_ROOT / ".codex-plugin" / "plugin.json",
+            GENERATED_ROOT / ".codex-plugin" / "plugin.json",
+        ),
+    )
+
+    assert receipt.runtime_version == "0.1.17"
+    assert receipt.wheel_filename == "dynamic_agent_runner-0.1.17-py3-none-any.whl"
+    assert len(receipt.wheel_metadata_sha256) == 64
+    assert receipt.plugin_versions == ("0.1.3", "0.1.3")
+    assert receipt.plugin_versions != (receipt.runtime_version,) * 2
+    assert (
+        receipt.descriptor_sha256
+        == hashlib.sha256(RUNTIME_RELEASE_DESCRIPTOR.read_bytes()).hexdigest()
+    )
+    assert len(receipt.payload_sha256) == 64
+    assert len(receipt.selector_list_sha256) == 64
+
+
+def test_runtime_release_contract_rejects_a_descriptor_wheel_mismatch(
+    tmp_path: Path,
+) -> None:
+    verifier = _runtime_release_verifier()
+    descriptor = tmp_path / "dar-runtime-release.json"
+    descriptor.write_text(
+        json.dumps(
+            {
+                "distribution": "dynamic-agent-runner",
+                "format_version": 1,
+                "runtime_version": "0.1.18",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(verifier.RuntimeReleaseContractError, match="version mismatch"):
+        verifier.validate_runtime_release_contract(
+            project_file=REPO_ROOT / "pyproject.toml",
+            descriptor_file=descriptor,
+            wheel_file=REPO_ROOT
+            / "dist"
+            / "dynamic_agent_runner-0.1.17-py3-none-any.whl",
+            payload_roots=(PLUGIN_ROOT / "payload" / "dar-workflow-authoring",),
+            plugin_manifest_files=(PLUGIN_ROOT / ".codex-plugin" / "plugin.json",),
+        )
+
+
+def test_runtime_release_contract_allows_a_plugin_only_version_change(
+    tmp_path: Path,
+) -> None:
+    verifier = _runtime_release_verifier()
+    plugin_manifest = tmp_path / "plugin.json"
+    plugin = json.loads(
+        (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    plugin["version"] = "99.0.0"
+    plugin_manifest.write_text(json.dumps(plugin), encoding="utf-8")
+
+    receipt = verifier.validate_runtime_release_contract(
+        project_file=REPO_ROOT / "pyproject.toml",
+        descriptor_file=RUNTIME_RELEASE_DESCRIPTOR,
+        wheel_file=REPO_ROOT / "dist" / "dynamic_agent_runner-0.1.17-py3-none-any.whl",
+        payload_roots=(PLUGIN_ROOT / "payload" / "dar-workflow-authoring",),
+        plugin_manifest_files=(plugin_manifest,),
+    )
+
+    assert receipt.runtime_version == "0.1.17"
+    assert receipt.plugin_versions == ("99.0.0",)
+
+
+def test_runtime_release_preparation_rewrites_only_payload_runtime_selectors(
+    tmp_path: Path,
+) -> None:
+    verifier = _runtime_release_verifier()
+    descriptor = tmp_path / "dar-runtime-release.json"
+    descriptor.write_text(
+        json.dumps(
+            {
+                "distribution": "dynamic-agent-runner",
+                "format_version": 1,
+                "runtime_version": "0.1.18",
+            }
+        ),
+        encoding="utf-8",
+    )
+    payload_root = tmp_path / "dar-workflow-authoring"
+    shutil.copytree(PLUGIN_ROOT / "payload" / "dar-workflow-authoring", payload_root)
+    plugin_manifest = tmp_path / "plugin.json"
+    plugin_manifest.write_text(
+        (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    changed_files = verifier.prepare_runtime_release_payload(
+        descriptor_file=descriptor,
+        payload_roots=(payload_root,),
+    )
+
+    payload = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(
+            candidate for candidate in payload_root.rglob("*") if candidate.is_file()
+        )
+    )
+    assert changed_files
+    assert "dynamic-agent-runner==0.1.17" not in payload
+    assert "required_version: 0.1.17" not in payload
+    assert "dynamic-agent-runner==0.1.18" in payload
+    assert "required_version: 0.1.18" in payload
+    assert json.loads(plugin_manifest.read_text(encoding="utf-8"))["version"] == "0.1.3"
+
+
+def test_classification_manifest_covers_every_source_input_and_mapped_output() -> None:
+    verifier = _classification_verifier()
+
+    receipt = verifier.validate_classification_manifest(
+        plugin_root=PLUGIN_ROOT,
+        manifest_file=CLASSIFICATION_MANIFEST,
+        source_map_file=GENERATED_ROOT / ".router-plugin-packager-source-map.json",
+    )
+
+    assert receipt.source_file_count > 0
+    assert receipt.mapped_output_count > 0
+    assert receipt.excluded_paths == (".codex-plugin/dar-runtime-release.json",)
 
 
 def test_router_source_has_no_support_subtree_and_private_members_own_guidance() -> (

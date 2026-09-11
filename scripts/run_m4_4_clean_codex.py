@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import argparse
 from contextlib import ExitStack, contextmanager
+from dataclasses import replace
 from datetime import UTC, datetime
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -87,6 +89,26 @@ _ORIGINAL_SCENARIO_IDS = (
     / "tests"
     / "fixtures"
     / "m4-4-original-scenario-ids.json"
+)
+_RUNTIME_RELEASE_VERIFIER = (
+    Path(__file__).resolve().with_name("validate_agent_engineering_runtime_release.py")
+)
+
+
+def _load_runtime_release_verifier() -> tuple[type[tuple], Callable[..., object]]:
+    spec = importlib.util.spec_from_file_location(
+        "m44_runtime_release_verifier", _RUNTIME_RELEASE_VERIFIER
+    )
+    if spec is None or spec.loader is None:
+        raise HarnessError("DAR runtime release verifier is unavailable")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module.RuntimeReleaseReceipt, module.validate_runtime_release_contract
+
+
+RuntimeReleaseReceipt, validate_runtime_release_contract = (
+    _load_runtime_release_verifier()
 )
 
 
@@ -447,6 +469,7 @@ def run_manifest(
     plugin_root: Path,
     wheel: Path,
     materials: Path,
+    runtime_release_descriptor: Path,
     model_id: str,
     base_url: str,
     reviewer_id: str | None,
@@ -472,6 +495,11 @@ def run_manifest(
     )
     sources = _scenario_sources(scenario_roots)
     _verify_fixture_contracts(plan, sources)
+    runtime_release = _runtime_release_receipt(
+        descriptor=runtime_release_descriptor,
+        generated_plugin_root=plugin_root,
+        wheel=wheel,
+    )
     _write_progress_event(
         progress_file,
         {"event": "run_started", "scenario_count": len(plan.entries)},
@@ -505,7 +533,9 @@ def run_manifest(
             codex_executable=codex_executable,
             timeout=timeout,
             plugin_surface=plugin_surface,
+            runtime_release=runtime_release,
         )
+        record = _bind_runtime_release(record, runtime_release)
         records_list.append(record)
         _write_progress_event(
             progress_file,
@@ -551,6 +581,43 @@ def _write_progress_event(
     os.chmod(progress_file, 0o600)
 
 
+def _runtime_release_receipt(
+    *, descriptor: Path, generated_plugin_root: Path, wheel: Path
+) -> RuntimeReleaseReceipt:
+    """Verify the fixed DAR runtime selector before starting either actor."""
+
+    source_plugin_root = descriptor.parent.parent
+    return validate_runtime_release_contract(
+        project_file=Path(__file__).resolve().parents[1] / "pyproject.toml",
+        descriptor_file=descriptor,
+        wheel_file=wheel,
+        payload_roots=(
+            source_plugin_root / "payload",
+            generated_plugin_root / "references" / "modules",
+        ),
+        plugin_manifest_files=(
+            source_plugin_root / ".codex-plugin" / "plugin.json",
+            generated_plugin_root / ".codex-plugin" / "plugin.json",
+        ),
+    )
+
+
+def _bind_runtime_release(
+    record: AuthorThenRunEvidence,
+    runtime_release: RuntimeReleaseReceipt,
+) -> AuthorThenRunEvidence:
+    """Attach the verified runtime selector identities to one redacted record."""
+
+    return replace(
+        record,
+        dar_runtime_version=runtime_release.runtime_version,
+        dar_runtime_wheel_filename=runtime_release.wheel_filename,
+        dar_runtime_wheel_metadata_digest=runtime_release.wheel_metadata_sha256,
+        dar_runtime_release_descriptor_digest=runtime_release.descriptor_sha256,
+        dar_runtime_payload_selector_list_digest=runtime_release.selector_list_sha256,
+    )
+
+
 def run_scenario(
     *,
     scenario: Path,
@@ -570,6 +637,7 @@ def run_scenario(
     codex_executable: str,
     timeout: int,
     plugin_surface: str = "generated-root",
+    runtime_release: RuntimeReleaseReceipt | None = None,
 ) -> AuthorThenRunEvidence:
     """Run one author turn and, for the positive case, one independent run turn."""
 
@@ -1191,6 +1259,20 @@ def _validate_manifest_records(
         raise HarnessError("external evidence records are invalid")
     if any(not record.actor_durations_ms for record in records):
         raise HarnessError("external evidence records lack actor durations")
+    runtime_identities = {
+        (
+            record.dar_runtime_version,
+            record.dar_runtime_wheel_filename,
+            record.dar_runtime_wheel_metadata_digest,
+            record.dar_runtime_release_descriptor_digest,
+            record.dar_runtime_payload_selector_list_digest,
+        )
+        for record in records
+    }
+    if len(runtime_identities) != 1 or None in next(iter(runtime_identities)):
+        raise HarnessError(
+            "external evidence records have inconsistent runtime identities"
+        )
 
 
 def _scenario_sources(scenario_roots: tuple[Path, ...]) -> dict[str, Path]:
@@ -1428,6 +1510,7 @@ def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
         "plugin_root",
         "wheel",
         "materials",
+        "runtime_release_descriptor",
         "evidence_directory",
     ):
         parser.add_argument(f"--{name.replace('_', '-')}", type=Path, required=True)
