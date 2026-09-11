@@ -9,6 +9,10 @@
   rather than executing a package-local asset.
 - DAR validates generic artifact, capability, model-binding, and resource
   contracts only. Chunking and index semantics remain workflow-local.
+- Workflow construction chooses the embedding model by sealing its complete
+  material closure and descriptor. DAR provides only generic ABI/provider
+  admission; no slice may add a named embedding-model registry, profile, or
+  caller-side model selector.
 - No slice introduces an automatic persistent destination write.
 - Version 1 admits only deterministic embedding providers: identical locked
   inputs and execution parameters must produce identical bundle and report
@@ -51,7 +55,7 @@ bundle and generic-report artifacts without importing workflow-local code.
 4. Bind exact selected provider and material digests before every deferred side
    effect; rerun the existing capability admission matrix.
 
-Exit: a sealed package can name an embedding material set and exact capability;
+Exit: a sealed package can lock its embedding model material closure and exact capability;
 the host fails closed before provider execution, model preparation, package
 import, sealed document ingress, or builder execution.
 

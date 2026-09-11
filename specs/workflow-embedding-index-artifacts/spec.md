@@ -128,6 +128,16 @@ returns exactly one finite vector per ID, in input order, with a fixed positive
 dimension for a single invocation. It exposes no provider path, credentials,
 model-selection control, raw request, or raw response to workflow code.
 
+This is a generalized embedding-model capability, not a DAR model profile.
+Workflow construction chooses and locks the exact upstream model artifacts and
+descriptor through `workflow-model-materials`; the package revision then fixes
+that choice. The receiver chooses only an installed implementation of the
+descriptor's generic ABI. A second workflow may lock a different compatible
+model under the same ABI without changing DAR, while a new architecture needs a
+reviewed ABI implementation. Neither the portable callback, the caller, nor
+the provider-selection record can select a model, repository, revision, cache
+entry, loader, or model-specific option.
+
 The package declares this exact capability under
 `workflow-capability-requirements`. The embedding material lock binds immutable
 source material and a workflow-owned sealed execution descriptor interpreted by
@@ -196,9 +206,11 @@ the SHA-256 of the canonical JSON object
 `{"asset_digest": asset_digest, "builder_contract_digest": child_contract_digest}`.
 That value is the `index_builder_digest` bound into the index manifest and
 coverage report. The package's existing locked material declaration supplies
-the embedding material role, while the outer callback requires the exact
-capability. DAR verifies those declarations and resolves all required
-capabilities/materials before it loads the asset or accepts the input.
+the embedding model closure and descriptor, while the outer callback requires
+the exact capability. DAR verifies those declarations and resolves all required
+capabilities/materials before it loads the asset or accepts the input. The
+outer descriptor deliberately does not repeat a model name, repository,
+revision, dimension, architecture, or backend setting.
 
 The receiver-owned sealed callback integration is the only portable-runtime
 integration seam. Before either sealed-input preparation copies caller bytes or

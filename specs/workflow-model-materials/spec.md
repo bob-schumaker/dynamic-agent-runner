@@ -37,6 +37,26 @@ execution ABI, never a DAR model catalog entry. An embedding workflow therefore
 selects its own model material at construction while a receiver supplies only a
 generic compatible ABI implementation.
 
+### Generalized embedding-model support
+
+The model-material contract is the embedding-model support system. During
+workflow construction, the creator chooses one embedding model and seals its
+complete artifact closure, immutable source revision, file digests, license
+decision, execution descriptor, and requested `embedding.execute.v1`
+capability into the package. The selected model is consequently a property of
+that workflow revision, not DAR configuration, a provider profile, or a
+runtime argument.
+
+A receiving DAR installation supplies only a generic execution implementation
+for the descriptor's exact ABI and may reuse or materialize the locked files
+under its normal cache and host policy. It must neither infer a model from a
+repository name nor substitute a similar cached model. A different model that
+validates under an already installed ABI needs a newly constructed workflow
+package, but no DAR source, registry, or release change. A new architecture or
+an incompatible ABI revision requires a separately reviewed receiver ABI
+implementation. This distinction applies equally to MLX, llama.cpp, and any
+later embedding backend.
+
 ## Problem Statement
 
 The current local-model-preparation contract keeps model recipes in a host

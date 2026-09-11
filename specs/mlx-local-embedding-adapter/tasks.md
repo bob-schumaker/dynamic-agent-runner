@@ -49,6 +49,8 @@
   The registry is architecture-ABI based and contains no named-model entries.
 - [x] MLE1.4 [tests, GREEN] Prove two distinct model descriptors accepted by
   the same ABI remain isolated and that no model identity is compiled into DAR.
+  - Acceptance: the test fixtures alone name model materials; production
+    support remains the generic descriptor-validator/backend registry.
 
 ## MLE2 — Direct adapter admission
 
@@ -109,6 +111,7 @@
   descriptor/material-binding conformance tests.
   - Depends on: MLE1.4, MLE4.1, and the approved embedding-index spec.
 - [ ] MLE5.2 [implementation] Register one generic MLX ABI provider through
-  the capability catalog.
+  the capability catalog. The registration identifies only the capability and
+  ABI contract; it must not name, fetch, or select an embedding model.
 - [ ] MLE5.3 [tests, GREEN] Prove unavailable/changed providers fail before
   model load, embedding execution, builder import, or artifact egress.

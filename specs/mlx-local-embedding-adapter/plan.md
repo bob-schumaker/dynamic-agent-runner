@@ -9,6 +9,9 @@
 - The workflow construction process locks material, descriptor, tokenizer,
   pooling, normalization, and source-license decision. Receiver DAR verifies
   and executes that data but does not choose it.
+- Treat each installed MLX ABI as a generic backend implementation, never as a
+  supported-model profile. A new compatible model is a workflow-construction
+  artifact change; only a new architecture ABI warrants DAR implementation.
 - A real model runs only under explicit authorization after deterministic
   admission and conformance tests pass.
 

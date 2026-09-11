@@ -15,13 +15,13 @@
 
 ## Objective
 
-Provide a lazy, in-process, macOS-only embedding execution implementation for
-a sealed workflow. DAR supplies platform/dependency admission, a registry of
-bounded generic MLX encoder ABIs, material-identity verification, and result
-validation. Workflow construction supplies immutable material and a sealed
-declarative encoder descriptor. DAR does not select an upstream embedding
-model, architecture configuration, tokenizer, pooling rule, normalization
-rule, or license.
+Provide a lazy, in-process, macOS-only implementation of DAR's generalized
+embedding-model support contract. DAR supplies platform/dependency admission,
+a registry of bounded generic MLX encoder ABIs, material-identity verification,
+and result validation. Workflow construction supplies immutable material and a
+sealed declarative encoder descriptor. DAR does not select an upstream
+embedding model, architecture configuration, tokenizer, pooling rule,
+normalization rule, or license.
 
 The provider is optional: ordinary DAR imports, non-macOS hosts, CI, and
 existing llama.cpp workflows require neither MLX nor Metal.
@@ -45,6 +45,12 @@ is the architecture-neutral capability presented to workflow-local code. MLX
 is one receiver implementation of that capability; other receiver
 implementations may satisfy the same capability through their own supported
 execution ABI without changing workflow semantics.
+
+The initial BERT-style ABI below is a bounded implementation example, not the
+identity of the embedding product and not a supported-model list. It defines
+one safe architecture/tensor/tokenizer interpretation. Any workflow whose
+sealed materials satisfy it may use it; names, repositories, revisions,
+dimensions, and license decisions remain outside DAR production configuration.
 
 ## Architecture and Trust Boundary
 
