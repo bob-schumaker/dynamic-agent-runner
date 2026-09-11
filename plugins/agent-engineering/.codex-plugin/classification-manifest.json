@@ -141,7 +141,7 @@
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile.md",
-      "sha256": "370a416af084929a4c2a01563d55b8f149d2280ea6c707309718478790d1cbad",
+      "sha256": "0031f39587d5ccfd2626461befd6d0d751068b1cb90dd0a3c5edec144c7c48e6",
       "source_path": "payload/dar-workflow-authoring/references/dar-runtime-profile.md"
     },
     {

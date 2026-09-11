@@ -368,6 +368,12 @@ def test_router_source_has_no_support_subtree_and_private_members_own_guidance()
     assert "explicitly asks" in profile
     assert "command-limited `dar-package` on `PATH`" in profile
     assert "Do not search for a wheel" in profile
+    assert "create-authored-package --package-name <package-name>" in profile
+    assert "write-authored-package-file --authoring-output-id" in profile
+    assert "finalize-authored-package \\" in profile
+    assert "--authoring-output-id <authoring-output-id>" in profile
+    assert 'receipt with `status: "created"`' in profile
+    assert 'receipt with `status: "finalized"`' in profile
     assert "corpus/" not in root_skill
 
 

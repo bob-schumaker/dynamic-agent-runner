@@ -17,6 +17,25 @@ with `uv run`. Do not search for a wheel, package cache, source checkout, or
 another executable. The host owns that command's implementation and command
 allowlist; the plugin still provides no launcher or control plane.
 
+When the host authorizes sealed package authoring, create the host-owned output
+first with `dar-package create-authored-package --package-name <package-name>`.
+Keep its returned opaque `authoring_output_id`; write each reviewed package file
+with `dar-package write-authored-package-file --authoring-output-id
+<authoring-output-id> --relative-path <path> --content-stdin`, supplying only
+the file body on standard input. After every required file has been written,
+finalize exactly that output:
+
+```sh
+dar-package finalize-authored-package \\
+  --authoring-output-id <authoring-output-id> \\
+  --material-set-id <material-set-id>
+```
+
+The host supplies the opaque material-set identifier when it is authorized.
+Treat the JSON receipt with `status: "created"` and the JSON
+receipt with `status: "finalized"` as the only evidence of the corresponding
+operations; do not infer success from filesystem state or command text.
+
 - [Agent-development DAR guidance](dar-runtime-profile/agent-development.md)
 - [Tool-contract DAR guidance](dar-runtime-profile/agent-tool-contract-design.md)
 - [Evaluation DAR guidance](dar-runtime-profile/agent-evaluation.md)
