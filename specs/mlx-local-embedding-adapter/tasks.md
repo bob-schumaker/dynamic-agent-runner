@@ -56,17 +56,28 @@
 
 ## MLE2 — Direct adapter admission
 
-- [ ] MLE2.1 [tests, RED] Add fake-only tests for dedicated factory/import
+- [x] MLE2.1 [tests, RED] Add fake-only tests for dedicated factory/import
   behavior, macOS-14+/arm64 lazy failure, exact MLX dependency admission,
   material role/hash/identity rejection, and injected backend admission.
   - Depends on: MLE1.2.
-- [ ] MLE2.2 [implementation] Add separate sync/async configuration and
+  - Evidence: `tests/test_mlx_local_embedding.py` failed at collection before
+    the module existed, then records lazy sync/async construction, macOS/arm64
+    pre-admission, exact dependency admission including load failure, the full
+    closed material identity, and injected-backend reachability.
+- [x] MLE2.2 [implementation] Add separate sync/async configuration and
   factories with package-owned errors and no generation-adapter change.
   - Depends on: MLE2.1.
-- [ ] MLE2.3 [tests, GREEN] Prove rejected platform, dependency, or material
+  - Evidence: `mlx_local_embedding.py` provides the dedicated closed direct
+    adapter and factories, with no change to the generation adapter.
+- [x] MLE2.3 [tests, GREEN] Prove rejected platform, dependency, or material
   states make no backend/tokenizer/model call and preserve static versus
   receiver-resolved capability metadata.
   - Depends on: MLE2.2.
+  - Evidence: `poetry run pytest tests/test_mlx_local_embedding.py
+    tests/test_mlx_models.py -q` passed 114 tests. Rejected admission states
+    do not reach the injected backend, while static capability metadata is
+    inert and receiver-resolved metadata repeats dependency and material
+    admission before reporting embeddings available.
 
 ## MLE3 — Closed GTE Tiny MLX encoder
 

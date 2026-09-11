@@ -107,6 +107,15 @@ from dynamic_agent_runner.mlx_models import (
     create_mlx_local_adapter,
     create_mlx_local_async_adapter,
 )
+from dynamic_agent_runner.mlx_local_embedding import (
+    AsyncMLXLocalEmbeddingAdapter,
+    MLXGteTinyPreparedArtifacts,
+    MLXLocalEmbeddingAdapter,
+    MLXLocalEmbeddingConfig,
+    MLXLocalEmbeddingBackend,
+    create_mlx_local_embedding_adapter,
+    create_mlx_local_embedding_async_adapter,
+)
 from dynamic_agent_runner.qwen3_mlx_tools import (
     PINNED_QWEN3_MLX_MODEL_ID,
     Qwen3MLXBackend,
@@ -302,6 +311,11 @@ __all__ = [
     "LocalModelError",
     "LocalOpenAIEndpointConfig",
     "MLXLocalModelConfig",
+    "AsyncMLXLocalEmbeddingAdapter",
+    "MLXGteTinyPreparedArtifacts",
+    "MLXLocalEmbeddingAdapter",
+    "MLXLocalEmbeddingBackend",
+    "MLXLocalEmbeddingConfig",
     "MLXToolCallCandidate",
     "MLXToolCapableBackend",
     "MLXToolCodec",
@@ -347,6 +361,8 @@ __all__ = [
     "create_local_openai_adapter",
     "create_mlx_local_adapter",
     "create_mlx_local_async_adapter",
+    "create_mlx_local_embedding_adapter",
+    "create_mlx_local_embedding_async_adapter",
     "create_qwen3_mlx_local_adapter",
     "create_qwen3_mlx_local_async_adapter",
     "create_apple_foundation_model_async_adapter",
