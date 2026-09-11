@@ -116,7 +116,9 @@ It validates the selected role, declared media type, byte ceiling, SHA-256, and,
 for a non-null JSON schema, strict UTF-8 JSON with duplicate keys rejected and
 schema validation. It then seals immutable private bytes and records the
 verified digest and metadata. It defers material loading and provider entry.
-Invocation repeats identity checks and validates the handle binding and state;
+Invocation repeats identity checks, requires the recompiled private selected
+provider IDs to equal the registration-bound IDs, revalidates that exact saved
+selection without reselection, and validates the handle binding and state.
 `read_input` rechecks the sealed bytes' digest before returning them. A failure
 occurs before asset, callback, or provider entry.
 
@@ -162,9 +164,11 @@ host registration record keyed by receiver and workflow revision, with no ZIP
 or artifact byte access; (2) ZIP, manifest, descriptor, schema, and asset-digest
 verification against that record; (3) exact receiver-owner-package-revision-
 asset-profile authorization; (4) side-effect-free capability, material, and
-provider identity resolution; (5) handle metadata validation; (6) collector
-allocation; then (7) asset import and execution. Material download/load and
-provider entry are deferred to an authorized callback after step 5. Any
+provider identity resolution, including equality and revalidation of the
+registration-bound selected provider IDs; (5) handle metadata validation; (6)
+collector allocation; then (7) asset import and execution. Material
+download/load and provider entry are deferred to an authorized callback after
+step 5. Any
 rejection before its boundary performs zero later action, including input byte
 reads, asset import, material download/load, provider call, collector
 allocation/write, output-handle creation, or egress.

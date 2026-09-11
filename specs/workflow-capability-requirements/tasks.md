@@ -320,6 +320,10 @@ targeted pre-commit hooks passed on 2026-09-09.
   `workflow-locked-inference-callback`.
   - Evidence: the v1 contract requires the generic `structured` feature and
     bounded-I/O, deadline, structured-value, and redacted-failure conformance.
+    The 2026-09-10 Council (Aristotle, Ada, Feynman) and Ponytail review also
+    approved one fresh policy/revision-bound execution factory per invocation:
+    it uses only the registration-selected provider, rereads sealed role assets,
+    and never exposes a provider selector or creates a parallel callback path.
 - [ ] C6.2 [tests, RED] Add descriptor/admission vectors for inference-role
   requirement/material-role mismatches that leave all asset, model, provider,
   ingress, and result actions at zero.

@@ -78,6 +78,20 @@ structured value. It has no provider names, prompt fields, network options,
 cache paths, or model execution settings. DAR validates both boundaries and
 returns a redacted failure before a provider call on any mismatch.
 
+For each sealed invocation, DAR creates a fresh private execution service from
+the trusted catalog revision, the recompiled policy, the registration-bound
+selected capability-provider IDs, the receiver capability catalog, a
+receiver-owned inference-provider registry, and host ceilings. It first
+requires the recompiled selected IDs to equal the registration record and
+revalidates those same IDs without reselection. It maps the one exact
+`model.generate.v1` requirement to its selected ID by the canonical
+requirements order, verifies every role/binding/material relation and rereads
+the sealed instruction and schemas from the trusted revision, then resolves
+only that executable. Every callback revalidates the saved selection and exact
+executable immediately before provider entry. A fresh service makes callback
+quota and revocation state invocation-local. Package policy and assets never
+receive a provider ID, catalog path, revision root, or executable handle.
+
 `model.generate.v1` is deliberately domain-neutral. Classification,
 extraction, normalization, summarization, and constrained suggestion are
 potential consumers. DAR neither defines vocabulary membership, labels,
@@ -110,8 +124,10 @@ This feature does not:
    telemetry exposes that handle or its settings.
 3. Admission resolves every role before package-local asset import, material
    download, sealed input ingress, embedding execution, or result allocation.
-   Revalidation immediately precedes every callback invocation and never falls
-   back to another provider.
+   It requires the current selected-provider IDs to equal registration-bound
+   IDs and revalidates those IDs before descriptor verification. Revalidation
+   immediately precedes every callback invocation and never falls back to
+   another provider.
 4. The internal provider seam is
    `generate(binding, instruction_bytes, request_bytes) -> response_bytes`;
    package assets see only the narrow callback. Effective per-role limits are
