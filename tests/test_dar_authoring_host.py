@@ -1272,6 +1272,68 @@ def test_local_host_rejects_partial_locked_inference_configuration(
         )
 
 
+def test_locked_inference_registration_rejects_tampered_role_before_preparation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package_root = tmp_path / "packages"
+    source = package_root / "locked-inference"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    configuration = configure_local_host(
+        root=tmp_path / "state",
+        package_root=package_root,
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    profile = LocalModelProfileControlPlane(
+        store=PrivateStateStore(tmp_path / "state")
+    ).load(configuration.profile_id)
+    contract = next(
+        item
+        for item in BUILTIN_CAPABILITY_CONTRACTS
+        if item.capability_id == "model.generate.v1"
+    )
+    runner_contract = CapabilityContract("model.execution.test.v1", "1", "c" * 64, ())
+    _write_locked_inference_sealed_package(
+        source,
+        profile_digest=profile.profile_digest,
+        contract=contract,
+        runner_contract=runner_contract,
+    )
+    descriptor_path = source / "workflow-descriptor.yaml"
+    descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+    descriptor["inference_roles"]["roles"][0]["capability_id"] = "other.generate.v1"
+    descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
+    catalog = CapabilityCatalog(
+        (*BUILTIN_CAPABILITY_CONTRACTS, runner_contract),
+        (
+            CapabilityProvider("receiver-generate", contract, conformance_passed=True),
+            CapabilityProvider(
+                "receiver-runner", runner_contract, conformance_passed=True
+            ),
+        ),
+    )
+    host = LocalWorkflowHost.open(
+        tmp_path / "state",
+        capability_catalog=catalog,
+        locked_inference_provider_registry=LockedInferenceProviderRegistry(
+            (LockedInferenceProviderBinding("receiver-generate", contract, object()),)  # type: ignore[arg-type]
+        ),
+        locked_inference_host_limits=LockedInferenceHostLimits(1, 100, 100, 100, 1),
+    )
+    monkeypatch.setattr(
+        host._model_preparation,
+        "prepare",
+        lambda **_kwargs: pytest.fail("model preparation was called"),
+    )
+
+    with pytest.raises(ValueError, match="package descriptor"):
+        host.register(
+            workflow_id="locked-inference",
+            package_source_handle=host.select_package(source, now=NOW),
+            now=NOW,
+        )
+
+
 def test_local_host_rejects_tampered_asset_and_missing_handle_before_execution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
