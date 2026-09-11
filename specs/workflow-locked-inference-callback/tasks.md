@@ -103,10 +103,12 @@
     materials and the receiver provider, prepares a sealed JSON handle, and
     invokes the callback-enabled sealed asset. It proves one provider entry,
     one declared opaque `result` handle, and only aggregate receipt fields.
-- [ ] I3.4 [verification] Run focused suites, full pytest, Ruff, diff checks,
+- [x] I3.4 [verification] Run focused suites, full pytest, Ruff, diff checks,
   then a separately authorized manual acceptance under exact owner
   authorization or the approved isolation backend.
-  - Automated evidence: focused receiver suites and the full repository suite
-    passed on 2026-09-10 (`2169 passed, 1 skipped, 7 deselected`); Ruff and
-    `git diff --check` passed; `poetry build` produced the `0.1.17` sdist and
-    wheel. The final manual acceptance remains awaiting explicit authorization.
+  - Evidence: explicit owner authorization was granted on 2026-09-11. The
+    staged-ZIP receiver acceptance and focused locked-inference matrix passed
+    (`42 passed`); the full repository suite passed (`2282 passed, 1 skipped,
+    7 deselected`); Ruff and `git diff --check` passed. The accepted protocol
+    uses the receiver-owned fake provider and sealed-artifact host only; it
+    makes no live external-provider claim.
