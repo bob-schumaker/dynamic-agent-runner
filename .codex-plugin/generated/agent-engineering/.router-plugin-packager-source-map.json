@@ -766,14 +766,14 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "9326f18891668f113ab91c0c6dc3c6c4fe233e3cbce115f22a40f69000a73e62",
+      "content_hash": "2f375cccdd45f06f87d28dc33b7f8ff5aaab4d8a22b5b9ec51f9634c00ab1f47",
       "file_mode": "0o644",
       "kind": "payload-asset",
       "ownership_class": null,
       "ownership_role": "private_module_support",
       "path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-development.md",
       "provenance_reference": null,
-      "source_hash": "9326f18891668f113ab91c0c6dc3c6c4fe233e3cbce115f22a40f69000a73e62",
+      "source_hash": "2f375cccdd45f06f87d28dc33b7f8ff5aaab4d8a22b5b9ec51f9634c00ab1f47",
       "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-runtime-profile/agent-development.md",
       "transform_kind": "payload-asset"
     },
@@ -871,13 +871,13 @@
     },
     {
       "acquisition_mode": "generated",
-      "content_hash": "0d0190961f96793ef9713c358e9d5661cc7ae497e052c29476c03672676f8eb2",
+      "content_hash": "59adc3cb401217e6e7f888104564f8318eaff19028e0c98f0129b351d2ac6b3f",
       "file_mode": "0o644",
       "kind": "payload-manifest",
       "ownership_class": null,
       "ownership_role": "payload-manifest",
       "path": ".codex-plugin/payload-manifest.json",
-      "payload_fingerprint": "0233cb382c70dd82dc3cc3e34f7c9567aec7f6e8c66eca8c51858ac8fc740e7d",
+      "payload_fingerprint": "4c90451cb678eac16b50f5e5e5ae8cdb8f0c1ae32fa6f510b377daef764d5bef",
       "provenance_reference": null,
       "source_hash": null,
       "source_reference": "generated:payload-manifest",
@@ -885,13 +885,13 @@
     },
     {
       "acquisition_mode": "generated",
-      "content_hash": "a266156ad70e0ab828ee7b07d013777bd29523b012bf9179c6f0ad6e571bc122",
+      "content_hash": "112b79cdd1a5fb4b553e1962101908bbc57668677aed11dfcddae181d8257bf0",
       "file_mode": "0o644",
       "kind": "release-metadata",
       "ownership_class": null,
       "ownership_role": "release-metadata",
       "path": ".codex-plugin/release-metadata.json",
-      "payload_fingerprint": "0233cb382c70dd82dc3cc3e34f7c9567aec7f6e8c66eca8c51858ac8fc740e7d",
+      "payload_fingerprint": "4c90451cb678eac16b50f5e5e5ae8cdb8f0c1ae32fa6f510b377daef764d5bef",
       "provenance_reference": null,
       "source_hash": null,
       "source_reference": "generated:release-metadata",
@@ -972,7 +972,7 @@
   ],
   "native_routed": {
     "format": "router-plugin-packager-native-routed-receipt-v1",
-    "generated_tree_digest": "b47f620d3128da1f55e6126a85a27ce91c02b43b46871b323a095239d1c4e931",
+    "generated_tree_digest": "9d01d0c5db2b087833470dccd6e0c8049264f5fcf80ac2f0949d276fa002ccea",
     "router_authority": {
       "routers": [
         {
@@ -1069,7 +1069,7 @@
     "version_override": "0.1.3"
   },
   "packaging_mode": "router-surface",
-  "payload_fingerprint": "0233cb382c70dd82dc3cc3e34f7c9567aec7f6e8c66eca8c51858ac8fc740e7d",
+  "payload_fingerprint": "4c90451cb678eac16b50f5e5e5ae8cdb8f0c1ae32fa6f510b377daef764d5bef",
   "plugin_id": "bob-schumaker/agent-engineering/agent-engineering",
   "surface_id": "agent-engineering",
   "version": "0.1.3"

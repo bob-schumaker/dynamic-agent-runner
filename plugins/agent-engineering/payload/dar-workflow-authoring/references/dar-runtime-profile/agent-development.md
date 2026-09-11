@@ -57,7 +57,10 @@ selection. The generated package must validate with DAR before handoff.
 
 ## Canonical no-tool starter
 
-For a bounded no-tool workflow, start from the plugin's `templates/` files.
+For a bounded no-tool workflow, start from
+`references/dar-authoring-templates/`. This is the plugin's canonical
+no-tool template directory in both the source payload and the generated
+marketplace payload; do not assume a sibling `templates/` directory exists.
 Keep the runtime shape, graph entrypoint, output contract, descriptor limits,
 and `dar_runtime` block intact; change only the package identity, human-facing
 purpose, and the local-model system prompt needed for the defined task. The

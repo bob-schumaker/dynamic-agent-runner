@@ -427,6 +427,7 @@ def test_private_dar_guidance_keeps_artifact_workflows_on_the_no_tool_template()
     assert "allowed_artifact_roles" in guidance
     assert "structured input schema" in guidance
     assert "custom artifact protocol" in guidance
+    assert "references/dar-authoring-templates/" in guidance
     assert "Copy the canonical no-tool template files" in guidance
     assert "only YAML fields that may change" in guidance
     assert "Do not normalize artifact role names" in guidance
