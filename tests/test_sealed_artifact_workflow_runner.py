@@ -171,15 +171,23 @@ def test_concrete_runner_reserves_consumes_and_publishes_atomically(
             return _Revision(root)
 
     class Callbacks:
+        def __init__(self) -> None:
+            self.validated: list[tuple[object, object]] = []
+
         def revalidate(self, _callback) -> None:
             return None
 
         def invoke(self, _name: str, _request: bytes) -> bytes:
             raise AssertionError("no callback is declared")
 
+        def validate_sealed_outputs(self, sealed, input_digests) -> None:
+            self.validated.append((sealed, input_digests))
+
     class CallbackResolver:
+        callbacks = Callbacks()
+
         def resolve(self, _descriptor, _policy, _revision) -> Callbacks:
-            return Callbacks()
+            return self.callbacks
 
     observed: list[object] = []
 
@@ -199,12 +207,13 @@ def test_concrete_runner_reserves_consumes_and_publishes_atomically(
         )
 
     monkeypatch.setattr(module, "compile_workflow_policy", policy)
+    resolver = CallbackResolver()
     runner = SealedArtifactWorkflowRunner(
         registrations=Registrations(),
         catalog=Catalog(),
         handles=inputs,
         outputs=SealedArtifactOutputHandleService(store=store, owner=_OWNER),
-        callback_resolver=CallbackResolver(),
+        callback_resolver=resolver,
         identity=_Identity(),
         output_ttl=timedelta(minutes=1),
         descriptor_validators=validators,
@@ -222,6 +231,7 @@ def test_concrete_runner_reserves_consumes_and_publishes_atomically(
     assert [handle.role for handle in result.outputs] == ["result"]
     assert result.receipt["status"] == "completed"
     assert observed == [validators]
+    assert len(resolver.callbacks.validated) == 1
 
 
 def test_tampered_asset_stops_before_handle_or_provider_or_egress(

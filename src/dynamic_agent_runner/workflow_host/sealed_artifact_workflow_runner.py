@@ -111,6 +111,7 @@ class SealedArtifactWorkflowRunner:
 
         reserved: list[str] = []
         consumed: set[str] = set()
+        input_digests: dict[str, str] = {}
         try:
             (
                 registration,
@@ -153,6 +154,7 @@ class SealedArtifactWorkflowRunner:
                     now=now,
                 )
                 consumed.add(handle_id)
+                input_digests[role] = hashlib.sha256(content).hexdigest()
                 return content
 
             asset = _asset_bytes(revision.package_root, descriptor)
@@ -165,6 +167,11 @@ class SealedArtifactWorkflowRunner:
                     callback_provider=callback_provider,
                     collector=collector,
                 ),
+            )
+            _validate_sealed_outputs(
+                callback_provider,
+                sealed=sealed,
+                input_digests=input_digests,
             )
             outputs = self._outputs.publish(
                 descriptor=descriptor,
@@ -261,3 +268,21 @@ def _asset_bytes(root: Path, descriptor: SealedArtifactRunnerDescriptor) -> byte
             "sealed artifact runner is unavailable"
         )
     return content
+
+
+def _validate_sealed_outputs(
+    callback_provider: SealedArtifactCallbackProvider,
+    *,
+    sealed: tuple[tuple[str, str, bytes], ...],
+    input_digests: Mapping[str, str],
+) -> None:
+    """Run an optional receiver-owned private candidate validator before egress."""
+
+    validator = getattr(callback_provider, "validate_sealed_outputs", None)
+    if validator is None:
+        return
+    if not callable(validator):
+        raise SealedArtifactRunnerAdmissionError(
+            "sealed artifact runner is unavailable"
+        )
+    validator(sealed, dict(input_digests))
