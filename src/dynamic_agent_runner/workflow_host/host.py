@@ -813,6 +813,7 @@ class LocalWorkflowHost:
                 registrations=registrations,
                 catalog=catalog,
                 handles=sealed_handles,
+                capability_catalog=capability_catalog or CapabilityCatalog((), ()),
             )
             if sealed_artifact_callback_resolver is not None
             else None

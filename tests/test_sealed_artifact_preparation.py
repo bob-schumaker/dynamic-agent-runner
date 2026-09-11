@@ -13,11 +13,15 @@ import pytest
 import yaml
 
 from dynamic_agent_runner.workflow_host.catalog import PackageCatalog
-from dynamic_agent_runner.workflow_host.capabilities import CapabilityRequirements
+from dynamic_agent_runner.workflow_host.capabilities import (
+    CapabilityCatalog,
+    CapabilityRequirements,
+)
 from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
 )
 from dynamic_agent_runner.workflow_host.policy import (
+    PolicyCompilationError,
     compile_workflow_policy,
     resolve_capabilities,
 )
@@ -65,6 +69,7 @@ class _Registration:
     package_id: str = "example"
     revision_digest: str = _REVISION
     profile_digest: str = _PROFILE
+    policy_digest: str = "c" * 64
 
 
 @dataclass(frozen=True)
@@ -156,6 +161,43 @@ def _service(tmp_path: Path, *, profile_digest: str = _PROFILE):
         ),
         store,
     )
+
+
+def test_preparation_rejects_policy_recompilation_before_copying_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import dynamic_agent_runner.workflow_host.sealed_artifact_preparation as module
+
+    service, store = _service(tmp_path)
+    monkeypatch.setattr(
+        module,
+        "compile_workflow_policy",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            PolicyCompilationError("inference asset is invalid")
+        ),
+        raising=False,
+    )
+
+    with pytest.raises(SealedArtifactHandleError, match="unavailable"):
+        SealedArtifactInputPreparationService(
+            registrations=_Registrations(),
+            catalog=_Catalog(tmp_path / "package"),
+            handles=SealedArtifactHandleService(store=store, owner=_OWNER),
+            identity=_Identity(),
+            capability_catalog=CapabilityCatalog((), ()),
+        ).prepare(
+            workflow_id="example",
+            receiver_id=_OWNER,
+            invocation_id="invocation",
+            role="snapshot",
+            media_type="application/octet-stream",
+            schema_digest=None,
+            content=b"sealed bytes",
+            expires_at=NOW + timedelta(minutes=1),
+            now=NOW,
+        )
+
+    assert store.issue_calls == 0
 
 
 @pytest.mark.parametrize(

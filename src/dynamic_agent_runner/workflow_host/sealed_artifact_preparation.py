@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
+from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
+from dynamic_agent_runner.workflow_host.policy import compile_workflow_policy
 from dynamic_agent_runner.workflow_host.profiles import InstallationIdentityProvider
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactHandle,
@@ -19,6 +21,7 @@ class _Registration(Protocol):
     package_id: str
     revision_digest: str
     profile_digest: str
+    policy_digest: str
 
 
 class _Registrations(Protocol):
@@ -48,6 +51,7 @@ class SealedArtifactInputPreparationService:
         catalog: _Catalog,
         handles: SealedArtifactHandleService,
         identity: _Identity | None = None,
+        capability_catalog: CapabilityCatalog | None = None,
     ) -> None:
         principal = (identity or InstallationIdentityProvider()).principal
         if (
@@ -61,6 +65,7 @@ class SealedArtifactInputPreparationService:
         self._catalog = catalog
         self._handles = handles
         self._principal = principal
+        self._capability_catalog = capability_catalog
 
     def prepare(
         self,
@@ -82,6 +87,12 @@ class SealedArtifactInputPreparationService:
             revision = self._catalog.revision(
                 registration.package_id, registration.revision_digest
             )
+            if self._capability_catalog is not None:
+                policy = compile_workflow_policy(
+                    revision, capability_catalog=self._capability_catalog
+                )
+                if policy.policy_digest != registration.policy_digest:
+                    raise SealedArtifactHandleError("artifact handle is invalid")
             root = revision.package_root
             descriptor = verify_sealed_artifact_runner_files(
                 root, (root / "sealed-artifact-runner.json").read_bytes()
