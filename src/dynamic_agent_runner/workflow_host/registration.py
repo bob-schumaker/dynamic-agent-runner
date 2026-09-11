@@ -24,6 +24,7 @@ from dynamic_agent_runner.workflow_host.mcp_surfaces import (
 )
 from dynamic_agent_runner.workflow_host.mcp_tools import MCPReadOnlyToolClient
 from dynamic_agent_runner.workflow_host.profiles import (
+    InstallationIdentityProvider,
     LocalModelProfile,
     LocalModelProfileControlPlane,
     LocalModelProfileError,
@@ -53,6 +54,7 @@ class WorkflowRegistration:
     selected_capability_provider_ids: tuple[str, ...] = ()
     mcp_binding_id: str | None = None
     model_recipe_digest: str | None = None
+    owner: str | None = None
 
 
 class WorkflowRegistrationService:
@@ -68,6 +70,7 @@ class WorkflowRegistrationService:
         mcp_client: MCPReadOnlyToolClient | None = None,
         mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
         model_recipe_digest_provider: Callable[[LocalModelProfile], str] | None = None,
+        owner: str | None = None,
     ) -> None:
         self._profiles = profiles
         self._configured_profile_id = configured_profile_id
@@ -77,6 +80,10 @@ class WorkflowRegistrationService:
         self._mcp_client = mcp_client
         self._mcp_surfaces = mcp_surfaces
         self._model_recipe_digest_provider = model_recipe_digest_provider
+        self._owner = (
+            InstallationIdentityProvider().principal if owner is None else owner
+        )
+        _nonempty(self._owner, "owner")
         root.mkdir(mode=0o700, parents=True, exist_ok=True)
         mode = os.lstat(root).st_mode
         if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
@@ -108,6 +115,7 @@ class WorkflowRegistrationService:
             selected_capability_provider_ids=policy.selected_capability_provider_ids,
             mcp_binding_id=bound_mcp_id,
             model_recipe_digest=model_recipe_digest,
+            owner=self._owner,
         )
         records = self._read()
         existing = records.get(workflow_id)
@@ -239,6 +247,7 @@ def _registration_from(
     selected_capability_provider_ids: tuple[str, ...],
     mcp_binding_id: str | None,
     model_recipe_digest: str | None,
+    owner: str,
 ) -> WorkflowRegistration:
     digest_input = {
         "format_version": 1,
@@ -254,6 +263,7 @@ def _registration_from(
         "profile_id": profile.profile_id,
         "profile_digest": profile.profile_digest,
         "model_id": profile.model_id,
+        "owner": owner,
     }
     if mcp_binding_id is not None:
         digest_input["mcp_binding_id"] = mcp_binding_id
@@ -278,6 +288,7 @@ def _registration_from(
         selected_capability_provider_ids=selected_capability_provider_ids,
         mcp_binding_id=mcp_binding_id,
         model_recipe_digest=model_recipe_digest,
+        owner=owner,
     )
 
 
@@ -312,6 +323,8 @@ def _to_mapping(registration: WorkflowRegistration) -> dict[str, object]:
         )
     if registration.model_recipe_digest is not None:
         result["model_recipe_digest"] = registration.model_recipe_digest
+    if registration.owner is not None:
+        result["owner"] = registration.owner
     return result
 
 
@@ -330,6 +343,7 @@ def _from_mapping(value: object) -> WorkflowRegistration:  # noqa: C901
         "selected_capability_provider_ids",
         "mcp_binding_id",
         "model_recipe_digest",
+        "owner",
     }
     if not set(value).issubset(allowed_fields) or any(
         not isinstance(item, str) or not item for item in values.values()
@@ -342,6 +356,9 @@ def _from_mapping(value: object) -> WorkflowRegistration:  # noqa: C901
         raise WorkflowRegistrationError("registration catalog is invalid")
     model_recipe_digest = value.get("model_recipe_digest")
     if model_recipe_digest is not None and not _is_digest(model_recipe_digest):
+        raise WorkflowRegistrationError("registration catalog is invalid")
+    owner = value.get("owner")
+    if owner is not None and (not isinstance(owner, str) or not owner):
         raise WorkflowRegistrationError("registration catalog is invalid")
     capability_requirements_digest = value.get("capability_requirements_digest")
     if capability_requirements_digest is not None and not _is_digest(
@@ -381,6 +398,7 @@ def _from_mapping(value: object) -> WorkflowRegistration:  # noqa: C901
         selected_capability_provider_ids=tuple(provider_ids),
         mcp_binding_id=mcp_binding_id,
         model_recipe_digest=model_recipe_digest,
+        owner=owner,
     )
 
 

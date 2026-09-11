@@ -58,6 +58,12 @@
   versioned asset-ABI vectors for sealed inputs, callback-name-to-role binding,
   allowed roles, declared slots, absent/extra/repeated slots, atomic rollback,
   and content-free receipts.
+  - Partial evidence: a foreign registration owner now stops immediately after
+    registration resolution and before catalog/ZIP, callback, asset, or handle
+    access. New registrations bind their owner into the registration digest;
+    legacy ownerless registrations remain readable for ordinary workflows but
+    cannot enter the sealed-artifact runner. The remaining ABI and slot vectors
+    are still open.
 - [x] I3.2 [implementation] Wire the callback only through the approved sealed
   asset runtime profile and the existing in-memory result collector.
   - Evidence: Council (Aristotle, Ada, Feynman) and Ponytail reviewed the

@@ -186,6 +186,10 @@ class SealedArtifactWorkflowRunner:
 
     def _admit(self, invocation: SealedArtifactInvocation):
         registration = self._registrations.resolve(invocation.workflow_id)
+        if getattr(registration, "owner", None) != self._principal:
+            raise SealedArtifactRunnerAdmissionError(
+                "sealed artifact runner is unavailable"
+            )
         revision = self._catalog.revision(
             registration.package_id, registration.revision_digest
         )

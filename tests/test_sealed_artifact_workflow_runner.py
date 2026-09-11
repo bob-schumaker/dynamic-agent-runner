@@ -65,6 +65,7 @@ class _Registration:
     profile_digest: str = _PROFILE
     policy_digest: str = "c" * 64
     selected_capability_provider_ids: tuple[str, ...] = ()
+    owner: str = _OWNER
 
 
 @dataclass(frozen=True)
@@ -361,6 +362,64 @@ def test_changed_selected_provider_stops_before_descriptor_or_callback(
         )
 
     assert resolver.calls == 0
+
+
+def test_foreign_registration_owner_stops_before_catalog_or_callback(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "package"
+    descriptor_bytes, _requirements = _package(root)
+    descriptor = parse_sealed_artifact_runner_descriptor(descriptor_bytes)
+    store = PrivateStateStore(tmp_path / "state")
+    handles = SealedArtifactHandleService(store=store, owner=_OWNER)
+    input_handle = handles.prepare(
+        descriptor=descriptor,
+        receiver_id=_OWNER,
+        revision_digest=_REVISION,
+        invocation_id="invocation",
+        role="snapshot",
+        media_type="application/octet-stream",
+        schema_digest=None,
+        content=b"snapshot",
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    events: list[str] = []
+
+    class Registrations:
+        def resolve(self, _workflow_id: str) -> _Registration:
+            events.append("registration")
+            return _Registration(owner="other-owner")
+
+    class Catalog:
+        def revision(self, _package_id: str, _revision_digest: str) -> _Revision:
+            events.append("catalog_revision")
+            raise AssertionError("foreign registration must stop before ZIP access")
+
+    class CallbackResolver:
+        def resolve(self, _descriptor, _policy, _revision) -> object:
+            events.append("callback_provider_resolution")
+            raise AssertionError("foreign registration must stop before callback")
+
+    runner = SealedArtifactWorkflowRunner(
+        registrations=Registrations(),
+        catalog=Catalog(),
+        handles=handles,
+        outputs=SealedArtifactOutputHandleService(store=store, owner=_OWNER),
+        callback_resolver=CallbackResolver(),
+        identity=_Identity(),
+        output_ttl=timedelta(minutes=1),
+    )
+
+    with pytest.raises(SealedArtifactRunnerAdmissionError, match="unavailable"):
+        runner.run(
+            SealedArtifactInvocation(
+                "example", "invocation", {"snapshot": input_handle.handle_id}
+            ),
+            now=NOW,
+        )
+
+    assert events == ["registration"]
 
 
 def test_locked_inference_callback_runs_only_through_sealed_asset_context(

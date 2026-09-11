@@ -92,6 +92,7 @@ def _service(
         configured_profile_id=profile.profile_id,
         root=tmp_path / "registrations",
         model_recipe_digest_provider=model_recipe_digest_provider,
+        owner="test-owner",
     )
 
 
@@ -110,6 +111,7 @@ def test_registration_binds_eligible_policy_to_configured_local_profile(
     assert registration.profile_id.startswith("v1.")
     assert len(registration.profile_digest) == 64
     assert len(registration.registration_digest) == 64
+    assert registration.owner == "test-owner"
     assert (
         registration.capability_requirements_digest
         == _policy().capability_requirements_digest
@@ -120,6 +122,7 @@ def test_registration_binds_eligible_policy_to_configured_local_profile(
         record["registrations"]["document-helper"]["capability_requirements_digest"]
         == registration.capability_requirements_digest
     )
+    assert record["registrations"]["document-helper"]["owner"] == "test-owner"
 
 
 def test_registration_persists_private_selected_capability_provider_ids(
@@ -225,12 +228,14 @@ def test_legacy_registration_without_capability_digest_remains_readable(
     path = tmp_path / "registrations" / "registrations.json"
     record = json.loads(path.read_text())
     del record["registrations"]["document-helper"]["capability_requirements_digest"]
+    del record["registrations"]["document-helper"]["owner"]
     path.write_text(json.dumps(record), encoding="utf-8")
 
     loaded = service.resolve("document-helper")
 
     assert loaded.workflow_id == registration.workflow_id
     assert loaded.capability_requirements_digest is None
+    assert loaded.owner is None
 
 
 def test_registration_binds_converter_to_the_host_recipe_digest(
