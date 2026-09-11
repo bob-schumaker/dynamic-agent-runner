@@ -161,9 +161,12 @@ DAR runtime compatibility is separate from plugin versioning. A plugin-only
 guidance, routing, metadata, or marketplace release may change the plugin
 version while retaining an already-compatible runtime `V` (or carrying no
 runtime selector); it must not require a DAR source-version change, a new DAR
-wheel, or a DAR publication. Conversely, a DAR release may change `V` without
-a plugin-version change. `V` is a payload compatibility pin, never a derived
-plugin version or a synchronized release number.
+wheel, or a DAR publication. It must leave DAR's project version, runtime
+release descriptor, and sealed runtime-selector payload unchanged. Conversely,
+a DAR release may change `V`, its wheel, and its selector payload without a
+plugin-version or marketplace-metadata change. `V` is a payload compatibility
+pin, never a derived plugin version or a synchronized release number. These
+are two independently releasable artifacts, not paired releases.
 
 When a release-preparation run creates or changes a runtime-version-bearing
 payload, it carries one explicit PEP 440 runtime version `V` in the

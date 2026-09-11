@@ -260,6 +260,14 @@ def test_runtime_release_contract_allows_a_plugin_only_version_change(
     tmp_path: Path,
 ) -> None:
     verifier = _runtime_release_verifier()
+    project_bytes = (REPO_ROOT / "pyproject.toml").read_bytes()
+    descriptor_bytes = RUNTIME_RELEASE_DESCRIPTOR.read_bytes()
+    payload_root = PLUGIN_ROOT / "payload" / "dar-workflow-authoring"
+    payload_bytes = {
+        path.relative_to(payload_root): path.read_bytes()
+        for path in payload_root.rglob("*")
+        if path.is_file()
+    }
     plugin_manifest = tmp_path / "plugin.json"
     plugin = json.loads(
         (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
@@ -277,6 +285,13 @@ def test_runtime_release_contract_allows_a_plugin_only_version_change(
 
     assert receipt.runtime_version == "0.1.17"
     assert receipt.plugin_versions == ("99.0.0",)
+    assert (REPO_ROOT / "pyproject.toml").read_bytes() == project_bytes
+    assert RUNTIME_RELEASE_DESCRIPTOR.read_bytes() == descriptor_bytes
+    assert {
+        path.relative_to(payload_root): path.read_bytes()
+        for path in payload_root.rglob("*")
+        if path.is_file()
+    } == payload_bytes
 
 
 def test_runtime_release_preparation_rewrites_only_payload_runtime_selectors(

@@ -15,9 +15,12 @@ publication, and enabled-install verification passed.
 Plugin and DAR package versions are independent. A plugin-only guidance,
 routing, metadata, or marketplace release may retain an existing compatible
 DAR runtime `V` (or carry no runtime selector) without building or publishing
-DAR. A DAR release may update `V` without a plugin-version change. The remaining
-runtime-linkage work validates only payload selectors that declare `V`; it must
-not make a DAR release a prerequisite for a plugin-only release.
+DAR, and must leave DAR's project version, runtime release descriptor, and
+sealed selector payload unchanged. A DAR release may update `V` without a
+plugin-version or marketplace-metadata change. The remaining runtime-linkage
+work validates only payload selectors that declare `V`; it must not make a DAR
+release a prerequisite for a plugin-only release or treat the two artifacts as
+a paired release.
 
 ## Successor Clean-Codex Acceptance
 
