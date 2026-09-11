@@ -1340,3 +1340,20 @@ def test_successor_controller_advertises_supported_execution_gates() -> None:
     module = _harness_module()
 
     assert set(module._controller_available_gates()) == {"G2", "G3", "G4", "G5"}
+
+
+def test_debug_transcript_is_written_only_to_the_explicit_private_sink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _harness_module()
+    sink = tmp_path / "debug"
+
+    module._write_debug_transcript("package", "author", "private output")
+    assert not sink.exists()
+
+    monkeypatch.setenv("DAR_M44_DEBUG_TRANSCRIPT_DIRECTORY", str(sink))
+    module._write_debug_transcript("package", "author", "private output")
+
+    assert (sink / "package-author.jsonl").read_text(
+        encoding="utf-8"
+    ) == "private output"

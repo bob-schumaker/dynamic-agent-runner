@@ -790,6 +790,7 @@ def run_scenario(
                     ),
                     timeout,
                 )
+                _write_debug_transcript(package_name, "author", author_result.stdout)
                 author_duration_ms = _actor_duration_ms(author_started)
                 if contract.expected_status in {
                     "expected_capability_unavailable",
@@ -1531,6 +1532,17 @@ def _decision_summary(output: str, *, prefix: str) -> tuple[str, ...]:
         elif item_type == "file_change":
             labels.append(f"{prefix}:file_change")
     return tuple(dict.fromkeys(labels))
+
+
+def _write_debug_transcript(package_name: str, actor: str, output: str) -> None:
+    """Write raw actor output only when an explicit private debug sink is set."""
+
+    root = os.environ.get("DAR_M44_DEBUG_TRANSCRIPT_DIRECTORY")
+    if not root:
+        return
+    destination = Path(root)
+    destination.mkdir(mode=0o700, parents=True, exist_ok=True)
+    (destination / f"{package_name}-{actor}.jsonl").write_text(output, encoding="utf-8")
 
 
 def _event_trace(output: str, *, prefix: str) -> tuple[str, ...]:
