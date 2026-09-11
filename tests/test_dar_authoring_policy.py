@@ -838,6 +838,7 @@ def test_model_material_lock_change_changes_the_policy_digest(tmp_path: Path) ->
 
 def test_v2_material_lock_requires_its_exact_descriptor_before_runtime_load(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     execution_descriptor = {
         "format_version": 1,
@@ -908,6 +909,17 @@ def test_v2_material_lock_requires_its_exact_descriptor_before_runtime_load(
         execution_descriptor=execution_descriptor,
         capability_requirements=declared_requirements,
     )
+    runtime_loads: list[object] = []
+    with monkeypatch.context() as patched:
+        patched.setattr(
+            policy_module,
+            "load_agent_package_workflow",
+            lambda *args: runtime_loads.append(args),
+        )
+        with pytest.raises(PolicyCompilationError, match="model execution binding"):
+            compile_workflow_policy(revision, capability_catalog=catalog)
+    assert runtime_loads == []
+
     policy = compile_workflow_policy(
         revision,
         capability_catalog=catalog,

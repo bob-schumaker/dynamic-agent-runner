@@ -292,6 +292,31 @@ def test_v2_execution_descriptor_round_trips_through_zip_import(
     assert lock.execution_descriptor.sha256 == descriptor.digest
 
 
+def test_zip_import_rejects_duplicate_execution_descriptor_assets(
+    tmp_path: Path,
+) -> None:
+    staged, store = _stage(
+        tmp_path,
+        with_model_materials=True,
+        model_materials=_v2_model_materials(),
+        execution_descriptor=_execution_descriptor(),
+    )
+    archive = tmp_path / "exports" / "v2.zip"
+    export_staged_package(staged=staged, destination=archive)
+
+    with zipfile.ZipFile(archive, "a") as exported:
+        with pytest.warns(UserWarning, match="Duplicate name"):
+            exported.writestr("execution-descriptor.json", b"{}")
+
+    handle = PackageSourceSelectionPolicy(
+        allowed_root=archive.parent, store=store
+    ).select_zip(archive, now=NOW)
+    with pytest.raises(PackageStagingError, match="duplicate"):
+        PrivatePackageStager(store=store, private_root=tmp_path / "imports").stage(
+            handle, now=NOW
+        )
+
+
 def test_export_rejects_tampered_v2_execution_descriptor(tmp_path: Path) -> None:
     staged, _ = _stage(
         tmp_path,

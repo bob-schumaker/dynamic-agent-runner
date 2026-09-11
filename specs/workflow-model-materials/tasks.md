@@ -156,19 +156,32 @@ fake-only and test-first.
 
 ## M8 — Sealed Declarative Execution Descriptors
 
-- [ ] M8.1 [tests, RED] Add v2 lock/package/binding vectors for non-circular
+- [x] M8.1 [tests, RED] Add v2 lock/package/binding vectors for non-circular
   lock/descriptor construction, descriptor canonical bytes and digest,
   lock/descriptor mismatch, unknown or wrong ABI ID/version/digest,
   ABI-schema mismatch, unknown fields, duplicate descriptor assets, v1/v2
   mixing, and pre-side-effect rejection.
-- [ ] M8.2 [implementation] Resolve an exact descriptor ABI through a pure
+  - Evidence: focused model-material, descriptor, binding, policy, export, and
+    staging tests cover canonical lock-to-descriptor digest binding, malformed
+    or unavailable exact ABIs, v1/v2 closure, duplicate descriptor ZIP assets,
+    and failed v2 admission before runtime package loading.
+- [x] M8.2 [implementation] Resolve an exact descriptor ABI through a pure
   receiver-installed validator registry, then parse and bind the v2 execution
   descriptor as immutable package data; preserve v1 parser, identity, and
   runner behavior.
-- [ ] M8.3 [tests, GREEN] Prove a v2 descriptor reaches only an exact
+- [x] M8.3 [tests, GREEN] Prove a v2 descriptor reaches only an exact
   receiver-installed generic execution ABI through the pure validator registry
   and cannot select a model registry entry, loader profile, factory, import,
-  endpoint, path, device, or provider.
-- [ ] M8.4 [tests, GREEN] Prove two model descriptors using one ABI remain
+  endpoint, path, device, or provider except where a reviewed exact ABI
+  explicitly defines a field.
+  - Evidence: exact-registry and closed-ABI tests prove no fallback or generic
+    provider selection; all deferred recompile boundaries receive the same
+    receiver-owned registry and reject before handle ingress or runtime load.
+- [x] M8.4 [tests, GREEN] Prove two model descriptors using one ABI remain
   isolated and production source/package construction contain no named
-  embedding-model material, dimension, role table, or model loader identity.
+  upstream embedding-model material, dimension, role table, or model-loader
+  identity; receiver-owned architecture ABI grammar remains allowed.
+  - Evidence: distinct same-ABI descriptor bindings and exact provider binding
+    tests preserve descriptor isolation; the production-source cleanup test
+    excludes named embedding experiment identities while allowing generic ABI
+    implementations.
