@@ -23,14 +23,14 @@
 
 ## MLE1 — Sealed generic descriptor
 
-- [ ] MLE1.1 [spec/design] Define ABI-neutral `execution-descriptor.json`, its
+- [x] MLE1.1 [spec/design] Define ABI-neutral `execution-descriptor.json`, its
   canonical digest, non-circular material-lock binding, and initial BERT-style
   ABI identity (ID, version, contract digest) with one closed finite
   `abi_fields` grammar.
   - Acceptance: the descriptor has no executable code, model registry key,
     source endpoint, path, device setting, runtime version, or provider
     selector; tensor grammar is ABI-owned rather than descriptor-provided.
-- [ ] MLE1.2 [tests, RED] Add fake canonical-byte and rejection vectors for
+- [x] MLE1.2 [tests, RED] Add fake canonical-byte and rejection vectors for
   non-circular lock/descriptor construction, descriptor/lock mismatch, unknown
   or wrong ABI ID/version/digest, ABI-schema mismatch, invalid roles/tensor
   rules, invalid limits, malformed conformance records, and generic
@@ -43,10 +43,10 @@
     framework, or MLX work. Vectors also prove output dimension equals hidden
     size and each fixed BERT operation (embedding order, mask, attention,
     LayerNorm, GELU, pooling, and normalization) has one interpretation.
-- [ ] MLE1.3 [implementation] Resolve the exact ABI through a pure
+- [x] MLE1.3 [implementation] Resolve the exact ABI through a pure
   receiver-installed validator registry, then parse, validate, and bind the
   descriptor through generic model-material and embedding execution bindings.
-- [ ] MLE1.4 [tests, GREEN] Prove two distinct model descriptors accepted by
+- [x] MLE1.4 [tests, GREEN] Prove two distinct model descriptors accepted by
   the same ABI remain isolated and that no model identity is compiled into DAR.
 
 ## MLE2 — Direct adapter admission

@@ -78,6 +78,19 @@ def test_validator_accepts_the_closed_generic_bert_encoder_descriptor() -> None:
     BertEncoderMlxV1DescriptorValidator().validate(descriptor)
 
 
+def test_two_distinct_descriptors_are_accepted_by_the_same_abi() -> None:
+    first = _descriptor()
+    second = _descriptor()
+    second.abi_fields["pooling"] = "cls"
+    validator = BertEncoderMlxV1DescriptorValidator()
+
+    validator.validate(first)
+    validator.validate(second)
+
+    assert first.architecture_abi == second.architecture_abi
+    assert first.digest != second.digest
+
+
 @pytest.mark.parametrize(
     "mutate",
     (
