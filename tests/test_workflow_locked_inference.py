@@ -146,6 +146,44 @@ def test_inference_role_assets_require_exact_regular_bytes_and_schemas(
         verify_inference_role_assets(root=tmp_path, roles=roles)
 
 
+@pytest.mark.parametrize(
+    ("path", "content"),
+    (
+        ("assets/instruction.txt", b"\xff"),
+        ("assets/request-schema.json", b'{"type":"number"}'),
+        ("assets/response-schema.json", b'{"unknown":true}'),
+    ),
+)
+def test_inference_role_assets_reject_invalid_instruction_or_schema_before_binding(
+    tmp_path, path: str, content: bytes
+) -> None:
+    instruction = b"sealed instruction"
+    schema = b'{"max_depth":2,"max_items":1,"properties":{"value":{"max_string_bytes":16,"type":"string"}},"required":["value"],"type":"object"}'
+    (tmp_path / "assets").mkdir()
+    assets = {
+        "assets/instruction.txt": instruction,
+        "assets/request-schema.json": schema,
+        "assets/response-schema.json": schema,
+    }
+    assets[path] = content
+    for asset_path, asset_content in assets.items():
+        (tmp_path / asset_path).write_bytes(asset_content)
+    value = _roles()
+    role = value["roles"][0]
+    role["instruction_asset"]["sha256"] = sha256(
+        assets["assets/instruction.txt"]
+    ).hexdigest()
+    role["request_schema_asset"]["sha256"] = sha256(
+        assets["assets/request-schema.json"]
+    ).hexdigest()
+    role["response_schema_asset"]["sha256"] = sha256(
+        assets["assets/response-schema.json"]
+    ).hexdigest()
+
+    with pytest.raises(LockedInferenceError, match="asset"):
+        verify_inference_role_assets(root=tmp_path, roles=parse_inference_roles(value))
+
+
 def test_inference_bindings_keep_each_role_material_and_generation_contract_private() -> (
     None
 ):
