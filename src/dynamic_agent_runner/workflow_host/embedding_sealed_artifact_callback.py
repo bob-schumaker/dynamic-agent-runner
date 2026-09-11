@@ -72,6 +72,11 @@ class EmbeddingSealedArtifactCallbackProvider:
             value = json.loads(request.decode("utf-8"), object_pairs_hook=_unique)
             if not isinstance(value, Mapping) or set(value) != {"items"}:
                 raise ValueError
+            if (
+                json.dumps(value, separators=(",", ":"), sort_keys=True).encode()
+                != request
+            ):
+                raise ValueError
             items = tuple(
                 EmbeddingTextItem(item["id"], item["text"])
                 for item in value["items"]
