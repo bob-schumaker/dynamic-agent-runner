@@ -17,6 +17,10 @@ from dynamic_agent_runner.workflow_host.capabilities import (
     CapabilityCatalog,
     CapabilityRequirements,
 )
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorAbi,
+    ExecutionDescriptorValidatorRegistry,
+)
 from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
 )
@@ -169,12 +173,24 @@ def test_preparation_rejects_policy_recompilation_before_copying_bytes(
     import dynamic_agent_runner.workflow_host.sealed_artifact_preparation as module
 
     service, store = _service(tmp_path)
+    observed: list[object] = []
+
+    class Validator:
+        identity = ExecutionDescriptorAbi("test-abi", "1", "d" * 64)
+
+        def validate(self, _descriptor) -> None:
+            return None
+
+    validators = ExecutionDescriptorValidatorRegistry((Validator(),))
+
+    def reject_policy(*_args, descriptor_validators=None, **_kwargs):
+        observed.append(descriptor_validators)
+        raise PolicyCompilationError("inference asset is invalid")
+
     monkeypatch.setattr(
         module,
         "compile_workflow_policy",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            PolicyCompilationError("inference asset is invalid")
-        ),
+        reject_policy,
         raising=False,
     )
 
@@ -185,6 +201,7 @@ def test_preparation_rejects_policy_recompilation_before_copying_bytes(
             handles=SealedArtifactHandleService(store=store, owner=_OWNER),
             identity=_Identity(),
             capability_catalog=CapabilityCatalog((), ()),
+            descriptor_validators=validators,
         ).prepare(
             workflow_id="example",
             receiver_id=_OWNER,
@@ -198,6 +215,7 @@ def test_preparation_rejects_policy_recompilation_before_copying_bytes(
         )
 
     assert store.issue_calls == 0
+    assert observed == [validators]
 
 
 @pytest.mark.parametrize(

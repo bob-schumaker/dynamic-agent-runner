@@ -856,6 +856,7 @@ class LocalWorkflowHost:
                 catalog=catalog,
                 handles=sealed_handles,
                 capability_catalog=capability_catalog or CapabilityCatalog((), ()),
+                descriptor_validators=descriptor_validators,
             )
             if sealed_artifact_callback_resolver is not None
             else None
@@ -868,6 +869,7 @@ class LocalWorkflowHost:
                 outputs=sealed_outputs,
                 callback_resolver=sealed_artifact_callback_resolver,
                 capability_catalog=capability_catalog,
+                descriptor_validators=descriptor_validators,
                 output_ttl=_SEALED_ARTIFACT_OUTPUT_TTL,
             )
             if sealed_artifact_callback_resolver is not None

@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Protocol
 
 from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorValidatorRegistry,
+)
 from dynamic_agent_runner.workflow_host.policy import compile_workflow_policy
 from dynamic_agent_runner.workflow_host.profiles import InstallationIdentityProvider
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
@@ -52,6 +55,7 @@ class SealedArtifactInputPreparationService:
         handles: SealedArtifactHandleService,
         identity: _Identity | None = None,
         capability_catalog: CapabilityCatalog | None = None,
+        descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
     ) -> None:
         principal = (identity or InstallationIdentityProvider()).principal
         if (
@@ -66,6 +70,7 @@ class SealedArtifactInputPreparationService:
         self._handles = handles
         self._principal = principal
         self._capability_catalog = capability_catalog
+        self._descriptor_validators = descriptor_validators
 
     def prepare(
         self,
@@ -89,7 +94,9 @@ class SealedArtifactInputPreparationService:
             )
             if self._capability_catalog is not None:
                 policy = compile_workflow_policy(
-                    revision, capability_catalog=self._capability_catalog
+                    revision,
+                    capability_catalog=self._capability_catalog,
+                    descriptor_validators=self._descriptor_validators,
                 )
                 if policy.policy_digest != registration.policy_digest:
                     raise SealedArtifactHandleError("artifact handle is invalid")

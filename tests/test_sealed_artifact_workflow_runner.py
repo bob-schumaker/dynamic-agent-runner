@@ -18,6 +18,10 @@ from dynamic_agent_runner.workflow_host.capabilities import (
     CapabilityRequirement,
     CapabilityRequirements,
 )
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorAbi,
+    ExecutionDescriptorValidatorRegistry,
+)
 from dynamic_agent_runner.workflow_host.locked_inference import (
     InferenceLimits,
     InferenceRole,
@@ -177,14 +181,24 @@ def test_concrete_runner_reserves_consumes_and_publishes_atomically(
         def resolve(self, _descriptor, _policy, _revision) -> Callbacks:
             return Callbacks()
 
-    monkeypatch.setattr(
-        module,
-        "compile_workflow_policy",
-        lambda _revision, capability_catalog=None: SimpleNamespace(
+    observed: list[object] = []
+
+    class Validator:
+        identity = ExecutionDescriptorAbi("test-abi", "1", "d" * 64)
+
+        def validate(self, _descriptor) -> None:
+            return None
+
+    validators = ExecutionDescriptorValidatorRegistry((Validator(),))
+
+    def policy(_revision, capability_catalog=None, descriptor_validators=None):
+        observed.append(descriptor_validators)
+        return SimpleNamespace(
             policy_digest="c" * 64,
             capability_requirements=requirements,
-        ),
-    )
+        )
+
+    monkeypatch.setattr(module, "compile_workflow_policy", policy)
     runner = SealedArtifactWorkflowRunner(
         registrations=Registrations(),
         catalog=Catalog(),
@@ -193,6 +207,7 @@ def test_concrete_runner_reserves_consumes_and_publishes_atomically(
         callback_resolver=CallbackResolver(),
         identity=_Identity(),
         output_ttl=timedelta(minutes=1),
+        descriptor_validators=validators,
     )
 
     result = runner.run(
@@ -206,6 +221,7 @@ def test_concrete_runner_reserves_consumes_and_publishes_atomically(
 
     assert [handle.role for handle in result.outputs] == ["result"]
     assert result.receipt["status"] == "completed"
+    assert observed == [validators]
 
 
 def test_tampered_asset_stops_before_handle_or_provider_or_egress(
@@ -251,9 +267,11 @@ def test_tampered_asset_stops_before_handle_or_provider_or_egress(
     monkeypatch.setattr(
         module,
         "compile_workflow_policy",
-        lambda _revision, capability_catalog=None: SimpleNamespace(
-            policy_digest="c" * 64,
-            capability_requirements=requirements,
+        lambda _revision, capability_catalog=None, descriptor_validators=None: (
+            SimpleNamespace(
+                policy_digest="c" * 64,
+                capability_requirements=requirements,
+            )
         ),
     )
     runner = SealedArtifactWorkflowRunner(
@@ -332,10 +350,12 @@ def test_changed_selected_provider_stops_before_descriptor_or_callback(
     monkeypatch.setattr(
         module,
         "compile_workflow_policy",
-        lambda _revision, capability_catalog=None: SimpleNamespace(
-            policy_digest="c" * 64,
-            capability_requirements=requirements,
-            selected_capability_provider_ids=("replacement",),
+        lambda _revision, capability_catalog=None, descriptor_validators=None: (
+            SimpleNamespace(
+                policy_digest="c" * 64,
+                capability_requirements=requirements,
+                selected_capability_provider_ids=("replacement",),
+            )
         ),
     )
     monkeypatch.setattr(
@@ -606,23 +626,25 @@ def test_locked_inference_callback_runs_only_through_sealed_asset_context(
     monkeypatch.setattr(
         module,
         "compile_workflow_policy",
-        lambda _revision, capability_catalog=None: SimpleNamespace(
-            policy_digest="c" * 64,
-            capability_requirements=requirements,
-            inference_roles=roles,
-            locked_inference_bindings=(
-                LockedInferenceBinding(
-                    "suggest",
-                    "suggest",
-                    SimpleNamespace(material_lock_digest="e" * 64),
-                    "1",
-                    "d" * 64,
+        lambda _revision, capability_catalog=None, descriptor_validators=None: (
+            SimpleNamespace(
+                policy_digest="c" * 64,
+                capability_requirements=requirements,
+                inference_roles=roles,
+                locked_inference_bindings=(
+                    LockedInferenceBinding(
+                        "suggest",
+                        "suggest",
+                        SimpleNamespace(material_lock_digest="e" * 64),
+                        "1",
+                        "d" * 64,
+                    ),
                 ),
-            ),
-            model_material_sets=SimpleNamespace(
-                for_role=lambda _role: SimpleNamespace(digest="e" * 64)
-            ),
-            selected_capability_provider_ids=("receiver-generate",),
+                model_material_sets=SimpleNamespace(
+                    for_role=lambda _role: SimpleNamespace(digest="e" * 64)
+                ),
+                selected_capability_provider_ids=("receiver-generate",),
+            )
         ),
     )
     runner = SealedArtifactWorkflowRunner(

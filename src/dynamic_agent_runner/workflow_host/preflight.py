@@ -11,6 +11,9 @@ from dynamic_agent_runner.workflow_host.catalog import (
     PackageCatalogError,
 )
 from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorValidatorRegistry,
+)
 from dynamic_agent_runner.workflow_host.policy import (
     CapabilityResolution,
     PolicyCompilationError,
@@ -47,11 +50,13 @@ class PackagePreflightService:
         catalog: PackageCatalog,
         available_capabilities: Iterable[str],
         capability_catalog: CapabilityCatalog | None = None,
+        descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
     ) -> None:
         self._stager = stager
         self._catalog = catalog
         self._available_capabilities = frozenset(available_capabilities)
         self._capability_catalog = capability_catalog
+        self._descriptor_validators = descriptor_validators
 
     def preflight(
         self, package_source_handle: str, *, now: datetime
@@ -68,7 +73,9 @@ class PackagePreflightService:
             staged = self._stager.stage(package_source_handle, now=now)
             revision = self._catalog.import_staged(staged)
             policy = compile_workflow_policy(
-                revision, capability_catalog=self._capability_catalog
+                revision,
+                capability_catalog=self._capability_catalog,
+                descriptor_validators=self._descriptor_validators,
             )
         except (
             PackageStagingError,

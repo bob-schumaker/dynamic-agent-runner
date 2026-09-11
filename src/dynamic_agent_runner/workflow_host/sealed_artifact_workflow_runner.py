@@ -11,6 +11,9 @@ from typing import Protocol
 
 from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
 from dynamic_agent_runner.workflow_host.catalog import PackageCatalog
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorValidatorRegistry,
+)
 from dynamic_agent_runner.workflow_host.policy import compile_workflow_policy
 from dynamic_agent_runner.workflow_host.profiles import InstallationIdentityProvider
 from dynamic_agent_runner.workflow_host.registration import WorkflowRegistrationService
@@ -75,6 +78,7 @@ class SealedArtifactWorkflowRunner:
         outputs: SealedArtifactOutputHandleService,
         callback_resolver: SealedArtifactCallbackResolver,
         capability_catalog: CapabilityCatalog | None = None,
+        descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
         identity: _Identity | None = None,
         output_ttl: timedelta,
     ) -> None:
@@ -96,6 +100,7 @@ class SealedArtifactWorkflowRunner:
         self._outputs = outputs
         self._callback_resolver = callback_resolver
         self._capability_catalog = capability_catalog
+        self._descriptor_validators = descriptor_validators
         self._principal = principal
         self._output_ttl = output_ttl
 
@@ -194,7 +199,9 @@ class SealedArtifactWorkflowRunner:
             registration.package_id, registration.revision_digest
         )
         policy = compile_workflow_policy(
-            revision, capability_catalog=self._capability_catalog
+            revision,
+            capability_catalog=self._capability_catalog,
+            descriptor_validators=self._descriptor_validators,
         )
         if policy.policy_digest != registration.policy_digest or tuple(
             getattr(registration, "selected_capability_provider_ids", ())
