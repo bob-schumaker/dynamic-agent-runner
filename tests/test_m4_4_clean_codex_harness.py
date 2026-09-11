@@ -412,6 +412,58 @@ def test_manifest_evidence_requires_complete_fresh_redacted_record_set(
         )
 
 
+def test_manifest_evidence_retains_an_actor_failure_with_its_actual_phase(
+    tmp_path: Path,
+) -> None:
+    module = _harness_module()
+    records = list(_manifest_records(module))
+    index = next(
+        index
+        for index, record in enumerate(records)
+        if record.scenario_id == "document-summary-v1"
+    )
+    records[index] = replace(
+        records[index],
+        observed_status="harness_failure",
+        terminal_phase="authoring_validation",
+        authoring_material_set_id=None,
+        authoring_output_id=None,
+        authoring_receipt_digest=None,
+        final_package_digest=None,
+        catalog_revision_digest=None,
+        registration_digest=None,
+        prepared_input_registration_digest=None,
+        action_trace_digest=None,
+        marketplace_manifest_digest=None,
+        failure_reason="author_process_or_receipt_validation",
+    )
+
+    aggregate = module.write_manifest_evidence(
+        evidence_directory=(tmp_path / "evidence").resolve(),
+        coverage_source=(
+            REPO_ROOT / "tests" / "fixtures" / "m4-4-successor-coverage.json"
+        ),
+        scenario_plan_source=(
+            REPO_ROOT / "tests" / "fixtures" / "m4-4-external-scenario-plan.json"
+        ),
+        scenario_roots=(
+            REPO_ROOT / "tests" / "fixtures" / "dar-authoring" / "m4-4",
+            REPO_ROOT / "tests" / "fixtures" / "m4-4-successor",
+        ),
+        records=tuple(records),
+    )
+
+    aggregate_value = json.loads(aggregate.read_text(encoding="utf-8"))
+    assert len(aggregate_value["records"]) == 23
+    failure = json.loads(
+        (
+            tmp_path / "evidence" / "document-summary-v1" / "author-then-run.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert failure["observed_status"] == "harness_failure"
+    assert failure["terminal_phase"] == "authoring_validation"
+
+
 def test_manifest_runner_replays_every_plan_entry_before_aggregating(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

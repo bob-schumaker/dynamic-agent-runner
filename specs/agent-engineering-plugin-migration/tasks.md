@@ -243,10 +243,14 @@ not make a DAR release a prerequisite for a plugin-only release.
       admission, deterministic controller, two isolated actors, ordinary-runner
       assertions, and redacted evidence. This command is the live-Codex
       successor-acceptance gate; ordinary tests do not invoke it.
-- [ ] RED/GREEN: preserve complete-manifest progress when an individual live
+- [x] RED/GREEN: preserve complete-manifest progress when an individual live
       Codex actor fails or times out. Record its actual failure phase and allow
       that terminal record through scenario validation; retain exact planned
       terminal-phase matching for passing and expected-unavailable records.
+  - Delivery: actor process or receipt failures become redacted
+    `harness_failure` records at their observed terminal phase. The aggregate
+    writer retains that record alongside the complete 23-scenario manifest;
+    success and expected-unavailable records still require their planned phase.
 - [ ] Replay the complete manifest against the generated routed root and compare
       it with the frozen direct-skill baseline. Use identical coverage/scenario-
       plan digests, prompts, fixtures, controller, actor/Codex/model
