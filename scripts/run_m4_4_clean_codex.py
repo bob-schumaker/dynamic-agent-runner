@@ -1405,7 +1405,7 @@ def _author_request(
     operation_guidance = (
         " This is an approved email-send operation: use the reviewed write-MCP "
         "template with its sole mail_send tool; do not choose the no-tool starter."
-        if "email_body" in artifact_roles and "email" in author_prompt.lower()
+        if "email" in author_prompt.lower()
         else ""
     )
     skill_bundle_guidance = (

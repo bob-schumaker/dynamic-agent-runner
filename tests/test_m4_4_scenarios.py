@@ -244,6 +244,25 @@ def test_email_file_body_scenario_explicitly_requests_the_reviewed_write_tool() 
     )
 
 
+def test_side_effect_recovery_scenario_explicitly_requests_the_reviewed_write_tool() -> (
+    None
+):
+    root = Path(__file__).resolve().parent
+    plan = load_m44_external_scenario_plan(
+        root / "fixtures" / "m4-4-external-scenario-plan.json"
+    )
+
+    entry = next(
+        entry
+        for entry in plan.entries
+        if entry.scenario_id == "side-effect-recovery-v1"
+    )
+
+    assert entry.author_request == (
+        "Author the declared DAR approved email-send side-effect recovery workflow."
+    )
+
+
 def test_original_13_scenario_ids_are_required_by_the_external_replay() -> None:
     root = Path(__file__).resolve().parent
     original_ids = load_m44_original_scenario_ids(

@@ -1189,6 +1189,23 @@ def test_email_artifact_author_prompt_requires_reviewed_write_template() -> None
     assert "do not choose the no-tool starter" in prompt
 
 
+def test_email_author_prompt_requires_reviewed_write_template_without_artifact() -> (
+    None
+):
+    module = _harness_module()
+
+    prompt = module._author_request(
+        "Author the declared DAR approved email-send workflow.",
+        "material-id",
+        "generic-email-send",
+        "pass",
+    )
+
+    assert "approved email-send operation" in prompt
+    assert "reviewed write-MCP template" in prompt
+    assert "do not choose the no-tool starter" in prompt
+
+
 def test_skill_bundle_author_prompt_requires_the_review_template() -> None:
     module = _harness_module()
 

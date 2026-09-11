@@ -238,7 +238,7 @@
       "workflow_id": "m44-read-only-missing"
     },
     {
-      "author_request": "Author the declared DAR side-effect recovery workflow.",
+      "author_request": "Author the declared DAR approved email-send side-effect recovery workflow.",
       "fixture_ids": [
         "local-model-profile",
         "reviewed-mcp-connection",
