@@ -71,6 +71,34 @@ def test_invalid_write_destroys_all_unsealed_candidates() -> None:
         collector.seal()
 
 
+@pytest.mark.parametrize("invalid_write", ("out_of_order", "repeated", "extra"))
+def test_out_of_order_repeated_or_extra_write_destroys_candidates(
+    invalid_write: str,
+) -> None:
+    collector = SealedArtifactOutputCollector(descriptor=_descriptor())
+
+    if invalid_write != "out_of_order":
+        collector.write(role="coverage", media_type="text/plain", content=b"ready")
+    if invalid_write == "extra":
+        collector.write(
+            role="result", media_type="application/octet-stream", content=b"payload"
+        )
+
+    def invalid_operation() -> None:
+        if invalid_write == "repeated":
+            collector.write(role="coverage", media_type="text/plain", content=b"again")
+        else:
+            collector.write(
+                role="result", media_type="application/octet-stream", content=b"payload"
+            )
+
+    with pytest.raises(SealedArtifactOutputCollectorError, match="invalid"):
+        invalid_operation()
+
+    with pytest.raises(SealedArtifactOutputCollectorError, match="unavailable"):
+        collector.seal()
+
+
 def test_partial_collection_cannot_seal_or_be_reused() -> None:
     collector = SealedArtifactOutputCollector(descriptor=_descriptor())
     collector.write(role="coverage", media_type="text/plain", content=b"ready")

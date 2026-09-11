@@ -54,16 +54,19 @@
 
 ## I3 — Sealed asset integration
 
-- [ ] I3.1 [tests, RED] Add exact owner/package/asset authorization and
+- [x] I3.1 [tests, RED] Add exact owner/package/asset authorization and
   versioned asset-ABI vectors for sealed inputs, callback-name-to-role binding,
   allowed roles, declared slots, absent/extra/repeated slots, atomic rollback,
   and content-free receipts.
-  - Partial evidence: a foreign registration owner now stops immediately after
-    registration resolution and before catalog/ZIP, callback, asset, or handle
-    access. New registrations bind their owner into the registration digest;
-    legacy ownerless registrations remain readable for ordinary workflows but
-    cannot enter the sealed-artifact runner. The remaining ABI and slot vectors
-    are still open.
+  - Evidence: `tests/test_dar_authoring_host.py` uses a staged/exported ZIP and
+    proves tampered assets and missing handles stop before later boundaries.
+    The descriptor, handle, callback, asset-runtime, collector, and output
+    publication suites cover v1 ABI, sealed inputs, role binding, allowed
+    roles, ordered slots, rollback, and redacted receipts. A foreign owner
+    stops after registration resolution and before catalog/ZIP, callback, asset,
+    or handle access; new registrations bind owner into their digest while
+    ownerless legacy registrations cannot enter the sealed runner. The complete
+    focused matrix passed (87 tests) on 2026-09-10.
 - [x] I3.2 [implementation] Wire the callback only through the approved sealed
   asset runtime profile and the existing in-memory result collector.
   - Evidence: Council (Aristotle, Ada, Feynman) and Ponytail reviewed the
