@@ -200,6 +200,24 @@ the embedding material role, while the outer callback requires the exact
 capability. DAR verifies those declarations and resolves all required
 capabilities/materials before it loads the asset or accepts the input.
 
+The receiver-owned sealed callback integration is the only portable-runtime
+integration seam. Before either sealed-input preparation copies caller bytes or
+the sealed runner reserves a handle, it recompiles the registered policy,
+verifies the exact locked embedding binding and selected provider, and fails
+closed. It exposes no model, provider, material path, or callback body to the
+package. Immediately before each embedding callback it repeats the exact
+binding/provider revalidation without fallback or reselection.
+
+After the asset writes the descriptor-declared output slots and before any
+output handle is published, that same receiver-owned integration validates the
+private candidate triple. It receives only the generic descriptor, policy,
+revision, sealed candidate bytes, and input digests captured by the runner. It
+verifies the index-bundle checksum, common snapshot/material/capability/builder
+bindings, optional prior-pair identity, and aggregate-only coverage report. A
+failure destroys every candidate and publishes no output handle. This is
+receiver composition, not package-selected validation code or a new
+index-specific runner field.
+
 ## Functional Requirements
 
 ### FR-1: Sealed snapshot ingress

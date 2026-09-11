@@ -114,9 +114,13 @@ or file digest is a DAR package or generic-contract value.
    optional prior-bundle/prior-index-manifest ingress, builder
    asset/configuration, embedding material role, and the required
    `coverage_report`/`index_bundle`/`index_manifest` output triple.
-2. Route ZIP admission and invocation through descriptor-only material and
+2. Extend the receiver-owned sealed callback integration so the same exact
+   material/provider admission runs before both sealed-input preparation and
+   runner ingress, and so it validates private candidate outputs before
+   publication. The generic runner retains no embedding/index-specific field.
+3. Route ZIP admission and invocation through descriptor-only material and
    capability resolution before builder asset loading or input ingress.
-3. Add fake-only ZIP round-trip and owner-authorization vectors, including a
+4. Add fake-only ZIP round-trip and owner-authorization vectors, including a
    bundle/manifest checksum mismatch that publishes no output; preserve the
    experimental/untrusted-package isolation distinction.
 

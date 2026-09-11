@@ -168,6 +168,17 @@
     rejected a two-output design because the opaque bundle needs an external
     checksum-binding manifest. Ponytail accepted the existing three roles with
     no new DAR container or consumer-specific runner field.
+- [x] E6.1a [design addendum] Require the receiver-owned callback integration
+  to admit the exact material/provider binding before sealed-input preparation
+  and runner ingress, then validate the private output triple before atomic
+  handle publication.
+  - Evidence: the 2026-09-10 Council triad (Aristotle, Ada, Feynman) found
+    that per-output JSON schemas cannot validate the bundle checksum or common
+    bindings, and input preparation otherwise copies bytes before embedding
+    admission. The addendum preserves generic runner fields and retains no
+    package-selected validator, provider, model, or index implementation.
+    Ponytail accepted one existing callback-integration seam rather than a
+    parallel embedding runner or registry.
 - [ ] E6.2 [tests, RED] Add ZIP receiver-admission vectors proving malformed,
   unbound, or unauthorized packages load no asset, model, provider, ingress, or
   result collector.
