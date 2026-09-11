@@ -830,6 +830,7 @@ def test_local_host_rejects_tampered_asset_and_missing_handle_before_execution(
         expires_at=NOW + timedelta(minutes=1),
         now=NOW,
     )
+    resolver.calls = 0
 
     revision = host._catalog.revision(
         registration.package_id, registration.revision_digest
