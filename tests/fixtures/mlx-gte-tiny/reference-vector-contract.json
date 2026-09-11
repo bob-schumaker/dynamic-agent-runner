@@ -1,0 +1,79 @@
+{
+  "cases": [
+    {
+      "id": "empty",
+      "text": ""
+    },
+    {
+      "id": "ascii",
+      "text": "The quick brown fox jumps over the lazy dog."
+    },
+    {
+      "id": "unicode",
+      "text": "Caf\u00e9 na\u00efve \u2014 punctuation!"
+    },
+    {
+      "id": "chinese",
+      "text": "\u5317\u4eac\u7684\u79cb\u5929\u5f88\u7f8e\u3002"
+    },
+    {
+      "expected_postprocessor_token_count": 512,
+      "id": "truncation",
+      "text_recipe": {
+        "repetitions": 600,
+        "unit": "a "
+      }
+    }
+  ],
+  "comparison": {
+    "attention_mask": "exact",
+    "coordinate_atol": 0.0005,
+    "coordinate_rtol": 0.005,
+    "minimum_cosine_similarity": 0.9999,
+    "token_ids": "exact",
+    "token_type_ids": "all_zero_exact"
+  },
+  "expected_vectors": [],
+  "format_version": 1,
+  "generator_script_sha256": "fcab79c6bf84af0fd8491c4ea0a69d3d924fc0134e720e6bc57dc5bf4cc9c2a7",
+  "model": {
+    "local_files_only": true,
+    "repository": "TaylorAI/gte-tiny",
+    "revision": "4cc5e73d86a67c601897257b467187234aa3bca3",
+    "trust_remote_code": false
+  },
+  "pooling": {
+    "accumulation_dtype": "float32",
+    "normalization": "none",
+    "source": "last_hidden_state"
+  },
+  "profile": {
+    "fixture_sha256": "0c78f156a9bd878ad80da1e3ac5e223f26fa9a144ed5e0b618bd279df324bd20",
+    "id": "mlx-gte-tiny-v1",
+    "model_material_lock_digest": "c2fc8b91d1b4514f2411f30c4d81fa3a702e902b70ae8a7eb83567696a158c87",
+    "version": "1"
+  },
+  "reference_runtime": {
+    "device": "cpu",
+    "inference_mode": true,
+    "model_eval": true,
+    "poetry_lock_sha256": "ff9c0a61e8307b80c7ed43c92d958d2422c09f584dd9d8668fd7c90b41e41149",
+    "python": "3.14.7",
+    "tokenizer": {
+      "add_special_tokens": true,
+      "max_length": 512,
+      "padding": "max_length",
+      "truncation": true,
+      "use_fast": true
+    },
+    "torch": {
+      "version": "2.13.0",
+      "wheel_sha256": "d849b390e07d8d333ce8ecaf91b273c656c598379a19c9acf1318a883f6b391c"
+    },
+    "transformers": {
+      "version": "5.16.1",
+      "wheel_sha256": "2f2d5b98a5ad3718713653734298fa620754ed683702a635ebb587df3ed29c7e"
+    }
+  },
+  "status": "unpopulated"
+}

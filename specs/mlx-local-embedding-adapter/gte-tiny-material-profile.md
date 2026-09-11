@@ -90,6 +90,36 @@ embedded 128-token truncation or padding setting.
 Pooling is the attention-mask-weighted mean of final hidden states. The fixed
 normalization policy is `none`.
 
+## Reference-vector contract
+
+`tests/fixtures/mlx-gte-tiny/reference-vector-contract.json` fixes the
+conformance recipe without containing model outputs. It uses only the verified
+prepared files: `trust_remote_code` is false, local-files-only is true, the
+model runs in evaluation and inference mode on CPU, and it uses the repository
+lock's `transformers` 5.16.1 and CPython 3.14 macOS-arm64 Torch 2.13.0 wheels.
+The contract records the complete `poetry.lock` SHA-256, and the reviewed
+`tests/manual/generate_mlx_gte_tiny_reference_vectors.py` source SHA-256. That
+script refuses a changed script, lock, Python/Torch/Transformers version,
+model contract, pooling contract, or tokenizer contract before loading a model.
+It also checks the profile-fixture digest and every prepared file's exact
+relative path, size, and SHA-256 before importing Transformers; extra files
+and symlinks are rejected. It requires the fast tokenizer,
+`add_special_tokens=True`, truncation and
+right-padding to 512 tokens, one CPU thread, deterministic Torch algorithms,
+and float32 model weights. The reference recipe casts final hidden states and
+attention masks to float32, calculates the masked sum and division in float32,
+and applies no normalization.
+
+The five synthetic cases are empty input, ASCII, mixed accent/punctuation,
+Chinese characters, and a deterministic 600-repeat `"a "` truncation input.
+The contract requires exact token IDs and attention masks, all-zero token type
+IDs, and 512 tokens after special-token insertion for the truncation case.
+MLE4 alone may change the fixture from `unpopulated` by recording each case's
+IDs, masks, and 384 pooled float32 values as base64 little-endian bytes with a
+digest. It must run the already locked generator script; it may not select or
+modify one. MLX comparison is fixed in advance to coordinate error no greater than
+`max(5e-4, 5e-3 * abs(reference))` and cosine similarity at least `0.9999`.
+
 ## MLX distribution admission
 
 The existing `mlx` extra remains generation-only and continues to select

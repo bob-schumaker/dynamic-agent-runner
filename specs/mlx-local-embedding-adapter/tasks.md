@@ -39,8 +39,13 @@
     `poetry run pytest tests/test_mlx_gte_tiny_material_lock.py -q` passed.
   - Acceptance: no runtime behavior depends on an unpinned repository, file,
     package, pooling rule, or undocumented `mlx-lm` API.
-- [ ] MLE1.2 [decision] Approve the synthetic reference-vector fixture,
+- [x] MLE1.2 [decision] Approve the synthetic reference-vector fixture,
   precision, and numerical tolerance.
+  - Evidence: `reference-vector-contract.json` fixes CPU-only local reference
+    provenance, five synthetic cases, float32 masked-mean pooling, no
+    normalization, exact token/mask checks, and the predeclared coordinate and
+    cosine bounds. It deliberately has no vectors; MLE4 is the only authorized
+    producer of derived numerical values.
   - Depends on: MLE1.1.
 - [ ] MLE1.3 [release gate] Record an explicit source-license decision before
   offering `TaylorAI/gte-tiny` as a portable workflow material option.
@@ -83,7 +88,7 @@
   materials on a compatible Mac against the approved synthetic reference
   fixture; record redacted tolerance, shape, padding/truncation, duration, and
   memory evidence only.
-  - Depends on: MLE3.3.
+  - Depends on: MLE1.2, MLE1.3, and MLE3.3.
 
 ## MLE5 — Workflow capability provider
 
