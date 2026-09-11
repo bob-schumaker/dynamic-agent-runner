@@ -221,16 +221,20 @@ def test_factory_rereads_revision_assets_and_creates_fresh_service(
         ),
         host_limits=LockedInferenceHostLimits(2, 200, 200, 200, 2),
     )
+    lock_digest = "4" * 64
     policy = SimpleNamespace(
         inference_roles=roles,
         locked_inference_bindings=(
             LockedInferenceBinding(
                 "generate",
                 "model",
-                object(),
+                SimpleNamespace(material_lock_digest=lock_digest),
                 contract.contract_version,
                 contract.contract_digest,
             ),
+        ),
+        model_material_sets=SimpleNamespace(
+            for_role=lambda _role: SimpleNamespace(digest=lock_digest)
         ),
         capability_requirements=CapabilityRequirements(
             (
@@ -259,6 +263,16 @@ def test_factory_rereads_revision_assets_and_creates_fresh_service(
     with pytest.raises(LockedInferenceExecutionError, match="provider is unavailable"):
         second.generate("generate", b'{"result":"value"}')
     assert len(provider.calls) == 2
+
+    available = True
+    policy.model_material_sets = SimpleNamespace(
+        for_role=lambda _role: SimpleNamespace(digest="5" * 64)
+    )
+    with pytest.raises(
+        LockedInferenceSealedArtifactCallbackError,
+        match="locked inference callback is unavailable",
+    ):
+        factory.create(policy=policy, revision=revision)
 
 
 def test_factory_rejects_a_requirement_that_no_longer_matches_the_binding(
@@ -307,7 +321,16 @@ def test_factory_rejects_a_requirement_that_no_longer_matches_the_binding(
     policy = SimpleNamespace(
         inference_roles=roles,
         locked_inference_bindings=(
-            LockedInferenceBinding("generate", "model", object(), "1", "2" * 64),
+            LockedInferenceBinding(
+                "generate",
+                "model",
+                SimpleNamespace(material_lock_digest="4" * 64),
+                "1",
+                "2" * 64,
+            ),
+        ),
+        model_material_sets=SimpleNamespace(
+            for_role=lambda _role: SimpleNamespace(digest="4" * 64)
         ),
         capability_requirements=CapabilityRequirements(
             (

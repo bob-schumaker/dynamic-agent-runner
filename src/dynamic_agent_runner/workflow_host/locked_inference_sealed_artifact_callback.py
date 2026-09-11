@@ -186,6 +186,7 @@ def _bindings_for_roles(
     policy: object, roles: InferenceRoles, requirements: object
 ) -> dict[str, object]:
     bindings = tuple(getattr(policy, "locked_inference_bindings", ()))
+    material_sets = getattr(policy, "model_material_sets", None)
     resolved = {getattr(binding, "role", None): binding for binding in bindings}
     generation = next(
         (
@@ -198,14 +199,20 @@ def _bindings_for_roles(
     if (
         len(resolved) != len(bindings)
         or set(resolved) != {role.role for role in roles.roles}
+        or material_sets is None
         or generation is None
         or "structured" not in generation.required_features
     ):
         raise LockedInferenceError("inference binding is unavailable")
     for role in roles.roles:
         binding = resolved[role.role]
+        try:
+            material_lock_digest = material_sets.for_role(role.material_role).digest
+        except Exception as error:
+            raise LockedInferenceError("inference binding is unavailable") from error
         if (
             getattr(binding, "material_role", None) != role.material_role
+            or getattr(binding, "material_lock_digest", None) != material_lock_digest
             or getattr(binding, "capability_contract_version", None)
             != generation.contract_version
             or getattr(binding, "capability_contract_digest", None)

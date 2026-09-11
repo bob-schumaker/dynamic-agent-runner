@@ -552,7 +552,16 @@ def test_locked_inference_callback_runs_only_through_sealed_asset_context(
             capability_requirements=requirements,
             inference_roles=roles,
             locked_inference_bindings=(
-                LockedInferenceBinding("suggest", "suggest", object(), "1", "d" * 64),
+                LockedInferenceBinding(
+                    "suggest",
+                    "suggest",
+                    SimpleNamespace(material_lock_digest="e" * 64),
+                    "1",
+                    "d" * 64,
+                ),
+            ),
+            model_material_sets=SimpleNamespace(
+                for_role=lambda _role: SimpleNamespace(digest="e" * 64)
             ),
             selected_capability_provider_ids=("receiver-generate",),
         ),

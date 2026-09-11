@@ -334,6 +334,7 @@ targeted pre-commit hooks passed on 2026-09-09.
     only from a receiver-owned catalog, inference-provider registry, and finite
     host limits. `LockedInferenceExecutionFactory` creates a fresh
     invocation-local service from the recompiled policy and trusted revision,
+    verifies each role's material-set digest against its derived binding,
     rereads and verifies sealed role assets, resolves only the previously
     selected `model.generate.v1` provider by canonical requirement order, and
     revalidates that exact executable immediately before provider entry.
