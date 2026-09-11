@@ -190,6 +190,12 @@ class BertEncoderMlxV1EmbeddingBackend:
             BertEncoderMlxV1DescriptorValidator().validate(descriptor)
             limits = descriptor.abi_fields["limits"]
             assert isinstance(limits, Mapping)
+        except Exception as error:  # noqa: BLE001 - sealed artifact boundary.
+            raise EmbeddingExecutionError(
+                "MLX embedding material is unavailable"
+            ) from error
+        _validate_embedding_inputs(items, limits)
+        try:
             tokenizer_bytes = self._artifact_reader("tokenizer")
             if (
                 not isinstance(tokenizer_bytes, bytes)
@@ -338,6 +344,34 @@ def _validate_bert_tensor_header(
         previous_end = end
     if previous_end != data_size:
         raise ValueError
+
+
+def _validate_embedding_inputs(
+    items: Sequence[EmbeddingInputItem], limits: Mapping[str, object]
+) -> None:
+    if not items or len(items) > limits["max_items"]:
+        raise EmbeddingExecutionError("MLX embedding input is invalid")
+    seen_ids: set[str] = set()
+    aggregate_bytes = 0
+    for item in items:
+        if (
+            not isinstance(item, EmbeddingInputItem)
+            or not isinstance(item.id, str)
+            or not item.id
+            or item.id in seen_ids
+            or not isinstance(item.text, str)
+        ):
+            raise EmbeddingExecutionError("MLX embedding input is invalid")
+        try:
+            item_bytes = len(item.text.encode("utf-8"))
+        except UnicodeError as error:
+            raise EmbeddingExecutionError("MLX embedding input is invalid") from error
+        if item_bytes > limits["max_item_bytes"]:
+            raise EmbeddingExecutionError("MLX embedding input is invalid")
+        aggregate_bytes += item_bytes
+        if aggregate_bytes > limits["max_aggregate_bytes"]:
+            raise EmbeddingExecutionError("MLX embedding input is invalid")
+        seen_ids.add(item.id)
 
 
 def _one_of(value: object, values: set[str]) -> None:

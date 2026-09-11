@@ -23,8 +23,8 @@ from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
 def _materials(**limit_overrides: int) -> SimpleNamespace:
     limits = {
         "max_items": 1,
-        "max_item_bytes": 1,
-        "max_aggregate_bytes": 1,
+        "max_item_bytes": 1024,
+        "max_aggregate_bytes": 1024,
         "max_tokens": 1,
         "max_vectors": 1,
         "max_memory_bytes": 1,
@@ -250,6 +250,41 @@ def test_backend_admits_exact_tensor_offsets_before_execution() -> None:
         backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
 
     assert calls == ["tokenizer", "weights"]
+
+
+@pytest.mark.parametrize(
+    ("items", "limits"),
+    [
+        ((), {}),
+        (
+            (EmbeddingInputItem("entry", "text"), EmbeddingInputItem("other", "text")),
+            {"max_items": 1},
+        ),
+        ((EmbeddingInputItem("entry", "text"),), {"max_item_bytes": 3}),
+        (
+            (EmbeddingInputItem("entry", "x"), EmbeddingInputItem("entry", "x")),
+            {"max_items": 2, "max_vectors": 2},
+        ),
+        (
+            (EmbeddingInputItem("entry", "xx"), EmbeddingInputItem("other", "xx")),
+            {"max_items": 2, "max_vectors": 2, "max_aggregate_bytes": 3},
+        ),
+    ],
+)
+def test_backend_rejects_invalid_inputs_before_artifact_reads(
+    items: tuple[EmbeddingInputItem, ...], limits: dict[str, int]
+) -> None:
+    calls: list[str] = []
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda _role: calls.append("artifact") or b"{}",
+        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
+        encoder=lambda _tokens: calls.append("encoder-call") or (),
+    )
+
+    with pytest.raises(EmbeddingExecutionError, match="input"):
+        backend.embed(items, _materials(**limits))
+
+    assert calls == []
 
 
 @pytest.mark.parametrize(
