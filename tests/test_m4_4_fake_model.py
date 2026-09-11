@@ -211,6 +211,40 @@ def test_fake_model_uses_declared_email_body_artifact_provenance() -> None:
     assert envelope["sources"]["body"] == {"kind": "artifact", "ref": "email_body"}
 
 
+def test_fake_model_uses_any_declared_artifact_role_for_body_provenance() -> None:
+    module = _fixture_module()
+    prompt = "Send the email to fixture@example.test using the declared vendor-ticket artifact."
+
+    response = module._fake_response(
+        json.dumps(
+            {
+                "input": [{"role": "user", "content": prompt}],
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "mail_send",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "provenance_envelope": {"type": "string"}
+                                },
+                                "required": ["provenance_envelope"],
+                            },
+                        },
+                    }
+                ],
+            }
+        ).encode()
+    )
+
+    arguments = json.loads(
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"]
+    )
+    envelope = json.loads(arguments["provenance_envelope"])
+    assert envelope["sources"]["body"] == {"kind": "artifact", "ref": "vendor-ticket"}
+
+
 def test_fake_model_streams_a_declared_tool_call() -> None:
     module = _fixture_module()
     response = module._fake_response(

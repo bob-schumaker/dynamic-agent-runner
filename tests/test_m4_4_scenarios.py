@@ -262,7 +262,7 @@ def test_side_effect_recovery_scenario_explicitly_requests_the_reviewed_write_to
         "Author the declared DAR approved email-send side-effect recovery workflow."
     )
     assert entry.run_request == (
-        "Send the email to ada@example.test with body vendor ticket body."
+        "Send the email to fixture@example.test using the declared vendor-ticket artifact."
     )
 
 

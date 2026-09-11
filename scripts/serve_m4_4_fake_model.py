@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
@@ -181,10 +182,11 @@ def _prompt_provenance_envelope(prompt: str) -> str | None:
     values = {"recipient": "fixture@example.test", "body": "fixture body"}
     encoded_prompt = prompt.encode("utf-8")
     sources: dict[str, dict[str, object]] = {}
+    artifact_role = _declared_artifact_role(prompt)
     for name, value in values.items():
-        if name == "body" and "declared email_body artifact" in prompt:
+        if name == "body" and artifact_role is not None:
             values[name] = "controller fixture input\n"
-            sources[name] = {"kind": "artifact", "ref": "email_body"}
+            sources[name] = {"kind": "artifact", "ref": artifact_role}
             continue
         start = encoded_prompt.find(value.encode("utf-8"))
         if start < 0:
@@ -200,6 +202,13 @@ def _prompt_provenance_envelope(prompt: str) -> str | None:
         separators=(",", ":"),
         sort_keys=True,
     )
+
+
+def _declared_artifact_role(prompt: str) -> str | None:
+    """Return one declared artifact role from a fixture prompt, if present."""
+
+    match = re.search(r"declared ([a-z][a-z0-9_-]*) artifact", prompt)
+    return match.group(1) if match is not None else None
 
 
 def _fixture_value(name: str, schema: dict[str, object]) -> object | None:
