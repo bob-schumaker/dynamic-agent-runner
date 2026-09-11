@@ -69,7 +69,7 @@
   ID, finite-value, emptiness, and descriptor-defined dimension tests.
   - Depends on: MLE2.3.
 - [ ] MLE3.2 [implementation] Implement the BERT-style ABI interpreter using
-  public `mlx` / `mlx.nn` APIs and only verified descriptor/material inputs.
+  public `mlx.core` APIs and only verified descriptor/material inputs.
 - [ ] MLE3.3 [tests, GREEN] Prove sync/async parity, conservative metadata,
   redaction, and no MLX/Metal/network import or use in unit tests.
 

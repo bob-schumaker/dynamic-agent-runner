@@ -6,10 +6,16 @@ import math
 import json
 from collections.abc import Mapping
 from collections.abc import Callable, Sequence
+from io import BytesIO
 from typing import Protocol
+import unicodedata
 
 from dynamic_agent_runner.errors import EmbeddingExecutionError
-from dynamic_agent_runner.local_models import EmbeddingInputItem
+from dynamic_agent_runner.local_models import (
+    EmbeddingBatchResult,
+    EmbeddingInputItem,
+    EmbeddingVectorItem,
+)
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
     ExecutionDescriptor,
     ExecutionDescriptorAbi,
@@ -183,64 +189,94 @@ class BertEncoderMlxV1EmbeddingBackend:
         items: Sequence[EmbeddingInputItem],
         materials: _EmbeddingMaterialReceipt,
     ) -> object:
-        """Reject malformed tokenizer material before any execution collaborator."""
+        """Embed one admitted batch through the closed BERT ABI."""
 
-        try:
-            if not isinstance(materials.execution_descriptor, ExecutionDescriptor):
-                raise ValueError
-            descriptor = materials.execution_descriptor
-            BertEncoderMlxV1DescriptorValidator().validate(descriptor)
-            limits = descriptor.abi_fields["limits"]
-            assert isinstance(limits, Mapping)
-        except Exception as error:  # noqa: BLE001 - sealed artifact boundary.
-            raise EmbeddingExecutionError(
-                "MLX embedding material is unavailable"
-            ) from error
+        descriptor, limits = _admit_bert_descriptor(materials)
         _validate_embedding_inputs(items, limits)
         _validate_declared_memory(descriptor, limits, item_count=len(items))
+        tokenizer, weights, header = _read_bert_artifacts(
+            self._artifact_reader,
+            descriptor,
+            limits,
+        )
         try:
-            tokenizer_bytes = self._artifact_reader("tokenizer")
-            if (
-                not isinstance(tokenizer_bytes, bytes)
-                or len(tokenizer_bytes) > limits["max_tokenizer_bytes"]
-            ):
+            mlx = self._mlx_loader()
+            tensors = mlx.load(BytesIO(weights))
+            if not isinstance(tensors, Mapping) or set(tensors) != set(header):
                 raise ValueError
-            value = json.loads(tokenizer_bytes.decode("utf-8"))
-            if not isinstance(value, Mapping):
-                raise ValueError
-            _validate_wordpiece_tokenizer(value, descriptor)
-            weights = self._artifact_reader("weights")
-            if (
-                not isinstance(weights, bytes)
-                or len(weights) < 8
-                or len(weights) > limits["max_weights_bytes"]
-            ):
-                raise ValueError
-            header_size = int.from_bytes(weights[:8], "little")
-            if (
-                header_size > limits["max_safetensors_header_bytes"]
-                or len(weights) < 8 + header_size
-            ):
-                raise ValueError
-            header = json.loads(weights[8 : 8 + header_size].decode("utf-8"))
-            if not isinstance(header, Mapping):
-                raise ValueError
-            _validate_bert_tensor_header(
-                header,
+            return _execute_bert_encoder(
+                mlx,
+                tensors,
+                tokenizer,
+                tuple(items),
                 descriptor,
-                data_size=len(weights) - 8 - header_size,
             )
-        except Exception as error:  # noqa: BLE001 - sealed artifact boundary.
-            raise EmbeddingExecutionError(
-                "MLX embedding material is unavailable"
-            ) from error
-        try:
-            self._mlx_loader()
-        except Exception as error:  # noqa: BLE001 - dependency boundary.
-            raise EmbeddingExecutionError(
-                "MLX embedding backend is unavailable"
-            ) from error
-        raise EmbeddingExecutionError("MLX embedding backend is unavailable")
+        except EmbeddingExecutionError:
+            raise
+        except Exception as error:  # noqa: BLE001 - dependency and execution boundary.
+            raise EmbeddingExecutionError("MLX embedding execution failed") from error
+
+
+def _admit_bert_descriptor(
+    materials: _EmbeddingMaterialReceipt,
+) -> tuple[ExecutionDescriptor, Mapping[str, object]]:
+    try:
+        if not isinstance(materials.execution_descriptor, ExecutionDescriptor):
+            raise ValueError
+        descriptor = materials.execution_descriptor
+        BertEncoderMlxV1DescriptorValidator().validate(descriptor)
+        limits = descriptor.abi_fields["limits"]
+        if not isinstance(limits, Mapping):
+            raise ValueError
+        return descriptor, limits
+    except Exception as error:  # noqa: BLE001 - sealed descriptor boundary.
+        raise EmbeddingExecutionError(
+            "MLX embedding material is unavailable"
+        ) from error
+
+
+def _read_bert_artifacts(
+    artifact_reader: Callable[[str], bytes],
+    descriptor: ExecutionDescriptor,
+    limits: Mapping[str, object],
+) -> tuple[Mapping[str, object], bytes, Mapping[str, object]]:
+    try:
+        tokenizer_bytes = artifact_reader("tokenizer")
+        if (
+            not isinstance(tokenizer_bytes, bytes)
+            or len(tokenizer_bytes) > limits["max_tokenizer_bytes"]
+        ):
+            raise ValueError
+        tokenizer = json.loads(tokenizer_bytes.decode("utf-8"))
+        if not isinstance(tokenizer, Mapping):
+            raise ValueError
+        _validate_wordpiece_tokenizer(tokenizer, descriptor)
+        weights = artifact_reader("weights")
+        if (
+            not isinstance(weights, bytes)
+            or len(weights) < 8
+            or len(weights) > limits["max_weights_bytes"]
+        ):
+            raise ValueError
+        header_size = int.from_bytes(weights[:8], "little")
+        if (
+            header_size > limits["max_safetensors_header_bytes"]
+            or len(weights) < 8 + header_size
+        ):
+            raise ValueError
+        header = json.loads(weights[8 : 8 + header_size].decode("utf-8"))
+        if not isinstance(header, Mapping):
+            raise ValueError
+        _validate_bert_tensor_header(
+            header,
+            descriptor,
+            data_size=len(weights) - 8 - header_size,
+        )
+        return tokenizer, weights, header
+    except Exception as error:  # noqa: BLE001 - sealed artifact boundary.
+        raise EmbeddingExecutionError(
+            "MLX embedding material is unavailable"
+        ) from error
 
 
 def _bert_tensor_shapes(
@@ -310,6 +346,235 @@ def _load_mlx_core() -> object:
     import mlx.core as mx
 
     return mx
+
+
+def _execute_bert_encoder(
+    mlx: object,
+    tensors: Mapping[str, object],
+    tokenizer: Mapping[str, object],
+    items: tuple[EmbeddingInputItem, ...],
+    descriptor: ExecutionDescriptor,
+) -> EmbeddingBatchResult:
+    token_ids, attention_mask = _tokenize_wordpiece_items(tokenizer, items, descriptor)
+    token_array = mlx.array(token_ids, dtype=mlx.int32)
+    mask_array = mlx.array(attention_mask, dtype=mlx.int32)
+    batch_size, token_count = token_array.shape
+    encoder = descriptor.abi_fields["encoder"]
+    assert isinstance(encoder, Mapping)
+    hidden_size = encoder["hidden_size"]
+    heads = encoder["attention_heads"]
+    layers = encoder["layers"]
+    assert isinstance(hidden_size, int)
+    assert isinstance(heads, int)
+    assert isinstance(layers, int)
+    hidden = (
+        tensors["embeddings.word_embeddings.weight"][token_array]
+        + tensors["embeddings.position_embeddings.weight"][mlx.arange(token_count)][
+            None, :, :
+        ]
+        + tensors["embeddings.token_type_embeddings.weight"][
+            mlx.zeros((batch_size, token_count), dtype=mlx.int32)
+        ]
+    )
+    hidden = _layer_norm(
+        mlx,
+        hidden,
+        tensors["embeddings.LayerNorm.weight"],
+        tensors["embeddings.LayerNorm.bias"],
+    )
+    head_size = hidden_size // heads
+    for index in range(layers):
+        prefix = f"encoder.layer.{index}"
+        query = _dense(
+            hidden,
+            tensors[f"{prefix}.attention.self.query.weight"],
+            tensors[f"{prefix}.attention.self.query.bias"],
+        )
+        key = _dense(
+            hidden,
+            tensors[f"{prefix}.attention.self.key.weight"],
+            tensors[f"{prefix}.attention.self.key.bias"],
+        )
+        value = _dense(
+            hidden,
+            tensors[f"{prefix}.attention.self.value.weight"],
+            tensors[f"{prefix}.attention.self.value.bias"],
+        )
+        query = query.reshape(batch_size, token_count, heads, head_size).transpose(
+            0, 2, 1, 3
+        )
+        key = key.reshape(batch_size, token_count, heads, head_size).transpose(
+            0, 2, 1, 3
+        )
+        value = value.reshape(batch_size, token_count, heads, head_size).transpose(
+            0, 2, 1, 3
+        )
+        scores = query @ key.transpose(0, 1, 3, 2) / math.sqrt(head_size)
+        scores = scores + (1 - mask_array[:, None, None, :]) * -10000.0
+        attended = mlx.softmax(scores, axis=-1) @ value
+        attended = attended.transpose(0, 2, 1, 3).reshape(
+            batch_size, token_count, hidden_size
+        )
+        attention_output = _dense(
+            attended,
+            tensors[f"{prefix}.attention.output.dense.weight"],
+            tensors[f"{prefix}.attention.output.dense.bias"],
+        )
+        hidden = _layer_norm(
+            mlx,
+            hidden + attention_output,
+            tensors[f"{prefix}.attention.output.LayerNorm.weight"],
+            tensors[f"{prefix}.attention.output.LayerNorm.bias"],
+        )
+        intermediate = _dense(
+            hidden,
+            tensors[f"{prefix}.intermediate.dense.weight"],
+            tensors[f"{prefix}.intermediate.dense.bias"],
+        )
+        intermediate = (
+            0.5 * intermediate * (1.0 + mlx.erf(intermediate / math.sqrt(2.0)))
+        )
+        output = _dense(
+            intermediate,
+            tensors[f"{prefix}.output.dense.weight"],
+            tensors[f"{prefix}.output.dense.bias"],
+        )
+        hidden = _layer_norm(
+            mlx,
+            hidden + output,
+            tensors[f"{prefix}.output.LayerNorm.weight"],
+            tensors[f"{prefix}.output.LayerNorm.bias"],
+        )
+    if descriptor.abi_fields["pooling"] == "cls":
+        vectors = hidden[:, 0, :]
+    else:
+        mask = mask_array[:, :, None]
+        vectors = mlx.sum(hidden * mask, axis=1) / mlx.sum(mask, axis=1, keepdims=False)
+    if descriptor.abi_fields["normalization"] == "l2":
+        vectors = vectors / mlx.sqrt(mlx.sum(vectors * vectors, axis=-1, keepdims=True))
+    mlx.eval(vectors)
+    values = vectors.tolist()
+    if not isinstance(values, list) or len(values) != len(items):
+        raise EmbeddingExecutionError("MLX embedding execution failed")
+    result_items: list[EmbeddingVectorItem] = []
+    for item, vector in zip(items, values, strict=True):
+        if (
+            not isinstance(vector, list)
+            or len(vector) != hidden_size
+            or any(
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or not math.isfinite(value)
+                for value in vector
+            )
+        ):
+            raise EmbeddingExecutionError("MLX embedding execution failed")
+        result_items.append(
+            EmbeddingVectorItem(item.id, tuple(float(value) for value in vector))
+        )
+    return EmbeddingBatchResult(model=descriptor.digest, items=tuple(result_items))
+
+
+def _dense(values: object, weight: object, bias: object) -> object:
+    return values @ weight.T + bias
+
+
+def _layer_norm(mlx: object, values: object, weight: object, bias: object) -> object:
+    mean = mlx.mean(values, axis=-1, keepdims=True)
+    variance = mlx.mean((values - mean) * (values - mean), axis=-1, keepdims=True)
+    return (values - mean) / mlx.sqrt(variance + 1e-12) * weight + bias
+
+
+def _tokenize_wordpiece_items(
+    tokenizer: Mapping[str, object],
+    items: tuple[EmbeddingInputItem, ...],
+    descriptor: ExecutionDescriptor,
+) -> tuple[list[list[int]], list[list[int]]]:
+    model = tokenizer["model"]
+    assert isinstance(model, Mapping)
+    vocab = model["vocab"]
+    assert isinstance(vocab, Mapping)
+    fields = descriptor.abi_fields["tokenizer"]
+    limits = descriptor.abi_fields["limits"]
+    assert isinstance(fields, Mapping)
+    assert isinstance(limits, Mapping)
+    special_ids = fields["special_token_ids"]
+    assert isinstance(special_ids, Mapping)
+    lowercase = fields["normalization"] == "nfc-lowercase"
+    max_tokens = limits["max_tokens"]
+    assert isinstance(max_tokens, int)
+    if max_tokens < 2:
+        raise EmbeddingExecutionError("MLX embedding input is invalid")
+    encoded = [
+        [
+            special_ids["cls"],
+            *_wordpiece_ids(item.text, vocab, lowercase, special_ids["unk"]),
+            special_ids["sep"],
+        ]
+        for item in items
+    ]
+    encoded = [token_ids[:max_tokens] for token_ids in encoded]
+    width = max(len(token_ids) for token_ids in encoded)
+    padded = [
+        token_ids + [special_ids["pad"]] * (width - len(token_ids))
+        for token_ids in encoded
+    ]
+    masks = [
+        [1] * len(token_ids) + [0] * (width - len(token_ids)) for token_ids in encoded
+    ]
+    return padded, masks
+
+
+def _wordpiece_ids(
+    text: str, vocab: Mapping[str, object], lowercase: bool, unk_id: object
+) -> list[int]:
+    normalized = unicodedata.normalize("NFC", text)
+    if lowercase:
+        normalized = normalized.lower()
+    ids: list[int] = []
+    for token in _bert_basic_tokens(normalized):
+        index = 0
+        pieces: list[int] = []
+        while index < len(token):
+            match: int | None = None
+            next_index = len(token)
+            while next_index > index:
+                piece = token[index:next_index]
+                if index:
+                    piece = f"##{piece}"
+                value = vocab.get(piece)
+                if isinstance(value, int) and not isinstance(value, bool):
+                    match = value
+                    break
+                next_index -= 1
+            if match is None:
+                pieces = [unk_id]
+                break
+            pieces.append(match)
+            index = next_index
+        ids.extend(pieces)
+    return ids
+
+
+def _bert_basic_tokens(text: str) -> list[str]:
+    tokens: list[str] = []
+    current: list[str] = []
+    for character in text:
+        category = unicodedata.category(character)
+        if character.isspace() or category.startswith("C"):
+            if current:
+                tokens.append("".join(current))
+                current.clear()
+        elif category.startswith("P"):
+            if current:
+                tokens.append("".join(current))
+                current.clear()
+            tokens.append(character)
+        else:
+            current.append(character)
+    if current:
+        tokens.append("".join(current))
+    return tokens
 
 
 def _validate_bert_tensor_header(

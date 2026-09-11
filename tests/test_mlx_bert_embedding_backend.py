@@ -5,12 +5,14 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Callable
+from io import BytesIO
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 from dynamic_agent_runner.errors import EmbeddingExecutionError
-from dynamic_agent_runner.local_models import EmbeddingInputItem
+from dynamic_agent_runner.local_models import EmbeddingBatchResult, EmbeddingInputItem
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
     parse_execution_descriptor,
 )
@@ -25,7 +27,7 @@ def _materials(**limit_overrides: int) -> SimpleNamespace:
         "max_items": 1,
         "max_item_bytes": 1024,
         "max_aggregate_bytes": 1024,
-        "max_tokens": 1,
+        "max_tokens": 3,
         "max_vectors": 1,
         "max_memory_bytes": 8 * 1024**3,
         "max_tokenizer_bytes": 16 * 1024 * 1024,
@@ -67,7 +69,7 @@ def _materials(**limit_overrides: int) -> SimpleNamespace:
                         "layers": 1,
                         "attention_heads": 1,
                         "intermediate_size": 2,
-                        "max_positions": 2,
+                        "max_positions": 4,
                         "type_vocab_size": 1,
                     },
                     "pooling": "cls",
@@ -143,6 +145,65 @@ def _weights_blob(*, mutate: HeaderMutation | None = None) -> bytes:
         4 * math.prod(shape) for shape in _bert_tensor_shapes(descriptor).values()
     )
     return len(header).to_bytes(8, "little") + header + b"\0" * payload_size
+
+
+class _NumpyMlx:
+    int32 = np.int32
+
+    @staticmethod
+    def array(value: object, dtype: object | None = None) -> np.ndarray:
+        return np.array(value, dtype=dtype)
+
+    @staticmethod
+    def arange(size: int) -> np.ndarray:
+        return np.arange(size)
+
+    @staticmethod
+    def zeros(shape: tuple[int, ...], dtype: object | None = None) -> np.ndarray:
+        return np.zeros(shape, dtype=dtype)
+
+    @staticmethod
+    def mean(value: np.ndarray, *, axis: int, keepdims: bool) -> np.ndarray:
+        return np.mean(value, axis=axis, keepdims=keepdims)
+
+    @staticmethod
+    def sqrt(value: np.ndarray) -> np.ndarray:
+        return np.sqrt(value)
+
+    @staticmethod
+    def sum(value: np.ndarray, *, axis: int, keepdims: bool = False) -> np.ndarray:
+        return np.sum(value, axis=axis, keepdims=keepdims)
+
+    @staticmethod
+    def softmax(value: np.ndarray, *, axis: int) -> np.ndarray:
+        shifted = value - np.max(value, axis=axis, keepdims=True)
+        exponentials = np.exp(shifted)
+        return exponentials / np.sum(exponentials, axis=axis, keepdims=True)
+
+    @staticmethod
+    def erf(value: np.ndarray) -> np.ndarray:
+        return np.vectorize(math.erf)(value)
+
+    @staticmethod
+    def eval(*_values: object) -> None:
+        return None
+
+    @staticmethod
+    def load(source: BytesIO) -> dict[str, np.ndarray]:
+        payload = source.read()
+        header_size = int.from_bytes(payload[:8], "little")
+        header = json.loads(payload[8 : 8 + header_size])
+        data = payload[8 + header_size :]
+        dtypes = {"F16": np.float16, "BF16": np.float32, "F32": np.float32}
+        return {
+            name: np.frombuffer(
+                data,
+                dtype=dtypes[metadata["dtype"]],
+                count=math.prod(metadata["shape"]),
+                offset=metadata["data_offsets"][0],
+            ).reshape(metadata["shape"])
+            for name, metadata in header.items()
+        }
 
 
 def test_backend_rejects_malformed_artifacts_before_tokenizer_or_model_work() -> None:
@@ -277,7 +338,7 @@ def test_backend_admits_exact_tensor_offsets_before_execution() -> None:
         encoder=lambda _tokens: calls.append("encoder-call") or (),
     )
 
-    with pytest.raises(EmbeddingExecutionError, match="backend"):
+    with pytest.raises(EmbeddingExecutionError, match="execution"):
         backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
 
     assert calls == ["tokenizer", "weights"]
@@ -296,10 +357,28 @@ def test_backend_loads_mlx_only_after_sealed_material_admission() -> None:
         mlx_loader=lambda: calls.append("mlx") or object(),
     )
 
-    with pytest.raises(EmbeddingExecutionError, match="backend"):
+    with pytest.raises(EmbeddingExecutionError, match="execution"):
         backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
 
     assert calls == ["tokenizer", "weights", "mlx"]
+
+
+def test_backend_executes_sealed_bert_encoder_with_fake_mlx() -> None:
+    weights = _weights_blob()
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda role: (
+            _tokenizer_bytes() if role == "tokenizer" else weights
+        ),
+        tokenizer=lambda _items: (),
+        encoder=lambda _tokens: (),
+        mlx_loader=_NumpyMlx,
+    )
+
+    result = backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
+
+    assert isinstance(result, EmbeddingBatchResult)
+    assert result.model == _materials().execution_descriptor.digest
+    assert [(item.id, item.vector) for item in result.items] == [("entry", (0.0, 0.0))]
 
 
 def test_backend_rejects_invalid_wordpiece_tokenizer_before_weights_read() -> None:

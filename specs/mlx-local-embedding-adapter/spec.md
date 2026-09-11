@@ -75,7 +75,7 @@ DAR transports neither that choice nor the model weights in its distribution.
 ### Generic MLX encoder ABI registry
 
 DAR owns versioned, reviewed execution ABIs, initially a BERT-style encoder ABI
-implemented with public `mlx` and `mlx.nn` APIs. A runner capability resolves
+implemented with public `mlx.core` APIs. A runner capability resolves
 one receiver-installed, pure descriptor-validator registry. That registry first
 resolves the descriptor's exact ABI ID, version, and contract digest, then
 validates its finite schema without importing a framework or reading material.
@@ -221,7 +221,7 @@ constants, not descriptor settings.
 
 The backend shall:
 
-- lazy-import `mlx` and `mlx.nn` only on the first eligible embedding call;
+- lazy-import `mlx.core` only on the first eligible embedding call;
 - receive only a verified private artifact set and parsed sealed descriptor;
 - validate every declared artifact and tensor requirement before allocation;
 - perform only descriptor-declared ABI operations; and

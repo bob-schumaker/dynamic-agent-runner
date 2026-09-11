@@ -48,7 +48,7 @@ dependency, descriptor, and locked-material admission.
 1. Add RED tests for descriptor parser ceilings, role/tensor/tokenizer rules,
    truncation, padding, pooling, materialization, normalization, bounds, IDs,
    order, and invalid vectors.
-2. Implement the ABI interpreter with public `mlx` / `mlx.nn` APIs only.
+2. Implement the ABI interpreter with public `mlx.core` APIs only.
 3. Add fake-only batch, async-parity, capability, redaction, and no-fallback
    tests.
 
