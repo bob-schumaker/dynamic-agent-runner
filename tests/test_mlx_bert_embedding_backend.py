@@ -206,6 +206,16 @@ class _NumpyMlx:
         }
 
 
+class _RecordingNumpyMlx(_NumpyMlx):
+    def __init__(self) -> None:
+        self.arrays: list[np.ndarray] = []
+
+    def array(self, value: object, dtype: object | None = None) -> np.ndarray:
+        array = np.array(value, dtype=dtype)
+        self.arrays.append(array)
+        return array
+
+
 def test_backend_rejects_malformed_artifacts_before_tokenizer_or_model_work() -> None:
     calls: list[str] = []
     backend = BertEncoderMlxV1EmbeddingBackend(
@@ -363,6 +373,21 @@ def test_backend_executes_sealed_bert_encoder_with_fake_mlx() -> None:
     assert isinstance(result, EmbeddingBatchResult)
     assert result.model == _materials().execution_descriptor.digest
     assert [(item.id, item.vector) for item in result.items] == [("entry", (0.0, 0.0))]
+
+
+def test_backend_truncation_retains_required_sep_token() -> None:
+    weights = _weights_blob()
+    mlx = _RecordingNumpyMlx()
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda role: (
+            _tokenizer_bytes() if role == "tokenizer" else weights
+        ),
+        mlx_loader=lambda: mlx,
+    )
+
+    backend.embed((EmbeddingInputItem("entry", "one two"),), _materials())
+
+    assert mlx.arrays[0].tolist() == [[101, 100, 102]]
 
 
 def test_backend_rejects_invalid_wordpiece_tokenizer_before_weights_read() -> None:

@@ -504,12 +504,13 @@ def _tokenize_wordpiece_items(
     encoded = [
         [
             special_ids["cls"],
-            *_wordpiece_ids(item.text, vocab, lowercase, special_ids["unk"]),
+            *_wordpiece_ids(item.text, vocab, lowercase, special_ids["unk"])[
+                : max_tokens - 2
+            ],
             special_ids["sep"],
         ]
         for item in items
     ]
-    encoded = [token_ids[:max_tokens] for token_ids in encoded]
     width = max(len(token_ids) for token_ids in encoded)
     padded = [
         token_ids + [special_ids["pad"]] * (width - len(token_ids))
