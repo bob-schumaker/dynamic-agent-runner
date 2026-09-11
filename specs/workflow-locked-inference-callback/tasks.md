@@ -45,8 +45,9 @@
 ## I3 — Sealed asset integration
 
 - [ ] I3.1 [tests, RED] Add exact owner/package/asset authorization and
-  versioned asset-ABI vectors for sealed inputs, allowed roles, declared slots,
-  absent/extra/repeated slots, atomic rollback, and content-free receipts.
+  versioned asset-ABI vectors for sealed inputs, callback-name-to-role binding,
+  allowed roles, declared slots, absent/extra/repeated slots, atomic rollback,
+  and content-free receipts.
 - [ ] I3.2 [implementation] Wire the callback only through the approved sealed
   asset runtime profile and the existing in-memory result collector.
 - [ ] I3.3 [tests, GREEN] Prove deterministic ZIP import/invocation, declared

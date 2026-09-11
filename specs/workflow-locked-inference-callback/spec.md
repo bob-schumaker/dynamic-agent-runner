@@ -37,6 +37,15 @@ The host passes an approved asset only a narrow callback:
 generate(role, canonical_request_bytes) -> canonical_response_bytes
 ```
 
+When that asset uses `sealed-artifact-runner.json`, the callback table is the
+only callback identity source: its `name` equals the exact inference `role`,
+its requirement is `model.generate.v1`, and the outer asset digest appears in
+that role's authorized-asset digests. The table may declare a subset of the
+package's inference roles. Its child-contract envelope binds the same name and
+requirement but does not redeclare a role mapping. DAR rejects an unknown role,
+capability mismatch, or unauthorized asset before asset import, material load,
+or provider entry.
+
 The descriptor has exactly `format_version`, `roles`, and
 `inference_roles_digest`; its canonical JSON bytes bind all role fields and
 their referenced asset digests into package policy, registration, and export.

@@ -11,10 +11,13 @@
 3. Implement the host callback with receiver-owned provider selection, bounded
    reader/writer interfaces, atomic quota reservation, cancellation, and host
    ceilings. Keep the executable provider handle private.
-4. Define the versioned callback-enabled asset ABI and its declared result-slot
-   atomic sealing behavior. Wire it only into the approved sealed-asset runtime
-   after owner/package/asset authorization; do not add a generic Python callback
-   escape hatch.
+4. Bind a sealed-runner callback table entry directly to its exact inference
+   role: callback name equals role, requirement equals `model.generate.v1`, and
+   the runner asset digest must be authorized by that role. Define the declared
+   result-slot atomic sealing behavior. Wire it only into the approved
+   sealed-asset runtime after owner/package/asset authorization; do not add a
+   second callback-name mapping, generic Python callback escape hatch, or
+   parallel asset runtime.
 5. Validate a fake-only ZIP fixture, then manually test only with exact owner
    authorization for the experimental profile or an approved isolation backend
    for foreign/general-release execution.
