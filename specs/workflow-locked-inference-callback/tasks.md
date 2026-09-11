@@ -37,10 +37,16 @@
     material and capability identity; the receiver-owned execution service
     applies canonical schema validation, host-minimum limits, quota reservation,
     revalidation, deadline disposal, and redacted provider failures.
-- [ ] I2.3 [tests, GREEN] Prove exact role isolation, shared-capability
+- [x] I2.3 [tests, GREEN] Prove exact role isolation, shared-capability
   cardinality, effective host ceilings, atomic quota reservation, cancellation,
   late-response disposal, revalidation, no fallback, and trace/receipt/error
   redaction.
+  - Evidence: `tests/test_locked_inference_execution.py` proves role isolation,
+    host-minimum ceilings, atomic concurrent quota reservation, timeout/late
+    response disposal, revalidation without fallback, and redacted provider
+    errors. `tests/test_workflow_locked_inference.py` proves two roles bind
+    independently while sharing the single exact `model.generate.v1`
+    requirement. Focused tests passed on 2026-09-10.
 
 ## I3 — Sealed asset integration
 
