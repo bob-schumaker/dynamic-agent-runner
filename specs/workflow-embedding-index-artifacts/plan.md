@@ -61,11 +61,12 @@ import, sealed document ingress, or builder execution.
    directory, network, subprocess, or persistent storage API and makes no
    isolation claim. Keep ordinary/untrusted-package execution unavailable until
    the `local-tool-sandbox-hardening` release gate is met.
-2. Define the narrow sandbox tool ABI and sealed builder
-   descriptor for snapshot records, optional prior bundle, bounded embedding
-   batches, empty result location, and manifests. The descriptor binds the
-   exact builder asset and all chunking/index configuration into
-   `index_builder_digest`.
+2. Define the narrow sandbox tool ABI and sealed builder descriptor for
+   snapshot records, optional prior bundle, bounded embedding batches, empty
+   result location, and manifests. This completed experimental bridge accepts
+   a bare prior bundle; E6's portable path replaces it with the validated
+   bundle/manifest pair. The descriptor binds the exact builder asset and all
+   chunking/index configuration into `index_builder_digest`.
 3. Add RED sentinels proving malformed inputs or unsatisfied requirements never
    import or execute the index builder, invoke embeddings, or create output.
 4. Implement the smallest host bridge through the existing sandbox/result
@@ -80,8 +81,8 @@ remains gated on approved untrusted-asset isolation.
 
 ## S4 — Incremental bundles and package fixture
 
-1. Add prior-bundle admission, manifest compatibility, and identical-byte
-   determinism tests.
+1. Add paired prior-bundle/prior-index-manifest admission, manifest
+   compatibility, bundle-checksum, and identical-byte determinism tests.
 2. Implement generic rebuild-boundary validation and coverage-report binding
    for snapshot, material, capability, builder, and prior-bundle identities.
 3. Create one package fixture with a toy document syntax and index
@@ -108,11 +109,14 @@ or file digest is a DAR package or generic-contract value.
 
 ## S5 — Portable package runtime
 
-1. Add a generic descriptor section for sealed snapshot/prior-bundle ingress,
-   builder asset/configuration, embedding material role, and opaque outputs.
+1. Add a generic descriptor section for sealed snapshot ingress, paired
+   optional prior-bundle/prior-index-manifest ingress, builder
+   asset/configuration, embedding material role, and the required
+   `coverage_report`/`index_bundle`/`index_manifest` output triple.
 2. Route ZIP admission and invocation through descriptor-only material and
    capability resolution before builder asset loading or input ingress.
-3. Add fake-only ZIP round-trip and owner-authorization vectors; preserve the
+3. Add fake-only ZIP round-trip and owner-authorization vectors, including a
+   bundle/manifest checksum mismatch that publishes no output; preserve the
    experimental/untrusted-package isolation distinction.
 
 Exit: an owner-authorized external ZIP can execute the same generic contract

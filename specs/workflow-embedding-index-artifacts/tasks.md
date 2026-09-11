@@ -155,9 +155,19 @@
 
 ## E6 — Portable package runtime
 
-- [ ] E6.1 [design] Define the sealed descriptor/package-manifest binding for
-  snapshot ingress, optional prior bundle, builder asset/configuration,
-  embedding material role, exact capability, and declared opaque outputs.
+- [x] E6.1 [design] Define the sealed descriptor/package-manifest binding for
+  snapshot ingress, optional paired prior bundle/index manifest, builder
+  asset/configuration, embedding material role, exact capability, and declared
+  outputs.
+  - Evidence: the portable-runtime section requires generic `snapshot`, paired
+    optional `prior_bundle`/`prior_index_manifest`, the lexical
+    `coverage_report`/`index_bundle`/`index_manifest` output triple, and one
+    exact `embed` callback. Its child-contract digest plus asset digest binds
+    `index_builder_digest`; the standard manifest commits all assets and
+    schemas. The 2026-09-10 Council (Aristotle, Ada, Feynman) independently
+    rejected a two-output design because the opaque bundle needs an external
+    checksum-binding manifest. Ponytail accepted the existing three roles with
+    no new DAR container or consumer-specific runner field.
 - [ ] E6.2 [tests, RED] Add ZIP receiver-admission vectors proving malformed,
   unbound, or unauthorized packages load no asset, model, provider, ingress, or
   result collector.

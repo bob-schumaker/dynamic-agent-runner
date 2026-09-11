@@ -53,11 +53,12 @@ This feature defines:
 4. a versioned opaque index-bundle output artifact and manifest; and
 5. deterministic incremental-rebuild identity and failure behavior.
 
-Version 1 supports one input snapshot and one optional prior index bundle. It
-produces one index bundle and one machine-readable coverage report. The host
-may persist a returned bundle only through an explicit caller-side operation
-after workflow completion; the workflow has no destination path or storage
-credential.
+Version 1 supports one input snapshot and one optional prior index-bundle
+result pair: opaque bundle bytes plus their required generic manifest. It
+produces one index-bundle result pair and one machine-readable coverage report.
+The host may persist returned artifacts only through an explicit caller-side
+operation after workflow completion; the workflow has no destination path or
+storage credential.
 
 ## Non-Goals
 
@@ -91,11 +92,12 @@ The manifest is deterministically ordered by document ID and carries a
 content hashes. A caller may retain its source/path mapping outside DAR; DAR
 does not receive or return it.
 
-### Index bundle
+### Index-bundle result pair
 
 An index bundle is one opaque sealed workflow-result artifact. Its workflow
 local bytes may contain vectors and any chosen index representation. Its
-required generic manifest has only the following portable metadata:
+required companion index manifest is a separately sealed JSON artifact with
+only the following portable metadata:
 
 - `format_version`;
 - `snapshot_digest`;
@@ -105,8 +107,10 @@ required generic manifest has only the following portable metadata:
 - `bundle_sha256`; and
 - aggregate document, chunk, indexed, skipped, deleted, and error counts.
 
-DAR validates the manifest shape, digest binding, byte limit, and relationship
-to the invocation artifacts. It does not parse vectors or index contents.
+DAR validates the manifest shape, the `bundle_sha256` binding to the opaque
+bundle bytes, byte limits, and its relationship to the invocation artifacts.
+It does not parse vectors or index contents. The bundle and manifest are one
+logical result and are always sealed and published together.
 
 The coverage report is a separately sealed, generic result artifact. It may
 contain only its format version, the same binding digests, the prior-bundle
@@ -150,10 +154,10 @@ filesystem path, network endpoint, subprocess, storage destination, or host
 capability implementation.
 
 DAR executes the asset only through the workflow-local tool sandbox and gives
-it: the sealed snapshot records, optional prior-bundle bytes, bounded embedding
-batches through the host-owned capability, and an empty bounded result
-location. It returns the index-bundle bytes, manifest, and generic coverage
-report only through that result location.
+it: the sealed snapshot records, an optional validated prior index-bundle
+result pair, bounded embedding batches through the host-owned capability, and
+an empty bounded result location. It returns the index-bundle bytes, manifest,
+and generic coverage report only through that result location.
 
 The descriptor's canonical bytes define `index_builder_digest`. It is an
 identity, not executable configuration supplied by the caller.
@@ -161,10 +165,34 @@ identity, not executable configuration supplied by the caller.
 ### Portable package runtime
 
 E1–E5 provide a host-private experimental bridge, not a portable workflow
-package path. A portable package must declare the snapshot input, optional
-prior bundle, index-builder asset digest/descriptor, embedding material role,
-exact embedding capability, and declared opaque outputs in its sealed
-descriptor. DAR verifies those declarations and resolves all required
+package path. A portable package uses the generic
+`sealed-artifact-runner.json` descriptor and its normal package manifest. The
+outer descriptor declares only generic artifact roles, media types, schemas,
+limits, the sealed asset, and bounded callback requirements. It declares:
+
+- required `snapshot` JSON input;
+- optional `prior_bundle` opaque-bytes and `prior_index_manifest` JSON inputs,
+  which are both present or both absent;
+- required `coverage_report` JSON, `index_bundle` opaque-bytes, and
+  `index_manifest` JSON outputs in the generic descriptor's lexical role
+  order; and
+- exactly one `embed` callback whose capability requirement is
+  `embedding.execute.v1`.
+
+The package manifest lists the sealed builder asset, the descriptor, all JSON
+schemas, and the canonical child-contract record. Builder configuration is
+sealed in the asset bytes. The v1 builder child-contract body has exactly
+`embed_request_schema_digest` and `embed_response_schema_digest`, each naming
+one declared JSON schema; it defines only the embedding callback payloads. DAR
+interprets only the child contract's common generic envelope. The child
+contract's digest, together with the outer asset digest, defines the portable
+builder identity as
+the SHA-256 of the canonical JSON object
+`{"asset_digest": asset_digest, "builder_contract_digest": child_contract_digest}`.
+That value is the `index_builder_digest` bound into the index manifest and
+coverage report. The package's existing locked material declaration supplies
+the embedding material role, while the outer callback requires the exact
+capability. DAR verifies those declarations and resolves all required
 capabilities/materials before it loads the asset or accepts the input.
 
 ## Functional Requirements
@@ -200,31 +228,34 @@ override host resource, network, device, or model-cache policy.
 ### FR-4: Opaque index-bundle egress
 
 The index builder may create only its empty bounded result location. DAR shall
-read and seal exactly the declared index bundle and generic coverage report,
-validate their byte limits and generic manifests, and return them as workflow
-artifacts. The normal result, traces, diagnostics, and errors retain only
-digests, counts, and redacted classifications. A caller may explicitly export
-or persist a returned artifact after completion; DAR performs no automatic
-destination write.
+read and atomically seal exactly the declared `coverage_report`, `index_bundle`,
+and `index_manifest` outputs, validate their byte limits and generic JSON
+schemas, and return them as workflow artifacts only after the consumer verifies
+the bundle checksum and common invocation bindings. The normal result, traces,
+diagnostics, and errors retain only digests, counts, and redacted
+classifications. A caller may explicitly export or persist a returned artifact
+after completion; DAR performs no automatic destination write.
 
 ### FR-5: Incremental identity
 
-When a package declares an optional prior index-bundle input, DAR shall bind it
-by SHA-256 and supply it only as sealed bytes to the index builder. The builder
-must record the prior bundle digest or `null` in its coverage report. DAR shall
-require the resulting bundle manifest to bind the current snapshot digest,
-embedding-material digest, capability-contract digest, and builder digest. A
-changed binding is a rebuild boundary, not a compatible incremental update.
+When a package declares incremental operation, DAR shall admit a paired prior
+index bundle and index manifest, validate the manifest's bundle checksum and
+binding identities, and supply both only as sealed bytes to the index builder.
+The builder must record the prior bundle digest or `null` in its coverage
+report. DAR shall require the resulting bundle manifest to bind the current
+snapshot digest, embedding-material digest, capability-contract digest, and
+builder digest. A changed binding is a rebuild boundary, not a compatible
+incremental update.
 
 ### FR-6: Determinism and resumability
 
 Version 1 requires deterministic embedding execution. For identical package
-bytes, snapshot bytes, optional prior bundle, locked material, provider
+bytes, snapshot bytes, optional prior result pair, locked material, provider
 contract, and declared execution parameters, the workflow must emit identical
-bundle and coverage-report bytes and manifest identities. A model/provider that
-cannot meet that property is incompatible with version 1. A failed run returns
-no partial index bundle. Resumption is a new run using a complete prior bundle,
-never an unsealed mutable workspace.
+bundle, manifest, and coverage-report bytes and identities. A model/provider
+that cannot meet that property is incompatible with version 1. A failed run
+returns no partial index-bundle result pair. Resumption is a new run using a
+complete validated prior result pair, never an unsealed mutable workspace.
 
 ### FR-7: Isolation and redaction
 
@@ -255,9 +286,9 @@ gated on the approved isolation backend.
   embedding call, or index-builder execution.
 - Fake-only tests prove exact material/capability binding, batch limits,
   vector-result validation, and no-fallback failure behavior.
-- Fake-only end-to-end tests prove a deterministic sealed snapshot produces a
-  sealed index bundle and coverage report, without source paths, vectors, or
-  bundle bytes appearing in ordinary results or traces.
+- Fake-only end-to-end tests prove a deterministic sealed snapshot produces an
+  atomically sealed bundle, index manifest, and coverage report, without source
+  paths, vectors, or bundle bytes appearing in ordinary results or traces.
 - Incremental tests prove changed snapshot, model material, capability, or
   builder identity invalidates prior-bundle compatibility.
 - The first real-model acceptance, if authorized later, records only package,

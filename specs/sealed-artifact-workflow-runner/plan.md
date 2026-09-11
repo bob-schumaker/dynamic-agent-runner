@@ -124,6 +124,12 @@ asset ABI.
    descriptor fields. Keep consumer payload semantics inside its child contract
    or sealed asset; the outer descriptor stores only the generic role, media,
    schema digest, limits, capability requirement, and callback bounds.
+   The embedding fixture declares required JSON `snapshot` input, optional
+   opaque `prior_bundle` and JSON `prior_index_manifest` inputs as one pair,
+   and the lexical output triple `coverage_report` (JSON), `index_bundle`
+   (opaque bytes), and `index_manifest` (JSON). It declares only the exact
+   `embed` callback requirement. The runner does not interpret the paired
+   inputs or the output payloads beyond their generic contracts.
 2. Bind the existing `embedding.execute.v1` and `model.generate.v1` contracts
    through the callback table. A sealed asset may invoke only the callback
    declared for its exact child contract; it cannot select a provider, model,
@@ -140,22 +146,30 @@ the same generic receiver API without scenario-specific DAR source.
 **Depends on:** M3 and E6 completion.
 
 **Deliverable:** the embedding package executes its sealed index-builder asset
-through the generic runner and returns only declared index-bundle and
-coverage-report output handles.
+through the generic runner and returns exactly three declared physical output
+handles: `coverage_report`, `index_bundle`, and `index_manifest`. The bundle
+and manifest are one logical index-bundle result; the report is the other
+logical result.
 
 1. Replace the host-private embedding builder bridge with the sealed asset
    fixture and generic invocation/preparation calls.
-2. Preserve the embedding spec's generic snapshot, prior-bundle, material,
-   deterministic-batch, index-bundle, and coverage-report validation in their
-   owners. The runner validates only generic descriptor/handle/ABI rules.
-3. Add fake-only end-to-end coverage for initial and prior-bundle runs, exact
-   callback binding, atomic egress, and source-data/vector redaction.
+2. Preserve the embedding spec's snapshot, paired prior-bundle and
+   prior-index-manifest, material, deterministic-batch, index-bundle,
+   index-manifest, and coverage-report validation in their owners. The runner
+   validates only generic descriptor/handle/ABI rules. The consumer validates
+   the manifest's `bundle_sha256` against the opaque `index_bundle` bytes and
+   validates the common invocation bindings before publication.
+3. Add fake-only end-to-end coverage for initial and paired-prior-bundle runs,
+   exact callback binding, atomic egress, a bundle/manifest digest mismatch,
+   and source-data/vector redaction. A mismatch publishes or exports no
+   output handles.
 4. Delete the replaced direct builder/import/egress route and its bypass tests
    in the same change. Do not leave a compatibility switch.
 
 **Acceptance:** package export, registration, prepared snapshot input, callback
-execution, and opaque output publication all traverse the sealed runner; a
-source-level test finds no remaining embedding-specific host invocation route.
+execution, and atomic opaque publication of the required output triple all
+traverse the sealed runner; a source-level test finds no remaining
+embedding-specific host invocation route.
 
 ### M5 — Migrate the locked-inference consumer (S5b)
 
