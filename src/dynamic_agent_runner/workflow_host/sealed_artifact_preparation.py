@@ -44,6 +44,12 @@ class _Identity(Protocol):
     def principal(self) -> str: ...
 
 
+class _CallbackResolver(Protocol):
+    def resolve(
+        self, descriptor: object, policy: object, revision: object
+    ) -> object: ...
+
+
 class SealedArtifactInputPreparationService:
     """Seal input only after it is bound to one registered local package revision."""
 
@@ -56,6 +62,7 @@ class SealedArtifactInputPreparationService:
         identity: _Identity | None = None,
         capability_catalog: CapabilityCatalog | None = None,
         descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
+        callback_resolver: _CallbackResolver | None = None,
     ) -> None:
         principal = (identity or InstallationIdentityProvider()).principal
         if (
@@ -71,6 +78,7 @@ class SealedArtifactInputPreparationService:
         self._principal = principal
         self._capability_catalog = capability_catalog
         self._descriptor_validators = descriptor_validators
+        self._callback_resolver = callback_resolver
 
     def prepare(
         self,
@@ -92,6 +100,7 @@ class SealedArtifactInputPreparationService:
             revision = self._catalog.revision(
                 registration.package_id, registration.revision_digest
             )
+            policy = None
             if self._capability_catalog is not None:
                 policy = compile_workflow_policy(
                     revision,
@@ -109,6 +118,10 @@ class SealedArtifactInputPreparationService:
                 or descriptor.profile_digest != registration.profile_digest
             ):
                 raise SealedArtifactHandleError("artifact handle is invalid")
+            if self._callback_resolver is not None:
+                if policy is None:
+                    raise SealedArtifactHandleError("artifact handle is unavailable")
+                self._callback_resolver.resolve(descriptor, policy, revision)
         except SealedArtifactHandleError:
             raise
         except Exception as error:

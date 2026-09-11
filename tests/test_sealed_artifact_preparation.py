@@ -8,6 +8,7 @@ import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -216,6 +217,52 @@ def test_preparation_rejects_policy_recompilation_before_copying_bytes(
 
     assert store.issue_calls == 0
     assert observed == [validators]
+
+
+def test_preparation_resolves_callback_before_copying_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import dynamic_agent_runner.workflow_host.sealed_artifact_preparation as module
+
+    root = tmp_path / "package"
+    _package(root)
+    store = _CountingStore(tmp_path / "state")
+    events: list[str] = []
+
+    class Resolver:
+        def resolve(self, _descriptor, _policy, _revision) -> object:
+            events.append("callback_resolution")
+            raise ValueError("provider unavailable")
+
+    monkeypatch.setattr(
+        module,
+        "compile_workflow_policy",
+        lambda *_args, **_kwargs: SimpleNamespace(policy_digest="c" * 64),
+    )
+    service = SealedArtifactInputPreparationService(
+        registrations=_Registrations(),
+        catalog=_Catalog(root),
+        handles=SealedArtifactHandleService(store=store, owner=_OWNER),
+        identity=_Identity(),
+        capability_catalog=CapabilityCatalog((), ()),
+        callback_resolver=Resolver(),
+    )
+
+    with pytest.raises(SealedArtifactHandleError, match="unavailable"):
+        service.prepare(
+            workflow_id="example",
+            receiver_id=_OWNER,
+            invocation_id="invocation",
+            role="snapshot",
+            media_type="application/octet-stream",
+            schema_digest=None,
+            content=b"sealed bytes",
+            expires_at=NOW + timedelta(minutes=1),
+            now=NOW,
+        )
+
+    assert events == ["callback_resolution"]
+    assert store.issue_calls == 0
 
 
 @pytest.mark.parametrize(
