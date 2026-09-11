@@ -25,12 +25,12 @@
 
 ## I2 — Admission and callback
 
-- [ ] I2.1 [tests, RED] Add fake-only descriptor/policy/admission vectors for
+- [x] I2.1 [tests, RED] Add fake-only descriptor/policy/admission vectors for
   duplicate/noncanonical inference roles, schema/instruction asset mutation,
   unsupported dialect/value, material/capability mismatch, role/asset escape,
   and every staging/catalog/preflight/registration/preparation/ingress/runner
   route with import/load/provider/result-allocation sentinels.
-  - Partial evidence: parser and asset-dialect vectors live in
+  - Evidence: parser and asset-dialect vectors live in
     `tests/test_workflow_locked_inference.py`; a catalog-revision policy test
     proves tampered role assets and a material-role mismatch stop before the
     runtime manifest loader. `tests/test_sealed_artifact_preparation.py` also
@@ -48,6 +48,12 @@
     `test_locked_inference_registration_rejects_tampered_role_before_preparation`
     proves a malformed role stops at staging, before registration or model
     preparation.
+  - Route matrix: staging and registration are covered by the tampered-role
+    host test; catalog and runner by the staged-ZIP asset-tamper test; preflight
+    by `test_factory_rejects_an_unavailable_provider_before_reading_role_assets`;
+    preparation and sealed input ingress by the preparation-service rejection
+    tests, which prove no caller-byte copy or handle issue. Every route uses
+    import/load/provider/result-allocation sentinels appropriate to its boundary.
 - [x] I2.2 [implementation] Derive a private per-role inference binding and
   implement bounded canonical callback execution through a receiver-owned
   provider seam and bounded response reader.
