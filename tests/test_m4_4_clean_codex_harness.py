@@ -504,8 +504,11 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
         "e" * 64,
         ("0.1.3", "0.1.3"),
     )
+    runtime_receipt_calls: list[dict[str, object]] = []
     monkeypatch.setattr(
-        module, "_runtime_release_receipt", lambda **_kwargs: runtime_release
+        module,
+        "_runtime_release_receipt",
+        lambda **kwargs: runtime_receipt_calls.append(kwargs) or runtime_release,
     )
 
     aggregate = module.run_manifest(
@@ -521,6 +524,7 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
         evidence_directory=(tmp_path / "evidence").resolve(),
         codex_home=(tmp_path / "codex-home").resolve(),
         plugin_root=(tmp_path / "plugin").resolve(),
+        runtime_selector_plugin_root=(tmp_path / "selector-plugin").resolve(),
         wheel=(tmp_path / "dar.whl").resolve(),
         materials=(tmp_path / "materials.json").resolve(),
         runtime_release_descriptor=(tmp_path / "release.json").resolve(),
@@ -538,6 +542,13 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
     assert set(fixture_contracts) == set(records)
     assert {call["evidence"] for call in calls} == {None}
     assert {call["runtime_release"] for call in calls} == {runtime_release}
+    assert runtime_receipt_calls == [
+        {
+            "descriptor": (tmp_path / "release.json").resolve(),
+            "generated_plugin_root": (tmp_path / "selector-plugin").resolve(),
+            "wheel": (tmp_path / "dar.whl").resolve(),
+        }
+    ]
     aggregate_data = json.loads(aggregate.read_text(encoding="utf-8"))
     assert len(aggregate_data["records"]) == 23
     emitted = json.loads(

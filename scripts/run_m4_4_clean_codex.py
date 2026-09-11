@@ -476,6 +476,7 @@ def run_manifest(
     reviewer_decision: str,
     codex_executable: str,
     timeout: int,
+    runtime_selector_plugin_root: Path | None = None,
     plugin_surface: str = "generated-root",
     progress_file: Path | None = None,
 ) -> Path:
@@ -497,7 +498,7 @@ def run_manifest(
     _verify_fixture_contracts(plan, sources)
     runtime_release = _runtime_release_receipt(
         descriptor=runtime_release_descriptor,
-        generated_plugin_root=plugin_root,
+        generated_plugin_root=runtime_selector_plugin_root or plugin_root,
         wheel=wheel,
     )
     _write_progress_event(
@@ -1609,6 +1610,7 @@ def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     ):
         parser.add_argument(f"--{name.replace('_', '-')}", type=Path, required=True)
     parser.add_argument("--scenario-root", type=Path, action="append", required=True)
+    parser.add_argument("--runtime-selector-plugin-root", type=Path)
     parser.add_argument("--reviewer-id")
     parser.add_argument(
         "--reviewer-decision", choices=("pending", "approved"), default="pending"
