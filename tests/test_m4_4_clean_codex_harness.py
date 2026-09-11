@@ -1221,6 +1221,21 @@ def test_document_summary_author_prompt_requires_the_no_tool_template() -> None:
     assert "do not construct its graph from scratch" in prompt
 
 
+def test_mailbox_triage_author_prompt_requires_the_read_only_template() -> None:
+    module = _harness_module()
+
+    prompt = module._author_request(
+        "Author the declared DAR mailbox-triage workflow.",
+        "material-id",
+        "mailbox-triage",
+        "pass",
+    )
+
+    assert "read-only MCP workflow" in prompt
+    assert "reviewed read-only MCP template" in prompt
+    assert "do not construct its graph from scratch" in prompt
+
+
 def test_skill_bundle_author_prompt_requires_the_review_template() -> None:
     module = _harness_module()
 
