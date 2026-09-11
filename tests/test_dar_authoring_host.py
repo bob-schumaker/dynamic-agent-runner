@@ -74,6 +74,17 @@ from dynamic_agent_runner.workflow_host.locked_inference_provider_registry impor
 from dynamic_agent_runner.workflow_host.locked_inference_sealed_artifact_callback import (  # noqa: E402
     LockedInferenceSealedArtifactCallbackResolver,
 )
+from dynamic_agent_runner.workflow_host.embedding_execution import (  # noqa: E402
+    EmbeddingBatchLimits,
+    EmbeddingLimitProjectorBinding,
+    EmbeddingLimitProjectorRegistry,
+)
+from dynamic_agent_runner.workflow_host.embedding_sealed_artifact_callback import (  # noqa: E402
+    EmbeddingSealedArtifactCallbackResolver,
+)
+from dynamic_agent_runner.workflow_host.execution_descriptors import (  # noqa: E402
+    ExecutionDescriptorAbi,
+)
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -523,6 +534,67 @@ def test_local_host_composes_locked_inference_callback_from_receiver_inputs(
         host._sealed_artifact_runner._callback_resolver,
         LockedInferenceSealedArtifactCallbackResolver,
     )
+
+
+def test_local_host_composes_embedding_callback_from_receiver_inputs(
+    tmp_path: Path,
+) -> None:
+    configure_local_host(
+        root=tmp_path / "state",
+        package_root=tmp_path / "packages",
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
+    class Execution:
+        def execute(self, **_kwargs):  # type: ignore[no-untyped-def]
+            return ()
+
+    projects = EmbeddingLimitProjectorRegistry(
+        (
+            EmbeddingLimitProjectorBinding(
+                ExecutionDescriptorAbi("test-embedding", "1", "a" * 64),
+                lambda _descriptor: EmbeddingBatchLimits(1, 1, 1, 1, 1),
+            ),
+        )
+    )
+    host = LocalWorkflowHost.open(
+        tmp_path / "state",
+        capability_catalog=CapabilityCatalog((), ()),
+        embedding_execution=Execution(),
+        embedding_limit_projectors=projects,
+    )
+
+    assert host._sealed_artifact_preparation is not None
+    assert host._sealed_artifact_runner is not None
+    assert isinstance(
+        host._sealed_artifact_runner._callback_resolver,
+        EmbeddingSealedArtifactCallbackResolver,
+    )
+
+
+def test_local_host_rejects_partial_embedding_callback_configuration(
+    tmp_path: Path,
+) -> None:
+    configure_local_host(
+        root=tmp_path / "state",
+        package_root=tmp_path / "packages",
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
+    class Execution:
+        def execute(self, **_kwargs):  # type: ignore[no-untyped-def]
+            return ()
+
+    with pytest.raises(
+        LocalWorkflowHostError, match="embedding execution configuration"
+    ):
+        LocalWorkflowHost.open(
+            tmp_path / "state",
+            capability_catalog=CapabilityCatalog((), ()),
+            embedding_execution=Execution(),
+        )
 
 
 def test_local_host_runs_locked_inference_from_a_staged_zip(

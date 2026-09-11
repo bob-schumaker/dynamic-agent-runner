@@ -119,6 +119,13 @@ from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
     ExecutionDescriptorValidatorRegistry,
 )
+from dynamic_agent_runner.workflow_host.embedding_execution import (
+    EmbeddingExecutionService,
+    EmbeddingLimitProjectorRegistry,
+)
+from dynamic_agent_runner.workflow_host.embedding_sealed_artifact_callback import (
+    EmbeddingSealedArtifactCallbackResolver,
+)
 from dynamic_agent_runner.workflow_host.locked_inference_execution import (
     LockedInferenceHostLimits,
 )
@@ -758,6 +765,8 @@ class LocalWorkflowHost:
         capability_catalog: CapabilityCatalog | None = None,
         descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
         sealed_artifact_callback_resolver: SealedArtifactCallbackResolver | None = None,
+        embedding_execution: EmbeddingExecutionService | None = None,
+        embedding_limit_projectors: EmbeddingLimitProjectorRegistry | None = None,
         locked_inference_provider_registry: LockedInferenceProviderRegistry
         | None = None,
         locked_inference_host_limits: LockedInferenceHostLimits | None = None,
@@ -765,6 +774,16 @@ class LocalWorkflowHost:
         """Open a configured local host for the current OS user."""
 
         _validate_root(root)
+        if (embedding_execution is None) != (embedding_limit_projectors is None) or (
+            embedding_execution is not None
+            and (
+                capability_catalog is None
+                or sealed_artifact_callback_resolver is not None
+            )
+        ):
+            raise LocalWorkflowHostError(
+                "embedding execution configuration is unavailable"
+            )
         if (locked_inference_provider_registry is None) != (
             locked_inference_host_limits is None
         ) or (
@@ -772,6 +791,7 @@ class LocalWorkflowHost:
             and (
                 capability_catalog is None
                 or sealed_artifact_callback_resolver is not None
+                or embedding_execution is not None
             )
         ):
             raise LocalWorkflowHostError(
@@ -786,6 +806,11 @@ class LocalWorkflowHost:
                         host_limits=locked_inference_host_limits,
                     )
                 )
+            )
+        elif embedding_execution is not None:
+            sealed_artifact_callback_resolver = EmbeddingSealedArtifactCallbackResolver(
+                execution=embedding_execution,
+                limit_projectors=embedding_limit_projectors,
             )
         configuration = _read_configuration(root)
         store = PrivateStateStore(root)
