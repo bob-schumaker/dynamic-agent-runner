@@ -601,6 +601,22 @@ def test_policy_binds_named_material_sets_to_locked_inference_roles(
             capability_catalog=catalog,
         )
 
+    asset.write_bytes(schema)
+    material_sets_path = revision.package_root / "model-material-sets.json"
+    material_sets_path.chmod(0o600)
+    material_sets = json.loads(material_sets_path.read_text(encoding="utf-8"))
+    material_sets["material_sets"][0]["role"] = "other"
+    material_sets_path.write_text(
+        json.dumps(material_sets, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PolicyCompilationError, match="locked inference binding"):
+        compile_workflow_policy(
+            revision,
+            capability_catalog=catalog,
+        )
+
 
 def test_policy_derives_embedding_binding_before_workflow_import(
     tmp_path: Path,

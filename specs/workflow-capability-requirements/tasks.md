@@ -327,6 +327,10 @@ targeted pre-commit hooks passed on 2026-09-09.
 - [ ] C6.2 [tests, RED] Add descriptor/admission vectors for inference-role
   requirement/material-role mismatches that leave all asset, model, provider,
   ingress, and result actions at zero.
+  - Partial evidence: `tests/test_dar_authoring_policy.py` now mutates both a
+    sealed inference schema and its material-set role in a catalog revision and
+    proves each fails before runtime-manifest loading. Provider, ingress, and
+    result-allocation sentinels remain pending.
 - [x] C6.3 [implementation] Resolve and revalidate the selected private
   provider only through the generic inference binding; do not expose provider
   selection or domain output interpretation to package data.

@@ -30,6 +30,10 @@
   unsupported dialect/value, material/capability mismatch, role/asset escape,
   and every staging/catalog/preflight/registration/preparation/ingress/runner
   route with import/load/provider/result-allocation sentinels.
+  - Partial evidence: parser and asset-dialect vectors live in
+    `tests/test_workflow_locked_inference.py`; a catalog-revision policy test
+    proves tampered role assets and a material-role mismatch stop before the
+    runtime manifest loader. The remaining route-specific sentinels are open.
 - [x] I2.2 [implementation] Derive a private per-role inference binding and
   implement bounded canonical callback execution through a receiver-owned
   provider seam and bounded response reader.
