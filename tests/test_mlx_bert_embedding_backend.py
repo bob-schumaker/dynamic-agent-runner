@@ -426,6 +426,49 @@ def test_backend_truncation_retains_required_sep_token() -> None:
     assert mlx.arrays[0].tolist() == [[101, 100, 102]]
 
 
+def test_backend_pads_token_batches_and_preserves_input_order() -> None:
+    weights = _weights_blob()
+    mlx = _RecordingNumpyMlx()
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda role: (
+            _tokenizer_bytes() if role == "tokenizer" else weights
+        ),
+        mlx_loader=lambda: mlx,
+    )
+    items = (EmbeddingInputItem("first", ""), EmbeddingInputItem("second", "text"))
+
+    result = backend.embed(
+        items,
+        _materials(max_items=2, max_vectors=2),
+    )
+
+    assert mlx.arrays[0].tolist() == [[101, 102, 0], [101, 100, 102]]
+    assert mlx.arrays[1].tolist() == [[1, 1, 0], [1, 1, 1]]
+    assert [item.id for item in result.items] == ["first", "second"]
+
+
+def test_backend_rejects_nonfinite_materialized_vectors() -> None:
+    word_embeddings = [0.0] * 400
+    word_embeddings[202:204] = [math.nan, 1.0]
+    weights = _weights_blob(
+        values={
+            "embeddings.word_embeddings.weight": word_embeddings,
+            "embeddings.LayerNorm.weight": [1.0, 1.0],
+            "encoder.layer.0.attention.output.LayerNorm.weight": [1.0, 1.0],
+            "encoder.layer.0.output.LayerNorm.weight": [1.0, 1.0],
+        }
+    )
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda role: (
+            _tokenizer_bytes() if role == "tokenizer" else weights
+        ),
+        mlx_loader=_NumpyMlx,
+    )
+
+    with pytest.raises(EmbeddingExecutionError, match="execution"):
+        backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
+
+
 @pytest.mark.parametrize(
     ("pooling", "normalization", "expected"),
     [
