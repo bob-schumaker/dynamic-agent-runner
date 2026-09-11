@@ -58,8 +58,15 @@
   versioned asset-ABI vectors for sealed inputs, callback-name-to-role binding,
   allowed roles, declared slots, absent/extra/repeated slots, atomic rollback,
   and content-free receipts.
-- [ ] I3.2 [implementation] Wire the callback only through the approved sealed
+- [x] I3.2 [implementation] Wire the callback only through the approved sealed
   asset runtime profile and the existing in-memory result collector.
+  - Evidence: Council (Aristotle, Ada, Feynman) and Ponytail reviewed the
+    duplicate standalone ABI on 2026-09-10 and rejected integration. Its
+    unreferenced source and tests were removed. The existing
+    `SealedArtifactRunnerDescriptor`, `SealedArtifactExecutionContext`, and
+    `SealedArtifactOutputCollector` remain the single callback/slot/collector
+    path; `sandbox_result_location` remains because embedding code owns its
+    separate use.
 - [ ] I3.3 [tests, GREEN] Prove deterministic ZIP import/invocation, declared
   result-slot sealing, and aggregate-only egress on a receiving fake host.
 - [ ] I3.4 [verification] Run focused suites, full pytest, Ruff, diff checks,

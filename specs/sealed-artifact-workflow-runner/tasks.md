@@ -45,3 +45,7 @@
   receiving-host execution.
 - [ ] S5 [migration] Route embedding-index and locked-inference package assets
   through the generic runner; remove parallel invocation paths.
+  - Partial evidence: the abandoned standalone locked-inference ABI/runtime and
+    its tests were removed after the 2026-09-10 Council/Ponytail review. The
+    generic sealed runner is now the sole locked-inference callback path;
+    embedding migration remains open.
