@@ -2,8 +2,8 @@
 
 ## Delivery Rules
 
-- Implement a generic sealed-descriptor MLX embedding ABI, not a model registry
-  or an extension of the text-generation adapter.
+- Implement a generic sealed-descriptor MLX embedding ABI registry, not a
+  model registry or an extension of the text-generation adapter.
 - Use fake-only RED/GREEN cycles. MLX is not a base dependency and no unit test
   imports MLX or downloads a model.
 - The workflow construction process locks material, descriptor, tokenizer,
@@ -12,7 +12,7 @@
 - A real model runs only under explicit authorization after deterministic
   admission and conformance tests pass.
 
-## S0 — Descriptor prerequisite
+## S0 — Generalized execution-ABI prerequisite
 
 1. Extend the generic model-material contract with a descriptor digest and a
    fixed ABI-neutral `execution-descriptor.json` file. Its descriptor does not
@@ -26,8 +26,10 @@
    before material/framework work, then bind descriptor digest into private
    model and embedding execution bindings without an MLX-specific manifest.
 
-Exit: another workflow can select another model that validates against the ABI
-without a DAR model registry or source change.
+Exit: another workflow can select another locked material set that validates
+against an installed ABI without a DAR model registry or source change. A new
+architecture remains an explicit later ABI addition, not a workflow-provided
+loader.
 
 ## S1 — Direct adapter admission
 
@@ -76,4 +78,4 @@ returns work to S0–S2.
 4. Run focused suites, full pytest, Ruff, and `git diff --check`.
 
 Exit: a compatible Mac receiver can satisfy any sealed descriptor supported by
-the generic ABI; other providers and platforms remain unchanged.
+an installed MLX ABI; other providers and platforms remain unchanged.

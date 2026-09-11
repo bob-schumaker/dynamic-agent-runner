@@ -1,4 +1,4 @@
-# macOS Generic MLX Embedding Execution Tasks
+# macOS Generalized MLX Embedding Execution Tasks
 
 ## MLE0 — Retire the model-specific experiment from DAR runtime
 
@@ -21,7 +21,7 @@
     byte scan found no named experimental-model content; `poetry run pytest -q`
     passed with 2,203 passed, 1 skipped, and 7 deselected on 2026-09-10.
 
-## MLE1 — Sealed generic descriptor
+## MLE1 — Sealed generalized descriptor and ABI registry
 
 - [x] MLE1.1 [spec/design] Define ABI-neutral `execution-descriptor.json`, its
   canonical digest, non-circular material-lock binding, and initial BERT-style
@@ -46,6 +46,7 @@
 - [x] MLE1.3 [implementation] Resolve the exact ABI through a pure
   receiver-installed validator registry, then parse, validate, and bind the
   descriptor through generic model-material and embedding execution bindings.
+  The registry is architecture-ABI based and contains no named-model entries.
 - [x] MLE1.4 [tests, GREEN] Prove two distinct model descriptors accepted by
   the same ABI remain isolated and that no model identity is compiled into DAR.
 

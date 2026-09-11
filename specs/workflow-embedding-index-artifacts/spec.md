@@ -20,9 +20,9 @@
 
 Allow a durable sealed workflow package to transform one bounded, immutable
 document-snapshot artifact into an opaque vector-index artifact using a locked
-embedding model. The package may be sent to a compatible DAR receiver and run
-without author-side services, model paths, setup commands, or indexing logic
-provided at invocation time.
+embedding material set. The package may be sent to a compatible DAR receiver
+and run without author-side services, model paths, setup commands, or indexing
+logic provided at invocation time.
 
 DAR owns package admission, sealed ingress and egress, model-material
 verification, execution-capability selection, resource policy, tracing, and
@@ -69,8 +69,9 @@ This feature does not:
   semantics;
 - give a workflow arbitrary filesystem traversal, network access, subprocess
   access, database credentials, or a persistent destination;
-- permit invocation-time selection of an embedding model, model revision,
-  embedding provider, chunker, index format, or execution provider;
+- permit invocation-time selection of embedding material, model revision,
+  architecture ABI, embedding provider, chunker, index format, or execution
+  provider;
 - make embeddings ordinary model-response text, traces, exceptions, or debug
   diagnostic content;
 - require incremental updates, tag generation, source-note edits, or semantic
@@ -131,8 +132,9 @@ The package declares this exact capability under
 `workflow-capability-requirements`. The embedding material lock binds immutable
 source material and a workflow-owned sealed execution descriptor interpreted by
 a DAR-supported generic embedding ABI under
-`workflow-model-materials`. The receiver resolves the provider before sealed
-input ingress, model download, package-local tool load, or index materialization.
+`workflow-model-materials`. The ABI, rather than a named model, determines
+compatible execution. The receiver resolves the provider before sealed input
+ingress, material download, package-local tool load, or index materialization.
 
 The package declares one `embedding.execute.v1` requirement and, because it
 has a model-material declaration, one additional DAR-owned runner capability
@@ -212,9 +214,9 @@ glob, URL, archive-extraction option, or source path.
 
 ### FR-2: Exact embedding binding
 
-An embedding-index workflow shall declare one embedding model binding, the
-runner capability required by that model-material declaration, and an exact
-`embedding.execute.v1` capability requirement. DAR shall verify its
+An embedding-index workflow shall declare one embedding material/execution
+binding, the runner capability required by that material declaration, and an
+exact `embedding.execute.v1` capability requirement. DAR shall verify its
 model-material-lock digest, execution-descriptor/runner-ABI compatibility, and
 selected provider
 before every deferred side effect. Missing, disabled, changed, or

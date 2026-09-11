@@ -1,4 +1,4 @@
-# macOS Generic MLX Embedding Execution Specification
+# macOS Generalized MLX Embedding Execution Specification
 
 ## Metadata
 
@@ -15,12 +15,13 @@
 
 ## Objective
 
-Provide a lazy, in-process, macOS-only embedding capability for a sealed
-workflow. DAR supplies platform/dependency admission, a bounded generic MLX
-encoder ABI, material-identity verification, and result validation. Workflow
-construction supplies immutable model material and a sealed declarative encoder
-descriptor. DAR does not select an upstream embedding model, architecture
-configuration, tokenizer, pooling rule, normalization rule, or license.
+Provide a lazy, in-process, macOS-only embedding execution implementation for
+a sealed workflow. DAR supplies platform/dependency admission, a registry of
+bounded generic MLX encoder ABIs, material-identity verification, and result
+validation. Workflow construction supplies immutable material and a sealed
+declarative encoder descriptor. DAR does not select an upstream embedding
+model, architecture configuration, tokenizer, pooling rule, normalization
+rule, or license.
 
 The provider is optional: ordinary DAR imports, non-macOS hosts, CI, and
 existing llama.cpp workflows require neither MLX nor Metal.
@@ -30,6 +31,20 @@ existing llama.cpp workflows require neither MLX nor Metal.
 `mlx-lm` is generation-oriented. A durable workflow needs MLX embedding
 execution without turning a trial model into a DAR release contract or allowing
 untrusted package code to load arbitrary models.
+
+### Generalized embedding-model support
+
+The embedding support system is not a catalog of named models. A workflow
+author selects and locks every source or prepared material file, revision,
+license decision, tokenizer, and execution descriptor during construction.
+The descriptor selects one exact receiver-supported architecture ABI. DAR
+therefore supports a new compatible model without a DAR change when its locked
+materials validate under an installed ABI; it needs a DAR change only for a
+new architecture ABI or an incompatible ABI revision. `embedding.execute.v1`
+is the architecture-neutral capability presented to workflow-local code. MLX
+is one receiver implementation of that capability; other receiver
+implementations may satisfy the same capability through their own supported
+execution ABI without changing workflow semantics.
 
 ## Architecture and Trust Boundary
 
@@ -57,7 +72,7 @@ values must satisfy the selected ABI's finite schema and host maxima. A workflow
 author chooses the model and records any license acceptance during construction;
 DAR transports neither that choice nor the model weights in its distribution.
 
-### Generic MLX encoder ABI
+### Generic MLX encoder ABI registry
 
 DAR owns versioned, reviewed execution ABIs, initially a BERT-style encoder ABI
 implemented with public `mlx` and `mlx.nn` APIs. A runner capability resolves
@@ -65,10 +80,10 @@ one receiver-installed, pure descriptor-validator registry. That registry first
 resolves the descriptor's exact ABI ID, version, and contract digest, then
 validates its finite schema without importing a framework or reading material.
 An ABI defines descriptor vocabulary and deterministic interpretation; it does
-not name an upstream model. A workflow may use any locked model whose descriptor
-validates against an installed ABI. A new architecture family needs a later
-reviewed DAR ABI, but another model within an existing ABI does not require a
-DAR release.
+not name an upstream model. A workflow may use any locked material set whose
+descriptor validates against an installed ABI. A new architecture family needs
+a later reviewed DAR ABI, but another model within an existing ABI does not
+require a DAR release.
 
 ### Initial closed encoder ABI: `bert-encoder-mlx-v1`
 
@@ -313,8 +328,8 @@ authoritative for snapshots and index-bundle behavior.
   allocation, or evaluation.
 - Fake-backend tests prove ordered normalization and every invalid-vector
   outcome without an MLX import.
-- Tests prove arbitrary locked models are accepted only through a supported
-  declarative ABI, while generation MLX behavior is unchanged.
+- Tests prove arbitrary locked material sets are accepted only through a
+  supported declarative ABI, while generation MLX behavior is unchanged.
 - A separately authorized Mac competency run proves one workflow-defined
   descriptor's semantics without retaining private input or vector data.
 - Static and receiver-resolved metadata distinguish embedding from generation

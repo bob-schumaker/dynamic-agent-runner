@@ -31,6 +31,12 @@ ingress, tracing, and result shaping. The workflow author selects and locks the
 model, architecture/profile descriptor, tokenizer, pooling, and license terms
 at construction; DAR does not own model-specific profiles.
 
+The declaration is deliberately usable by generation, embedding, or another
+bounded model-execution capability. It identifies locked material and an exact
+execution ABI, never a DAR model catalog entry. An embedding workflow therefore
+selects its own model material at construction while a receiver supplies only a
+generic compatible ABI implementation.
+
 ## Problem Statement
 
 The current local-model-preparation contract keeps model recipes in a host
