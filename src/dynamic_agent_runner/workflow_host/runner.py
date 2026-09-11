@@ -41,6 +41,9 @@ from dynamic_agent_runner.workflow_host.catalog import (
     PackageCatalogError,
 )
 from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorValidatorRegistry,
+)
 from dynamic_agent_runner.workflow_host.model_execution_binding import (
     ModelExecutionBindingError,
     ModelRunnerRegistry,
@@ -321,6 +324,7 @@ class WorkflowRunner:
         terminal_diagnostic_owner: str | None = None,
         capability_catalog: CapabilityCatalog | None = None,
         model_runner_registry: ModelRunnerRegistry | None = None,
+        descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
     ) -> None:
         self._registrations = registrations
         self._catalog = catalog
@@ -340,6 +344,7 @@ class WorkflowRunner:
         self._terminal_diagnostic_store = terminal_diagnostic_store
         self._capability_catalog = capability_catalog
         self._model_runner_registry = model_runner_registry
+        self._descriptor_validators = descriptor_validators
         self._terminal_diagnostic_owner = (
             terminal_diagnostic_owner or InstallationIdentityProvider().principal
         )
@@ -912,7 +917,9 @@ class WorkflowRunner:
             registration.package_id, registration.revision_digest
         )
         policy = compile_workflow_policy(
-            revision, capability_catalog=self._capability_catalog
+            revision,
+            capability_catalog=self._capability_catalog,
+            descriptor_validators=self._descriptor_validators,
         )
         if (
             self._capability_catalog is not None

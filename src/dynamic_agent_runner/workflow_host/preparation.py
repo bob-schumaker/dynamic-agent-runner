@@ -11,6 +11,9 @@ from dynamic_agent_runner.workflow_host.catalog import (
     PackageCatalogError,
 )
 from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorValidatorRegistry,
+)
 from dynamic_agent_runner.workflow_host.policy import (
     PolicyCompilationError,
     compile_workflow_policy,
@@ -122,12 +125,14 @@ class WorkflowInvocationPreparationService:
         store: PrivateStateStore,
         artifact_verifier: WorkspaceArtifactVerifier | None = None,
         capability_catalog: CapabilityCatalog | None = None,
+        descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
     ) -> None:
         self._registrations = registrations
         self._catalog = catalog
         self._store = store
         self._artifact_verifier = artifact_verifier
         self._capability_catalog = capability_catalog
+        self._descriptor_validators = descriptor_validators
         self._identity = InstallationIdentityProvider()
 
     def prepare(
@@ -349,7 +354,9 @@ class WorkflowInvocationPreparationService:
                 registration.package_id, registration.revision_digest
             )
             policy = compile_workflow_policy(
-                revision, capability_catalog=self._capability_catalog
+                revision,
+                capability_catalog=self._capability_catalog,
+                descriptor_validators=self._descriptor_validators,
             )
         except (
             WorkflowRegistrationError,

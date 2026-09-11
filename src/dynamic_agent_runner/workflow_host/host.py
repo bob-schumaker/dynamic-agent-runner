@@ -116,6 +116,9 @@ from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
 )
 from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorValidatorRegistry,
+)
 from dynamic_agent_runner.workflow_host.locked_inference_execution import (
     LockedInferenceHostLimits,
 )
@@ -714,6 +717,7 @@ class LocalWorkflowHost:
         mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
         reviewed_tool_packages: ReviewedToolPackageControlPlane,
         capability_catalog: CapabilityCatalog | None = None,
+        descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
         sealed_artifact_preparation: SealedArtifactInputPreparationService
         | None = None,
         sealed_artifact_runner: SealedArtifactWorkflowRunner | None = None,
@@ -735,6 +739,7 @@ class LocalWorkflowHost:
         self._mcp_bindings = mcp_bindings
         self._reviewed_tool_packages = reviewed_tool_packages
         self._capability_catalog = capability_catalog
+        self._descriptor_validators = descriptor_validators
         self._sealed_artifact_preparation = sealed_artifact_preparation
         self._sealed_artifact_runner = sealed_artifact_runner
 
@@ -751,6 +756,7 @@ class LocalWorkflowHost:
         local_model_runners: Sequence[LocalModelRunner] = (),
         model_runner_registry: ModelRunnerRegistry | None = None,
         capability_catalog: CapabilityCatalog | None = None,
+        descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
         sealed_artifact_callback_resolver: SealedArtifactCallbackResolver | None = None,
         locked_inference_provider_registry: LockedInferenceProviderRegistry
         | None = None,
@@ -836,6 +842,7 @@ class LocalWorkflowHost:
             store=store,
             artifact_verifier=workspace_ingress,
             capability_catalog=capability_catalog,
+            descriptor_validators=descriptor_validators,
         )
         sealed_handles = SealedArtifactHandleService(
             store=store, owner=InstallationIdentityProvider().principal
@@ -916,6 +923,7 @@ class LocalWorkflowHost:
                 terminal_diagnostic_owner=InstallationIdentityProvider().principal,
                 capability_catalog=capability_catalog,
                 model_runner_registry=model_runner_registry,
+                descriptor_validators=descriptor_validators,
             ),
             workspace_ingress=workspace_ingress,
             authoring_materials=AuthoringMaterialService(
@@ -937,6 +945,7 @@ class LocalWorkflowHost:
             mcp_bindings=mcp_bindings if mcp_client is not None else None,
             reviewed_tool_packages=reviewed_tool_packages,
             capability_catalog=capability_catalog,
+            descriptor_validators=descriptor_validators,
             sealed_artifact_preparation=sealed_preparation,
             sealed_artifact_runner=sealed_runner,
         )
@@ -1258,7 +1267,9 @@ class LocalWorkflowHost:
             self._stager.stage(package_source_handle, now=now)
         )
         policy = compile_workflow_policy(
-            revision, capability_catalog=self._capability_catalog
+            revision,
+            capability_catalog=self._capability_catalog,
+            descriptor_validators=self._descriptor_validators,
         )
         self._ensure_mcp_client(policy_requires_mcp=True)
         if self._mcp_client is None or self._mcp_bindings is None:
@@ -1286,7 +1297,9 @@ class LocalWorkflowHost:
             self._stager.stage(package_source_handle, now=now)
         )
         policy = compile_workflow_policy(
-            revision, capability_catalog=self._capability_catalog
+            revision,
+            capability_catalog=self._capability_catalog,
+            descriptor_validators=self._descriptor_validators,
         )
         self._ensure_mcp_client(policy_requires_mcp=bool(policy.declared_tools))
         profile = self._registrations.configured_profile()
@@ -1397,7 +1410,9 @@ class LocalWorkflowHost:
                 registration.package_id, registration.revision_digest
             )
             policy = compile_workflow_policy(
-                revision, capability_catalog=self._capability_catalog
+                revision,
+                capability_catalog=self._capability_catalog,
+                descriptor_validators=self._descriptor_validators,
             )
         except WorkflowRegistrationError as error:
             raise LocalWorkflowHostError("saved package is unavailable") from error
@@ -1471,7 +1486,9 @@ class LocalWorkflowHost:
                 registration.package_id, registration.revision_digest
             )
             policy = compile_workflow_policy(
-                revision, capability_catalog=self._capability_catalog
+                revision,
+                capability_catalog=self._capability_catalog,
+                descriptor_validators=self._descriptor_validators,
             )
         except (
             WorkflowRegistrationError,
@@ -1517,7 +1534,9 @@ class LocalWorkflowHost:
                 registration.package_id, registration.revision_digest
             )
             policy = compile_workflow_policy(
-                revision, capability_catalog=self._capability_catalog
+                revision,
+                capability_catalog=self._capability_catalog,
+                descriptor_validators=self._descriptor_validators,
             )
         except (
             WorkflowRegistrationError,
