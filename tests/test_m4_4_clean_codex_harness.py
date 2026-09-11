@@ -1218,6 +1218,7 @@ def test_document_summary_author_prompt_requires_the_no_tool_template() -> None:
 
     assert "bounded no-tool workflow" in prompt
     assert "canonical no-tool template" in prompt
+    assert "references/dar-authoring-templates/" in prompt
     assert "do not construct its graph from scratch" in prompt
 
 

@@ -1415,8 +1415,9 @@ def _author_request(
         else ""
     )
     no_tool_guidance = (
-        " This is a bounded no-tool workflow: use the canonical no-tool template; "
-        "do not construct its graph from scratch."
+        " This is a bounded no-tool workflow: use the canonical no-tool template "
+        "at references/dar-authoring-templates/; do not construct its graph from "
+        "scratch."
         if "document-summary" in author_prompt.lower()
         else ""
     )
