@@ -244,11 +244,16 @@ not make a DAR release a prerequisite for a plugin-only release.
     metadata digest, descriptor digest, and selector-list digest to every
     record. Manifest admission rejects missing or inconsistent runtime
     identities; plugin versions remain outside that equality constraint.
-- [ ] RED/GREEN: add the separately authorized external clean-Codex acceptance
+- [x] RED/GREEN: add the separately authorized external clean-Codex acceptance
       command that stages only the generated root and composes manifest
       admission, deterministic controller, two isolated actors, ordinary-runner
       assertions, and redacted evidence. This command is the live-Codex
       successor-acceptance gate; ordinary tests do not invoke it.
+  - Delivery: `scripts/run_m4_4_clean_codex.py` is the explicit external
+    command. Its ordinary tests validate closed manifest admission, generated
+    root staging, controller-only fixtures, actor isolation, and redacted
+    evidence behavior without launching Codex; executing the command remains
+    the separately authorized acceptance gate.
 - [x] RED/GREEN: preserve complete-manifest progress when an individual live
       Codex actor fails or times out. Record its actual failure phase and allow
       that terminal record through scenario validation; retain exact planned
