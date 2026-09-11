@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Protocol
 
 from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
 from dynamic_agent_runner.workflow_host.catalog import PackageCatalog
@@ -170,6 +170,7 @@ class SealedArtifactWorkflowRunner:
                     collector=collector,
                 ),
             )
+            _consume_supplied_inputs(read_input, supplied, consumed)
             _validate_sealed_outputs(
                 callback_provider,
                 sealed=sealed,
@@ -290,3 +291,15 @@ def _validate_sealed_outputs(
             "sealed artifact runner is unavailable"
         )
     validator(sealed, dict(input_digests), dict(input_contents))
+
+
+def _consume_supplied_inputs(
+    read_input: Callable[[str], bytes],
+    supplied: Mapping[str, str],
+    consumed: set[str],
+) -> None:
+    """Retain every supplied sealed input privately before candidate validation."""
+
+    for role, handle_id in supplied.items():
+        if handle_id not in consumed:
+            read_input(role)

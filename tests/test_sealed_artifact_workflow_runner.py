@@ -106,10 +106,17 @@ def _package(root: Path) -> tuple[bytes, CapabilityRequirements]:
             {
                 "max_bytes": 12,
                 "media_type": "application/octet-stream",
+                "required": False,
+                "role": "prior",
+                "schema_digest": None,
+            },
+            {
+                "max_bytes": 12,
+                "media_type": "application/octet-stream",
                 "required": True,
                 "role": "snapshot",
                 "schema_digest": None,
-            }
+            },
         ],
         "limits": {
             "max_concurrency": 1,
@@ -156,6 +163,18 @@ def test_concrete_runner_reserves_consumes_and_publishes_atomically(
         media_type="application/octet-stream",
         schema_digest=None,
         content=b"snapshot",
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    prior_handle = inputs.prepare(
+        descriptor=descriptor,
+        receiver_id=_OWNER,
+        revision_digest=_REVISION,
+        invocation_id="invocation",
+        role="prior",
+        media_type="application/octet-stream",
+        schema_digest=None,
+        content=b"prior",
         expires_at=NOW + timedelta(minutes=1),
         now=NOW,
     )
@@ -225,7 +244,10 @@ def test_concrete_runner_reserves_consumes_and_publishes_atomically(
         SealedArtifactInvocation(
             workflow_id="example",
             invocation_id="invocation",
-            input_handles={"snapshot": input_handle.handle_id},
+            input_handles={
+                "prior": prior_handle.handle_id,
+                "snapshot": input_handle.handle_id,
+            },
         ),
         now=NOW,
     )
@@ -235,9 +257,13 @@ def test_concrete_runner_reserves_consumes_and_publishes_atomically(
     assert observed == [validators]
     assert len(resolver.callbacks.validated) == 1
     assert resolver.callbacks.validated[0][1] == {
-        "snapshot": hashlib.sha256(b"snapshot").hexdigest()
+        "prior": hashlib.sha256(b"prior").hexdigest(),
+        "snapshot": hashlib.sha256(b"snapshot").hexdigest(),
     }
-    assert resolver.callbacks.validated[0][2] == {"snapshot": b"snapshot"}
+    assert resolver.callbacks.validated[0][2] == {
+        "prior": b"prior",
+        "snapshot": b"snapshot",
+    }
 
 
 def test_tampered_asset_stops_before_handle_or_provider_or_egress(
