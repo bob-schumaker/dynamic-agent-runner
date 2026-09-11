@@ -1206,6 +1206,21 @@ def test_email_author_prompt_requires_reviewed_write_template_without_artifact()
     assert "do not choose the no-tool starter" in prompt
 
 
+def test_document_summary_author_prompt_requires_the_no_tool_template() -> None:
+    module = _harness_module()
+
+    prompt = module._author_request(
+        "Author the declared DAR document-summary workflow.",
+        "material-id",
+        "document-summary",
+        "pass",
+    )
+
+    assert "bounded no-tool workflow" in prompt
+    assert "canonical no-tool template" in prompt
+    assert "do not construct its graph from scratch" in prompt
+
+
 def test_skill_bundle_author_prompt_requires_the_review_template() -> None:
     module = _harness_module()
 

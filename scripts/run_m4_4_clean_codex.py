@@ -1414,6 +1414,12 @@ def _author_request(
         if "package-local skill" in author_prompt.lower()
         else ""
     )
+    no_tool_guidance = (
+        " This is a bounded no-tool workflow: use the canonical no-tool template; "
+        "do not construct its graph from scratch."
+        if "document-summary" in author_prompt.lower()
+        else ""
+    )
     guardrail_guidance = (
         " Declared caller-owned guardrails: "
         + ", ".join(f"{guardrail_id} ({phase})" for guardrail_id, phase in guardrails)
@@ -1425,7 +1431,7 @@ def _author_request(
         f"{author_prompt}\n\nUse the installed agent-engineering agent-development "
         f"skill to author a DAR workflow. The declared material_set_id is "
         f"`{material_set_id}` and the requested package name is `{package_name}`. "
-        f"{artifact_guidance}{operation_guidance}{skill_bundle_guidance}{guardrail_guidance} "
+        f"{artifact_guidance}{operation_guidance}{skill_bundle_guidance}{no_tool_guidance}{guardrail_guidance} "
         f"{suffix}"
     )
 
