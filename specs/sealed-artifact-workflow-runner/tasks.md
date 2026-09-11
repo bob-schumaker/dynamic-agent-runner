@@ -2,7 +2,7 @@
 
 - [x] S1 [design] Approved canonical descriptor, handle lifecycle, asset ABI,
   authorization, and manifest binding after Council and Ponytail review.
-- [ ] S2 [tests, RED] Add descriptor/ZIP/handle/authorization vectors and a
+- [x] S2 [tests, RED] Add descriptor/ZIP/handle/authorization vectors and a
   complete zero-side-effect admission sentinel matrix.
   - [x] Validate canonical descriptor assets, schemas, child contracts, and
     callback capability membership at staging and export.
@@ -13,7 +13,7 @@
     sentinel through collector allocation and asset import.
   - [x] Bind preparation to package provenance, exact owner authorization, and
     side-effect-free identity resolution.
-  - [ ] Extend sentinels to actual ZIP/manifest readers, handle-byte access,
+  - [x] Extend sentinels to actual ZIP/manifest readers, handle-byte access,
     provider revalidation/material load, output sealing, publication, and
     egress rather than fake asset-execution internals.
     - Partial evidence: `tests/test_dar_authoring_host.py` now stages and
@@ -28,7 +28,10 @@
       binding and provider-entry path. Its receiver event log proves initial
       exact-provider revalidation, role-asset reread, handle reservation,
       input consumption, immediate pre-entry revalidation, provider entry, and
-      output publication in order. Caller-egress sentinels remain pending.
+      output publication in order. The receiver API has no output read, export,
+      persistence, or caller-egress method: publication of opaque handles is
+      its only caller-visible boundary, and the real ZIP test asserts those
+      handles and the receipt contain no raw provider response bytes.
 - [x] S3 [implementation] Add receiver composition and sealed artifact runner.
   - [x] Retain declared output slots and add an ordered atomic private collector
     that destroys candidates on invalid or incomplete execution.

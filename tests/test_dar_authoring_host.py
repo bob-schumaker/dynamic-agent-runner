@@ -651,6 +651,7 @@ def test_local_host_runs_locked_inference_from_a_staged_zip(
         "output_count": 1,
         "status": "completed",
     }
+    assert b'{"value":"ok"}' not in repr((result.outputs, result.receipt)).encode()
     assert events == [
         "registration",
         "catalog_revision",
