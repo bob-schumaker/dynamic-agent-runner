@@ -611,6 +611,13 @@ def test_local_host_runs_locked_inference_from_a_staged_zip(
         expires_at=NOW + timedelta(minutes=1),
         now=NOW,
     )
+    revision = host._catalog.revision(
+        registration.package_id, registration.revision_digest
+    )
+    revision.package_root.chmod(0o700)
+    instruction_asset = revision.package_root / "assets" / "instruction.txt"
+    instruction_asset.chmod(0o600)
+    instruction_asset.write_bytes(b"tampered")
     events = _observe_sealed_artifact_receiver(
         host, host._sealed_artifact_runner._callback_resolver, monkeypatch
     )
@@ -632,6 +639,21 @@ def test_local_host_runs_locked_inference_from_a_staged_zip(
         callback_module, "read_verified_inference_role_assets", observe_role_assets
     )
     monkeypatch.setattr(catalog, "revalidate", observe_provider_revalidation)
+
+    with pytest.raises(LocalWorkflowHostError, match="sealed artifact runner"):
+        host.run_sealed_artifact(
+            SealedArtifactInvocation(
+                workflow_id=registration.workflow_id,
+                invocation_id="run-1",
+                input_handles={"request": prepared.handle_id},
+            ),
+            now=NOW,
+        )
+
+    assert provider.calls == 0
+    assert events == ["registration", "catalog_revision", "policy_compile"]
+    instruction_asset.write_bytes(b"sealed instruction")
+    events.clear()
 
     result = host.run_sealed_artifact(
         SealedArtifactInvocation(
