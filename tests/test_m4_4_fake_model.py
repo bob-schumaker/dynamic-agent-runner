@@ -59,6 +59,46 @@ def test_fake_model_calls_the_first_declared_zero_argument_tool() -> None:
     assert response["output"][0]["type"] == "function_call"
 
 
+def test_fake_model_selects_only_a_declared_m44_fixture_tool() -> None:
+    module = _fixture_module()
+
+    response = module._fake_response(
+        json.dumps(
+            {
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "erase_everything",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {},
+                                "required": [],
+                            },
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "list_unread",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {},
+                                "required": [],
+                            },
+                        },
+                    },
+                ]
+            }
+        ).encode()
+    )
+
+    assert (
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"]
+        == "list_unread"
+    )
+
+
 def test_fake_model_calls_declared_tool_with_deterministic_required_arguments() -> None:
     module = _fixture_module()
 

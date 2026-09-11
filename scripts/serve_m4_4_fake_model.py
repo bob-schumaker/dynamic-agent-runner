@@ -8,6 +8,9 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
+_M44_FIXTURE_TOOL_NAMES = ("list_unread", "lookup_records", "mail_send")
+
+
 class _Handler(BaseHTTPRequestHandler):
     live_model_id: str | None = None
 
@@ -50,7 +53,7 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 def _fake_response(request_body: bytes) -> dict[str, object]:
-    """Return one deterministic declared-tool call, then a final response."""
+    """Return the declared M4.4 fixture action, then its continuation."""
 
     try:
         request = json.loads(request_body)
@@ -59,7 +62,7 @@ def _fake_response(request_body: bytes) -> dict[str, object]:
     tool_call = (
         None
         if _has_tool_result(request)
-        else _first_declared_tool_call(request.get("tools"), request)
+        else _declared_fixture_tool_call(request.get("tools"), request)
     )
     response: dict[str, object] = {
         "id": "m44-fake-response",
@@ -107,20 +110,27 @@ def _fake_response(request_body: bytes) -> dict[str, object]:
     return response
 
 
-def _first_declared_tool_call(
+def _declared_fixture_tool_call(
     value: object, request: dict[str, object]
 ) -> tuple[str, str] | None:
+    """Select only the tool action represented by an M4.4 fixture contract."""
+
     if not isinstance(value, list):
         return None
-    for tool in value:
-        if not isinstance(tool, dict):
+    declared_tools = {
+        candidate["name"]: candidate
+        for tool in value
+        if isinstance(tool, dict)
+        for function in (tool.get("function"),)
+        for candidate in (function if isinstance(function, dict) else tool,)
+        if isinstance(candidate.get("name"), str)
+        and isinstance(candidate.get("parameters"), dict)
+    }
+    for name in _M44_FIXTURE_TOOL_NAMES:
+        candidate = declared_tools.get(name)
+        if candidate is None:
             continue
-        function = tool.get("function")
-        candidate = function if isinstance(function, dict) else tool
-        name, parameters = candidate.get("name"), candidate.get("parameters")
-        if not isinstance(name, str) or not isinstance(parameters, dict):
-            continue
-        arguments = _deterministic_arguments(parameters, request)
+        arguments = _deterministic_arguments(candidate["parameters"], request)
         if arguments is not None:
             return name, json.dumps(arguments, separators=(",", ":"), sort_keys=True)
     return None
