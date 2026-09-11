@@ -64,12 +64,19 @@
 
 ## MLE3 — Generic BERT-style encoder
 
-- [ ] MLE3.1 [tests, RED] Add fake-only parser-ceiling, tensor/tokenizer,
+- [x] MLE3.1 [tests, RED] Add fake-only parser-ceiling, tensor/tokenizer,
   truncation, padding, pooling, materialization, normalization, bounds, order,
   ID, finite-value, emptiness, and descriptor-defined dimension tests.
   - Depends on: MLE2.3.
-- [ ] MLE3.2 [implementation] Implement the BERT-style ABI interpreter using
+- Evidence: `tests/test_mlx_bert_embedding_backend.py` uses a sealed
+  zero/nonzero safetensors fixture and a NumPy-backed MLX stand-in; 26 focused
+  tests cover all listed pre-execution and materialized-result paths without an
+  MLX import, model download, Metal, or network call.
+- [x] MLE3.2 [implementation] Implement the BERT-style ABI interpreter using
   public `mlx.core` APIs and only verified descriptor/material inputs.
+  - Evidence: `BertEncoderMlxV1EmbeddingBackend` parses admitted WordPiece and
+    safetensors bytes, lazy-loads `mlx.core`, executes the fixed ABI math, and
+    returns only validated `EmbeddingBatchResult` values.
 - [ ] MLE3.3 [tests, GREEN] Prove sync/async parity, conservative metadata,
   redaction, and no MLX/Metal/network import or use in unit tests.
 
