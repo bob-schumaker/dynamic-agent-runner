@@ -39,6 +39,22 @@ def _lock(*, sources: list[dict[str, str]] | None = None, preparation=None):
     }
 
 
+def _v2_lock(
+    *,
+    sources: list[dict[str, str]] | None = None,
+    execution_descriptor: dict[str, str] | None = None,
+):
+    return {
+        "format_version": 2,
+        "logical_model_id": "example-embedding-model",
+        "runner_contract": {"id": "mlx-embedding-v1", "version": "1"},
+        "execution_descriptor": execution_descriptor
+        or {"filename": "execution-descriptor.json", "sha256": "c" * 64},
+        "sources": sources or [_source()],
+        "preparation": [],
+    }
+
+
 def test_model_material_lock_has_canonical_bytes_and_digest() -> None:
     lock = parse_model_dependency_lock(_lock())
 
@@ -54,6 +70,41 @@ def test_model_material_lock_has_canonical_bytes_and_digest() -> None:
         + b'","source_type":"huggingface_file"}]}'
     )
     assert lock.digest == sha256(lock.canonical_bytes).hexdigest()
+
+
+def test_v2_model_material_lock_binds_an_abi_neutral_descriptor_without_cycle() -> None:
+    lock = parse_model_dependency_lock(_v2_lock())
+
+    assert lock.format_version == 2
+    assert lock.loader_profile_contract is None
+    assert lock.execution_descriptor is not None
+    assert lock.execution_descriptor.filename == "execution-descriptor.json"
+    assert lock.execution_descriptor.sha256 == "c" * 64
+    assert b'"execution_descriptor"' in lock.canonical_bytes
+    assert b'"loader_profile_contract"' not in lock.canonical_bytes
+
+
+@pytest.mark.parametrize(
+    "execution_descriptor",
+    (
+        {"filename": "embedding-execution-descriptor.json", "sha256": "c" * 64},
+        {"filename": "execution-descriptor.json", "sha256": "C" * 64},
+        {"filename": "execution-descriptor.json", "sha256": "c" * 64, "extra": "x"},
+    ),
+)
+def test_v2_model_material_lock_rejects_invalid_descriptor_reference(
+    execution_descriptor: dict[str, str],
+) -> None:
+    with pytest.raises(ModelMaterialsError):
+        parse_model_dependency_lock(_v2_lock(execution_descriptor=execution_descriptor))
+
+
+def test_v2_model_material_lock_rejects_v1_profile_mixing() -> None:
+    value = _v2_lock()
+    value["loader_profile_contract"] = {"id": "bad", "version": "1"}
+
+    with pytest.raises(ModelMaterialsError):
+        parse_model_dependency_lock(value)
 
 
 @pytest.mark.parametrize(

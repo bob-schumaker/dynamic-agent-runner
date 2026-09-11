@@ -29,6 +29,22 @@ class MaterialContract:
 
 
 @dataclass(frozen=True)
+class ExecutionDescriptorReference:
+    """One v2 lock reference to its ABI-neutral sealed descriptor asset."""
+
+    filename: str
+    sha256: str
+
+    def __post_init__(self) -> None:
+        if self.filename != "execution-descriptor.json":
+            raise ModelMaterialsError("execution descriptor filename is invalid")
+        _hex(self.sha256, 64, "execution descriptor sha256")
+
+    def to_mapping(self) -> dict[str, str]:
+        return {"filename": self.filename, "sha256": self.sha256}
+
+
+@dataclass(frozen=True)
 class ModelMaterialSource:
     """One exact Hugging Face file dependency."""
 
@@ -124,18 +140,19 @@ class PreparationOperation:
 
 @dataclass(frozen=True)
 class ModelDependencyLock:
-    """The complete canonical v1 dependency declaration for one model binding."""
+    """The complete canonical dependency declaration for one model binding."""
 
     logical_model_id: str
     runner_contract: MaterialContract
-    loader_profile_contract: MaterialContract
+    loader_profile_contract: MaterialContract | None
     sources: tuple[ModelMaterialSource, ...]
     preparation: tuple[PreparationOperation, ...]
+    execution_descriptor: ExecutionDescriptorReference | None = None
     format_version: int = 1
 
     def __post_init__(self) -> None:
-        if self.format_version != 1:
-            raise ModelMaterialsError("model-material format_version must be 1")
+        if not _has_valid_execution_identity(self):
+            raise ModelMaterialsError("model-material execution identity is invalid")
         _text(self.logical_model_id, "logical model id")
         if not self.sources:
             raise ModelMaterialsError("model-material sources are required")
@@ -159,16 +176,20 @@ class ModelDependencyLock:
 
     @property
     def canonical_bytes(self) -> bytes:
-        return _canonical_json(
-            {
-                "format_version": self.format_version,
-                "logical_model_id": self.logical_model_id,
-                "runner_contract": self.runner_contract.to_mapping(),
-                "loader_profile_contract": self.loader_profile_contract.to_mapping(),
-                "sources": [source.to_mapping() for source in self.sources],
-                "preparation": [item.to_mapping() for item in self.preparation],
-            }
-        )
+        value: dict[str, object] = {
+            "format_version": self.format_version,
+            "logical_model_id": self.logical_model_id,
+            "runner_contract": self.runner_contract.to_mapping(),
+            "sources": [source.to_mapping() for source in self.sources],
+            "preparation": [item.to_mapping() for item in self.preparation],
+        }
+        if self.format_version == 1:
+            assert self.loader_profile_contract is not None
+            value["loader_profile_contract"] = self.loader_profile_contract.to_mapping()
+        else:
+            assert self.execution_descriptor is not None
+            value["execution_descriptor"] = self.execution_descriptor.to_mapping()
+        return _canonical_json(value)
 
     @property
     def digest(self) -> str:
@@ -176,14 +197,18 @@ class ModelDependencyLock:
 
 
 def parse_model_dependency_lock(value: object) -> ModelDependencyLock:
-    """Parse a strict v1 mapping or JSON byte payload into a canonical lock."""
+    """Parse a strict v1 or v2 mapping or JSON byte payload into a canonical lock."""
 
     mapping = _mapping(value)
-    if set(mapping) != {
+    format_version = _format_version(mapping.get("format_version"))
+    execution_field = (
+        "loader_profile_contract" if format_version == 1 else "execution_descriptor"
+    )
+    if format_version not in (1, 2) or set(mapping) != {
         "format_version",
         "logical_model_id",
         "runner_contract",
-        "loader_profile_contract",
+        execution_field,
         "sources",
         "preparation",
     }:
@@ -197,12 +222,19 @@ def parse_model_dependency_lock(value: object) -> ModelDependencyLock:
             mapping["logical_model_id"], "logical model id"
         ),
         runner_contract=_contract(mapping["runner_contract"], "runner contract"),
-        loader_profile_contract=_contract(
-            mapping["loader_profile_contract"], "loader profile contract"
+        loader_profile_contract=(
+            _contract(mapping["loader_profile_contract"], "loader profile contract")
+            if format_version == 1
+            else None
         ),
         sources=tuple(_source(item) for item in sources_value),
         preparation=tuple(_operation(item) for item in preparation_value),
-        format_version=_format_version(mapping["format_version"]),
+        execution_descriptor=(
+            _execution_descriptor(mapping["execution_descriptor"])
+            if format_version == 2
+            else None
+        ),
+        format_version=format_version,
     )
 
 
@@ -243,6 +275,27 @@ def _contract(value: object, name: str) -> MaterialContract:
         raise ModelMaterialsError(f"{name} is invalid")
     return MaterialContract(
         _required_text(value["id"], name), _required_text(value["version"], name)
+    )
+
+
+def _execution_descriptor(value: object) -> ExecutionDescriptorReference:
+    if not isinstance(value, Mapping) or set(value) != {"filename", "sha256"}:
+        raise ModelMaterialsError("execution descriptor is invalid")
+    return ExecutionDescriptorReference(
+        _required_text(value["filename"], "execution descriptor filename"),
+        _required_text(value["sha256"], "execution descriptor sha256"),
+    )
+
+
+def _has_valid_execution_identity(lock: ModelDependencyLock) -> bool:
+    return (
+        lock.format_version == 1
+        and lock.loader_profile_contract is not None
+        and lock.execution_descriptor is None
+    ) or (
+        lock.format_version == 2
+        and lock.loader_profile_contract is None
+        and lock.execution_descriptor is not None
     )
 
 
