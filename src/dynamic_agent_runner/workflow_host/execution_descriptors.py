@@ -150,6 +150,18 @@ def parse_execution_descriptor(value: object) -> ExecutionDescriptor:
     )
 
 
+def parse_verified_execution_descriptor(
+    value: object, *, expected_digest: str
+) -> ExecutionDescriptor:
+    """Parse one descriptor and bind it to the hash from a v2 material lock."""
+
+    _hex(expected_digest, 64, "execution descriptor digest")
+    descriptor = parse_execution_descriptor(value)
+    if descriptor.digest != expected_digest:
+        raise ExecutionDescriptorError("execution descriptor does not match lock")
+    return descriptor
+
+
 def _abi(value: object) -> ExecutionDescriptorAbi:
     if not isinstance(value, Mapping) or set(value) != {
         "id",

@@ -27,6 +27,10 @@ from dynamic_agent_runner.workflow_host.model_materials import (
     ModelMaterialsError,
     parse_model_dependency_lock,
 )
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorError,
+    parse_verified_execution_descriptor,
+)
 from dynamic_agent_runner.workflow_host.material_sets import (
     MaterialSetsError,
     parse_model_material_sets,
@@ -520,10 +524,12 @@ def _package_compatibility(root: Path) -> dict[str, object]:  # noqa: C901
         raise PackageStagingError("model-material declarations are invalid")
     if model_materials_path.exists():
         try:
-            compatibility["model_materials_digest"] = parse_model_dependency_lock(
+            model_materials = parse_model_dependency_lock(
                 model_materials_path.read_bytes()
-            ).digest
-        except (OSError, ModelMaterialsError) as error:
+            )
+            _verify_execution_descriptor(root, model_materials)
+            compatibility["model_materials_digest"] = model_materials.digest
+        except (OSError, ModelMaterialsError, ExecutionDescriptorError) as error:
             raise PackageStagingError("model-material lock is invalid") from error
     if model_material_sets_path.exists():
         try:
@@ -545,6 +551,17 @@ def _package_compatibility(root: Path) -> dict[str, object]:  # noqa: C901
         except (OSError, SealedArtifactRunnerDescriptorError) as error:
             raise PackageStagingError("sealed artifact runner is invalid") from error
     return compatibility
+
+
+def _verify_execution_descriptor(root: Path, lock: object) -> None:
+    descriptor = getattr(lock, "execution_descriptor", None)
+    if descriptor is None:
+        if (root / "execution-descriptor.json").exists():
+            raise ExecutionDescriptorError("execution descriptor is invalid")
+        return
+    parse_verified_execution_descriptor(
+        (root / descriptor.filename).read_bytes(), expected_digest=descriptor.sha256
+    )
 
 
 def _mark_declared_local_tool_assets_executable(root: Path) -> None:

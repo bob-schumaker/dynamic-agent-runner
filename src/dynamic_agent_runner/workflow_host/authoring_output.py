@@ -26,6 +26,10 @@ from dynamic_agent_runner.workflow_host.model_materials import (
     ModelMaterialsError,
     parse_model_dependency_lock,
 )
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorError,
+    parse_verified_execution_descriptor,
+)
 from dynamic_agent_runner.workflow_host.policy import load_workflow_descriptor
 
 
@@ -88,8 +92,18 @@ def _load_model_materials(package_root: Path):
     if not path.exists():
         return None
     try:
-        return parse_model_dependency_lock(path.read_bytes())
-    except (OSError, ModelMaterialsError) as error:
+        lock = parse_model_dependency_lock(path.read_bytes())
+        descriptor = lock.execution_descriptor
+        descriptor_path = package_root / "execution-descriptor.json"
+        if descriptor is None:
+            if descriptor_path.exists():
+                raise ExecutionDescriptorError("execution descriptor is invalid")
+        else:
+            parse_verified_execution_descriptor(
+                descriptor_path.read_bytes(), expected_digest=descriptor.sha256
+            )
+        return lock
+    except (OSError, ModelMaterialsError, ExecutionDescriptorError) as error:
         raise AuthoringOutputError(
             "authoring model-material lock is invalid"
         ) from error

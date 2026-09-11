@@ -25,6 +25,11 @@ from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.model_materials import (  # noqa: E402
     parse_model_dependency_lock,
 )
+from dynamic_agent_runner.workflow_host.execution_descriptors import (  # noqa: E402
+    ExecutionDescriptorAbi,
+    ExecutionDescriptorValidatorRegistry,
+    parse_execution_descriptor,
+)
 import dynamic_agent_runner.workflow_host.policy as policy_module  # noqa: E402
 from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
@@ -67,6 +72,7 @@ def _catalog_revision(  # noqa: C901
     input_converter_digest: str | None = None,
     capability_requirements: dict[str, object] | None = None,
     model_materials: dict[str, object] | None = None,
+    execution_descriptor: dict[str, object] | None = None,
     model_material_sets: dict[str, object] | None = None,
     inference_roles: dict[str, object] | None = None,
     inference_role_assets: dict[str, bytes] | None = None,
@@ -76,6 +82,11 @@ def _catalog_revision(  # noqa: C901
     if model_materials is not None:
         (source / "model-materials.json").write_text(
             json.dumps(model_materials, sort_keys=True, separators=(",", ":")),
+            encoding="utf-8",
+        )
+    if execution_descriptor is not None:
+        (source / "execution-descriptor.json").write_text(
+            json.dumps(execution_descriptor, sort_keys=True, separators=(",", ":")),
             encoding="utf-8",
         )
     if model_material_sets is not None:
@@ -823,6 +834,97 @@ def test_model_material_lock_change_changes_the_policy_digest(tmp_path: Path) ->
 
     assert first.model_materials_digest != second.model_materials_digest
     assert first.policy_digest != second.policy_digest
+
+
+def test_v2_material_lock_requires_its_exact_descriptor_before_runtime_load(
+    tmp_path: Path,
+) -> None:
+    execution_descriptor = {
+        "format_version": 1,
+        "architecture_abi": {
+            "id": "bert-encoder-v1",
+            "version": "1",
+            "contract_digest": "d" * 64,
+        },
+        "material_roles": ["tokenizer", "weights"],
+        "abi_fields": {},
+    }
+    descriptor = parse_execution_descriptor(execution_descriptor)
+    materials = {
+        "format_version": 2,
+        "logical_model_id": "example-embedding",
+        "runner_contract": {"id": "mlx-embedding-v1", "version": "1"},
+        "execution_descriptor": {
+            "filename": "execution-descriptor.json",
+            "sha256": descriptor.digest,
+        },
+        "sources": [
+            {
+                "role": "tokenizer",
+                "group": "base",
+                "source_type": "huggingface_file",
+                "repository": "example-org/example-model",
+                "revision": "a" * 40,
+                "filename": "tokenizer.json",
+                "sha256": "b" * 64,
+            },
+            {
+                "role": "weights",
+                "group": "base",
+                "source_type": "huggingface_file",
+                "repository": "example-org/example-model",
+                "revision": "a" * 40,
+                "filename": "weights.safetensors",
+                "sha256": "c" * 64,
+            },
+        ],
+        "preparation": [],
+    }
+    contract = CapabilityContract("model.execution.test.v1", "1", "e" * 64, ())
+    requirements = CapabilityRequirements(
+        (CapabilityRequirement(contract.capability_id, "1", "e" * 64, ()),),
+        {"runner": contract.capability_id},
+    )
+    declared_requirements = {
+        "format_version": 1,
+        "required_capabilities": [requirements.required_capabilities[0].to_mapping()],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {"runner": {"capability_id": contract.capability_id}},
+    }
+    catalog = CapabilityCatalog(
+        (contract,),
+        (CapabilityProvider("private-provider", contract, conformance_passed=True),),
+    )
+
+    class _Validator:
+        identity = ExecutionDescriptorAbi("bert-encoder-v1", "1", "d" * 64)
+
+        def validate(self, _descriptor) -> None:
+            return None
+
+    revision = _catalog_revision(
+        tmp_path,
+        model_materials=materials,
+        execution_descriptor=execution_descriptor,
+        capability_requirements=declared_requirements,
+    )
+    policy = compile_workflow_policy(
+        revision,
+        capability_catalog=catalog,
+        descriptor_validators=ExecutionDescriptorValidatorRegistry((_Validator(),)),
+    )
+
+    assert policy.model_execution_binding is not None
+    assert (
+        policy.model_execution_binding.execution_descriptor_digest == descriptor.digest
+    )
+
+    with pytest.raises(PackageStagingError, match="model-material lock"):
+        _catalog_revision(
+            tmp_path / "missing",
+            model_materials=materials,
+            capability_requirements=declared_requirements,
+        )
 
 
 def test_unsatisfied_exact_requirement_fails_before_runtime_manifest_load(

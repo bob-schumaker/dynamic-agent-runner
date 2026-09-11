@@ -40,6 +40,12 @@ from dynamic_agent_runner.workflow_host.model_materials import (
     ModelMaterialsError,
     parse_model_dependency_lock,
 )
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptor,
+    ExecutionDescriptorError,
+    ExecutionDescriptorValidatorRegistry,
+    parse_verified_execution_descriptor,
+)
 from dynamic_agent_runner.workflow_host.model_execution_binding import (
     ModelExecutionBinding,
     ModelExecutionBindingError,
@@ -67,6 +73,7 @@ from dynamic_agent_runner.workflow_host.material_sets import (
 DESCRIPTOR_FILENAME = "workflow-descriptor.yaml"
 MODEL_MATERIALS_FILENAME = "model-materials.json"
 MODEL_MATERIAL_SETS_FILENAME = "model-material-sets.json"
+EXECUTION_DESCRIPTOR_FILENAME = "execution-descriptor.json"
 
 
 class PolicyCompilationError(ValueError):
@@ -94,6 +101,8 @@ class WorkflowPolicy:
     )
     model_materials: ModelDependencyLock | None = None
     model_materials_digest: str | None = None
+    execution_descriptor: ExecutionDescriptor | None = None
+    execution_descriptor_digest: str | None = None
     model_execution_binding: ModelExecutionBinding | None = None
     model_execution_binding_digest: str | None = None
     embedding_execution_binding: EmbeddingExecutionBinding | None = None
@@ -128,6 +137,7 @@ def compile_workflow_policy(  # noqa: C901
     revision: CatalogPackageRevision,
     *,
     capability_catalog: CapabilityCatalog | None = None,
+    descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
 ) -> WorkflowPolicy:
     """Compile descriptor and DAR graph data from one immutable catalog revision."""
 
@@ -151,13 +161,18 @@ def compile_workflow_policy(  # noqa: C901
     model_materials, model_material_sets = _load_model_material_declarations(
         revision.package_root
     )
+    execution_descriptor = _load_execution_descriptor(
+        revision.package_root, model_materials
+    )
     capability_requirements = (
         descriptor.capability_requirements or CapabilityRequirements()
     )
     model_execution_binding, embedding_execution_binding = _execution_bindings(
         descriptor=descriptor,
         model_materials=model_materials,
+        execution_descriptor=execution_descriptor,
         capability_requirements=capability_requirements,
+        descriptor_validators=descriptor_validators,
     )
     locked_inference_bindings = _locked_inference_bindings(
         descriptor=descriptor,
@@ -220,6 +235,11 @@ def compile_workflow_policy(  # noqa: C901
             "capability_requirements_digest": capability_requirements.digest,
             "model_materials_digest": (
                 model_materials.digest if model_materials is not None else None
+            ),
+            "execution_descriptor_digest": (
+                execution_descriptor.digest
+                if execution_descriptor is not None
+                else None
             ),
             "model_material_sets_digest": (
                 model_material_sets.digest if model_material_sets is not None else None
@@ -358,6 +378,10 @@ def compile_workflow_policy(  # noqa: C901
         model_materials_digest=(
             model_materials.digest if model_materials is not None else None
         ),
+        execution_descriptor=execution_descriptor,
+        execution_descriptor_digest=(
+            execution_descriptor.digest if execution_descriptor is not None else None
+        ),
         model_execution_binding=model_execution_binding,
         model_execution_binding_digest=(
             model_execution_binding.digest
@@ -396,7 +420,9 @@ def _execution_bindings(
     *,
     descriptor: WorkflowDescriptor,
     model_materials: ModelDependencyLock | None,
+    execution_descriptor: ExecutionDescriptor | None,
     capability_requirements: CapabilityRequirements,
+    descriptor_validators: ExecutionDescriptorValidatorRegistry | None,
 ) -> tuple[ModelExecutionBinding | None, EmbeddingExecutionBinding | None]:
     """Derive sealed execution identities before any package-owned load."""
 
@@ -434,6 +460,8 @@ def _execution_bindings(
             lock=model_materials,
             requirements=capability_requirements,
             converter_capability_id=converter_capability_id,
+            execution_descriptor=execution_descriptor,
+            descriptor_validators=descriptor_validators,
         )
     except ModelExecutionBindingError as error:
         raise PolicyCompilationError(
@@ -485,6 +513,29 @@ def _load_model_material_declarations(
         return parse_model_dependency_lock(path.read_bytes()), None
     except (OSError, ModelMaterialsError) as error:
         raise PolicyCompilationError("model-material lock is invalid") from error
+
+
+def _load_execution_descriptor(
+    package_root: Path, lock: ModelDependencyLock | None
+) -> ExecutionDescriptor | None:
+    path = package_root / EXECUTION_DESCRIPTOR_FILENAME
+    if lock is None:
+        if path.exists():
+            raise PolicyCompilationError("execution descriptor is invalid")
+        return None
+    if lock.format_version == 1:
+        if path.exists():
+            raise PolicyCompilationError("execution descriptor is invalid")
+        return None
+    if not path.exists() or lock.execution_descriptor is None:
+        raise PolicyCompilationError("execution descriptor is invalid")
+    try:
+        descriptor = parse_verified_execution_descriptor(
+            path.read_bytes(), expected_digest=lock.execution_descriptor.sha256
+        )
+    except (OSError, ExecutionDescriptorError) as error:
+        raise PolicyCompilationError("execution descriptor is invalid") from error
+    return descriptor
 
 
 def _load_model_materials(package_root: Path) -> ModelDependencyLock | None:

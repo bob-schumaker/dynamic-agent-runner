@@ -25,6 +25,10 @@ from dynamic_agent_runner.workflow_host.model_materials import (
     ModelMaterialsError,
     parse_model_dependency_lock,
 )
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorError,
+    parse_verified_execution_descriptor,
+)
 from dynamic_agent_runner.workflow_host.material_sets import (
     MaterialSetsError,
     parse_model_material_sets,
@@ -41,6 +45,7 @@ _MANIFEST_NAME = "package-manifest.json"
 _SIGNATURE_NAME = "package-signature.json"
 _MODEL_MATERIALS_NAME = "model-materials.json"
 _MODEL_MATERIAL_SETS_NAME = "model-material-sets.json"
+_EXECUTION_DESCRIPTOR_NAME = "execution-descriptor.json"
 _SEALED_ARTIFACT_RUNNER_NAME = "sealed-artifact-runner.json"
 _ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 
@@ -193,13 +198,28 @@ def _verify_model_materials_digest(root: Path, manifest: dict[object, object]) -
             raise PackageExportError("model-material lock does not match manifest")
         return
     try:
-        digest = parse_model_dependency_lock(
+        lock = parse_model_dependency_lock(
             _read_regular_file(root, _MODEL_MATERIALS_NAME)
-        ).digest
-    except (ModelMaterialsError, PackageExportError) as error:
+        )
+        _verify_execution_descriptor(root, lock)
+        digest = lock.digest
+    except (ModelMaterialsError, ExecutionDescriptorError, PackageExportError) as error:
         raise PackageExportError("model-material lock is invalid") from error
     if declared_digest != digest:
         raise PackageExportError("model-material lock does not match manifest")
+
+
+def _verify_execution_descriptor(root: Path, lock: object) -> None:
+    descriptor = getattr(lock, "execution_descriptor", None)
+    if descriptor is None:
+        if (root / _EXECUTION_DESCRIPTOR_NAME).exists():
+            raise PackageExportError("execution descriptor is invalid")
+        return
+    try:
+        body = _read_regular_file(root, descriptor.filename)
+    except PackageExportError as error:
+        raise ExecutionDescriptorError("execution descriptor is invalid") from error
+    parse_verified_execution_descriptor(body, expected_digest=descriptor.sha256)
 
 
 def _verify_model_material_sets_digest(
