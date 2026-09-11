@@ -16,6 +16,14 @@ from dynamic_agent_runner.workflow_host.embedding_execution import (
     EmbeddingTextItem,
     EmbeddingVector,
 )
+from dynamic_agent_runner.workflow_host.embedding_index_artifacts import (
+    CoverageReport,
+    DocumentSnapshot,
+    DocumentSnapshotPolicy,
+    IndexArtifactBinding,
+    IndexBundleManifest,
+    SnapshotDocument,
+)
 from dynamic_agent_runner.workflow_host.capabilities import (
     CapabilityRequirement,
     CapabilityRequirements,
@@ -35,7 +43,9 @@ from dynamic_agent_runner.workflow_host.model_execution_binding import (
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactCallback,
     SealedArtifactChildContract,
+    SealedArtifactInput,
     SealedArtifactLimits,
+    SealedArtifactOutput,
     SealedArtifactRunnerDescriptor,
     SealedArtifactSchemaAsset,
 )
@@ -167,6 +177,83 @@ def test_embedding_resolver_rejects_an_incomplete_sealed_child_contract() -> Non
             ),
             _policy(identity),
             object(),
+        )
+
+
+def test_embedding_callback_validates_the_private_index_output_triple() -> None:
+    class Execution:
+        def execute(self, **_kwargs):  # type: ignore[no-untyped-def]
+            raise AssertionError("embedding execution is not part of output validation")
+
+    callback = SealedArtifactCallback(
+        "embed", "embedding.execute.v1", "a" * 64, 1, 1, 256, 256, 256, 256, 1
+    )
+    binding = _binding()
+    descriptor = _index_output_descriptor(callback)
+    provider = EmbeddingSealedArtifactCallbackProvider(
+        callback=callback,
+        execution=Execution(),
+        binding=binding,
+        selected_provider_ids=("receiver-private",),
+        limits=EmbeddingBatchLimits(1, 16, 16, 2, 1),
+        request_schema=_embedding_request_schema(),
+        response_schema=_embedding_response_schema(),
+        output_descriptor=descriptor,
+    )
+    snapshot = DocumentSnapshot.create(
+        (SnapshotDocument("document-a", "text/plain", b"note"),),
+        policy=DocumentSnapshotPolicy(1, 16, 16, ("text/plain",)),
+    )
+    index_binding = IndexArtifactBinding(
+        binding.material_lock_digest,
+        binding.capability_contract_digest,
+        _builder_digest(descriptor, callback),
+    )
+    bundle = b"opaque-index"
+    manifest = IndexBundleManifest.create(
+        bundle=bundle,
+        snapshot=snapshot,
+        binding=index_binding,
+        document_count=1,
+        chunk_count=1,
+        indexed_count=1,
+        skipped_count=0,
+        deleted_count=0,
+        error_count=0,
+    )
+    report = CoverageReport.create(
+        snapshot=snapshot,
+        binding=index_binding,
+        prior_bundle_digest=None,
+        document_count=1,
+        chunk_count=1,
+        indexed_count=1,
+        skipped_count=0,
+        deleted_count=0,
+        error_count=0,
+        error_classifications=(),
+    )
+    contents = {"snapshot": snapshot.wire_bytes}
+
+    provider.validate_sealed_outputs(
+        (
+            ("coverage_report", "application/json", report.canonical_bytes),
+            ("index_bundle", "application/octet-stream", bundle),
+            ("index_manifest", "application/json", manifest.canonical_bytes),
+        ),
+        {"snapshot": sha256(snapshot.wire_bytes).hexdigest()},
+        contents,
+    )
+
+    with pytest.raises(EmbeddingSealedArtifactCallbackError, match="unavailable"):
+        provider.validate_sealed_outputs(
+            (
+                ("coverage_report", "application/json", report.canonical_bytes),
+                ("index_bundle", "application/octet-stream", b"tampered"),
+                ("index_manifest", "application/json", manifest.canonical_bytes),
+            ),
+            {"snapshot": sha256(snapshot.wire_bytes).hexdigest()},
+            contents,
         )
 
 
@@ -311,8 +398,22 @@ def _descriptor_with_schemas(
         "b" * 64,
         "c" * 64,
         "d" * 64,
-        (),
-        (),
+        (
+            SealedArtifactInput("snapshot", "application/json", 1024, True, None),
+            SealedArtifactInput(
+                "prior_bundle", "application/octet-stream", 1024, False, None
+            ),
+            SealedArtifactInput(
+                "prior_index_manifest", "application/json", 1024, False, None
+            ),
+        ),
+        (
+            SealedArtifactOutput("coverage_report", "application/json", 1024, None),
+            SealedArtifactOutput(
+                "index_bundle", "application/octet-stream", 1024, None
+            ),
+            SealedArtifactOutput("index_manifest", "application/json", 1024, None),
+        ),
         SealedArtifactLimits(1, 1, 1, 1, 1),
         (
             SealedArtifactSchemaAsset(
@@ -324,7 +425,7 @@ def _descriptor_with_schemas(
         ),
         (child_digest,),
         (callback,),
-        (),
+        ("coverage_report", "index_bundle", "index_manifest"),
         (SealedArtifactChildContract(child_digest, canonical_child),),
     )
 
@@ -345,3 +446,43 @@ def _policy(identity: ExecutionDescriptorAbi) -> SimpleNamespace:
         ),
         selected_capability_provider_ids=("receiver-private",),
     )
+
+
+def _index_output_descriptor(
+    callback: SealedArtifactCallback,
+) -> SealedArtifactRunnerDescriptor:
+    return SealedArtifactRunnerDescriptor(
+        "a" * 64,
+        "asset.py",
+        "b" * 64,
+        "c" * 64,
+        "d" * 64,
+        (SealedArtifactInput("snapshot", "application/json", 1024, True, None),),
+        (
+            SealedArtifactOutput("coverage_report", "application/json", 1024, None),
+            SealedArtifactOutput(
+                "index_bundle", "application/octet-stream", 1024, None
+            ),
+            SealedArtifactOutput("index_manifest", "application/json", 1024, None),
+        ),
+        SealedArtifactLimits(1, 1, 1, 1, 1),
+        (),
+        (callback.child_contract_digest,),
+        (callback,),
+        ("coverage_report", "index_bundle", "index_manifest"),
+    )
+
+
+def _builder_digest(
+    descriptor: SealedArtifactRunnerDescriptor, callback: SealedArtifactCallback
+) -> str:
+    return sha256(
+        json.dumps(
+            {
+                "asset_digest": descriptor.asset_digest,
+                "builder_contract_digest": callback.child_contract_digest,
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()

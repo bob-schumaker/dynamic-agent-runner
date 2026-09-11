@@ -15,6 +15,13 @@ from dynamic_agent_runner.workflow_host.embedding_execution import (
     EmbeddingTextItem,
     EmbeddingLimitProjectorRegistry,
 )
+from dynamic_agent_runner.workflow_host.embedding_index_artifacts import (
+    CoverageReport,
+    DocumentSnapshot,
+    IndexArtifactBinding,
+    IndexBundleManifest,
+    validate_index_artifacts,
+)
 from dynamic_agent_runner.workflow_host.capabilities import (
     selected_provider_id_for_requirement,
 )
@@ -52,6 +59,7 @@ class EmbeddingSealedArtifactCallbackProvider:
         limits: EmbeddingBatchLimits,
         request_schema: object,
         response_schema: object,
+        output_descriptor: SealedArtifactRunnerDescriptor | None = None,
     ) -> None:
         if (
             callback.requirement != "embedding.execute.v1"
@@ -75,6 +83,7 @@ class EmbeddingSealedArtifactCallbackProvider:
         self._limits = limits
         self._request_schema = request_schema
         self._response_schema = response_schema
+        self._output_descriptor = output_descriptor
 
     def revalidate(self, callback: SealedArtifactCallback) -> None:
         if callback != self._callback:
@@ -123,6 +132,53 @@ class EmbeddingSealedArtifactCallbackProvider:
                 "embedding callback is unavailable"
             ) from error
 
+    def validate_sealed_outputs(
+        self,
+        sealed: tuple[tuple[str, str, bytes], ...],
+        input_digests: Mapping[str, str],
+        input_contents: Mapping[str, bytes],
+    ) -> None:
+        """Validate the private index triple before the generic runner egresses it."""
+
+        try:
+            descriptor = self._output_descriptor
+            if descriptor is None:
+                raise ValueError
+            _validate_input_digests(input_digests, input_contents)
+            outputs = _output_bytes(sealed)
+            snapshot = DocumentSnapshot.from_wire_bytes(input_contents["snapshot"])
+            binding = IndexArtifactBinding(
+                self._binding.material_lock_digest,
+                self._binding.capability_contract_digest,
+                _index_builder_digest(descriptor, self._callback),
+            )
+            manifest_bytes = outputs["index_manifest"]
+            report_bytes = outputs["coverage_report"]
+            manifest = IndexBundleManifest.from_mapping(
+                _canonical_mapping(manifest_bytes)
+            )
+            report = CoverageReport.from_mapping(_canonical_mapping(report_bytes))
+            if (
+                manifest.canonical_bytes != manifest_bytes
+                or report.canonical_bytes != report_bytes
+            ):
+                raise ValueError
+            _validate_prior_pair(input_contents, report)
+            limits = {item.role: item.max_bytes for item in descriptor.outputs}
+            validate_index_artifacts(
+                bundle=outputs["index_bundle"],
+                manifest=manifest,
+                report=report,
+                snapshot=snapshot,
+                binding=binding,
+                max_bundle_bytes=limits["index_bundle"],
+                max_report_bytes=limits["coverage_report"],
+            )
+        except Exception as error:  # noqa: BLE001 - redacted receiver boundary.
+            raise EmbeddingSealedArtifactCallbackError(
+                "embedding callback is unavailable"
+            ) from error
+
 
 def _unique(pairs: list[tuple[str, object]]) -> dict[str, object]:
     value = dict(pairs)
@@ -162,6 +218,7 @@ class EmbeddingSealedArtifactCallbackResolver:
             if (
                 not isinstance(binding, EmbeddingExecutionBinding)
                 or len(callbacks) != 1
+                or not _is_embedding_index_descriptor(descriptor)
             ):
                 raise ValueError
             selected_provider_id_for_requirement(
@@ -181,6 +238,7 @@ class EmbeddingSealedArtifactCallbackResolver:
                 limits=limits,
                 request_schema=request_schema,
                 response_schema=response_schema,
+                output_descriptor=descriptor,
             )
         except Exception as error:  # noqa: BLE001 - redacted receiver boundary.
             raise EmbeddingSealedArtifactCallbackError(
@@ -234,3 +292,91 @@ def _callback_schemas(
     ):
         raise ValueError
     return schemas[request_digest], schemas[response_digest]
+
+
+def _is_embedding_index_descriptor(descriptor: SealedArtifactRunnerDescriptor) -> bool:
+    inputs = {item.role: item for item in descriptor.inputs}
+    return (
+        set(inputs) == {"snapshot", "prior_bundle", "prior_index_manifest"}
+        and inputs["snapshot"].required
+        and not inputs["prior_bundle"].required
+        and not inputs["prior_index_manifest"].required
+        and tuple(item.role for item in descriptor.outputs)
+        == ("coverage_report", "index_bundle", "index_manifest")
+    )
+
+
+def _canonical_mapping(content: bytes) -> Mapping[str, object]:
+    value = json.loads(content.decode("utf-8"), object_pairs_hook=_unique)
+    if (
+        not isinstance(value, Mapping)
+        or json.dumps(value, separators=(",", ":"), sort_keys=True).encode() != content
+    ):
+        raise ValueError
+    return value
+
+
+def _validate_input_digests(
+    input_digests: Mapping[str, str], input_contents: Mapping[str, bytes]
+) -> None:
+    if set(input_digests) != set(input_contents) or any(
+        not isinstance(content, bytes)
+        or not isinstance(input_digests[role], str)
+        or sha256(content).hexdigest() != input_digests[role]
+        for role, content in input_contents.items()
+    ):
+        raise ValueError
+
+
+def _output_bytes(
+    sealed: tuple[tuple[str, str, bytes], ...],
+) -> Mapping[str, bytes]:
+    outputs = {role: content for role, _media_type, content in sealed}
+    if (
+        len(outputs) != len(sealed)
+        or set(outputs) != {"coverage_report", "index_bundle", "index_manifest"}
+        or any(not isinstance(content, bytes) for content in outputs.values())
+    ):
+        raise ValueError
+    return outputs
+
+
+def _index_builder_digest(
+    descriptor: SealedArtifactRunnerDescriptor, callback: SealedArtifactCallback
+) -> str:
+    return sha256(
+        json.dumps(
+            {
+                "asset_digest": descriptor.asset_digest,
+                "builder_contract_digest": callback.child_contract_digest,
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()
+
+
+def _validate_prior_pair(
+    input_contents: Mapping[str, bytes], report: CoverageReport
+) -> None:
+    prior_bundle = input_contents.get("prior_bundle")
+    prior_manifest_bytes = input_contents.get("prior_index_manifest")
+    if (prior_bundle is None) != (prior_manifest_bytes is None):
+        raise ValueError
+    if prior_bundle is None:
+        if report.prior_bundle_digest is not None:
+            raise ValueError
+        return
+    if not isinstance(prior_bundle, bytes) or not isinstance(
+        prior_manifest_bytes, bytes
+    ):
+        raise ValueError
+    prior_manifest = IndexBundleManifest.from_mapping(
+        _canonical_mapping(prior_manifest_bytes)
+    )
+    if (
+        prior_manifest.canonical_bytes != prior_manifest_bytes
+        or prior_manifest.bundle_sha256 != sha256(prior_bundle).hexdigest()
+        or report.prior_bundle_digest != sha256(prior_bundle).hexdigest()
+    ):
+        raise ValueError

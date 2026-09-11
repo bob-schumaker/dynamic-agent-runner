@@ -68,8 +68,10 @@ def test_document_snapshot_round_trips_through_canonical_sealed_wire_bytes() -> 
     snapshot = _snapshot()
 
     restored = DocumentSnapshot.from_wire_bytes(snapshot.wire_bytes, policy=_policy())
+    receiver_restored = DocumentSnapshot.from_wire_bytes(snapshot.wire_bytes)
 
     assert restored == snapshot
+    assert receiver_restored == snapshot
     assert restored.snapshot_digest == snapshot.snapshot_digest
 
 

@@ -86,7 +86,7 @@ class DocumentSnapshot:
 
     @classmethod
     def from_wire_bytes(
-        cls, content: bytes, *, policy: DocumentSnapshotPolicy
+        cls, content: bytes, *, policy: DocumentSnapshotPolicy | None = None
     ) -> "DocumentSnapshot":
         """Decode exactly one canonical sealed snapshot wire representation."""
 
@@ -105,6 +105,11 @@ class DocumentSnapshot:
             ):
                 raise ValueError
             documents = tuple(_wire_document(item) for item in value["documents"])
+            if policy is None:
+                _validate_wire_documents(documents)
+                return cls(
+                    documents, sha256(_snapshot_manifest_bytes(documents)).hexdigest()
+                )
             return cls.create(documents, policy=policy)
         except (
             TypeError,
@@ -517,6 +522,24 @@ def _wire_document(value: object) -> SnapshotDocument:
     if b64encode(content).decode("ascii") != encoded:
         raise ValueError
     return SnapshotDocument(value["document_id"], value["media_type"], content)
+
+
+def _validate_wire_documents(documents: tuple[SnapshotDocument, ...]) -> None:
+    if not documents:
+        raise ValueError
+    identifiers = tuple(document.document_id for document in documents)
+    if (
+        identifiers != tuple(sorted(identifiers))
+        or len(set(identifiers)) != len(identifiers)
+        or any(
+            not isinstance(document.document_id, str)
+            or not _DOCUMENT_ID.fullmatch(document.document_id)
+            or not isinstance(document.media_type, str)
+            or not document.media_type
+            for document in documents
+        )
+    ):
+        raise ValueError
 
 
 def _snapshot_manifest_bytes(documents: tuple[SnapshotDocument, ...]) -> bytes:
