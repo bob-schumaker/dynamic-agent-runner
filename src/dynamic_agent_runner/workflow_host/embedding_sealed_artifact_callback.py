@@ -7,7 +7,7 @@ from hashlib import sha256
 from collections.abc import Mapping, Sequence
 from typing import Protocol
 
-from jsonschema import Draft202012Validator, SchemaError, ValidationError
+from jsonschema import Draft202012Validator, SchemaError
 
 from dynamic_agent_runner.workflow_host.embedding_execution import (
     EmbeddingBatchLimits,
@@ -118,7 +118,7 @@ class EmbeddingSealedArtifactCallbackProvider:
             }
             Draft202012Validator(self._response_schema).validate(response)
             return json.dumps(response, separators=(",", ":"), sort_keys=True).encode()
-        except (SchemaError, ValidationError, ValueError, TypeError) as error:
+        except Exception as error:  # noqa: BLE001 - redacted callback boundary.
             raise EmbeddingSealedArtifactCallbackError(
                 "embedding callback is unavailable"
             ) from error
