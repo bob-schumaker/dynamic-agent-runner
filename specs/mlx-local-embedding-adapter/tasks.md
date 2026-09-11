@@ -95,6 +95,11 @@
   record redacted tolerance, shape, padding/truncation, duration, and memory
   evidence only.
   - Depends on: MLE1.4 and MLE3.3.
+  - Attempt (2026-09-11): explicit authorization was granted on Darwin/arm64,
+    but `import mlx.core` failed before fixture admission with redacted
+    `metal::load_device` / no-Metal-device availability. This headless or
+    virtualized host is not eligible; retry only on an interactive Apple Silicon
+    host with Metal access. No model material, fixture, or user data was read.
 
 ## MLE5 — Workflow capability provider
 
