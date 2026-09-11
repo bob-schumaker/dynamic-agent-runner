@@ -10,9 +10,14 @@ from dynamic_agent_runner.workflow_host.embedding_execution import (
     EmbeddingBatchLimits,
     EmbeddingExecutionBinding,
     EmbeddingTextItem,
+    EmbeddingLimitProjectorRegistry,
+)
+from dynamic_agent_runner.workflow_host.capabilities import (
+    selected_provider_id_for_requirement,
 )
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactCallback,
+    SealedArtifactRunnerDescriptor,
 )
 
 
@@ -108,3 +113,55 @@ def _unique(pairs: list[tuple[str, object]]) -> dict[str, object]:
     if len(value) != len(pairs):
         raise ValueError
     return value
+
+
+class EmbeddingSealedArtifactCallbackResolver:
+    """Resolve only the exact embedding callback already admitted by policy."""
+
+    def __init__(
+        self,
+        *,
+        execution: _EmbeddingExecution,
+        limit_projectors: EmbeddingLimitProjectorRegistry,
+    ) -> None:
+        self._execution = execution
+        self._limit_projectors = limit_projectors
+
+    def resolve(
+        self,
+        descriptor: SealedArtifactRunnerDescriptor,
+        policy: object,
+        _revision: object,
+    ) -> EmbeddingSealedArtifactCallbackProvider:
+        try:
+            binding = policy.embedding_execution_binding
+            execution_descriptor = policy.execution_descriptor
+            requirements = policy.capability_requirements
+            selected = tuple(policy.selected_capability_provider_ids)
+            callbacks = [
+                callback
+                for callback in descriptor.callbacks
+                if callback.requirement == "embedding.execute.v1"
+            ]
+            if (
+                not isinstance(binding, EmbeddingExecutionBinding)
+                or len(callbacks) != 1
+            ):
+                raise ValueError
+            selected_provider_id_for_requirement(
+                requirements=requirements,
+                selected_provider_ids=selected,
+                capability_id="embedding.execute.v1",
+            )
+            limits = self._limit_projectors.project(execution_descriptor)
+            return EmbeddingSealedArtifactCallbackProvider(
+                callback=callbacks[0],
+                execution=self._execution,
+                binding=binding,
+                selected_provider_ids=selected,
+                limits=limits,
+            )
+        except Exception as error:  # noqa: BLE001 - redacted receiver boundary.
+            raise EmbeddingSealedArtifactCallbackError(
+                "embedding callback is unavailable"
+            ) from error
