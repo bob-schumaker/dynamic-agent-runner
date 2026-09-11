@@ -1423,7 +1423,10 @@ def _author_request(
     read_only_mcp_guidance = (
         " This is a read-only MCP workflow: use the reviewed read-only MCP template; "
         "do not construct its graph from scratch."
-        if "mailbox-triage" in author_prompt.lower()
+        if any(
+            workflow in author_prompt.lower()
+            for workflow in ("mailbox-triage", "oauth reconnect")
+        )
         else ""
     )
     guardrail_guidance = (
