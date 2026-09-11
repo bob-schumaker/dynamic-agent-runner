@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -22,12 +23,59 @@ def _materials() -> SimpleNamespace:
             {
                 "format_version": 1,
                 "architecture_abi": {
-                    "id": "test-abi",
+                    "id": "bert-encoder-mlx-v1",
                     "version": "1",
-                    "contract_digest": "a" * 64,
+                    "contract_digest": "2179662461bf786c7f55d88d9e3454a3d4dc59f5e818a96e248847abc62e4420",
                 },
-                "material_roles": ["tokenizer"],
-                "abi_fields": {},
+                "material_roles": ["tokenizer", "weights"],
+                "abi_fields": {
+                    "tokenizer": {
+                        "role": "tokenizer",
+                        "format": "wordpiece-json-v1",
+                        "normalization": "nfc",
+                        "pre_tokenizer": "bert-basic-v1",
+                        "special_token_ids": {
+                            "cls": 101,
+                            "sep": 102,
+                            "pad": 0,
+                            "unk": 100,
+                        },
+                        "truncation": "longest-first",
+                    },
+                    "encoder": {
+                        "weights_role": "weights",
+                        "tensor_layout": "bert-encoder-safetensors-v1",
+                        "dtype": "float32",
+                        "vocab_size": 200,
+                        "hidden_size": 2,
+                        "layers": 1,
+                        "attention_heads": 1,
+                        "intermediate_size": 2,
+                        "max_positions": 2,
+                        "type_vocab_size": 1,
+                    },
+                    "pooling": "cls",
+                    "normalization": "none",
+                    "limits": {
+                        "max_items": 1,
+                        "max_item_bytes": 1,
+                        "max_aggregate_bytes": 1,
+                        "max_tokens": 1,
+                        "max_vectors": 1,
+                        "max_memory_bytes": 1,
+                        "max_tokenizer_bytes": 1,
+                        "max_weights_bytes": 1,
+                        "max_safetensors_header_bytes": 1,
+                        "max_conformance_fixture_bytes": 1,
+                    },
+                    "conformance": {
+                        "fixture_filename": "conformance-fixture.json",
+                        "fixture_sha256": "a" * 64,
+                        "precision": "float32",
+                        "metric": "max_abs",
+                        "max_error": 0.0,
+                    },
+                },
             }
         )
     )
@@ -53,6 +101,28 @@ def test_backend_rejects_malformed_weights_before_tokenizer_or_model_work() -> N
     def artifact_reader(role: str) -> bytes:
         calls.append(role)
         return b"{}" if role == "tokenizer" else b"malformed"
+
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=artifact_reader,
+        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
+        encoder=lambda _tokens: calls.append("encoder-call") or (),
+    )
+
+    with pytest.raises(EmbeddingExecutionError, match="material"):
+        backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
+
+    assert calls == ["tokenizer", "weights"]
+
+
+def test_backend_rejects_unknown_tensor_before_tokenizer_or_model_work() -> None:
+    calls: list[str] = []
+    header = json.dumps({"unexpected": {}}).encode()
+
+    def artifact_reader(role: str) -> bytes:
+        calls.append(role)
+        return (
+            b"{}" if role == "tokenizer" else len(header).to_bytes(8, "little") + header
+        )
 
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=artifact_reader,

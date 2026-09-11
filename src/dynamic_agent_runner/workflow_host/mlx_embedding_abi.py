@@ -186,6 +186,8 @@ class BertEncoderMlxV1EmbeddingBackend:
         try:
             if not isinstance(materials.execution_descriptor, ExecutionDescriptor):
                 raise ValueError
+            descriptor = materials.execution_descriptor
+            BertEncoderMlxV1DescriptorValidator().validate(descriptor)
             tokenizer_bytes = self._artifact_reader("tokenizer")
             if not isinstance(tokenizer_bytes, bytes):
                 raise ValueError
@@ -201,11 +203,50 @@ class BertEncoderMlxV1EmbeddingBackend:
             header = json.loads(weights[8 : 8 + header_size].decode("utf-8"))
             if not isinstance(header, Mapping):
                 raise ValueError
+            if set(header) != _bert_tensor_keys(descriptor):
+                raise ValueError
         except Exception as error:  # noqa: BLE001 - sealed artifact boundary.
             raise EmbeddingExecutionError(
                 "MLX embedding material is unavailable"
             ) from error
         raise EmbeddingExecutionError("MLX embedding backend is unavailable")
+
+
+def _bert_tensor_keys(descriptor: ExecutionDescriptor) -> set[str]:
+    encoder = descriptor.abi_fields["encoder"]
+    assert isinstance(encoder, Mapping)
+    layers = encoder["layers"]
+    assert isinstance(layers, int)
+    keys = {
+        "embeddings.word_embeddings.weight",
+        "embeddings.position_embeddings.weight",
+        "embeddings.token_type_embeddings.weight",
+        "embeddings.LayerNorm.weight",
+        "embeddings.LayerNorm.bias",
+    }
+    for index in range(layers):
+        prefix = f"encoder.layer.{index}"
+        for projection in ("query", "key", "value"):
+            keys.update(
+                {
+                    f"{prefix}.attention.self.{projection}.weight",
+                    f"{prefix}.attention.self.{projection}.bias",
+                }
+            )
+        for name in (
+            "attention.output.dense.weight",
+            "attention.output.dense.bias",
+            "attention.output.LayerNorm.weight",
+            "attention.output.LayerNorm.bias",
+            "intermediate.dense.weight",
+            "intermediate.dense.bias",
+            "output.dense.weight",
+            "output.dense.bias",
+            "output.LayerNorm.weight",
+            "output.LayerNorm.bias",
+        ):
+            keys.add(f"{prefix}.{name}")
+    return keys
 
 
 def _one_of(value: object, values: set[str]) -> None:
