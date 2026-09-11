@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from types import SimpleNamespace
 
 import pytest
@@ -14,6 +15,7 @@ from dynamic_agent_runner.workflow_host.execution_descriptors import (
 )
 from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
     BertEncoderMlxV1EmbeddingBackend,
+    _bert_tensor_shapes,
 )
 
 
@@ -81,6 +83,21 @@ def _materials() -> SimpleNamespace:
     )
 
 
+TensorHeader = dict[str, dict[str, object]]
+HeaderMutation = Callable[[TensorHeader], None]
+
+
+def _weights_header(*, mutate: HeaderMutation | None = None) -> bytes:
+    descriptor = _materials().execution_descriptor
+    header = {
+        name: {"dtype": "F32", "shape": list(shape)}
+        for name, shape in _bert_tensor_shapes(descriptor).items()
+    }
+    if mutate is not None:
+        mutate(header)
+    return json.dumps(header).encode()
+
+
 def test_backend_rejects_malformed_artifacts_before_tokenizer_or_model_work() -> None:
     calls: list[str] = []
     backend = BertEncoderMlxV1EmbeddingBackend(
@@ -117,6 +134,39 @@ def test_backend_rejects_malformed_weights_before_tokenizer_or_model_work() -> N
 def test_backend_rejects_unknown_tensor_before_tokenizer_or_model_work() -> None:
     calls: list[str] = []
     header = json.dumps({"unexpected": {}}).encode()
+
+    def artifact_reader(role: str) -> bytes:
+        calls.append(role)
+        return (
+            b"{}" if role == "tokenizer" else len(header).to_bytes(8, "little") + header
+        )
+
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=artifact_reader,
+        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
+        encoder=lambda _tokens: calls.append("encoder-call") or (),
+    )
+
+    with pytest.raises(EmbeddingExecutionError, match="material"):
+        backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
+
+    assert calls == ["tokenizer", "weights"]
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda header: header["embeddings.word_embeddings.weight"].update(
+            shape=[199, 2]
+        ),
+        lambda header: header["embeddings.word_embeddings.weight"].update(dtype="F16"),
+    ],
+)
+def test_backend_rejects_wrong_tensor_metadata_before_tokenizer_or_model_work(
+    mutate: HeaderMutation,
+) -> None:
+    calls: list[str] = []
+    header = _weights_header(mutate=mutate)
 
     def artifact_reader(role: str) -> bytes:
         calls.append(role)

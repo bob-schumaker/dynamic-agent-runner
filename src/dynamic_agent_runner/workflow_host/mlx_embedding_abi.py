@@ -203,8 +203,7 @@ class BertEncoderMlxV1EmbeddingBackend:
             header = json.loads(weights[8 : 8 + header_size].decode("utf-8"))
             if not isinstance(header, Mapping):
                 raise ValueError
-            if set(header) != _bert_tensor_keys(descriptor):
-                raise ValueError
+            _validate_bert_tensor_header(header, descriptor)
         except Exception as error:  # noqa: BLE001 - sealed artifact boundary.
             raise EmbeddingExecutionError(
                 "MLX embedding material is unavailable"
@@ -212,41 +211,96 @@ class BertEncoderMlxV1EmbeddingBackend:
         raise EmbeddingExecutionError("MLX embedding backend is unavailable")
 
 
-def _bert_tensor_keys(descriptor: ExecutionDescriptor) -> set[str]:
+def _bert_tensor_shapes(
+    descriptor: ExecutionDescriptor,
+) -> dict[str, tuple[int, ...]]:
     encoder = descriptor.abi_fields["encoder"]
     assert isinstance(encoder, Mapping)
+    vocab_size = encoder["vocab_size"]
+    hidden_size = encoder["hidden_size"]
     layers = encoder["layers"]
-    assert isinstance(layers, int)
-    keys = {
-        "embeddings.word_embeddings.weight",
-        "embeddings.position_embeddings.weight",
-        "embeddings.token_type_embeddings.weight",
-        "embeddings.LayerNorm.weight",
-        "embeddings.LayerNorm.bias",
+    intermediate_size = encoder["intermediate_size"]
+    max_positions = encoder["max_positions"]
+    type_vocab_size = encoder["type_vocab_size"]
+    assert all(
+        isinstance(value, int)
+        for value in (
+            vocab_size,
+            hidden_size,
+            layers,
+            intermediate_size,
+            max_positions,
+            type_vocab_size,
+        )
+    )
+    shapes = {
+        "embeddings.word_embeddings.weight": (vocab_size, hidden_size),
+        "embeddings.position_embeddings.weight": (max_positions, hidden_size),
+        "embeddings.token_type_embeddings.weight": (type_vocab_size, hidden_size),
+        "embeddings.LayerNorm.weight": (hidden_size,),
+        "embeddings.LayerNorm.bias": (hidden_size,),
     }
     for index in range(layers):
         prefix = f"encoder.layer.{index}"
         for projection in ("query", "key", "value"):
-            keys.update(
-                {
-                    f"{prefix}.attention.self.{projection}.weight",
-                    f"{prefix}.attention.self.{projection}.bias",
-                }
+            shapes[f"{prefix}.attention.self.{projection}.weight"] = (
+                hidden_size,
+                hidden_size,
             )
-        for name in (
-            "attention.output.dense.weight",
-            "attention.output.dense.bias",
-            "attention.output.LayerNorm.weight",
-            "attention.output.LayerNorm.bias",
-            "intermediate.dense.weight",
-            "intermediate.dense.bias",
-            "output.dense.weight",
-            "output.dense.bias",
-            "output.LayerNorm.weight",
-            "output.LayerNorm.bias",
+            shapes[f"{prefix}.attention.self.{projection}.bias"] = (hidden_size,)
+        shapes.update(
+            {
+                f"{prefix}.attention.output.dense.weight": (
+                    hidden_size,
+                    hidden_size,
+                ),
+                f"{prefix}.attention.output.dense.bias": (hidden_size,),
+                f"{prefix}.attention.output.LayerNorm.weight": (hidden_size,),
+                f"{prefix}.attention.output.LayerNorm.bias": (hidden_size,),
+                f"{prefix}.intermediate.dense.weight": (
+                    intermediate_size,
+                    hidden_size,
+                ),
+                f"{prefix}.intermediate.dense.bias": (intermediate_size,),
+                f"{prefix}.output.dense.weight": (
+                    hidden_size,
+                    intermediate_size,
+                ),
+                f"{prefix}.output.dense.bias": (hidden_size,),
+                f"{prefix}.output.LayerNorm.weight": (hidden_size,),
+                f"{prefix}.output.LayerNorm.bias": (hidden_size,),
+            }
+        )
+    return shapes
+
+
+def _validate_bert_tensor_header(
+    header: Mapping[str, object], descriptor: ExecutionDescriptor
+) -> None:
+    shapes = _bert_tensor_shapes(descriptor)
+    if set(header) != set(shapes):
+        raise ValueError
+    encoder = descriptor.abi_fields["encoder"]
+    assert isinstance(encoder, Mapping)
+    expected_dtype = {
+        "float16": "F16",
+        "bfloat16": "BF16",
+        "float32": "F32",
+    }[encoder["dtype"]]
+    for name, expected_shape in shapes.items():
+        metadata = header[name]
+        if not isinstance(metadata, Mapping):
+            raise ValueError
+        shape = metadata.get("shape")
+        if (
+            metadata.get("dtype") != expected_dtype
+            or not isinstance(shape, list)
+            or tuple(shape) != expected_shape
+            or any(
+                not isinstance(value, int) or isinstance(value, bool) for value in shape
+            )
         ):
-            keys.add(f"{prefix}.{name}")
-    return keys
+            raise ValueError
 
 
 def _one_of(value: object, values: set[str]) -> None:
