@@ -69,7 +69,7 @@
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-design.md",
-      "sha256": "78f8b90dfcbd201f444096840d742fa4289de2b31a3b71ca82d50a0e43b66897",
+      "sha256": "23510205af1e37fb2c8408759e21e4d2d57cb94c46056b920c85c75875e61385",
       "source_path": "payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-design.md"
     },
     {
@@ -81,14 +81,14 @@
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-runtime.yaml",
-      "sha256": "020853cd865baf6eceaaeae4c795027ed5c50edd31b247d4feb5ba9ffa82fae3",
+      "sha256": "52d1fdf6edab9086d1b0268eb209845371b6a604e10c46d77338d797bd3d4430",
       "source_path": "payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-runtime.yaml"
     },
     {
       "disposition": "private_module_support",
-      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/skills/review-guide/SKILL.md",
+      "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/skill-bundle/skills/review-guide/SKILL.md",
       "sha256": "f5cb7725f10097c1b7941629d88cabbce9b70499e2cbb25c8963f0a84baef273",
-      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/skills/review-guide/SKILL.md"
+      "source_path": "payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/skill-bundle/skills/review-guide/SKILL.md"
     },
     {
       "disposition": "private_module_support",
@@ -153,7 +153,7 @@
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-development.md",
-      "sha256": "9363e59af2f67c2b7d65f7bf1b89738b1ed9151d71813d729bf767691fce0891",
+      "sha256": "69a7a0ce804930b568e07fc332cc6a7123900d0a547a037155c3e0a47f477e47",
       "source_path": "payload/dar-workflow-authoring/references/dar-runtime-profile/agent-development.md"
     },
     {

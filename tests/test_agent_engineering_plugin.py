@@ -5,11 +5,18 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 import shutil
 
 import pytest
 from dynamic_agent_runner import load_agent_package_workflow
+from dynamic_agent_runner.workflow_host.authoring_materials import (
+    AuthoringMaterialSetProjection,
+)
+from dynamic_agent_runner.workflow_host.authoring_output import (
+    finalize_authored_package,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -436,11 +443,11 @@ def test_private_dar_guidance_keeps_artifact_workflows_on_the_no_tool_template()
     assert "<declared-input-guardrail-id>" in guidance
     assert "phase: tool_input" in guidance
     assert "## Package-local skill bundle" in guidance
-    assert "skills/<skill-id>/SKILL.md" in guidance
+    assert "skill-bundle/skills/<skill-id>/SKILL.md" in guidance
     assert "OAuth reconnect workflow" in guidance
 
 
-def test_private_dar_skill_bundle_template_is_complete() -> None:
+def test_private_dar_skill_bundle_template_is_complete(tmp_path: Path) -> None:
     support = PLUGIN_ROOT / "payload" / "dar-workflow-authoring" / "references"
     template = support / "dar-authoring-skill-bundle-template"
     guidance = (support / "dar-runtime-profile" / "agent-development.md").read_text(
@@ -457,11 +464,39 @@ def test_private_dar_skill_bundle_template_is_complete() -> None:
         "agent-graph.mmd",
         "agent-runtime.yaml",
         "workflow-descriptor.yaml",
-        "skills/review-guide/SKILL.md",
+        "skill-bundle/skills/review-guide/SKILL.md",
     }
     workflow = load_agent_package_workflow(str(template))
     assert workflow.runtime_manifest.package_id == "dar-authoring-skill-bundle-template"
     assert workflow.runtime_manifest.skills[0].id == "review-guide"
+    package = tmp_path / "skill-bundle-package"
+    shutil.copytree(template, package)
+
+    finalized = finalize_authored_package(
+        package_root=package,
+        materials=AuthoringMaterialSetProjection(
+            material_set_id="v1.skill-bundle-materials",
+            members=(),
+            expires_at=datetime.now(UTC),
+        ),
+    )
+
+    assert finalized.package_id == "dar-authoring-skill-bundle-template"
+
+
+def test_private_dar_authoring_guidance_does_not_probe_a_command_limited_host() -> None:
+    guidance = (
+        PLUGIN_ROOT
+        / "payload"
+        / "dar-workflow-authoring"
+        / "references"
+        / "dar-runtime-profile"
+        / "agent-development.md"
+    ).read_text(encoding="utf-8")
+
+    assert "Do not probe it with" in guidance
+    assert "`dar-package version`" in guidance
+    assert "dar-package version --json" not in guidance
 
 
 def test_dar_guidance_uses_closed_design_first_registration() -> None:

@@ -7,7 +7,7 @@ entrypoint: route_request
 mermaid_diagram: agent-graph.mmd
 packaging:
   mode: hybrid_bundle
-  skill_bundle_dir: .
+  skill_bundle_dir: skill-bundle
 runtime:
   execution_policy:
     autonomy_level: assistive

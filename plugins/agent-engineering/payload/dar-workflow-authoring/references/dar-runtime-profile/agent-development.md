@@ -13,29 +13,17 @@ regression evidence is requested.
 ## DAR control plane
 
 The plugin ships skills only. It does not provide an MCP server, start a
-service, manage credentials, or write package files itself. Run DAR's package
-CLI directly through this pinned command:
+service, manage credentials, or write package files itself. When the host
+provides command-limited `dar-package` on `PATH`, use that command directly
+only for the package operation required by the workflow. Do not probe it with
+`dar-package version`, prefix it with `uv run`, or search for a wheel; the host
+command allowlist is the only permitted interface in that environment.
 
-<!-- rumdl-disable MD013 -->
-
-```sh
-uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.1.17 dar-package version --json
-```
-
-<!-- rumdl-enable MD013 -->
-
-When the host provides `dar-package` on `PATH`, use that command directly for
-every package operation. Do not prefix it with `uv run` or search for a wheel;
-the host command is the only permitted interface in that environment. Use the
-pinned command above only when no host-provided `dar-package` is available.
-
-For a local-wheel development check, replace the `--with` argument with the
-absolute wheel path. Never use a project-relative wrapper, a state directory,
-or an MCP control plane.
-
-Confirm the DAR package is available before promising an authoring operation.
-If a command returns an error, return `authoring_runtime_unavailable` rather
-than creating an unvalidated package or substituting a legacy command.
+For a local development check, use the DAR command supplied by that development
+environment. Never substitute a project-relative wrapper, a state directory, or
+an MCP control plane. If a required package-authoring command is unavailable,
+return `authoring_runtime_unavailable` rather than creating an unvalidated
+package or substituting a legacy command.
 
 ## Design boundary
 
@@ -122,19 +110,21 @@ extension schema, registry configuration, credential, or adapter code.
 
 Use a package-local skill only when the declared authoring input names the
 skill and provides its bounded instruction content. Declare its exact skill ID
-in the descriptor's `skills`, write the bundle file at
-`skills/<skill-id>/SKILL.md`, and bind the runtime skill to that exact
-`bundled_path`. Set `runtime.execution_policy.skill_source_resolution` to
-`enabled: true` with `allowed_sources: [package_bundle]`, then refer to that
-skill only from the bounded node that needs it. Do not load installed skills,
-paths outside the package, or model-suggested support files.
+in the descriptor's `skills`, set `packaging.skill_bundle_dir` to
+`skill-bundle`, write the bundle file at
+`skill-bundle/skills/<skill-id>/SKILL.md`, and bind the runtime skill to the
+relative `skills/<skill-id>/SKILL.md` `bundled_path`. Set
+`runtime.execution_policy.skill_source_resolution` to `enabled: true` with
+`allowed_sources: [package_bundle]`, then refer to that skill only from the
+bounded node that needs it. Do not load installed skills, paths outside the
+package, or model-suggested support files.
 
 For the supported one-skill review graph, copy
 `references/dar-authoring-skill-bundle-template/` before changing the package
 identity, purpose, bounded skill instruction, and user-facing prompts. Retain
-its `skills/` bundle, `package_bundle` source-resolution policy, declared
-skill reference, and finite graph shape. Do not construct that graph from
-scratch or substitute an installed skill.
+its `skill-bundle/` directory, `package_bundle` source-resolution policy,
+declared skill reference, and finite graph shape. Do not construct that graph
+from scratch or substitute an installed skill.
 
 ## Reviewed MCP template selection
 

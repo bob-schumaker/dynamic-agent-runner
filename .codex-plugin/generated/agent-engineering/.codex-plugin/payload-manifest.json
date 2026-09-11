@@ -134,7 +134,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "78f8b90dfcbd201f444096840d742fa4289de2b31a3b71ca82d50a0e43b66897",
+      "content_hash": "23510205af1e37fb2c8408759e21e4d2d57cb94c46056b920c85c75875e61385",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -156,7 +156,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "020853cd865baf6eceaaeae4c795027ed5c50edd31b247d4feb5ba9ffa82fae3",
+      "content_hash": "52d1fdf6edab9086d1b0268eb209845371b6a604e10c46d77338d797bd3d4430",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -172,8 +172,8 @@
       "file_type": "file",
       "ownership_class": null,
       "ownership_role": "private_module_support",
-      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/skills/review-guide/SKILL.md",
-      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/skills/review-guide/SKILL.md",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/skill-bundle/skills/review-guide/SKILL.md",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/skill-bundle/skills/review-guide/SKILL.md",
       "symlink_policy": "forbidden"
     },
     {
@@ -299,7 +299,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "9363e59af2f67c2b7d65f7bf1b89738b1ed9151d71813d729bf767691fce0891",
+      "content_hash": "69a7a0ce804930b568e07fc332cc6a7123900d0a547a037155c3e0a47f477e47",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -795,5 +795,5 @@
   ],
   "format_version": 1,
   "packager_format_version": 1,
-  "payload_fingerprint": "f2fc78216a5316cff5a66f9b60d05cab987c40c0ae7460ffbe2ad5da11f05208"
+  "payload_fingerprint": "48fa1728793b86f2a5db3070bccbd86c7373b465b4eeabcd0e2e1afae9941688"
 }
