@@ -124,6 +124,31 @@ def resolve_closed_material_roles(
         ) from error
 
 
+def rewrite_bert_weight_name(source_name: str) -> str:
+    """Map one locked Hugging Face BERT tensor name to the closed MLX module."""
+
+    if not isinstance(source_name, str) or not source_name.startswith("bert."):
+        raise EmbeddingExecutionError("MLX embedding material is unavailable")
+    name = source_name.removeprefix("bert.")
+    for old, new in (
+        ("encoder.layer.", "encoder.layers."),
+        ("attention.self.key.", "attention.key_proj."),
+        ("attention.self.query.", "attention.query_proj."),
+        ("attention.self.value.", "attention.value_proj."),
+        ("attention.output.dense.", "attention.out_proj."),
+        ("attention.output.LayerNorm.", "attention.ln1."),
+        ("output.LayerNorm.", "ln2."),
+        ("intermediate.dense.", "linear1."),
+        ("output.dense.", "linear2."),
+        ("embeddings.LayerNorm.", "embeddings.norm."),
+        ("pooler.dense.", "pooler."),
+    ):
+        name = name.replace(old, new)
+    if not name:
+        raise EmbeddingExecutionError("MLX embedding material is unavailable")
+    return name
+
+
 def parse_safetensors_header(
     payload: bytes, *, allocate: Callable[[], object]
 ) -> dict[str, object]:

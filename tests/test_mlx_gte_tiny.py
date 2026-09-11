@@ -15,6 +15,7 @@ from dynamic_agent_runner.mlx_gte_tiny import (
     masked_mean_pool,
     parse_safetensors_header,
     resolve_closed_material_roles,
+    rewrite_bert_weight_name,
     validate_gte_tiny_vectors,
 )
 
@@ -78,6 +79,31 @@ def test_closed_material_roles_use_only_the_locked_role_byte_and_hash_table() ->
         669,
         "d3e8bc1261c0933b87dfaa12e984e311158a723c5593a0a57f9558f2a8262e3c",
     )
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    (
+        (
+            "bert.encoder.layer.5.attention.self.query.weight",
+            "encoder.layers.5.attention.query_proj.weight",
+        ),
+        (
+            "bert.encoder.layer.0.output.LayerNorm.bias",
+            "encoder.layers.0.ln2.bias",
+        ),
+        ("bert.embeddings.LayerNorm.weight", "embeddings.norm.weight"),
+    ),
+)
+def test_weight_names_map_only_to_the_closed_bert_module(
+    source: str, expected: str
+) -> None:
+    assert rewrite_bert_weight_name(source) == expected
+
+
+def test_weight_name_mapping_rejects_unexpected_tensor_names() -> None:
+    with pytest.raises(EmbeddingExecutionError, match="material"):
+        rewrite_bert_weight_name("classifier.weight")
 
 
 @pytest.mark.parametrize(
