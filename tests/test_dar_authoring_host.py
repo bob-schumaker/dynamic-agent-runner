@@ -63,6 +63,16 @@ from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa:
 from dynamic_agent_runner.workflow_host.sealed_artifact_workflow_runner import (  # noqa: E402
     SealedArtifactInvocation,
 )
+from dynamic_agent_runner.workflow_host.locked_inference_execution import (  # noqa: E402
+    LockedInferenceHostLimits,
+)
+from dynamic_agent_runner.workflow_host.locked_inference_provider_registry import (  # noqa: E402
+    LockedInferenceProviderBinding,
+    LockedInferenceProviderRegistry,
+)
+from dynamic_agent_runner.workflow_host.locked_inference_sealed_artifact_callback import (  # noqa: E402
+    LockedInferenceSealedArtifactCallbackResolver,
+)
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -262,6 +272,79 @@ def test_local_host_enables_sealed_artifact_runner_only_with_a_resolver(
         )
     assert enabled._sealed_artifact_preparation is not None
     assert enabled._sealed_artifact_runner is not None
+
+
+def test_local_host_composes_locked_inference_callback_from_receiver_inputs(
+    tmp_path: Path,
+) -> None:
+    configure_local_host(
+        root=tmp_path / "state",
+        package_root=tmp_path / "packages",
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    contract = next(
+        item
+        for item in BUILTIN_CAPABILITY_CONTRACTS
+        if item.capability_id == "model.generate.v1"
+    )
+
+    class Provider:
+        def generate(self, **_kwargs: object) -> bytes:
+            return b"{}"
+
+    host = LocalWorkflowHost.open(
+        tmp_path / "state",
+        capability_catalog=CapabilityCatalog(
+            BUILTIN_CAPABILITY_CONTRACTS,
+            (
+                CapabilityProvider(
+                    "receiver-generate",
+                    contract,
+                    conformance_passed=True,
+                    conformance_vector_ids=frozenset(
+                        {
+                            "bounded_io",
+                            "deadline",
+                            "redacted_failure",
+                            "structured_value",
+                        }
+                    ),
+                ),
+            ),
+        ),
+        locked_inference_provider_registry=LockedInferenceProviderRegistry(
+            (LockedInferenceProviderBinding("receiver-generate", contract, Provider()),)
+        ),
+        locked_inference_host_limits=LockedInferenceHostLimits(1, 100, 100, 100, 1),
+    )
+
+    assert host._sealed_artifact_preparation is not None
+    assert host._sealed_artifact_runner is not None
+    assert isinstance(
+        host._sealed_artifact_runner._callback_resolver,
+        LockedInferenceSealedArtifactCallbackResolver,
+    )
+
+
+def test_local_host_rejects_partial_locked_inference_configuration(
+    tmp_path: Path,
+) -> None:
+    configure_local_host(
+        root=tmp_path / "state",
+        package_root=tmp_path / "packages",
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
+    with pytest.raises(
+        LocalWorkflowHostError,
+        match="locked inference configuration is unavailable",
+    ):
+        LocalWorkflowHost.open(
+            tmp_path / "state",
+            locked_inference_host_limits=LockedInferenceHostLimits(1, 100, 100, 100, 1),
+        )
 
 
 def test_local_host_rejects_tampered_asset_and_missing_handle_before_execution(

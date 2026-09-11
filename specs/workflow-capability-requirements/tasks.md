@@ -327,14 +327,15 @@ targeted pre-commit hooks passed on 2026-09-09.
 - [ ] C6.2 [tests, RED] Add descriptor/admission vectors for inference-role
   requirement/material-role mismatches that leave all asset, model, provider,
   ingress, and result actions at zero.
-- [ ] C6.3 [implementation] Resolve and revalidate the selected private
+- [x] C6.3 [implementation] Resolve and revalidate the selected private
   provider only through the generic inference binding; do not expose provider
   selection or domain output interpretation to package data.
-  - Partial evidence: `LockedInferenceExecutionFactory` creates a fresh
+  - Evidence: `LocalWorkflowHost.open()` composes the sealed callback resolver
+    only from a receiver-owned catalog, inference-provider registry, and finite
+    host limits. `LockedInferenceExecutionFactory` creates a fresh
     invocation-local service from the recompiled policy and trusted revision,
     rereads and verifies sealed role assets, resolves only the previously
     selected `model.generate.v1` provider by canonical requirement order, and
-    revalidates that exact executable immediately before provider entry. Host
-    composition of that factory remains pending.
+    revalidates that exact executable immediately before provider entry.
 - [ ] C6.4 [tests, GREEN] Prove exact matching, role isolation, no fallback,
   and legacy requirements-package compatibility.

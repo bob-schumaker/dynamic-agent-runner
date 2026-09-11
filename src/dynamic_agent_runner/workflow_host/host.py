@@ -116,6 +116,16 @@ from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
 )
 from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
+from dynamic_agent_runner.workflow_host.locked_inference_execution import (
+    LockedInferenceHostLimits,
+)
+from dynamic_agent_runner.workflow_host.locked_inference_provider_registry import (
+    LockedInferenceProviderRegistry,
+)
+from dynamic_agent_runner.workflow_host.locked_inference_sealed_artifact_callback import (
+    LockedInferenceExecutionFactory,
+    LockedInferenceSealedArtifactCallbackResolver,
+)
 from dynamic_agent_runner.workflow_host.policy import (
     PolicyCompilationError,
     compile_workflow_policy,
@@ -742,10 +752,35 @@ class LocalWorkflowHost:
         model_runner_registry: ModelRunnerRegistry | None = None,
         capability_catalog: CapabilityCatalog | None = None,
         sealed_artifact_callback_resolver: SealedArtifactCallbackResolver | None = None,
+        locked_inference_provider_registry: LockedInferenceProviderRegistry
+        | None = None,
+        locked_inference_host_limits: LockedInferenceHostLimits | None = None,
     ) -> LocalWorkflowHost:
         """Open a configured local host for the current OS user."""
 
         _validate_root(root)
+        if (locked_inference_provider_registry is None) != (
+            locked_inference_host_limits is None
+        ) or (
+            locked_inference_provider_registry is not None
+            and (
+                capability_catalog is None
+                or sealed_artifact_callback_resolver is not None
+            )
+        ):
+            raise LocalWorkflowHostError(
+                "locked inference configuration is unavailable"
+            )
+        if locked_inference_provider_registry is not None:
+            sealed_artifact_callback_resolver = (
+                LockedInferenceSealedArtifactCallbackResolver(
+                    execution_factory=LockedInferenceExecutionFactory(
+                        capability_catalog=capability_catalog,
+                        provider_registry=locked_inference_provider_registry,
+                        host_limits=locked_inference_host_limits,
+                    )
+                )
+            )
         configuration = _read_configuration(root)
         store = PrivateStateStore(root)
         profiles = LocalModelProfileControlPlane(store=store)
