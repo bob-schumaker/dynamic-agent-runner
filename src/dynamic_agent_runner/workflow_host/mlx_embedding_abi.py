@@ -215,7 +215,11 @@ class BertEncoderMlxV1EmbeddingBackend:
             header = json.loads(weights[8 : 8 + header_size].decode("utf-8"))
             if not isinstance(header, Mapping):
                 raise ValueError
-            _validate_bert_tensor_header(header, descriptor)
+            _validate_bert_tensor_header(
+                header,
+                descriptor,
+                data_size=len(weights) - 8 - header_size,
+            )
         except Exception as error:  # noqa: BLE001 - sealed artifact boundary.
             raise EmbeddingExecutionError(
                 "MLX embedding material is unavailable"
@@ -287,23 +291,25 @@ def _bert_tensor_shapes(
 
 
 def _validate_bert_tensor_header(
-    header: Mapping[str, object], descriptor: ExecutionDescriptor
+    header: Mapping[str, object], descriptor: ExecutionDescriptor, *, data_size: int
 ) -> None:
     shapes = _bert_tensor_shapes(descriptor)
     if set(header) != set(shapes):
         raise ValueError
     encoder = descriptor.abi_fields["encoder"]
     assert isinstance(encoder, Mapping)
-    expected_dtype = {
-        "float16": "F16",
-        "bfloat16": "BF16",
-        "float32": "F32",
+    expected_dtype, item_bytes = {
+        "float16": ("F16", 2),
+        "bfloat16": ("BF16", 2),
+        "float32": ("F32", 4),
     }[encoder["dtype"]]
+    spans: list[tuple[int, int]] = []
     for name, expected_shape in shapes.items():
         metadata = header[name]
         if not isinstance(metadata, Mapping):
             raise ValueError
         shape = metadata.get("shape")
+        offsets = metadata.get("data_offsets")
         if (
             metadata.get("dtype") != expected_dtype
             or not isinstance(shape, list)
@@ -311,8 +317,27 @@ def _validate_bert_tensor_header(
             or any(
                 not isinstance(value, int) or isinstance(value, bool) for value in shape
             )
+            or not isinstance(offsets, list)
+            or len(offsets) != 2
+            or any(
+                not isinstance(value, int) or isinstance(value, bool)
+                for value in offsets
+            )
         ):
             raise ValueError
+        start, end = offsets
+        if start < 0 or end < start or end > data_size:
+            raise ValueError
+        if end - start != math.prod(expected_shape) * item_bytes:
+            raise ValueError
+        spans.append((start, end))
+    previous_end = 0
+    for start, end in sorted(spans):
+        if start != previous_end:
+            raise ValueError
+        previous_end = end
+    if previous_end != data_size:
+        raise ValueError
 
 
 def _one_of(value: object, values: set[str]) -> None:

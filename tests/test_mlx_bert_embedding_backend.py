@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Callable
 from types import SimpleNamespace
 
@@ -91,13 +92,30 @@ HeaderMutation = Callable[[TensorHeader], None]
 
 def _weights_header(*, mutate: HeaderMutation | None = None) -> bytes:
     descriptor = _materials().execution_descriptor
+    cursor = 0
     header = {
-        name: {"dtype": "F32", "shape": list(shape)}
+        name: {
+            "data_offsets": [
+                cursor,
+                cursor := cursor + 4 * math.prod(shape),
+            ],
+            "dtype": "F32",
+            "shape": list(shape),
+        }
         for name, shape in _bert_tensor_shapes(descriptor).items()
     }
     if mutate is not None:
         mutate(header)
     return json.dumps(header).encode()
+
+
+def _weights_blob(*, mutate: HeaderMutation | None = None) -> bytes:
+    header = _weights_header(mutate=mutate)
+    descriptor = _materials().execution_descriptor
+    payload_size = sum(
+        4 * math.prod(shape) for shape in _bert_tensor_shapes(descriptor).values()
+    )
+    return len(header).to_bytes(8, "little") + header + b"\0" * payload_size
 
 
 def test_backend_rejects_malformed_artifacts_before_tokenizer_or_model_work() -> None:
@@ -183,6 +201,52 @@ def test_backend_rejects_wrong_tensor_metadata_before_tokenizer_or_model_work(
     )
 
     with pytest.raises(EmbeddingExecutionError, match="material"):
+        backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
+
+    assert calls == ["tokenizer", "weights"]
+
+
+def test_backend_rejects_invalid_tensor_offsets_before_tokenizer_or_model_work() -> (
+    None
+):
+    calls: list[str] = []
+    weights = _weights_blob(
+        mutate=lambda header: header["embeddings.word_embeddings.weight"].update(
+            data_offsets=[0, 1]
+        )
+    )
+
+    def artifact_reader(role: str) -> bytes:
+        calls.append(role)
+        return b"{}" if role == "tokenizer" else weights
+
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=artifact_reader,
+        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
+        encoder=lambda _tokens: calls.append("encoder-call") or (),
+    )
+
+    with pytest.raises(EmbeddingExecutionError, match="material"):
+        backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
+
+    assert calls == ["tokenizer", "weights"]
+
+
+def test_backend_admits_exact_tensor_offsets_before_execution() -> None:
+    calls: list[str] = []
+    weights = _weights_blob()
+
+    def artifact_reader(role: str) -> bytes:
+        calls.append(role)
+        return b"{}" if role == "tokenizer" else weights
+
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=artifact_reader,
+        tokenizer=lambda _items: calls.append("tokenizer-call") or (),
+        encoder=lambda _tokens: calls.append("encoder-call") or (),
+    )
+
+    with pytest.raises(EmbeddingExecutionError, match="backend"):
         backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
 
     assert calls == ["tokenizer", "weights"]
