@@ -239,6 +239,52 @@ def test_inference_bindings_keep_each_role_material_and_generation_contract_priv
     assert "provider" not in repr(bindings[0])
 
 
+def test_inference_roles_share_one_generation_requirement_but_not_material_bindings() -> (
+    None
+):
+    from dynamic_agent_runner.workflow_host.capabilities import (
+        CapabilityRequirement,
+        CapabilityRequirements,
+    )
+
+    roles = parse_inference_roles(
+        {
+            "format_version": 1,
+            "roles": [
+                _role(role="classify", material_role="classify"),
+                _role(role="suggest", material_role="suggest"),
+            ],
+        }
+    )
+    materials = parse_model_material_sets(
+        {
+            "format_version": 1,
+            "material_sets": [
+                {"role": "classify", "model_materials": _material_lock()},
+                {"role": "suggest", "model_materials": _material_lock()},
+            ],
+        }
+    )
+    requirements = CapabilityRequirements(
+        (
+            CapabilityRequirement("model.execution.test.v1", "1", "e" * 64, ()),
+            CapabilityRequirement("model.generate.v1", "1", "f" * 64, ("structured",)),
+        ),
+        {"runner": "model.execution.test.v1"},
+    )
+
+    bindings = derive_locked_inference_bindings(
+        roles=roles, material_sets=materials, requirements=requirements
+    )
+
+    assert tuple(binding.role for binding in bindings) == ("classify", "suggest")
+    assert {binding.capability_contract_digest for binding in bindings} == {"f" * 64}
+    assert [(binding.role, binding.material_role) for binding in bindings] == [
+        ("classify", "classify"),
+        ("suggest", "suggest"),
+    ]
+
+
 def test_inference_bindings_reject_missing_or_duplicate_generation_requirement() -> (
     None
 ):
