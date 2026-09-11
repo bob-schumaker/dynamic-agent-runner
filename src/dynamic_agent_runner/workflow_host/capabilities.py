@@ -324,6 +324,30 @@ class CapabilityCatalog:
         )
 
 
+def selected_provider_id_for_requirement(
+    *,
+    requirements: CapabilityRequirements,
+    selected_provider_ids: Sequence[str],
+    capability_id: str,
+) -> str:
+    """Return one prior selection by canonical requirement position."""
+
+    selected = tuple(selected_provider_ids)
+    declared = requirements.required_capabilities
+    if len(selected) != len(declared) or not all(
+        isinstance(provider_id, str) and provider_id for provider_id in selected
+    ):
+        raise CapabilityError("selected capability providers are invalid")
+    matches = [
+        index
+        for index, requirement in enumerate(declared)
+        if requirement.capability_id == capability_id
+    ]
+    if len(matches) != 1:
+        raise CapabilityError("selected capability provider is unavailable")
+    return selected[matches[0]]
+
+
 def _canonical_json(value: object) -> bytes:
     return json.dumps(
         _normalize(value), ensure_ascii=False, sort_keys=True, separators=(",", ":")

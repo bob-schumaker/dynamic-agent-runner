@@ -226,15 +226,33 @@ def validate_inference_material_roles(
 def verify_inference_role_assets(*, root: Path, roles: InferenceRoles) -> None:
     """Verify declared instruction and schema assets before provider admission."""
 
+    read_verified_inference_role_assets(root=root, roles=roles)
+
+
+def read_verified_inference_role_assets(
+    *, root: Path, roles: InferenceRoles
+) -> tuple[dict[str, bytes], dict[str, bytes], dict[str, bytes]]:
+    """Read verified role assets from the trusted immutable package revision."""
+
     if not isinstance(root, Path):
         raise LockedInferenceError("inference asset is invalid")
     try:
+        instructions: dict[str, bytes] = {}
+        request_schemas: dict[str, bytes] = {}
+        response_schemas: dict[str, bytes] = {}
         for role in roles.roles:
-            _verified_asset_bytes(root, role.instruction_asset).decode("utf-8")
-            for schema in (role.request_schema_asset, role.response_schema_asset):
-                validate_locked_inference_schema(_verified_asset_bytes(root, schema))
+            instruction = _verified_asset_bytes(root, role.instruction_asset)
+            instruction.decode("utf-8")
+            request_schema = _verified_asset_bytes(root, role.request_schema_asset)
+            response_schema = _verified_asset_bytes(root, role.response_schema_asset)
+            validate_locked_inference_schema(request_schema)
+            validate_locked_inference_schema(response_schema)
+            instructions[role.role] = instruction
+            request_schemas[role.role] = request_schema
+            response_schemas[role.role] = response_schema
     except (OSError, UnicodeError, LockedInferenceExecutionError) as error:
         raise LockedInferenceError("inference asset is invalid") from error
+    return instructions, request_schemas, response_schemas
 
 
 def derive_locked_inference_bindings(
