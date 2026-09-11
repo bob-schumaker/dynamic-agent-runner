@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+from hashlib import sha256
 from collections.abc import Mapping, Sequence
 from typing import Protocol
+
+from jsonschema import Draft202012Validator, SchemaError, ValidationError
 
 from dynamic_agent_runner.workflow_host.embedding_execution import (
     EmbeddingBatchLimits,
@@ -47,6 +50,8 @@ class EmbeddingSealedArtifactCallbackProvider:
         binding: EmbeddingExecutionBinding,
         selected_provider_ids: Sequence[str],
         limits: EmbeddingBatchLimits,
+        request_schema: object,
+        response_schema: object,
     ) -> None:
         if (
             callback.requirement != "embedding.execute.v1"
@@ -56,11 +61,20 @@ class EmbeddingSealedArtifactCallbackProvider:
             raise EmbeddingSealedArtifactCallbackError(
                 "embedding callback is unavailable"
             )
+        try:
+            Draft202012Validator.check_schema(request_schema)
+            Draft202012Validator.check_schema(response_schema)
+        except SchemaError as error:
+            raise EmbeddingSealedArtifactCallbackError(
+                "embedding callback is unavailable"
+            ) from error
         self._callback = callback
         self._execution = execution
         self._binding = binding
         self._selected_provider_ids = tuple(selected_provider_ids)
         self._limits = limits
+        self._request_schema = request_schema
+        self._response_schema = response_schema
 
     def revalidate(self, callback: SealedArtifactCallback) -> None:
         if callback != self._callback:
@@ -82,6 +96,7 @@ class EmbeddingSealedArtifactCallbackProvider:
                 != request
             ):
                 raise ValueError
+            Draft202012Validator(self._request_schema).validate(value)
             items = tuple(
                 EmbeddingTextItem(item["id"], item["text"])
                 for item in value["items"]
@@ -101,8 +116,9 @@ class EmbeddingSealedArtifactCallbackProvider:
                     for item in vectors
                 ]
             }
+            Draft202012Validator(self._response_schema).validate(response)
             return json.dumps(response, separators=(",", ":"), sort_keys=True).encode()
-        except Exception as error:  # noqa: BLE001 - redacted callback boundary.
+        except (SchemaError, ValidationError, ValueError, TypeError) as error:
             raise EmbeddingSealedArtifactCallbackError(
                 "embedding callback is unavailable"
             ) from error
@@ -154,14 +170,67 @@ class EmbeddingSealedArtifactCallbackResolver:
                 capability_id="embedding.execute.v1",
             )
             limits = self._limit_projectors.project(execution_descriptor)
+            request_schema, response_schema = _callback_schemas(
+                descriptor, callbacks[0]
+            )
             return EmbeddingSealedArtifactCallbackProvider(
                 callback=callbacks[0],
                 execution=self._execution,
                 binding=binding,
                 selected_provider_ids=selected,
                 limits=limits,
+                request_schema=request_schema,
+                response_schema=response_schema,
             )
         except Exception as error:  # noqa: BLE001 - redacted receiver boundary.
             raise EmbeddingSealedArtifactCallbackError(
                 "embedding callback is unavailable"
             ) from error
+
+
+def _callback_schemas(
+    descriptor: SealedArtifactRunnerDescriptor, callback: SealedArtifactCallback
+) -> tuple[object, object]:
+    """Resolve the callback's exact retained child contract and schema assets."""
+
+    contracts = [
+        contract
+        for contract in descriptor.child_contracts
+        if contract.digest == callback.child_contract_digest
+    ]
+    if len(contracts) != 1:
+        raise ValueError
+    contract = contracts[0]
+    if sha256(contract.canonical_bytes).hexdigest() != contract.digest:
+        raise ValueError
+    value = json.loads(
+        contract.canonical_bytes.decode("utf-8"), object_pairs_hook=_unique
+    )
+    if (
+        not isinstance(value, Mapping)
+        or json.dumps(value, separators=(",", ":"), sort_keys=True).encode()
+        != contract.canonical_bytes
+        or set(value)
+        != {"body", "callback_name", "capability_requirement", "format_version"}
+        or value["format_version"] != 1
+        or value["callback_name"] != callback.name
+        or value["capability_requirement"] != callback.requirement
+        or not isinstance(value["body"], Mapping)
+        or set(value["body"])
+        != {"embed_request_schema_digest", "embed_response_schema_digest"}
+    ):
+        raise ValueError
+    request_digest = value["body"]["embed_request_schema_digest"]
+    response_digest = value["body"]["embed_response_schema_digest"]
+    schemas = {schema.digest: schema.document for schema in descriptor.schema_assets}
+    if (
+        not isinstance(request_digest, str)
+        or not isinstance(response_digest, str)
+        or request_digest == response_digest
+        or request_digest not in schemas
+        or response_digest not in schemas
+        or schemas[request_digest] is None
+        or schemas[response_digest] is None
+    ):
+        raise ValueError
+    return schemas[request_digest], schemas[response_digest]
