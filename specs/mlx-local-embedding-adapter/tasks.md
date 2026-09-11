@@ -1,4 +1,4 @@
-# macOS Custom MLX GTE Tiny Embedding Adapter Tasks
+# macOS Generic MLX Embedding Execution Tasks
 
 ## MLE0 — Generic embedding binding
 
@@ -20,7 +20,7 @@
     tests/test_workflow_model_execution_binding.py -q` passed 22 tests.
   - Depends on: MLE0.1.
 
-## MLE1 — GTE Tiny material and reference lock
+## MLE1 — Workflow-owned material and reference lock
 
 - [x] MLE1.1 [discovery] Record `TaylorAI/gte-tiny` revision
   `4cc5e73d86a67c601897257b467187234aa3bca3`, `mlx==0.32.2`, BERT model
@@ -81,7 +81,7 @@
     inert and receiver-resolved metadata repeats dependency and material
     admission before reporting embeddings available.
 
-## MLE3 — Closed GTE Tiny MLX encoder
+## MLE3 — Closed descriptor-defined MLX encoder
 
 - [ ] MLE3.1 [tests, RED] Add fake-only pre-allocation parser-ceiling,
   configuration/tensor/tokenizer, truncation, padding, masked-mean,

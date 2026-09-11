@@ -2,8 +2,8 @@
 
 ## Delivery Rules
 
-- Implement one closed `mlx-gte-tiny-v1` runner; do not generalize it into a
-  model registry or reuse the text-generation MLX adapter.
+- Implement a generic sealed-descriptor MLX embedding execution ABI; do not
+  create a model registry or reuse the text-generation MLX adapter.
 - Use test-first, fake-only RED/GREEN cycles. MLX must not be imported by unit
   tests or added as a base dependency.
 - Material locks, not invocation data, select every model file, tokenizer,
@@ -25,7 +25,7 @@ Exit: the MLX provider uses the existing generic package binding and creates no
 MLX-specific manifest field or parallel execution path; a capability-compatible
 but binding-incompatible embedding provider fails before model entry.
 
-## S1 — Lock the GTE Tiny profile
+## S1 — Lock a workflow-owned embedding descriptor
 
 1. Record the source-model identity: `TaylorAI/gte-tiny` revision
    `4cc5e73d86a67c601897257b467187234aa3bca3`, BERT architecture, 384

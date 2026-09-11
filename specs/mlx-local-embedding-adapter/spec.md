@@ -1,4 +1,4 @@
-# macOS Custom MLX GTE Tiny Embedding Adapter Specification
+# macOS Generic MLX Embedding Execution Specification
 
 ## Metadata
 
@@ -7,7 +7,8 @@
 - Owner: dynamic-agent-runner local-model and embedding-capability boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`
-- Locked material profile: `gte-tiny-material-profile.md`
+- Example construction profile: `gte-tiny-material-profile.md` (not DAR
+  runtime authority)
 - Related specifications:
   - `specs/mlx-local-model-adapter/spec.md`
   - `specs/llama-cpp-local-model/spec.md`
@@ -17,12 +18,11 @@
 
 ## Objective
 
-Provide a lazy, in-process, macOS-only embedding provider for exactly one
-locked encoder: `TaylorAI/gte-tiny` at Hugging Face revision
-`4cc5e73d86a67c601897257b467187234aa3bca3`. DAR shall implement the required
-BERT encoder and sentence-embedding behavior on the public Python `mlx`
-array/NN API. It shall not depend on, call, or emulate an undocumented Python
-`mlx-lm` embedding interface.
+Provide a lazy, in-process, macOS-only execution capability for a sealed,
+workflow-defined embedding encoder. DAR supplies platform/dependency admission,
+bounded execution, material identity verification, and result validation; the
+workflow construction process supplies the immutable model material, encoder
+descriptor, tokenizer, pooling, normalization, and conformance contract.
 
 The provider is optional: ordinary DAR imports, non-macOS hosts, CI, and
 existing llama.cpp GGUF embedding workflows require neither MLX, Metal, nor
@@ -30,41 +30,26 @@ GTE Tiny materials.
 
 ## Problem Statement
 
-The Python `mlx-lm` surface that DAR currently uses is generation-oriented.
-MLX Swift's `MLXEmbedders` proves that an explicit encoder, tokenizer, pooling,
-and model registry form a sound embedding boundary, but it is not a Python API
-DAR can import. A custom Python implementation gives DAR a narrow, inspectable
-path for one known BERT-family model without turning generic generation hidden
-states into purported embeddings.
+The Python `mlx-lm` surface is generation-oriented. DAR needs a generic MLX
+embedding execution boundary without making an experimental model choice part
+of DAR's release, license, or package contract.
 
-## Target Model Contract
+## Workflow-defined encoder contract
 
-The sole v1 model is `TaylorAI/gte-tiny`, a BERT-family sentence-transformer
-with 22,713,216 parameters, a 512-token maximum sequence length, 384 output
-dimensions, and masked mean pooling. MLE1 must verify these source facts from
-the pinned revision and record the full artifact manifest. The model-material
-declaration locks the repository revision above and SHA-256 of every required
-source file at workflow construction time. It contains a closed role-to-relative
-path map for the BERT `config.json`, `model.safetensors`, `tokenizer.json`,
-tokenizer/special-token configuration, and `1_Pooling/config.json`.
-
-For each bounded batch, the adapter shall tokenize with the locked tokenizer,
-run the locked BERT encoder, compute the attention-mask-weighted mean of its
-last hidden-state vectors, and produce one 384-dimensional finite vector per
-input. Normalization is not implicit: `mlx-gte-tiny-v1` fixes it to `none`,
-matching the pinned source pooling configuration; the adapter rejects material
-whose parsed configuration does not match that fixed profile.
-
-`thenlper/gte-small` is a later quality-comparison model, not an accepted v1
-material set or implicit fallback. Supporting it requires a separately locked
-profile and conformance evidence.
+Each workflow declares a sealed encoder descriptor bound to its
+`model-materials.json` lock. It identifies the architecture family, exact
+role/path/hash table, tensor predicate, tokenizer semantics, maximum tokens,
+pooling and normalization rule, output dimension, numerical conformance recipe,
+and MLX runtime compatibility. It is immutable package data, never an
+invocation-time model choice or arbitrary code. A workflow author, not DAR,
+selects the upstream model and accepts its licensing terms.
 
 ## Scope
 
 This feature defines:
 
 1. a dedicated sync/async MLX embedding adapter, separate from text generation;
-2. a DAR-owned, narrow BERT encoder and GTE Tiny tokenizer/material loader;
+2. a DAR-owned generic MLX encoder execution ABI and descriptor validator;
 3. exact locked-material, model-identity, pooling, vector, and resource-limit
    validation;
 4. fake-only deterministic conformance tests and an explicitly authorized Mac
@@ -78,10 +63,10 @@ This feature does not:
 
 - add embeddings to `MLXLocalModelAdapter` or alter its `embeddings: False`
   capability claim;
-- support arbitrary Hugging Face repositories, architectures, custom/remote
-  code, GGUF, ONNX, Core ML, `mlx-lm` model directories, conversion recipes,
-  or runtime model selection;
-- implement a general Python port of all Swift `MLXEmbedders` models;
+- support custom/remote code, `mlx-lm` embedding APIs, runtime model selection,
+  or a workflow-provided arbitrary Python loader;
+- prescribe an upstream model, model family, tokenizer, pooling rule, license,
+  or a general Python port of all Swift `MLXEmbedders` models;
 - create an MLX server, automatic download policy, model discovery service,
   vector store, document parser, chunker, index builder, reranker, or query
   API; or

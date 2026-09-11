@@ -26,8 +26,10 @@ host policy permits.
 
 The declaration is sealed package data, not an invocation-time setup channel.
 DAR retains control of downloading, cache layout, hash verification,
-capability/provider selection, runner selection, device placement, resource
-limits, sealed ingress, tracing, and result shaping.
+capability/provider selection, device placement, resource limits, sealed
+ingress, tracing, and result shaping. The workflow author selects and locks the
+model, architecture/profile descriptor, tokenizer, pooling, and license terms
+at construction; DAR does not own model-specific profiles.
 
 ## Problem Statement
 
@@ -50,7 +52,8 @@ This feature defines:
 1. a versioned, sealed workflow model-material declaration;
 2. construction-time validation and package-digest binding of that declaration;
 3. receiver-side verified cache reuse, download, and deterministic preparation;
-4. exact binding from material declaration to a DAR-owned runner/profile; and
+4. exact binding from material declaration to a DAR-supported generic execution
+   ABI plus a workflow-owned sealed profile descriptor; and
 5. generic runner-registry and host-policy boundaries; and
 6. failure, portability, and validation requirements for an executable package.
 
