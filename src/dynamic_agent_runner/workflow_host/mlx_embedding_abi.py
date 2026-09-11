@@ -6,6 +6,7 @@ import math
 import json
 from collections.abc import Mapping
 from collections.abc import Callable, Sequence
+from typing import Protocol
 
 from dynamic_agent_runner.errors import EmbeddingExecutionError
 from dynamic_agent_runner.local_models import EmbeddingInputItem
@@ -157,6 +158,10 @@ def _mapping(value: object, keys: set[str]) -> Mapping[str, object]:
     return value
 
 
+class _EmbeddingMaterialReceipt(Protocol):
+    execution_descriptor: ExecutionDescriptor
+
+
 class BertEncoderMlxV1EmbeddingBackend:
     """Validate sealed artifacts before any injected tokenizer or encoder call."""
 
@@ -171,10 +176,16 @@ class BertEncoderMlxV1EmbeddingBackend:
         self._tokenizer = tokenizer
         self._encoder = encoder
 
-    def embed(self, items: Sequence[EmbeddingInputItem], _materials: object) -> object:
+    def embed(
+        self,
+        items: Sequence[EmbeddingInputItem],
+        materials: _EmbeddingMaterialReceipt,
+    ) -> object:
         """Reject malformed tokenizer material before any execution collaborator."""
 
         try:
+            if not isinstance(materials.execution_descriptor, ExecutionDescriptor):
+                raise ValueError
             tokenizer_bytes = self._artifact_reader("tokenizer")
             if not isinstance(tokenizer_bytes, bytes):
                 raise ValueError

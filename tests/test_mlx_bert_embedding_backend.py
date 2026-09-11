@@ -2,13 +2,35 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from dynamic_agent_runner.errors import EmbeddingExecutionError
 from dynamic_agent_runner.local_models import EmbeddingInputItem
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    parse_execution_descriptor,
+)
 from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
     BertEncoderMlxV1EmbeddingBackend,
 )
+
+
+def _materials() -> SimpleNamespace:
+    return SimpleNamespace(
+        execution_descriptor=parse_execution_descriptor(
+            {
+                "format_version": 1,
+                "architecture_abi": {
+                    "id": "test-abi",
+                    "version": "1",
+                    "contract_digest": "a" * 64,
+                },
+                "material_roles": ["tokenizer"],
+                "abi_fields": {},
+            }
+        )
+    )
 
 
 def test_backend_rejects_malformed_artifacts_before_tokenizer_or_model_work() -> None:
@@ -20,7 +42,7 @@ def test_backend_rejects_malformed_artifacts_before_tokenizer_or_model_work() ->
     )
 
     with pytest.raises(EmbeddingExecutionError, match="material"):
-        backend.embed((EmbeddingInputItem("entry", "text"),), object())
+        backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
 
     assert calls == ["artifact"]
 
@@ -39,6 +61,6 @@ def test_backend_rejects_malformed_weights_before_tokenizer_or_model_work() -> N
     )
 
     with pytest.raises(EmbeddingExecutionError, match="material"):
-        backend.embed((EmbeddingInputItem("entry", "text"),), object())
+        backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
 
     assert calls == ["tokenizer", "weights"]
