@@ -1,69 +1,90 @@
-# macOS MLX Local Embedding Adapter Plan
+# macOS Custom MLX GTE Tiny Embedding Adapter Plan
 
 ## Delivery Rules
 
-- Keep this adapter separate from `MLXLocalModelAdapter` and the generation
-  backend protocol.
-- Begin each implementation slice with focused fake-only RED tests, then make
-  the smallest GREEN change.
-- Do not add an MLX dependency to the base package or import MLX in tests.
-- Do not run a live embedding model without explicit authorization after all
-  deterministic contract tests pass.
+- Implement one closed `mlx-gte-tiny-v1` runner; do not generalize it into a
+  model registry or reuse the text-generation MLX adapter.
+- Use test-first, fake-only RED/GREEN cycles. MLX must not be imported by unit
+  tests or added as a base dependency.
+- Material locks, not invocation data, select every model file, tokenizer,
+  pooling rule, normalization rule, and runtime version.
+- Do not run a real model until deterministic material/admission tests pass and
+  the user explicitly authorizes the Mac competency protocol.
 
-## S1 — Upstream capability characterization
+## S0 — Close generic binding prerequisites
 
-1. Inspect the selected supported MLX/MLX-LM release and one approved local
-   embedding artifact or official API documentation.
-2. Record exact public loading/embedding APIs, model layouts, batch/result
-   shapes, pooling/normalization, identity behavior, and incompatibilities.
-3. Decide whether converted MLX directories alone are supported initially; add
-   GGUF only if the public API demonstrates equivalent embedding behavior.
-4. Stop if no stable public embedding API exists.
+1. Amend the generic model-material and capability requirements artifacts to
+   bind an embedding runner/profile without pretending it is a llama.cpp model
+   execution runner.
+2. Define the generic runner/loader-profile contract extension and the exact
+   receiver-private path from verified `PreparedArtifactSet` to provider entry.
+3. Add fake-only admission/revalidation tests at that generic boundary.
 
-Exit: the repository has a redacted, versioned discovery record sufficient to
-write an injected backend protocol without inferring undocumented behavior.
+Exit: the MLX provider has a generic package binding to satisfy; it does not
+invent an MLX-specific manifest field or a parallel execution path.
 
-## S2 — Direct adapter contract
+## S1 — Lock the GTE Tiny profile
 
-1. Add RED tests for package imports, public config/factories, macOS-only lazy
-   failure, missing dependency, and fake backend injection.
-2. Implement sync/async config and factories in a dedicated MLX embedding
-   module, using existing embedding input/result and local-model error types.
-3. Add RED then GREEN tests for identity and explicit asset resolution with
-   injected download/load doubles only.
-4. Verify no change to the text-generation MLX adapter capability metadata.
+1. Record the source-model identity: `TaylorAI/gte-tiny` revision
+   `4cc5e73d86a67c601897257b467187234aa3bca3`, BERT architecture, 384
+   dimensions, 512-token limit, and masked-mean pooling.
+2. At workflow construction, resolve and hash the complete required material
+   set; define closed roles, paths, byte ceilings, safe parse order, and the
+   `mlx-gte-tiny-v1` runner/loader-profile contracts.
+3. Specify the reference implementation, synthetic inputs, precision, and
+   output tolerance; final normalization is fixed to `none`.
 
-Exit: callers can use an injected backend through a small direct embedding API
-without MLX on CI.
+Exit: every runtime-relevant artifact is immutable and the adapter has a
+reference conformance target without receiving raw user content.
 
-## S3 — Batch normalization and default loader
+## S2 — Direct adapter admission boundary
 
-1. Add RED tests for every invalid result shape, ordering, ID, finite-value,
-   dimension, and resource-limit failure.
-2. Implement shared bounded batch normalization and the default lazy loader
-   using only the characterized public upstream API.
-3. Add fake-only metadata and async parity tests.
-4. Run focused MLX, local-model, import, and capability suites.
+1. Add fake-only RED tests for import/factory behavior, lazy macOS-14+/arm64
+   checks, `mlx==0.32.2` dependency admission, material role/hash/identity
+   validation, and injected-backend behavior.
+2. Implement a dedicated sync/async configuration and factory using existing
+   embedding input/result and package-owned error types.
+3. Prove the text-generation MLX adapter's interface and metadata do not
+   change.
 
-Exit: a conforming MLX backend has the same bounded direct embedding guarantees
-as the existing local embedding path.
+Exit: the direct adapter reaches an injected conforming backend only after
+platform, dependency, and locked-material admission.
 
-## S4 — Generic workflow-provider integration
+## S3 — Custom BERT encoder and result conformance
 
-1. After approval of `embedding.execute.v1`, add RED provider-conformance and
-   sealed material-binding tests.
-2. Implement the MLX runner/profile/provider registration without exposing
-   provider selection to workflow inputs.
-3. Prove unavailable or changed providers fail before model materialization,
-   embedding execution, workflow-local builder import, or artifact egress.
-4. Run relevant full tests, Ruff, and `git diff --check`.
+1. Add RED tests for parser ceilings before MLX allocation, required
+   configuration fields, tensor keys/shapes/dtypes, tokenizer Unicode/error
+   behavior, 512-token truncation, masked mean pooling, padding,
+   materialization, normalization policy, and all invalid output cases.
+2. Implement the private GTE Tiny BERT module and tokenizer loader using only
+   public `mlx` / `mlx.nn` APIs and locked safetensor/tokenizer assets.
+3. Add fake-only batch, async-parity, capability, redaction, and no-fallback
+   tests.
 
-Exit: compatible receivers may satisfy a locked generic embedding capability
-with MLX, while other platforms/providers continue to use their own paths.
+Exit: deterministic tests establish the whole contract without MLX or live
+weights; only a Darwin conformance run remains for model arithmetic.
 
-## Manual Acceptance
+## S4 — Manual Mac competency
 
-With explicit authorization, run a fixed approved local embedding model on an
-eligible Mac and compare only shape, ordering, finite values, bounded batch
-behavior, duration, and memory use against the characterized contract. Retain
-no source text or vector values.
+1. With explicit authorization, run the locked materials on a compatible Mac.
+2. Compare synthetic reference vectors within the approved tolerance and check
+   truncation, padding, order, finite 384-dimensional results, duration, and
+   memory.
+3. Record only versions, material-lock digest, aggregate measurements, and
+   redacted pass/fail results.
+
+Exit: the real runner is eligible for provider registration; any numerical or
+material mismatch returns work to S1–S3.
+
+## S5 — Generic workflow provider
+
+1. After S0, `embedding.execute.v1`, and sealed-runner prerequisites are
+   approved, add RED provider/material-binding tests.
+2. Register `mlx-gte-tiny-v1` as an optional DAR provider selected only by the
+   capability catalog.
+3. Prove unavailable/changed providers fail before model materialization,
+   embedding execution, builder import, or artifact egress.
+4. Run focused suites, the full suite, Ruff, and `git diff --check`.
+
+Exit: a compatible Mac receiver can satisfy a locked generic embedding binding;
+other providers and platforms remain unchanged.

@@ -1,4 +1,4 @@
-# macOS MLX Local Embedding Adapter Specification
+# macOS Custom MLX GTE Tiny Embedding Adapter Specification
 
 ## Metadata
 
@@ -16,178 +16,233 @@
 
 ## Objective
 
-Provide a lazy, in-process, macOS-only MLX embedding adapter that can serve as
-an optional DAR provider for a generic locked embedding-material binding. It
-must preserve the existing direct caller-owned embedding API pattern and must
-not require MLX, Metal, an embedding model, or macOS in ordinary DAR installs
-or CI.
+Provide a lazy, in-process, macOS-only embedding provider for exactly one
+locked encoder: `TaylorAI/gte-tiny` at Hugging Face revision
+`4cc5e73d86a67c601897257b467187234aa3bca3`. DAR shall implement the required
+BERT encoder and sentence-embedding behavior on the public Python `mlx`
+array/NN API. It shall not depend on, call, or emulate an undocumented Python
+`mlx-lm` embedding interface.
 
-The adapter is an execution provider, not an index builder. It receives bounded
-text batches and returns validated vectors; document parsing, chunking, index
-formats, persistence, and workflow package semantics remain outside this spec.
+The provider is optional: ordinary DAR imports, non-macOS hosts, CI, and
+existing llama.cpp GGUF embedding workflows require neither MLX, Metal, nor
+GTE Tiny materials.
 
 ## Problem Statement
 
-DAR's MLX adapter supports text generation only and explicitly advertises
-`embeddings: False`. The direct llama.cpp embedding adapter provides a useful
-shape for validated, local batch embeddings, but a portable embedding workflow
-also needs an MLX-native provider for users whose locked model is available in
-MLX format on Apple silicon.
+The Python `mlx-lm` surface that DAR currently uses is generation-oriented.
+MLX Swift's `MLXEmbedders` proves that an explicit encoder, tokenizer, pooling,
+and model registry form a sound embedding boundary, but it is not a Python API
+DAR can import. A custom Python implementation gives DAR a narrow, inspectable
+path for one known BERT-family model without turning generic generation hidden
+states into purported embeddings.
 
-Adding an `embed` method to the existing generation adapter would mix two
-different model contracts, model formats, backend APIs, result types, and
-capability claims. A dedicated embedding adapter has a smaller public surface
-and can fail clearly when the selected MLX runtime or model does not implement
-the required embedding behavior.
+## Target Model Contract
+
+The sole v1 model is `TaylorAI/gte-tiny`, a BERT-family sentence-transformer
+with 22,713,216 parameters, a 512-token maximum sequence length, 384 output
+dimensions, and masked mean pooling. MLE1 must verify these source facts from
+the pinned revision and record the full artifact manifest. The model-material
+declaration locks the repository revision above and SHA-256 of every required
+source file at workflow construction time. It contains a closed role-to-relative
+path map for the BERT `config.json`, `model.safetensors`, `tokenizer.json`,
+tokenizer/special-token configuration, and `1_Pooling/config.json`.
+
+For each bounded batch, the adapter shall tokenize with the locked tokenizer,
+run the locked BERT encoder, compute the attention-mask-weighted mean of its
+last hidden-state vectors, and produce one 384-dimensional finite vector per
+input. Normalization is not implicit: `mlx-gte-tiny-v1` fixes it to `none`,
+matching the pinned source pooling configuration; the adapter rejects material
+whose parsed configuration does not match that fixed profile.
+
+`thenlper/gte-small` is a later quality-comparison model, not an accepted v1
+material set or implicit fallback. Supporting it requires a separately locked
+profile and conformance evidence.
 
 ## Scope
 
 This feature defines:
 
-1. sync and async caller-owned MLX embedding adapter/config/factory surfaces;
-2. a small injected backend protocol for load and batched embedding;
-3. lazy macOS/MLX dependency, asset-resolution, and identity validation;
-4. strict batch/vector normalization and capability metadata; and
-5. an optional provider mapping to `embedding.execute.v1` when that generic
-   contract is approved.
-
-The initial implementation supports explicit converted-MLX directories and
-locked model references that a selected upstream MLX embedding API can load.
-GGUF support is permitted only after API characterization proves embeddings are
-available and semantically compatible for the exact selected runtime/model
-format.
+1. a dedicated sync/async MLX embedding adapter, separate from text generation;
+2. a DAR-owned, narrow BERT encoder and GTE Tiny tokenizer/material loader;
+3. exact locked-material, model-identity, pooling, vector, and resource-limit
+   validation;
+4. fake-only deterministic conformance tests and an explicitly authorized Mac
+   competency protocol; and
+5. an optional `embedding.execute.v1` provider once the generic workflow
+   capability and sealed-runner prerequisites are complete.
 
 ## Non-Goals
 
 This feature does not:
 
-- alter `MLXLocalModelAdapter`, add embeddings to its generation contract, or
-  change its conservative `embeddings: False` capability claim;
-- create an MLX server, remote embedding endpoint, model conversion pipeline,
-  model discovery service, or automatic model download policy;
-- run on Linux, Windows, or non-MLX backends;
-- select model paths, revisions, providers, device placement, batch limits, or
-  model formats from a workflow invocation;
-- implement reranking, multimodal embeddings, indexing, document chunking,
-  vector stores, index persistence, or query/retrieval APIs; or
+- add embeddings to `MLXLocalModelAdapter` or alter its `embeddings: False`
+  capability claim;
+- support arbitrary Hugging Face repositories, architectures, custom/remote
+  code, GGUF, ONNX, Core ML, `mlx-lm` model directories, conversion recipes,
+  or runtime model selection;
+- implement a general Python port of all Swift `MLXEmbedders` models;
+- create an MLX server, automatic download policy, model discovery service,
+  vector store, document parser, chunker, index builder, reranker, or query
+  API; or
 - make a live MLX model run part of pytest or CI.
 
 ## Architecture and Trust Boundary
 
 ### Dedicated adapter boundary
 
-The public adapter is separate from text generation:
+The public surface is separate from generation:
 
 ```python
 adapter = create_mlx_local_embedding_adapter(config)
 result = adapter.embed(items)
 ```
 
-`items` and `result` reuse DAR's existing `EmbeddingInputItem` and
-`EmbeddingBatchResult` contracts where compatible. The adapter has no
-`create_response`, tool-calling, chat-template, or generation-parameter API.
-The async form uses `asyncio.to_thread` or an equivalent nonblocking wrapper
-around the same synchronous validation/execution path.
+It reuses DAR's existing `EmbeddingInputItem` and `EmbeddingBatchResult`
+contracts where compatible. It has no `create_response`, chat-template,
+tool-calling, or generation-parameter surface. The async form delegates the
+same synchronous validation/execution path through `asyncio.to_thread` or an
+equivalent nonblocking wrapper.
 
-### Backend seam
+### Custom MLX encoder
 
-One private `MLXLocalEmbeddingBackend` protocol accepts a resolved model
-location and returns ordered vectors for a batch of text. Tests inject this
-backend and never import MLX. The default dependency loader lazily imports only
-the exact upstream package/API selected by the upstream-characterization gate.
-It must reject a model that cannot produce sentence/document embeddings rather
-than infer embeddings from a generation-only model's hidden states.
+The default backend is DAR-owned code with a deliberately closed contract:
+
+- lazy-import `mlx` and `mlx.nn` only on the first Darwin embedding call;
+- instantiate only the GTE Tiny BERT configuration after validating the locked
+  configuration and all expected tensor names, shapes, and dtypes;
+- load only the locked safetensors and tokenizer assets from normal
+  model-material resolution; and
+- perform only the specified masked mean pooling and any explicitly locked
+  final normalization.
+
+It must not call private APIs, derive a vector from a causal generation model,
+execute model-supplied Python, or silently substitute a different loader,
+model, pooling rule, tokenizer, or precision.
+
+Tests inject a small private `MLXLocalEmbeddingBackend` protocol and never
+import MLX. The real implementation is admitted only by a Darwin competency
+run after fake tests establish all boundary behavior.
 
 ### Material and capability binding
 
-Once `workflow-embedding-index-artifacts` supplies the generic contract, MLX
-registers as one `embedding.execute.v1` provider under a DAR-owned embedding
-runner/profile. A sealed package locks the model materials and requires the
-exact capability contract; it never names MLX loader code, an MLX package
-version, a device, a cache path, or a provider implementation. DAR capability
-resolution selects an installed conforming MLX provider or fails before model
-materialization or workflow-local execution.
+The material lock binds the existing generic runner and loader-profile contracts,
+the exact model revision, and source-role hashes. It does not acquire
+GTE-specific fields. `mlx-gte-tiny-v1` is a closed DAR-owned profile whose
+versioned runner/loader contracts fix 384 dimensions, 512 tokens, masked-mean
+pooling, and no normalization; the adapter proves those facts by validating the
+sealed source roles. A sealed package does not name MLX, Metal, a Python package
+version, a model path, cache location, or a provider implementation.
+
+The direct adapter accepts only a verified `PreparedArtifactSet` from the
+receiver-private material resolver, never a repository, path, revision, or
+pooling setting. A workflow provider is deferred until the generic capability
+and model-material specifications define a non-llama.cpp runner binding for an
+embedding profile. That generic extension, not this feature, determines package
+declaration shape. No provider fallback is allowed.
 
 ## Functional Requirements
 
-### FR-1: Mac-only lazy availability
+### FR-1: macOS-only lazy availability
 
-Importing DAR or constructing the adapter shall not import MLX. On a non-Darwin
-platform, the first embedding call shall raise a package-owned macOS-only error
-before resolving assets or loading a dependency. On Darwin, a missing selected
-MLX dependency shall raise a package-owned dependency error rather than an
-unwrapped import error. There is no CPU, llama.cpp, remote, or generation-model
-fallback.
+Importing DAR or constructing the adapter shall not import MLX. On a host that
+is not macOS 14-or-later on arm64, the first embedding call shall raise a
+package-owned availability error before asset resolution or dependency loading.
+On an eligible host, a missing, wrong-version, ABI-incompatible, or failed
+`mlx` import shall raise a redacted package-owned dependency error. The initial
+supported runtime is `mlx==0.32.2`; a different version is rejected until
+separately characterized and approved.
 
-### FR-2: Explicit assets and identity
+There is no CPU, llama.cpp, remote, generation-model, or alternate-MLX fallback.
 
-The adapter shall use only an explicit local model path or existing locked
-model-material resolution. It shall validate the resolved artifact layout and
-the observed identity against the configured/locked expected model identity.
-It shall not ambiently scan model directories, resolve a branch/tag, or accept
-an invocation-time path or repository reference.
+### FR-2: exact GTE Tiny assets and identity
 
-### FR-3: Validated bounded batch embeddings
+The adapter shall use only the locked GTE Tiny material set. Before MLX tensor
+allocation it shall validate source revision, required role/path/hash/byte-size
+ceilings, safe safetensors header shape, BERT configuration compatibility,
+expected tensor names/shapes/dtypes, and a strict WordPiece tokenizer
+configuration. The tokenizer accepts only its fixed local assets, bounded UTF-8
+input, declared Unicode/error handling, and the 512-token limit. It rejects an
+absent, extra, malformed, oversized, wrong-shaped, or wrong-identity material
+with package-owned errors before tokenization or model evaluation.
+
+It shall not ambiently scan model directories, resolve a branch/tag, accept an
+invocation-time repository/path, download an unpinned revision, or execute
+remote/custom model code.
+
+### FR-3: bounded, semantically exact batch embeddings
 
 The adapter shall validate nonempty finite input batches using the existing
-embedding input contract, pass ordered plain text to the backend, and return
-exactly one vector per input ID in the same order. It shall reject missing,
-extra, duplicate, reordered, nonnumeric, nonfinite, empty, or
-inconsistently-dimensioned vectors with a package-owned embedding error.
+embedding input contract, tokenize input using the locked tokenizer with
+truncation at 512 tokens, and return exactly one vector per input ID in the
+same order. It shall apply masked mean pooling exactly as declared, followed by
+only the locked normalization policy.
 
-The direct adapter's static configuration shall set positive item-count,
-per-item-byte, aggregate-byte, and vector-dimension limits. A workflow binding
-may impose stricter limits but cannot relax the host/provider limits.
+It shall explicitly materialize MLX results before it checks and returns them,
+then reject missing, extra, duplicate, reordered, nonnumeric, nonfinite, empty,
+or non-384-dimensional vectors. Static configuration shall set positive
+item-count, per-item-byte, aggregate-byte, token-count, vector-dimension, and
+observed-memory limits. MLX in-process execution provides no hard memory or
+timeout isolation guarantee; a workflow binding may tighten, but cannot relax,
+host/provider limits.
 
-### FR-4: Conservative capability reporting
+### FR-4: conservative capability reporting
 
-The adapter shall report local in-process MLX execution and `embeddings: True`
-only after it has a backend conforming to the selected embedding API. It shall
-report text generation, tool calling, structured output, streaming,
-multimodal, and reranking as unsupported. A generation adapter remains
-independently `embeddings: False`.
+Static adapter metadata shall not perform material or dependency admission and
+therefore reports the provider unavailable. Receiver-private capability
+resolution may report local in-process MLX execution and `embeddings: True`
+only after platform, dependency, material, and profile admission succeed; it
+revalidates availability immediately before provider entry. It reports text
+generation, tool calling, structured output, streaming, multimodal use, and
+reranking as unsupported. A generation adapter remains independently
+`embeddings: False`.
 
-### FR-5: Upstream characterization gate
+### FR-5: reference-vector conformance
 
-Before any default backend implementation, maintainers shall record the exact
-upstream MLX/MLX-LM package release, public loading and embedding symbols,
-accepted converted-model layout, result shape, pooling/normalization behavior,
-model identity source, batch behavior, and failure taxonomy. The record must
-use a fixed approved local artifact or upstream documentation and contain no
-private prompts or model outputs.
+Before releasing the real backend, maintainers shall create a redacted
+conformance fixture from the locked source model using a named, pinned reference
+implementation with `trust_remote_code=False`. The fixture contains only stable
+synthetic inputs, exact token IDs/attention masks, dtype and accumulation rule,
+expected 384-dimensional float values, and coordinate and aggregate tolerance;
+it contains no user text, vault content, model-supplied code, or live workflow
+output. A digest alone is not a numerical conformance oracle.
 
-If no public, stable embedding API is found, the feature remains unimplemented;
-it must not call private internals or synthesize embeddings from generation
-logits/hidden states.
+The Darwin test protocol shall prove the custom backend matches the reference
+pooling semantics within an explicitly recorded numerical tolerance, handles
+padding and truncation, and emits finite 384-dimensional vectors. A mismatch
+blocks provider registration.
 
-### FR-6: Workflow-provider conformance
+### FR-6: workflow-provider conformance
 
-When the generic embedding capability is implemented, the MLX provider shall
-pass its conformance matrix with a fake backend: capability identity, locked
-material binding, availability changes, batch/vector validation, no fallback,
-redaction, and pre-side-effect rejection. The generic workflow spec remains
-the authority for snapshot and index-bundle behavior.
+After the generic binding extension is implemented, the MLX provider shall pass
+its fake-backend conformance matrix: capability identity, exact runner/profile
+and locked-material binding, changed availability, selected-provider identity,
+batch/vector validation, no fallback, redaction, and pre-side-effect rejection.
+The generic workflow spec remains authoritative for snapshots and index-bundle
+behavior.
 
 ## Acceptance Criteria
 
 - Package import and public factories work without MLX installed; fake tests
-  run on non-macOS without a model or Metal.
-- Unsupported-platform and missing-dependency failures occur before asset
-  resolution or backend loading.
-- Fake-backend tests prove ordered batch normalization and every invalid vector
-  outcome in FR-3.
-- Model identity/path tests reuse existing local-model failure taxonomy and
-  never use a network call without injected test doubles.
-- Capability metadata distinguishes the new embedding adapter from the existing
-  generation adapter.
-- A separately authorized Mac competency run records only model material,
-  adapter/runtime version, batch sizes, dimension, latency, and aggregate
-  error outcomes; vector values and input text are not retained.
+  run on non-macOS without a model, Metal, or network.
+- Platform and dependency failures occur before asset resolution or backend
+  loading; material rejection occurs before tokenization, MLX allocation, or
+  evaluation.
+- Fake-backend tests prove ordered normalization and every invalid-vector
+  outcome in FR-3, without an MLX import.
+- Tests prove only the GTE Tiny runner/model/profile is accepted, and that
+  generation MLX behavior is unchanged.
+- A separately authorized Mac competency run proves the locked model's vector
+  dimension, mean-pooling semantics, padding/truncation behavior, finite
+  output, and reference tolerance while retaining no private input or vector
+  data.
+- Static and receiver-resolved capability metadata distinguish the new embedding
+  adapter from the generation adapter and from llama.cpp without breaking lazy
+  admission.
 
 ## Delivery Gate
 
-Implementation is blocked until the upstream-characterization record confirms a
-public stable embedding API and `workflow-embedding-index-artifacts` has an
-approved generic `embedding.execute.v1` contract. The direct caller-owned
-adapter may be delivered first if its contract is useful independently, but it
-must not claim workflow capability conformance until both gates are satisfied.
+Implementation begins only after the material lock records the exact source
+file hashes, parser ceilings, and reference-vector fixture/tolerance. Workflow
+provider registration additionally requires the generic non-llama.cpp embedding
+runner-binding extension, the approved `embedding.execute.v1` contract, and its
+sealed-runner prerequisites.
