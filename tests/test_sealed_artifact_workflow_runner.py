@@ -172,7 +172,7 @@ def test_concrete_runner_reserves_consumes_and_publishes_atomically(
 
     class Callbacks:
         def __init__(self) -> None:
-            self.validated: list[tuple[object, object]] = []
+            self.validated: list[tuple[object, object, object]] = []
 
         def revalidate(self, _callback) -> None:
             return None
@@ -180,8 +180,10 @@ def test_concrete_runner_reserves_consumes_and_publishes_atomically(
         def invoke(self, _name: str, _request: bytes) -> bytes:
             raise AssertionError("no callback is declared")
 
-        def validate_sealed_outputs(self, sealed, input_digests) -> None:
-            self.validated.append((sealed, input_digests))
+        def validate_sealed_outputs(
+            self, sealed, input_digests, input_contents
+        ) -> None:
+            self.validated.append((sealed, input_digests, input_contents))
 
     class CallbackResolver:
         callbacks = Callbacks()
@@ -232,6 +234,10 @@ def test_concrete_runner_reserves_consumes_and_publishes_atomically(
     assert result.receipt["status"] == "completed"
     assert observed == [validators]
     assert len(resolver.callbacks.validated) == 1
+    assert resolver.callbacks.validated[0][1] == {
+        "snapshot": hashlib.sha256(b"snapshot").hexdigest()
+    }
+    assert resolver.callbacks.validated[0][2] == {"snapshot": b"snapshot"}
 
 
 def test_tampered_asset_stops_before_handle_or_provider_or_egress(
