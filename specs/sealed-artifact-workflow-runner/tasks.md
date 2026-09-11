@@ -25,8 +25,10 @@
       publication. Provider-entry/material-load and caller egress sentinels
       remain pending the generic provider composition in C6.
       A callback-enabled ZIP now also crosses the real locked-inference material
-      binding and provider-entry path; its ordered provider/material-load and
-      caller-egress sentinels remain pending.
+      binding and provider-entry path. Its receiver event log proves initial
+      exact-provider revalidation, role-asset reread, handle reservation,
+      input consumption, immediate pre-entry revalidation, provider entry, and
+      output publication in order. Caller-egress sentinels remain pending.
 - [x] S3 [implementation] Add receiver composition and sealed artifact runner.
   - [x] Retain declared output slots and add an ordered atomic private collector
     that destroys candidates on invalid or incomplete execution.

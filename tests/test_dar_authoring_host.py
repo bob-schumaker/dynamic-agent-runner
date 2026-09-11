@@ -527,6 +527,7 @@ def test_local_host_composes_locked_inference_callback_from_receiver_inputs(
 
 def test_local_host_runs_locked_inference_from_a_staged_zip(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     package_root = tmp_path / "packages"
     source = package_root / "locked-inference"
@@ -558,6 +559,7 @@ def test_local_host_runs_locked_inference_from_a_staged_zip(
 
         def generate(self, **_kwargs: object) -> bytes:
             self.calls += 1
+            events.append("provider_entry")
             return b'{"value":"ok"}'
 
     provider = Provider()
@@ -609,6 +611,27 @@ def test_local_host_runs_locked_inference_from_a_staged_zip(
         expires_at=NOW + timedelta(minutes=1),
         now=NOW,
     )
+    events = _observe_sealed_artifact_receiver(
+        host, host._sealed_artifact_runner._callback_resolver, monkeypatch
+    )
+    import dynamic_agent_runner.workflow_host.locked_inference_sealed_artifact_callback as callback_module
+
+    verify_role_assets = callback_module.read_verified_inference_role_assets
+
+    def observe_role_assets(*args, **kwargs):
+        events.append("locked_role_asset_verify")
+        return verify_role_assets(*args, **kwargs)
+
+    catalog_revalidate = catalog.revalidate
+
+    def observe_provider_revalidation(*args, **kwargs):
+        events.append("provider_revalidation")
+        return catalog_revalidate(*args, **kwargs)
+
+    monkeypatch.setattr(
+        callback_module, "read_verified_inference_role_assets", observe_role_assets
+    )
+    monkeypatch.setattr(catalog, "revalidate", observe_provider_revalidation)
 
     result = host.run_sealed_artifact(
         SealedArtifactInvocation(
@@ -628,6 +651,23 @@ def test_local_host_runs_locked_inference_from_a_staged_zip(
         "output_count": 1,
         "status": "completed",
     }
+    assert events == [
+        "registration",
+        "catalog_revision",
+        "policy_compile",
+        "descriptor_manifest_verify",
+        "callback_provider_resolution",
+        "provider_revalidation",
+        "locked_role_asset_verify",
+        "handle_reservation",
+        "collector_allocation",
+        "asset_read",
+        "input_byte_read",
+        "provider_revalidation",
+        "provider_entry",
+        "collector_seal",
+        "output_handle_publication",
+    ]
 
 
 def test_local_host_rejects_partial_locked_inference_configuration(
