@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 
 import pytest
 
@@ -20,6 +22,10 @@ from dynamic_agent_runner.workflow_host.generation_worker_controllers import (
     install_cpu_memory_limit,
     machine_generation_worker_controllers,
 )
+from dynamic_agent_runner.workflow_host.generation_worker_assets import (
+    GenerationWorkerAssetHandleService,
+)
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 
 
 def _descriptor(*, execution_device: str) -> GenerationWorkerLaunchDescriptor:
@@ -91,6 +97,41 @@ def test_cpu_controller_starts_and_reaps_a_controlled_no_model_child() -> None:
 
     try:
         assert controller.wait_ready(child, 5.0) is True
+    finally:
+        assert controller.reap(child, 1.0) is True
+
+
+def test_cpu_child_rejects_a_changed_configured_asset_before_readiness(
+    tmp_path,
+) -> None:
+    asset = tmp_path / "converter.py"
+    content = b"converter = object()\n"
+    asset.write_bytes(content)
+    now = datetime.now(UTC)
+    service = GenerationWorkerAssetHandleService(
+        store=PrivateStateStore(tmp_path / "state"), owner="test-owner"
+    )
+    base = replace(
+        _descriptor(execution_device="cpu"),
+        budget=replace(
+            _descriptor(execution_device="cpu").budget, max_memory_bytes=2**62
+        ),
+    )
+    handle = service.issue(
+        descriptor=base,
+        source_path=asset,
+        expected_digest=sha256(content).hexdigest(),
+        expires_at=now + timedelta(minutes=1),
+        now=now,
+    )
+    descriptor = replace(base, asset_handles=(handle,))
+    asset.write_bytes(b"changed")
+    controller = CpuMultiprocessingGenerationWorkerController(
+        runner_id="runner-v1", asset_handles=service
+    )
+    child = controller.launch(descriptor)
+    try:
+        assert controller.wait_ready(child, 5.0) is False
     finally:
         assert controller.reap(child, 1.0) is True
 
