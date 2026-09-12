@@ -6,6 +6,7 @@ import multiprocessing
 import platform
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Protocol
 
 try:
@@ -63,6 +64,7 @@ class CpuMultiprocessingGenerationWorkerController:
         *,
         runner_id: str,
         process_context: object | None = None,
+        asset_handles: object | None = None,
     ) -> None:
         if (
             not isinstance(runner_id, str)
@@ -78,6 +80,7 @@ class CpuMultiprocessingGenerationWorkerController:
             if process_context is not None
             else multiprocessing.get_context("spawn")
         )
+        self._asset_handles = asset_handles
 
     def launch(self, descriptor: GenerationWorkerLaunchDescriptor) -> _CpuWorkerChild:
         """Start a fixed entry-point worker after validating CPU applicability."""
@@ -88,7 +91,12 @@ class CpuMultiprocessingGenerationWorkerController:
             child_command, parent_command = self._process_context.Pipe(duplex=False)
             process = self._process_context.Process(
                 target=_cpu_worker_entry,
-                args=(ready_sender, child_command, descriptor.to_wire()),
+                args=(
+                    ready_sender,
+                    child_command,
+                    descriptor.to_wire(),
+                    self._asset_handles,
+                ),
             )
             process.start()
             ready_sender.close()
@@ -363,11 +371,16 @@ def _cpu_worker_entry(
     ready_connection: object,
     command_connection: object,
     wire_descriptor: object,
+    asset_handles: object | None,
 ) -> None:
     """Fixed CPU bootstrap: validate, cap process memory, then acknowledge ready."""
 
     try:
-        descriptor = fixed_generation_worker_entry_point(wire_descriptor)
+        descriptor = fixed_generation_worker_entry_point(
+            wire_descriptor,
+            asset_handles=asset_handles,
+            now=datetime.now(UTC) if asset_handles is not None else None,
+        )
         install_cpu_memory_limit(descriptor.budget.max_memory_bytes)
         ready_connection.send(("ready",))
         command_connection.recv()

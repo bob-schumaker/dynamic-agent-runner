@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from datetime import datetime
 import json
 from typing import Mapping, NoReturn
 
@@ -802,7 +803,22 @@ def _has_matching_worker_bindings(
 
 def fixed_generation_worker_entry_point(
     wire_descriptor: object,
+    *,
+    asset_handles: object | None = None,
+    now: datetime | None = None,
 ) -> GenerationWorkerLaunchDescriptor:
     """Validate fixed worker input before any child asset resolution can begin."""
 
-    return GenerationWorkerLaunchDescriptor.from_wire(wire_descriptor)
+    descriptor = GenerationWorkerLaunchDescriptor.from_wire(wire_descriptor)
+    if asset_handles is not None:
+        resolve = getattr(asset_handles, "resolve", None)
+        if not callable(resolve) or not isinstance(now, datetime):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        try:
+            for handle in descriptor.asset_handles:
+                resolve(handle=handle, descriptor=descriptor, now=now)
+        except Exception as error:
+            raise GenerationWorkerProtocolError(
+                "generation worker protocol invalid"
+            ) from error
+    return descriptor

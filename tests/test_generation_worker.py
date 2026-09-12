@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime
 
 import pytest
 
@@ -14,6 +15,7 @@ from dynamic_agent_runner.workflow_host.generation_worker import (
     GenerationWorkerProtocolError,
     GenerationWorkerResult,
     GenerationWorkerSession,
+    fixed_generation_worker_entry_point,
 )
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
     GenerationDeadline,
@@ -91,6 +93,42 @@ def test_launch_descriptor_has_a_bounded_exact_non_executable_wire_mapping() -> 
     ):
         with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
             GenerationWorkerLaunchDescriptor.from_wire(invalid)
+
+
+def test_fixed_entry_resolves_every_opaque_asset_handle_before_ready() -> None:
+    descriptor = GenerationWorkerLaunchDescriptor(
+        "generation-worker-v1",
+        "a" * 64,
+        0,
+        "runner-v1",
+        "b" * 64,
+        "converter-v1",
+        "c" * 64,
+        "d" * 64,
+        "e" * 64,
+        "cpu",
+        _budget(),
+        ("asset-handle-1", "asset-handle-2"),
+    )
+    resolved: list[str] = []
+
+    class Handles:
+        def resolve(self, *, handle: str, descriptor: object, now: datetime) -> object:
+            assert descriptor == descriptor_to_resolve
+            assert now == datetime(2026, 1, 1, tzinfo=UTC)
+            resolved.append(handle)
+            return object()
+
+    descriptor_to_resolve = descriptor
+    assert (
+        fixed_generation_worker_entry_point(
+            descriptor.to_wire(),
+            asset_handles=Handles(),
+            now=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+        == descriptor
+    )
+    assert resolved == ["asset-handle-1", "asset-handle-2"]
 
 
 def test_launcher_revalidates_a_factory_descriptor_before_controller_launch() -> None:
