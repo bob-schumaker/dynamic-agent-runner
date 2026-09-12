@@ -18,6 +18,7 @@ from dynamic_agent_runner.workflow_host.generation_worker import (
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
     GenerationDeadline,
     GenerationMemoryReservationRequest,
+    GenerationRunnerCapability,
     GenerationResourceBudget,
     GenerationResourceBudgetError,
 )
@@ -32,6 +33,19 @@ def _budget() -> GenerationResourceBudget:
         max_effective_context_tokens=32,
         max_runtime_milliseconds=1_000,
         max_memory_bytes=1_024,
+    )
+
+
+def _worker_capability() -> GenerationRunnerCapability:
+    return GenerationRunnerCapability(
+        runner_id="runner-v1",
+        max_effective_context_tokens=32,
+        memory_admission_method="process_hard_limit",
+        pre_packing_containment_method="process_hard_limit",
+        supported_execution_devices=frozenset({"cpu"}),
+        worker_protocol="generation-worker-v1",
+        bootstrap_hard_limit_method="process_hard_limit",
+        generation_hard_limit_method="process_hard_limit",
     )
 
 
@@ -80,12 +94,13 @@ def test_launch_descriptor_has_a_bounded_exact_non_executable_wire_mapping() -> 
 
 
 def test_launcher_revalidates_a_factory_descriptor_before_controller_launch() -> None:
+    worker_capability = _worker_capability()
     descriptor = GenerationWorkerLaunchDescriptor(
         protocol_version="generation-worker-v1",
         invocation_digest="a" * 64,
         fragment_index=0,
         runner_id="runner-v1",
-        capability_contract_digest="b" * 64,
+        capability_contract_digest=worker_capability.contract_digest,
         converter_id="converter-v1",
         converter_asset_digest="c" * 64,
         material_lock_digest="d" * 64,
@@ -99,6 +114,7 @@ def test_launcher_revalidates_a_factory_descriptor_before_controller_launch() ->
 
     class Factory:
         runner_id = "runner-v1"
+        capability = worker_capability
 
         def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
             events.append("factory")
@@ -193,6 +209,48 @@ def test_launcher_rejects_a_controller_that_cannot_enforce_the_selected_device()
         )
 
 
+def test_launcher_rejects_a_factory_with_an_unbound_capability_contract() -> None:
+    descriptor = GenerationWorkerLaunchDescriptor(
+        "generation-worker-v1",
+        "a" * 64,
+        0,
+        "runner-v1",
+        "b" * 64,
+        "converter-v1",
+        "c" * 64,
+        "d" * 64,
+        "e" * 64,
+        "cpu",
+        _budget(),
+        ("asset-handle-1",),
+    )
+
+    class Factory:
+        runner_id = "runner-v1"
+        capability = _worker_capability()
+
+        def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
+            return descriptor
+
+    class Controller:
+        runner_id = "runner-v1"
+        supported_execution_devices = frozenset({"cpu"})
+
+        def launch(self, _descriptor: object) -> object:
+            pytest.fail("a mismatched capability must fail before launch")
+
+        def wait_ready(self, _child: object, _timeout: float) -> bool:
+            pytest.fail("a mismatched capability must not await readiness")
+
+    with pytest.raises(GenerationResourceBudgetError, match="memory budget"):
+        GenerationWorkerLauncher().launch(
+            factory=Factory(),
+            controller=Controller(),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000),
+            clock=lambda: 0.0,
+        )
+
+
 def test_launcher_preserves_controller_memory_unavailability() -> None:
     descriptor = GenerationWorkerLaunchDescriptor(
         "generation-worker-v1",
@@ -237,12 +295,13 @@ def test_launcher_preserves_controller_memory_unavailability() -> None:
 
 
 def test_launcher_reaps_a_child_when_readiness_fails() -> None:
+    worker_capability = _worker_capability()
     descriptor = GenerationWorkerLaunchDescriptor(
         protocol_version="generation-worker-v1",
         invocation_digest="a" * 64,
         fragment_index=0,
         runner_id="runner-v1",
-        capability_contract_digest="b" * 64,
+        capability_contract_digest=worker_capability.contract_digest,
         converter_id="converter-v1",
         converter_asset_digest="c" * 64,
         material_lock_digest="d" * 64,
@@ -256,6 +315,7 @@ def test_launcher_reaps_a_child_when_readiness_fails() -> None:
 
     class Factory:
         runner_id = "runner-v1"
+        capability = worker_capability
 
         def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
             return descriptor
@@ -294,12 +354,13 @@ def test_launcher_reaps_a_child_when_readiness_fails() -> None:
 
 
 def test_launcher_reaps_a_ready_child_when_its_deadline_expires() -> None:
+    worker_capability = _worker_capability()
     descriptor = GenerationWorkerLaunchDescriptor(
         "generation-worker-v1",
         "a" * 64,
         0,
         "runner-v1",
-        "b" * 64,
+        worker_capability.contract_digest,
         "converter-v1",
         "c" * 64,
         "d" * 64,
@@ -313,6 +374,7 @@ def test_launcher_reaps_a_ready_child_when_its_deadline_expires() -> None:
 
     class Factory:
         runner_id = "runner-v1"
+        capability = worker_capability
 
         def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
             return descriptor

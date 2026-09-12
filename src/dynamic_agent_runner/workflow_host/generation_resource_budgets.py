@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
+from hashlib import sha256
+import json
 import math
 from typing import Protocol
 
@@ -254,6 +256,25 @@ class GenerationRunnerCapability:
         ):
             return
         raise GenerationResourceBudgetError("generation budget is invalid")
+
+    @property
+    def contract_digest(self) -> str:
+        """Return the stable identity bound into a worker launch descriptor."""
+
+        payload = {
+            "runner_id": self.runner_id,
+            "max_effective_context_tokens": self.max_effective_context_tokens,
+            "memory_admission_method": self.memory_admission_method,
+            "pre_packing_containment_method": self.pre_packing_containment_method,
+            "supported_execution_devices": sorted(self.supported_execution_devices),
+            "cancellation_phases": sorted(self.cancellation_phases),
+            "worker_protocol": self.worker_protocol,
+            "bootstrap_hard_limit_method": self.bootstrap_hard_limit_method,
+            "generation_hard_limit_method": self.generation_hard_limit_method,
+        }
+        return sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
 
 
 def parse_generation_resource_budget(value: object) -> GenerationResourceBudget:

@@ -13,6 +13,7 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
     GenerationMemoryReservationRequest,
     MemoryReservationProvider,
     ReservedGenerationMemory,
+    GenerationRunnerCapability,
     GenerationResourceBudget,
     GenerationResourceBudgetError,
     parse_generation_resource_budget,
@@ -786,8 +787,13 @@ def _has_matching_worker_bindings(
     """Reject a mismatched runner/device controller before child launch."""
 
     supported_devices = getattr(controller, "supported_execution_devices", None)
+    capability = getattr(factory, "capability", None)
     return (
         getattr(factory, "runner_id", None) == descriptor.runner_id
+        and isinstance(capability, GenerationRunnerCapability)
+        and capability.runner_id == descriptor.runner_id
+        and capability.worker_protocol == descriptor.protocol_version
+        and capability.contract_digest == descriptor.capability_contract_digest
         and getattr(controller, "runner_id", None) == descriptor.runner_id
         and isinstance(supported_devices, frozenset)
         and descriptor.execution_device in supported_devices
