@@ -576,6 +576,24 @@ def test_worker_rejects_stale_receipts_out_of_order_authorization_and_overage() 
             fragment_index=1,
             remaining_generated_tokens=4,
         )
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        worker.authorize(
+            receipt=receipt,
+            fragment_index=0,
+            remaining_generated_tokens=4,
+        )
+
+    worker = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=2,
+    )
+    receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
     with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
         worker.result(
             receipt=receipt,
@@ -750,6 +768,33 @@ def test_worker_binds_sequential_fragments_to_aggregate_token_and_byte_limits() 
 
     with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
         worker.pack(fragment_index=2, packed_context_tokens=3)
+
+    worker = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=2,
+        max_total_output_bytes=3,
+    )
+    first = worker.pack(fragment_index=0, packed_context_tokens=3)
+    worker.authorize(
+        receipt=first,
+        fragment_index=0,
+        remaining_generated_tokens=2,
+    )
+    assert worker.result(
+        receipt=first,
+        fragment_index=0,
+        candidate=b"a",
+        generated_tokens=1,
+    ) == GenerationWorkerResult(
+        candidate=b"a",
+        generated_tokens=1,
+        aggregate_generated_tokens=1,
+        aggregate_output_bytes=1,
+    )
 
     second = worker.pack(fragment_index=1, packed_context_tokens=3)
     worker.authorize(

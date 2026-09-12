@@ -220,6 +220,7 @@ class GenerationWorkerSession:
             or fragment_index != self._next_fragment_index
             or not _nonnegative_int(packed_context_tokens)
         ):
+            self._failed = True
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         receipt = GenerationWorkerPackReceipt(
             *self._identity,
@@ -243,6 +244,7 @@ class GenerationWorkerSession:
             or fragment_index != getattr(receipt, "fragment_index", None)
             or not _positive_int(remaining_generated_tokens)
         ):
+            self._failed = True
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         self._authorization = (receipt, remaining_generated_tokens)
 
