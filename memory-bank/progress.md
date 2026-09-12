@@ -3,6 +3,14 @@
 
 ## Working
 
+- `model-generation-resource-budgets` was refined in `ff7262d` as a spec-only
+  contract. The generic converter-capable model-adapter owns sealed-input
+  binding, budget resolution, admission/lifecycle, aggregate accounting,
+  redacted telemetry, and terminal response shaping. Worker-capable
+  registrations require one parent-only factory and a reviewed controller;
+  unsupported runner/device containment or bounded reap rejects before
+  sealed-input ingress. T4.1 is complete; all remaining runtime work remains
+  RED-first gated.
 - `fastmail-inbox-triage` is complete through the registered direct-llama.cpp/
   Qwen v4 package. The owner-authorized read-only acceptance produced a
   contract-valid `needs_review` report with one `needs_reply` item and no
