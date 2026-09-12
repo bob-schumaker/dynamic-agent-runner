@@ -173,6 +173,7 @@ class GenerationWorkerResult:
     generated_tokens: int
     aggregate_generated_tokens: int
     aggregate_output_bytes: int
+    exhausted: bool = False
 
 
 class GenerationWorkerSession:
@@ -259,6 +260,7 @@ class GenerationWorkerSession:
         generated_tokens: int,
         reported_aggregate_generated_tokens: int | None = None,
         reported_aggregate_output_bytes: int | None = None,
+        exhausted: bool = False,
     ) -> GenerationWorkerResult:
         authorization = self._authorization
         if (
@@ -268,6 +270,7 @@ class GenerationWorkerSession:
             or fragment_index != receipt.fragment_index
             or not isinstance(candidate, bytes)
             or not _nonnegative_int(generated_tokens)
+            or not isinstance(exhausted, bool)
         ):
             self._failed = True
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
@@ -303,6 +306,7 @@ class GenerationWorkerSession:
             generated_tokens,
             self._total_generated_tokens,
             self._total_output_bytes,
+            exhausted,
         )
 
 
@@ -632,13 +636,14 @@ class GenerationWorkerLauncher:
         result = generate()
         if (
             not isinstance(result, tuple)
-            or len(result) not in (2, 4)
+            or len(result) not in (2, 3, 4, 5)
             or not isinstance(result[0], bytes)
         ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         deadline.require_remaining(clock())
-        reported_generated_tokens = result[2] if len(result) == 4 else None
-        reported_output_bytes = result[3] if len(result) == 4 else None
+        reported_generated_tokens = result[2] if len(result) in (4, 5) else None
+        reported_output_bytes = result[3] if len(result) in (4, 5) else None
+        exhausted = result[-1] if len(result) in (3, 5) else False
         return session.result(
             receipt=receipt,
             fragment_index=receipt.fragment_index,
@@ -646,6 +651,7 @@ class GenerationWorkerLauncher:
             generated_tokens=result[1],
             reported_aggregate_generated_tokens=reported_generated_tokens,
             reported_aggregate_output_bytes=reported_output_bytes,
+            exhausted=exhausted,
         )
 
     def _close_with_controller(

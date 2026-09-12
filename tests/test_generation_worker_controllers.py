@@ -69,6 +69,11 @@ class _CpuInconsistentAggregateRuntime(_CpuIpcRuntime):
         return b"{}", 2, 3, 1
 
 
+class _CpuExhaustedRuntime(_CpuIpcRuntime):
+    def generate(self) -> tuple[bytes, int, int, int, bool]:
+        return b"{}", 2, 2, 2, True
+
+
 class _CpuRuntimeFactory:
     """Pickle-safe child-only runtime construction for the CPU controller."""
 
@@ -373,6 +378,36 @@ def test_cpu_child_rejects_generation_before_authorization() -> None:
         assert controller.wait_ready(child, 5.0) is True
         with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
             child.generate()
+    finally:
+        assert controller.reap(child, 1.0) is True
+
+
+def test_cpu_child_returns_the_bounded_exhaustion_scalar() -> None:
+    base_descriptor = _descriptor(execution_device="cpu")
+    descriptor = replace(
+        base_descriptor,
+        budget=replace(base_descriptor.budget, max_memory_bytes=2**62),
+    )
+    controller = CpuMultiprocessingGenerationWorkerController(
+        runner_id="runner-v1", worker_runtime=_CpuExhaustedRuntime()
+    )
+    child = controller.launch(descriptor)
+    receipt = GenerationWorkerPackReceipt(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="c" * 64,
+        material_lock_digest="d" * 64,
+        execution_device="cpu",
+        fragment_index=0,
+        packed_context_tokens=3,
+    )
+
+    try:
+        assert controller.wait_ready(child, 5.0) is True
+        child.install_bootstrap_limit(2**62, "cpu")
+        assert child.pack() == 3
+        child.authorize(receipt, 2)
+        assert child.generate() == (b"{}", 2, 2, 2, True)
     finally:
         assert controller.reap(child, 1.0) is True
 

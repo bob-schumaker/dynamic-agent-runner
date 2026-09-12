@@ -64,7 +64,14 @@ class CpuGenerationWorkerRuntime(Protocol):
         self, receipt: GenerationWorkerPackReceipt, remaining_generated_tokens: int
     ) -> None: ...
 
-    def generate(self) -> tuple[bytes, int] | tuple[bytes, int, int, int]: ...
+    def generate(
+        self,
+    ) -> (
+        tuple[bytes, int]
+        | tuple[bytes, int, bool]
+        | tuple[bytes, int, int, int]
+        | tuple[bytes, int, int, int, bool]
+    ): ...
 
 
 @dataclass
@@ -109,16 +116,36 @@ class _CpuWorkerChild:
             "authorized",
         )
 
-    def generate(self) -> tuple[bytes, int] | tuple[bytes, int, int, int]:
+    def generate(
+        self,
+    ) -> (
+        tuple[bytes, int]
+        | tuple[bytes, int, bool]
+        | tuple[bytes, int, int, int]
+        | tuple[bytes, int, int, int, bool]
+    ):
         response = self._request({"type": "generate"}, "result")
         candidate = response.get("candidate")
         generated_tokens = response.get("generated_tokens")
         aggregate_generated_tokens = response.get("aggregate_generated_tokens")
         aggregate_output_bytes = response.get("aggregate_output_bytes")
+        exhausted = response.get("exhausted")
         if not isinstance(candidate, bytes) or not _nonnegative_int(generated_tokens):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         if aggregate_generated_tokens is None and aggregate_output_bytes is None:
-            return candidate, generated_tokens
+            if exhausted is None:
+                return candidate, generated_tokens
+            if not isinstance(exhausted, bool):
+                raise GenerationWorkerProtocolError(
+                    "generation worker protocol invalid"
+                )
+            return candidate, generated_tokens, exhausted
+        if exhausted is None:
+            exhaustion_suffix: tuple[bool, ...] = ()
+        elif isinstance(exhausted, bool):
+            exhaustion_suffix = (exhausted,)
+        else:
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
         if not _nonnegative_int(aggregate_generated_tokens) or not _nonnegative_int(
             aggregate_output_bytes
         ):
@@ -128,6 +155,7 @@ class _CpuWorkerChild:
             generated_tokens,
             aggregate_generated_tokens,
             aggregate_output_bytes,
+            *exhaustion_suffix,
         )
 
     def _request(
@@ -165,6 +193,15 @@ class _CpuWorkerChild:
                         "generated_tokens",
                         "aggregate_generated_tokens",
                         "aggregate_output_bytes",
+                    },
+                    {"type", "candidate", "generated_tokens", "exhausted"},
+                    {
+                        "type",
+                        "candidate",
+                        "generated_tokens",
+                        "aggregate_generated_tokens",
+                        "aggregate_output_bytes",
+                        "exhausted",
                     },
                 )
             )
@@ -684,7 +721,7 @@ def _cpu_generate_response(
     result = worker_runtime.generate()
     if (
         not isinstance(result, tuple)
-        or len(result) not in (2, 4)
+        or len(result) not in (2, 3, 4, 5)
         or not isinstance(result[0], bytes)
         or not _nonnegative_int(result[1])
         or result[1] > authorized_remaining_generated_tokens
@@ -692,7 +729,13 @@ def _cpu_generate_response(
     ):
         raise GenerationWorkerProtocolError("generation worker protocol invalid")
     response = {"type": "result", "candidate": result[0], "generated_tokens": result[1]}
-    if len(result) == 2:
+    if len(result) in (2, 3):
+        if len(result) == 3:
+            if not isinstance(result[2], bool):
+                raise GenerationWorkerProtocolError(
+                    "generation worker protocol invalid"
+                )
+            response["exhausted"] = result[2]
         return response
     if (
         not _nonnegative_int(result[2])
@@ -701,10 +744,15 @@ def _cpu_generate_response(
         or result[3] != len(result[0])
     ):
         raise GenerationWorkerProtocolError("generation worker protocol invalid")
-    return response | {
+    response |= {
         "aggregate_generated_tokens": result[2],
         "aggregate_output_bytes": result[3],
     }
+    if len(result) == 5:
+        if not isinstance(result[4], bool):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        response["exhausted"] = result[4]
+    return response
 
 
 def _receipt_to_wire(receipt: object) -> dict[str, object]:
