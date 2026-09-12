@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation has begun, but no task below meets its complete definition.
+Implementation has begun; only T4.1 currently meets its complete definition.
 Runtime changes remain gated by the RED-first tasks.
 
 ## S1 — Canonical Contract and Admission
@@ -16,7 +16,10 @@ Runtime changes remain gated by the RED-first tasks.
   malformed optional sources fail with the specified finite classification.
 - [ ] T1.2 [tests, RED] Add capability-record and registration vectors for
   DAR-owned and `LocalModelRunnerCatalog` runners: exact identity binding,
-  duplicate runner/capability rejection, both/neither lifecycle forms,
+  duplicate runner/capability rejection, exactly one worker-only factory bound
+  to each worker capability and none for cancellation capability, reviewed
+  controller identity bound to the selected worker runner/device pair,
+  both/neither lifecycle forms,
   missing/incompatible pre-packing containment, missing worker generation-stage
   hard limit, and a selected device the containment cannot cover.
 - [ ] T1.3 [implementation] Add the immutable budget/host resolver and
@@ -65,7 +68,11 @@ Runtime changes remain gated by the RED-first tasks.
 - [ ] T3.2 [tests, RED] Add deterministic fake-child launcher vectors: the
   bootstrap cap is no greater than the effective memory ceiling, covers host and
   selected-device allocation, begins before packing, and rejects attempted
-  packing-phase model/accelerator entry before model load.
+  packing-phase model/accelerator entry before model load; prove launch enters
+  the cap before child execution and the monotonic deadline starts before
+  launch/packing. Prove only reviewed runner/device containment with bounded
+  reap confirmation admits execution; unsupported combinations fail before
+  sealed-input ingress with `generation_memory_budget_unavailable`.
 - [ ] T3.3 [tests, RED] Add a `generation-worker-v1` transcript suite. Cover
   every message identity and transition: missing/wrong invocation ID or fragment
   index, duplicate/out-of-order authorization, an unauthorized receipt result,
@@ -73,11 +80,17 @@ Runtime changes remain gated by the RED-first tasks.
   finite failure classification. Distinguish control receipts/scalars from
   private admitted candidate bytes; prove tensors, token IDs, objects, paths,
   and workflow-visible partial output never cross.
+- [ ] T3.3a [tests, RED] Add typed launch-descriptor vectors before worker
+  implementation: exact versioned bounded wire mapping, required identities and
+  fragment binding, opaque controller-issued handles only, parent-only factory,
+  fixed entry-point revalidation before asset resolution, and rejection of
+  paths, callables, arbitrary imports, loader code, or unknown identities.
 - [ ] T3.4 [tests, RED] Add scalar/frame accounting vectors. Prove the worker's
   exact generated-token attestation is bound to receipt/fragment identity;
   reject a count over its authorization, aggregate/fragment mismatch, or bad
   continuation count; accept exact boundaries; recompute received byte counts;
-  bound metadata frames; and prove oversized candidate bytes never enter IPC.
+  bound launch-descriptor mappings and candidate/aggregate bytes; and prove
+  oversized candidate bytes never enter IPC.
 - [ ] T3.5 [tests, RED] Add deadline/lifecycle vectors: cancellation-capable,
   noninterruptible, and worker runners; a controlled no-model real child that
   blocks after ready; expiry during generation and during reap; no admitted late
@@ -92,6 +105,10 @@ Runtime changes remain gated by the RED-first tasks.
   untrusted-code sandbox in this slice. Record that this process uses the
   current sealed workflow-asset trust model and must migrate with converters
   and sealed artifacts when DAR adds its common approved isolation backend.
+  Bind the reviewed controller and worker-only factory to the selected worker
+  registration. On every normal, exceptional, cancellation, and deadline path
+  close frame admission, discard candidate/private state, reap as applicable,
+  record cleanup, and release the reservation only after reap confirmation.
 - [ ] T3.7 [tests, GREEN] Rerun T3.1–T3.5 vectors against the implementation.
   Prove the exact bootstrap -> pack receipt -> reserve -> authorize ->
   generate-result sequence for every fragment; exactly one reap and reservation
@@ -113,19 +130,28 @@ Runtime changes remain gated by the RED-first tasks.
 
 ## S4 — Migration and Evidence
 
-- [x] T4.1 [tests, RED] Migrate the Transformers/PEFT continuation path from
-  hard-coded `1_000_000`/`32` ceilings to the resolved canonical budget.
+- [x] T4.1 [tests, RED] Migrate the generic converter-capable model-adapter
+  continuation path from hard-coded `1_000_000`/`32` ceilings to the resolved
+  canonical budget. Keep the current Transformers/PEFT single-image workflow
+  only as a conformance fixture.
 - [ ] T4.2 [tests, RED] Add converter/plugin migration vectors. Prove a bounded
   worker co-locates the exact digest-verified converter and compatible runner,
+  loads the converter through the existing sealed creator-asset loader and
+  restricted converter context rather than a worker-specific loader contract,
   never serializes `PackedModelInput`, admits the registered
   `GenerationRunnerCapability`, and rejects a missing/incompatible receiver
-  capability before launch.
+  capability before launch. Reuse the S3 descriptor/factory conformance suite.
 - [ ] T4.3 [implementation] Remove duplicate generation-limit ownership from
-  Transformers/PEFT, converter, and local-runner paths while retaining temporary
-  compatibility aliases at the public request boundary. Implement the worker
-  co-location seam and amend the named converter, local-runner, and
-  model-execution-plugin contracts to the generic capability record.
-- [ ] T4.4 [tests, GREEN] Rerun T4.1–T4.2. Prove all built-in and
+  the generic converter-capable adapter, converter, and local-runner paths
+  while retaining temporary compatibility aliases at the public request
+  boundary. Implement the worker co-location seam and generic adapter
+  worker-child factory contract; amend converter, local-runner, and
+  model-execution-plugin contracts to the generic capability record. Keep
+  model-family and modality-specific code in conformance fixtures. The adapter
+  obtains the selected registration, invokes the worker-only factory solely
+  through the fixed DAR entry point, and retains aggregate accounting, redacted
+  telemetry, and terminal response shaping in the parent.
+- [ ] T4.4 [tests, GREEN] Rerun T4.1–T4.2 and T3.3a. Prove all built-in and
   receiver-installed runners register `GenerationRunnerCapability`, legacy
   aliases exist only at the public boundary, and obsolete per-runner limit
   ownership is absent.
@@ -134,9 +160,11 @@ Runtime changes remain gated by the RED-first tasks.
   model-budget suites without a live model or GPU.
 - [ ] T4.6 [manual gate] With explicit authorization, run one supported local
   model under a declared bounded budget and record only redacted effective
-  limits, aggregate facts, and one supported-worker receipt showing bootstrap,
-  authorization, and reap. An unsupported machine may additionally record a
-  redacted pre-dispatch rejection; an OS memory kill fails this gate.
+  limits and aggregate facts. For the worker lifecycle form, also record a
+  supported receipt showing bootstrap, authorization, and reap; for the
+  cancellation lifecycle form, record bounded terminal cleanup. An unsupported
+  machine may additionally record a redacted pre-dispatch rejection; an OS
+  memory kill fails this gate.
 - [ ] T4.7 [validation] Run `poetry run pytest -q`,
   `poetry run ruff check src tests`, and `git diff --check`; update the related
   spec statuses and remove compatibility aliases only after all consumers have

@@ -86,12 +86,34 @@ invocation-time policy. The host supplies its private ceilings. These inputs
 and the sealed declared budget resolve one effective budget before model
 loading.
 
+The generic converter-capable model-adapter boundary owns sealed-input binding,
+budget resolution, worker lifecycle, reservation admission, receipt/result
+validation, aggregate accounting, redacted telemetry, and terminal response
+construction. Its worker-child factory is bound to exact converter/material
+identities and constructs converter, packed-input, processor, and runner state
+locally. No DAR budget contract is named for a modality, pixel/image decoder,
+model family, or concrete adapter class; those remain workflow conformance
+implementations of this boundary.
+
+Platform memory containment is available only when the selected runner/device
+pair supplies a reviewed, enforceable containment implementation for the
+declared bootstrap and generation-stage envelopes. DAR does not claim one
+portable CPU, RSS, accelerator, or unified-memory limiter. An unsupported or
+unenforceable pair fails before sealed-input ingress with
+`generation_memory_budget_unavailable`.
+
 For a receiver-installed local runner, `LocalModelRunnerCatalog` registers the
 runner identifier and exactly one `GenerationRunnerCapability` together. The
 catalog rejects a missing capability, duplicate runner identifier, duplicate
 capability binding, or capability whose runner identity differs from the
 registered runner before `create_adapter` runs. DAR-owned runners use the same
 validation rule at their registration boundary.
+
+A worker-capable registration additionally contains exactly one parent-only
+worker-child factory bound to the same runner identity and capability contract.
+The registration rejects a missing, duplicate, mismatched, or worker-protocol-
+incompatible factory before launch. Cancellation-capable registrations have no
+factory. The factory produces only the launch descriptor defined below.
 
 A `MemoryReservationProvider` is receiver-installed and accepts only the
 selected material-lock identity, runner identity, selected execution device,
@@ -125,10 +147,39 @@ fragment, and reap. The parent resolves the effective budget and supplies only:
 - the resolved generation budget and selected execution device; and
 - a host-private worker invocation identifier.
 
+The child loads creator-supplied converter code through the same DAR-owned
+sealed-asset declaration, digest verification, and restricted converter-context
+pattern used by the current in-process converter loader. Moving that loader
+into a child does not widen its authority, make the converter an IPC protocol
+participant, or create a distinct worker trust regime. The child receives the
+verified asset identity and host-private asset-access configuration; it never
+receives a workflow-selected import path, arbitrary loader callback, host model
+object, or device handle during packing.
+
+The receiver-registered worker-child factory executes only in the parent under
+that established sealed-asset trust path. It returns a typed immutable
+`GenerationWorkerLaunchDescriptor`; DAR validates it, serializes its exact
+fields, and sends it to a fixed DAR worker entry point. The descriptor contains
+only the worker protocol version, runner capability contract, converter and
+material/descriptor identities, selected device, resolved budget, sealed
+invocation/fragment identities, and host-private read-only asset locators or
+handles. The worker revalidates it and reconstitutes only registered typed
+components. It never deserializes a callable, imports a workflow-selected
+module, or accepts arbitrary model-loading code. The immutable descriptor has
+an exact versioned mapping encoding and a fixed host-private maximum byte size.
+Its required fields are protocol version; invocation digest and fragment index;
+runner ID and capability-contract digest; converter ID and asset digest;
+material-lock and execution-descriptor digests; selected device; canonical
+budget; and opaque controller-issued read-only asset handles. The parent
+validates it before framing; the fixed entry point validates it before any asset
+resolution. Handles are not paths, cannot be supplied by workflow input, and
+are never emitted in workflow-visible frames.
+
 Before worker launch, the host applies a reviewed bootstrap packing envelope:
 a process/runtime hard memory limit and deadline remain active while converter
 and processor state are constructed and input is packed. The bootstrap envelope
-is sufficient for the declared maximum input and converter limit, permits no
+is sufficient for the selected sealed-input byte declaration and converter
+declared input/output limits, permits no
 model loading or accelerator allocation, and cannot exceed the effective memory
 ceiling. The generation-stage hard limit may tighten that envelope after
 admission but cannot replace it. Thus packing exhaustion terminates and reaps
@@ -145,6 +196,16 @@ If a platform cannot enforce the declared bootstrap envelope for both host and
 selected-device allocations, that runner/device combination is unavailable.
 The same pre-packing containment rule applies to a cancellation-capable
 in-process runner before it decodes or packs input.
+
+The selected runner/device registration supplies a reviewed platform-controller
+implementation with bounded `launch`, `wait_ready`, `terminate`, `kill`, and
+`reap` operations. On expiry the parent stops admitting frames, attempts
+terminate, escalates to kill after the controller's declared bounded grace
+interval, and then requires reap confirmation. Launch, readiness, IPC, or
+controller-operation failure is `generation_execution_failed`; a deadline path
+that reaches termination is `generation_deadline_exceeded`. A controller that
+cannot provide bounded reap confirmation is unavailable before launch. The
+parent releases a reservation only after cleanup and reap confirmation.
 
 The worker constructs converter state, processor state, packed tensors,
 generation/KV-cache state, and model state locally. Host-controlled launch
@@ -173,8 +234,8 @@ these scalars are not token IDs. It has exactly these transitions:
    returns its candidate bytes privately with the safe scalar counts, or a
    terminal classification. Before framing candidate bytes, the worker checks
    its exact aggregate output-byte count, discards an oversized candidate, and
-   limits an admitted frame to the remaining output-byte budget plus a fixed
-   host-private metadata-frame ceiling. The parent recomputes every fragment
+   limits an admitted frame to the remaining output-byte budget. The parent
+   recomputes every fragment
    and aggregate byte count from received bytes; reported byte scalars are
    consistency checks, not trusted accounting. A continuation repeats `pack`
    and admission for its next fragment. The generation-stage hard limit is
