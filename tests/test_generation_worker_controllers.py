@@ -14,6 +14,8 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
 )
 from dynamic_agent_runner.workflow_host.generation_worker import (
     GenerationWorkerLaunchDescriptor,
+    GenerationWorkerPackReceipt,
+    GenerationWorkerProtocolError,
 )
 from dynamic_agent_runner.workflow_host.generation_worker_controllers import (
     CpuMultiprocessingGenerationWorkerController,
@@ -26,6 +28,26 @@ from dynamic_agent_runner.workflow_host.generation_worker_assets import (
     GenerationWorkerAssetHandleService,
 )
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore
+
+
+class _CpuIpcRuntime:
+    """Pickle-safe controlled child runtime used only by the transport test."""
+
+    def install_bootstrap_limit(
+        self, max_memory_bytes: int, execution_device: str
+    ) -> None:
+        if max_memory_bytes <= 0 or execution_device != "cpu":
+            raise ValueError("invalid test runtime request")
+
+    def pack(self) -> int:
+        return 3
+
+    def authorize(self, _receipt: object, remaining_generated_tokens: int) -> None:
+        if remaining_generated_tokens != 2:
+            raise ValueError("invalid test authorization")
+
+    def generate(self) -> tuple[bytes, int]:
+        return b"{}", 2
 
 
 def _descriptor(*, execution_device: str) -> GenerationWorkerLaunchDescriptor:
@@ -97,6 +119,55 @@ def test_cpu_controller_starts_and_reaps_a_controlled_no_model_child() -> None:
 
     try:
         assert controller.wait_ready(child, 5.0) is True
+    finally:
+        assert controller.reap(child, 1.0) is True
+
+
+def test_cpu_child_transports_pack_authorize_and_generate_frames() -> None:
+    base_descriptor = _descriptor(execution_device="cpu")
+    descriptor = replace(
+        base_descriptor,
+        budget=replace(base_descriptor.budget, max_memory_bytes=2**62),
+    )
+    controller = CpuMultiprocessingGenerationWorkerController(
+        runner_id="runner-v1", worker_runtime=_CpuIpcRuntime()
+    )
+    child = controller.launch(descriptor)
+    receipt = GenerationWorkerPackReceipt(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="c" * 64,
+        material_lock_digest="d" * 64,
+        execution_device="cpu",
+        fragment_index=0,
+        packed_context_tokens=3,
+    )
+
+    try:
+        assert controller.wait_ready(child, 5.0) is True
+        child.install_bootstrap_limit(2**62, "cpu")
+        assert child.pack() == 3
+        child.authorize(receipt, 2)
+        assert child.generate() == (b"{}", 2)
+    finally:
+        assert controller.reap(child, 1.0) is True
+
+
+def test_cpu_child_rejects_generation_before_authorization() -> None:
+    base_descriptor = _descriptor(execution_device="cpu")
+    descriptor = replace(
+        base_descriptor,
+        budget=replace(base_descriptor.budget, max_memory_bytes=2**62),
+    )
+    controller = CpuMultiprocessingGenerationWorkerController(
+        runner_id="runner-v1", worker_runtime=_CpuIpcRuntime()
+    )
+    child = controller.launch(descriptor)
+
+    try:
+        assert controller.wait_ready(child, 5.0) is True
+        with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+            child.generate()
     finally:
         assert controller.reap(child, 1.0) is True
 

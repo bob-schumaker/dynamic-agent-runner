@@ -584,6 +584,7 @@ class GenerationWorkerLauncher:
                 provider=provider,
                 request=request,
             )
+            _authorize_child_if_supported(child, receipt, remaining_generated_tokens)
             deadline.require_remaining(now)
             return self._validated_generation_result(
                 generate=generate,
@@ -715,6 +716,16 @@ class GenerationWorkerLauncher:
             raise GenerationWorkerProtocolError(
                 "generation worker protocol invalid"
             ) from error
+
+
+def _authorize_child_if_supported(
+    child: object,
+    receipt: GenerationWorkerPackReceipt,
+    remaining_generated_tokens: int,
+) -> None:
+    authorize = getattr(child, "authorize", None)
+    if callable(authorize):
+        authorize(receipt, remaining_generated_tokens)
 
 
 def _nonnegative_int(value: object) -> bool:

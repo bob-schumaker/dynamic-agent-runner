@@ -20,9 +20,13 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
 )
 from dynamic_agent_runner.workflow_host.generation_worker import (
     GenerationWorkerLaunchDescriptor,
+    GenerationWorkerPackReceipt,
     GenerationWorkerProtocolError,
     fixed_generation_worker_entry_point,
 )
+
+
+_IPC_TIMEOUT_SECONDS = 5.0
 
 
 class MetalMpsWorkerRuntime(Protocol):
@@ -47,11 +51,127 @@ class MetalMpsWorkerRuntime(Protocol):
         """Confirm that a terminated child has been reaped."""
 
 
+class CpuGenerationWorkerRuntime(Protocol):
+    """Receiver-installed child behavior exposed through fixed scalar frames."""
+
+    def install_bootstrap_limit(
+        self, max_memory_bytes: int, execution_device: str
+    ) -> None: ...
+
+    def pack(self) -> int | tuple[int, bool]: ...
+
+    def authorize(
+        self, receipt: GenerationWorkerPackReceipt, remaining_generated_tokens: int
+    ) -> None: ...
+
+    def generate(self) -> tuple[bytes, int] | tuple[bytes, int, int, int]: ...
+
+
 @dataclass
 class _CpuWorkerChild:
     process: object
     command_connection: object
+    response_connection: object
     ready_connection: object
+
+    def install_bootstrap_limit(
+        self, max_memory_bytes: int, execution_device: str
+    ) -> None:
+        self._request(
+            {
+                "type": "pack",
+                "max_memory_bytes": max_memory_bytes,
+                "execution_device": execution_device,
+            },
+            "packed",
+        )
+
+    def pack(self) -> int:
+        response = getattr(self, "_last_response", None)
+        packed_context_tokens = (
+            response.get("packed_context_tokens")
+            if isinstance(response, Mapping)
+            else None
+        )
+        if not _nonnegative_int(packed_context_tokens):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        return packed_context_tokens
+
+    def authorize(
+        self, receipt: GenerationWorkerPackReceipt, remaining_generated_tokens: int
+    ) -> None:
+        self._request(
+            {
+                "type": "authorize",
+                "receipt": _receipt_to_wire(receipt),
+                "remaining_generated_tokens": remaining_generated_tokens,
+            },
+            "authorized",
+        )
+
+    def generate(self) -> tuple[bytes, int] | tuple[bytes, int, int, int]:
+        response = self._request({"type": "generate"}, "result")
+        candidate = response.get("candidate")
+        generated_tokens = response.get("generated_tokens")
+        aggregate_generated_tokens = response.get("aggregate_generated_tokens")
+        aggregate_output_bytes = response.get("aggregate_output_bytes")
+        if not isinstance(candidate, bytes) or not _nonnegative_int(generated_tokens):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        if aggregate_generated_tokens is None and aggregate_output_bytes is None:
+            return candidate, generated_tokens
+        if not _nonnegative_int(aggregate_generated_tokens) or not _nonnegative_int(
+            aggregate_output_bytes
+        ):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        return (
+            candidate,
+            generated_tokens,
+            aggregate_generated_tokens,
+            aggregate_output_bytes,
+        )
+
+    def _request(
+        self, request: Mapping[str, object], response_type: str
+    ) -> Mapping[str, object]:
+        try:
+            self.command_connection.send(dict(request))
+            if not self.response_connection.poll(_IPC_TIMEOUT_SECONDS):
+                raise GenerationWorkerProtocolError(
+                    "generation worker protocol invalid"
+                )
+            response = self.response_connection.recv()
+        except GenerationWorkerProtocolError:
+            raise
+        except Exception as error:
+            raise GenerationWorkerProtocolError(
+                "generation worker protocol invalid"
+            ) from error
+        if (
+            not isinstance(response, Mapping)
+            or response.get("type") != response_type
+            or (
+                response_type == "packed"
+                and set(response) != {"type", "packed_context_tokens"}
+            )
+            or (response_type == "authorized" and set(response) != {"type"})
+            or (
+                response_type == "result"
+                and set(response)
+                not in (
+                    {"type", "candidate", "generated_tokens"},
+                    {
+                        "type",
+                        "candidate",
+                        "generated_tokens",
+                        "aggregate_generated_tokens",
+                        "aggregate_output_bytes",
+                    },
+                )
+            )
+        ):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        self._last_response = response
+        return response
 
 
 class CpuMultiprocessingGenerationWorkerController:
@@ -65,6 +185,7 @@ class CpuMultiprocessingGenerationWorkerController:
         runner_id: str,
         process_context: object | None = None,
         asset_handles: object | None = None,
+        worker_runtime: CpuGenerationWorkerRuntime | None = None,
     ) -> None:
         if (
             not isinstance(runner_id, str)
@@ -81,6 +202,7 @@ class CpuMultiprocessingGenerationWorkerController:
             else multiprocessing.get_context("spawn")
         )
         self._asset_handles = asset_handles
+        self._worker_runtime = worker_runtime
 
     def launch(self, descriptor: GenerationWorkerLaunchDescriptor) -> _CpuWorkerChild:
         """Start a fixed entry-point worker after validating CPU applicability."""
@@ -89,21 +211,28 @@ class CpuMultiprocessingGenerationWorkerController:
         try:
             ready_receiver, ready_sender = self._process_context.Pipe(duplex=False)
             child_command, parent_command = self._process_context.Pipe(duplex=False)
+            response_receiver, response_sender = self._process_context.Pipe(
+                duplex=False
+            )
             process = self._process_context.Process(
                 target=_cpu_worker_entry,
                 args=(
                     ready_sender,
                     child_command,
+                    response_sender,
                     descriptor.to_wire(),
                     self._asset_handles,
+                    self._worker_runtime,
                 ),
             )
             process.start()
             ready_sender.close()
             child_command.close()
+            response_sender.close()
             return _CpuWorkerChild(
                 process=process,
                 command_connection=parent_command,
+                response_connection=response_receiver,
                 ready_connection=ready_receiver,
             )
         except Exception as error:
@@ -163,6 +292,7 @@ class CpuMultiprocessingGenerationWorkerController:
             return False
         finally:
             _close(worker.command_connection)
+            _close(worker.response_connection)
             _close(worker.ready_connection)
 
 
@@ -370,8 +500,10 @@ def install_cpu_memory_limit(
 def _cpu_worker_entry(
     ready_connection: object,
     command_connection: object,
+    response_connection: object,
     wire_descriptor: object,
     asset_handles: object | None,
+    worker_runtime: CpuGenerationWorkerRuntime | None,
 ) -> None:
     """Fixed CPU bootstrap: validate, cap process memory, then acknowledge ready."""
 
@@ -383,7 +515,12 @@ def _cpu_worker_entry(
         )
         install_cpu_memory_limit(descriptor.budget.max_memory_bytes)
         ready_connection.send(("ready",))
-        command_connection.recv()
+        _run_cpu_worker_protocol(
+            command_connection=command_connection,
+            response_connection=response_connection,
+            descriptor=descriptor,
+            worker_runtime=worker_runtime,
+        )
     except Exception:
         try:
             ready_connection.send(("failed",))
@@ -392,6 +529,193 @@ def _cpu_worker_entry(
     finally:
         _close(ready_connection)
         _close(command_connection)
+        _close(response_connection)
+
+
+def _run_cpu_worker_protocol(
+    *,
+    command_connection: object,
+    response_connection: object,
+    descriptor: GenerationWorkerLaunchDescriptor,
+    worker_runtime: CpuGenerationWorkerRuntime | None,
+) -> None:
+    """Serve one fixed pack/authorize/generate transcript without object frames."""
+
+    packed_context_tokens: int | None = None
+    authorized = False
+    while True:
+        try:
+            request = command_connection.recv()
+            if request == "close":
+                return
+            response = _cpu_worker_response(
+                request=request,
+                descriptor=descriptor,
+                worker_runtime=worker_runtime,
+                packed_context_tokens=packed_context_tokens,
+                authorized=authorized,
+            )
+            if response["type"] == "packed":
+                packed_context_tokens = response["packed_context_tokens"]
+            elif response["type"] == "authorized":
+                authorized = True
+            response_connection.send(response)
+            if response["type"] == "result":
+                return
+        except Exception:
+            try:
+                response_connection.send({"type": "failed"})
+            except Exception:
+                pass
+            return
+
+
+def _cpu_worker_response(
+    *,
+    request: object,
+    descriptor: GenerationWorkerLaunchDescriptor,
+    worker_runtime: CpuGenerationWorkerRuntime | None,
+    packed_context_tokens: int | None,
+    authorized: bool,
+) -> dict[str, object]:
+    if worker_runtime is None or not isinstance(request, Mapping):
+        raise GenerationWorkerProtocolError("generation worker protocol invalid")
+    request_type = request.get("type")
+    if request_type == "pack":
+        return _cpu_pack_response(
+            request, descriptor, worker_runtime, packed_context_tokens
+        )
+    if request_type == "authorize":
+        return _cpu_authorize_response(
+            request, descriptor, worker_runtime, packed_context_tokens, authorized
+        )
+    if request_type == "generate":
+        return _cpu_generate_response(request, descriptor, worker_runtime, authorized)
+    raise GenerationWorkerProtocolError("generation worker protocol invalid")
+
+
+def _cpu_pack_response(
+    request: Mapping[str, object],
+    descriptor: GenerationWorkerLaunchDescriptor,
+    worker_runtime: CpuGenerationWorkerRuntime,
+    packed_context_tokens: int | None,
+) -> dict[str, object]:
+    if (
+        packed_context_tokens is not None
+        or set(request) != {"type", "max_memory_bytes", "execution_device"}
+        or request["max_memory_bytes"] != descriptor.budget.max_memory_bytes
+        or request["execution_device"] != descriptor.execution_device
+    ):
+        raise GenerationWorkerProtocolError("generation worker protocol invalid")
+    worker_runtime.install_bootstrap_limit(
+        descriptor.budget.max_memory_bytes, descriptor.execution_device
+    )
+    packed = worker_runtime.pack()
+    tokens = packed[0] if isinstance(packed, tuple) and len(packed) == 2 else packed
+    entered_model = (
+        packed[1] if isinstance(packed, tuple) and len(packed) == 2 else False
+    )
+    if not _nonnegative_int(tokens) or entered_model is not False:
+        raise GenerationWorkerProtocolError("generation worker protocol invalid")
+    return {"type": "packed", "packed_context_tokens": tokens}
+
+
+def _cpu_authorize_response(
+    request: Mapping[str, object],
+    descriptor: GenerationWorkerLaunchDescriptor,
+    worker_runtime: CpuGenerationWorkerRuntime,
+    packed_context_tokens: int | None,
+    authorized: bool,
+) -> dict[str, object]:
+    if (
+        packed_context_tokens is None
+        or authorized
+        or set(request) != {"type", "receipt", "remaining_generated_tokens"}
+        or not _positive_int(request["remaining_generated_tokens"])
+    ):
+        raise GenerationWorkerProtocolError("generation worker protocol invalid")
+    receipt = _receipt_from_wire(request["receipt"])
+    if not _receipt_matches_descriptor(receipt, descriptor, packed_context_tokens):
+        raise GenerationWorkerProtocolError("generation worker protocol invalid")
+    worker_runtime.authorize(receipt, request["remaining_generated_tokens"])
+    return {"type": "authorized"}
+
+
+def _cpu_generate_response(
+    request: Mapping[str, object],
+    descriptor: GenerationWorkerLaunchDescriptor,
+    worker_runtime: CpuGenerationWorkerRuntime,
+    authorized: bool,
+) -> dict[str, object]:
+    if authorized is not True or set(request) != {"type"}:
+        raise GenerationWorkerProtocolError("generation worker protocol invalid")
+    result = worker_runtime.generate()
+    if (
+        not isinstance(result, tuple)
+        or len(result) not in (2, 4)
+        or not isinstance(result[0], bytes)
+        or not _nonnegative_int(result[1])
+        or len(result[0]) > descriptor.budget.max_total_output_bytes
+    ):
+        raise GenerationWorkerProtocolError("generation worker protocol invalid")
+    response = {"type": "result", "candidate": result[0], "generated_tokens": result[1]}
+    if len(result) == 2:
+        return response
+    if not _nonnegative_int(result[2]) or not _nonnegative_int(result[3]):
+        raise GenerationWorkerProtocolError("generation worker protocol invalid")
+    return response | {
+        "aggregate_generated_tokens": result[2],
+        "aggregate_output_bytes": result[3],
+    }
+
+
+def _receipt_to_wire(receipt: object) -> dict[str, object]:
+    if not isinstance(receipt, GenerationWorkerPackReceipt):
+        raise GenerationWorkerProtocolError("generation worker protocol invalid")
+    return {
+        "invocation_id": receipt.invocation_id,
+        "invocation_digest": receipt.invocation_digest,
+        "converter_digest": receipt.converter_digest,
+        "material_lock_digest": receipt.material_lock_digest,
+        "execution_device": receipt.execution_device,
+        "fragment_index": receipt.fragment_index,
+        "packed_context_tokens": receipt.packed_context_tokens,
+    }
+
+
+def _receipt_from_wire(value: object) -> GenerationWorkerPackReceipt:
+    fields = {
+        "invocation_id",
+        "invocation_digest",
+        "converter_digest",
+        "material_lock_digest",
+        "execution_device",
+        "fragment_index",
+        "packed_context_tokens",
+    }
+    if not isinstance(value, Mapping) or set(value) != fields:
+        raise GenerationWorkerProtocolError("generation worker protocol invalid")
+    try:
+        return GenerationWorkerPackReceipt(**value)
+    except (TypeError, GenerationWorkerProtocolError) as error:
+        raise GenerationWorkerProtocolError(
+            "generation worker protocol invalid"
+        ) from error
+
+
+def _receipt_matches_descriptor(
+    receipt: GenerationWorkerPackReceipt,
+    descriptor: GenerationWorkerLaunchDescriptor,
+    packed_context_tokens: int,
+) -> bool:
+    return (
+        receipt.invocation_digest == descriptor.invocation_digest
+        and receipt.converter_digest == descriptor.converter_asset_digest
+        and receipt.material_lock_digest == descriptor.material_lock_digest
+        and receipt.execution_device == descriptor.execution_device
+        and receipt.fragment_index == descriptor.fragment_index
+        and receipt.packed_context_tokens == packed_context_tokens
+    )
 
 
 def _require_descriptor(
@@ -430,6 +754,14 @@ def _positive_timeout(value: object) -> bool:
 
 def _nonnegative_timeout(value: object) -> bool:
     return isinstance(value, float) and value >= 0
+
+
+def _nonnegative_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _positive_int(value: object) -> bool:
+    return _nonnegative_int(value) and value > 0
 
 
 def _close(connection: object) -> None:

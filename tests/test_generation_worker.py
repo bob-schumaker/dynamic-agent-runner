@@ -1399,6 +1399,10 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
             events.append("pack")
             return 3
 
+        def authorize(self, _receipt: object, remaining_generated_tokens: int) -> None:
+            assert remaining_generated_tokens == 1
+            events.append("authorize")
+
         def generate(self) -> tuple[bytes, int]:
             events.append("generate")
             return b"{}", 1
@@ -1449,7 +1453,15 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
         aggregate_generated_tokens=1,
         aggregate_output_bytes=2,
     )
-    assert events == ["limit", "pack", "reserve", "generate", "reap", "release"]
+    assert events == [
+        "limit",
+        "pack",
+        "reserve",
+        "authorize",
+        "generate",
+        "reap",
+        "release",
+    ]
 
 
 def test_launcher_discards_a_result_when_the_deadline_expires_during_generation() -> (
