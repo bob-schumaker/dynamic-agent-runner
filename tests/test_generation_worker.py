@@ -140,3 +140,39 @@ def test_launcher_installs_bootstrap_limit_before_packing() -> None:
         == 3
     )
     assert events == [("limit", 8, "cpu"), ("pack",), ("reap",)]
+
+
+def test_launcher_rejects_model_or_accelerator_entry_during_packing() -> None:
+    class Child:
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            pass
+
+        def pack(self) -> tuple[int, bool]:
+            return 3, True
+
+        def reap(self) -> None:
+            pass
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        GenerationWorkerLauncher().pack(
+            child=Child(), max_memory_bytes=8, execution_device="cpu"
+        )
+
+
+def test_launcher_accepts_an_explicit_clean_packing_attestation() -> None:
+    class Child:
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            pass
+
+        def pack(self) -> tuple[int, bool]:
+            return 3, False
+
+        def reap(self) -> None:
+            pass
+
+    assert (
+        GenerationWorkerLauncher().pack(
+            child=Child(), max_memory_bytes=8, execution_device="cpu"
+        )
+        == 3
+    )

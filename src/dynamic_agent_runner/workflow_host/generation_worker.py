@@ -139,8 +139,21 @@ class GenerationWorkerLauncher:
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         try:
             install_limit(max_memory_bytes, execution_device)
-            packed_context_tokens = pack()
+            packed = pack()
+            packed_context_tokens = (
+                packed[0] if isinstance(packed, tuple) and len(packed) == 2 else packed
+            )
+            model_or_accelerator_entered = (
+                packed[1] if isinstance(packed, tuple) and len(packed) == 2 else None
+            )
             if not _nonnegative_int(packed_context_tokens):
+                raise GenerationWorkerProtocolError(
+                    "generation worker protocol invalid"
+                )
+            if model_or_accelerator_entered is not None and (
+                not isinstance(model_or_accelerator_entered, bool)
+                or model_or_accelerator_entered
+            ):
                 raise GenerationWorkerProtocolError(
                     "generation worker protocol invalid"
                 )
