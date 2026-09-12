@@ -130,9 +130,7 @@ def _co_located_arguments(tmp_path, *, now: datetime) -> dict[str, object]:
     converter_asset = package_root / "converter.py"
     converter_content = b"converter = object()\n"
     converter_asset.write_bytes(converter_content)
-    payload_asset = tmp_path / "sealed-payload"
     payload_content = b"sealed input"
-    payload_asset.write_bytes(payload_content)
     artifact_path = tmp_path / "base-config"
     artifact_content = b"{}"
     artifact_path.write_bytes(artifact_content)
@@ -173,7 +171,7 @@ def _co_located_arguments(tmp_path, *, now: datetime) -> dict[str, object]:
         "converter": converter,
         "prepared_set": prepared_set,
         "messages": ({"role": "user", "content": "describe"},),
-        "sealed_payload_path": payload_asset,
+        "sealed_payload": payload_content,
         "sealed_payload_digest": sha256(payload_content).hexdigest(),
         "expires_at": now + timedelta(minutes=1),
         "now": now,
@@ -201,7 +199,7 @@ def test_co_located_handle_binds_converter_material_and_sealed_payload(
     assert assets.converter == arguments["converter"]
     assert assets.prepared_set.recipe_digest == arguments["prepared_set"].recipe_digest
     assert assets.messages == arguments["messages"]
-    assert assets.sealed_payload_path == arguments["sealed_payload_path"]
+    assert assets.sealed_payload == arguments["sealed_payload"]
 
 
 @pytest.mark.parametrize(
@@ -211,7 +209,7 @@ def test_co_located_handle_binds_converter_material_and_sealed_payload(
         {"converter": object()},
         {"prepared_set": object()},
         {"messages": object()},
-        {"sealed_payload_path": b"sealed input"},
+        {"sealed_payload": "sealed input"},
         {"sealed_payload_digest": "not-a-digest"},
     ),
 )

@@ -45,9 +45,7 @@ def _factory_arguments(tmp_path) -> dict[str, object]:
     converter_path = package_root / "converter.py"
     converter_contents = b"converter = object()\n"
     converter_path.write_bytes(converter_contents)
-    payload_path = tmp_path / "payload"
     payload_contents = b"sealed payload"
-    payload_path.write_bytes(payload_contents)
     material_path = tmp_path / "material"
     material_contents = b"{}"
     material_path.write_bytes(material_contents)
@@ -91,7 +89,7 @@ def _factory_arguments(tmp_path) -> dict[str, object]:
         "package_root": package_root,
         "prepared_set": prepared_set,
         "messages": ({"role": "user", "content": "describe"},),
-        "sealed_payload_path": payload_path,
+        "sealed_payload": payload_contents,
         "sealed_payload_digest": sha256(payload_contents).hexdigest(),
         "material_lock_digest": "d" * 64,
         "execution_descriptor_digest": "e" * 64,
@@ -127,7 +125,7 @@ def test_factory_issues_one_bound_opaque_co_location_handle(tmp_path) -> None:
         {"package_root": "/tmp/package"},
         {"prepared_set": object()},
         {"messages": object()},
-        {"sealed_payload_path": b"sealed payload"},
+        {"sealed_payload": "sealed payload"},
         {"execution_device": "mps"},
     ),
 )

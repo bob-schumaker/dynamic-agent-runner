@@ -37,7 +37,7 @@ class GenerationWorkerCoLocatedFactory:
         package_root: Path,
         prepared_set: PreparedArtifactSet,
         messages: tuple[Mapping[str, object], ...],
-        sealed_payload_path: Path,
+        sealed_payload: bytes,
         sealed_payload_digest: str,
         material_lock_digest: str,
         execution_descriptor_digest: str,
@@ -54,7 +54,7 @@ class GenerationWorkerCoLocatedFactory:
             or not isinstance(converter, DeclaredInputConverter)
             or not isinstance(package_root, Path)
             or not isinstance(prepared_set, PreparedArtifactSet)
-            or not isinstance(sealed_payload_path, Path)
+            or not isinstance(sealed_payload, bytes)
             or not isinstance(budget, GenerationResourceBudget)
         ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
@@ -79,7 +79,7 @@ class GenerationWorkerCoLocatedFactory:
                 converter=converter,
                 prepared_set=prepared_set,
                 messages=messages,
-                sealed_payload_path=sealed_payload_path,
+                sealed_payload=sealed_payload,
                 sealed_payload_digest=sealed_payload_digest,
                 expires_at=expires_at,
                 now=now,

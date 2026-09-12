@@ -58,9 +58,8 @@ def test_child_runtime_builds_runner_from_typed_assets_and_loaded_converter(
         converter=converter,
         prepared_set=SimpleNamespace(recipe_digest="prepared-set"),
         messages=({"role": "user", "content": "describe"},),
-        sealed_payload_path=tmp_path / "payload",
+        sealed_payload=b"sealed payload",
     )
-    assets.sealed_payload_path.write_bytes(b"sealed payload")
     loaded_converter = object()
     created: list[tuple[object, object]] = []
 

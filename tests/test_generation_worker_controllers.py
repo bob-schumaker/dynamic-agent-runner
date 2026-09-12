@@ -274,9 +274,7 @@ def test_cpu_child_constructs_a_co_located_runtime_from_opaque_assets(tmp_path) 
         b"converter = Converter\n"
     )
     converter_path.write_bytes(converter_content)
-    payload_path = tmp_path / "payload"
     payload_content = b"sealed payload"
-    payload_path.write_bytes(payload_content)
     material_path = tmp_path / "material"
     material_content = b"{}"
     material_path.write_bytes(material_content)
@@ -325,7 +323,7 @@ def test_cpu_child_constructs_a_co_located_runtime_from_opaque_assets(tmp_path) 
         converter=converter,
         prepared_set=prepared_set,
         messages=({"role": "user", "content": "go"},),
-        sealed_payload_path=payload_path,
+        sealed_payload=payload_content,
         sealed_payload_digest=sha256(payload_content).hexdigest(),
         expires_at=now + timedelta(minutes=1),
         now=now,

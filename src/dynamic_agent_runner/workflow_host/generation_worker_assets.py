@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from collections.abc import Mapping
 from datetime import datetime
@@ -39,7 +40,7 @@ class GenerationWorkerCoLocatedAssets:
     converter: DeclaredInputConverter
     prepared_set: PreparedArtifactSet
     messages: tuple[Mapping[str, object], ...]
-    sealed_payload_path: Path
+    sealed_payload: bytes
 
 
 class GenerationWorkerAssetHandleService:
@@ -150,7 +151,7 @@ class GenerationWorkerAssetHandleService:
         converter: DeclaredInputConverter,
         prepared_set: PreparedArtifactSet,
         messages: tuple[Mapping[str, object], ...],
-        sealed_payload_path: Path,
+        sealed_payload: bytes,
         sealed_payload_digest: str,
         expires_at: datetime,
         now: datetime,
@@ -164,7 +165,7 @@ class GenerationWorkerAssetHandleService:
                 converter=converter,
                 prepared_set=prepared_set,
                 messages=messages,
-                sealed_payload_path=sealed_payload_path,
+                sealed_payload=sealed_payload,
                 sealed_payload_digest=sealed_payload_digest,
             )
             return self._store.issue(
@@ -274,7 +275,7 @@ def _co_located_payload(
     converter: object,
     prepared_set: object,
     messages: object,
-    sealed_payload_path: object,
+    sealed_payload: object,
     sealed_payload_digest: object,
 ) -> dict[str, object]:
     if (
@@ -282,8 +283,10 @@ def _co_located_payload(
         or not isinstance(package_root, Path)
         or not isinstance(converter, DeclaredInputConverter)
         or not isinstance(prepared_set, PreparedArtifactSet)
-        or not isinstance(sealed_payload_path, Path)
+        or not isinstance(sealed_payload, bytes)
+        or not sealed_payload
         or not _digest(sealed_payload_digest)
+        or sha256(sealed_payload).hexdigest() != sealed_payload_digest
         or converter.converter_id != descriptor.converter_id
         or converter.asset_digest != descriptor.converter_asset_digest
         or converter.compatible_runner_contract_id != descriptor.runner_id
@@ -295,10 +298,11 @@ def _co_located_payload(
         entrypoint=converter.entrypoint,
         expected_digest=converter.asset_digest,
     )
-    payload_path = _verified_asset(sealed_payload_path, sealed_payload_digest)
     canonical_messages = _canonical_messages(
         messages, maximum_bytes=converter.max_input_bytes
     )
+    if len(sealed_payload) > converter.max_input_bytes:
+        raise GenerationWorkerAssetHandleError("generation worker asset is unavailable")
     recipe = prepared_set.recipe
     paths: dict[str, str] = {}
     for artifact in recipe.artifacts:
@@ -315,7 +319,7 @@ def _co_located_payload(
         "prepared_paths": paths,
         "prepared_recipe_digest": prepared_set.recipe_digest,
         "messages": canonical_messages,
-        "sealed_payload_path": str(payload_path),
+        "sealed_payload": base64.b64encode(sealed_payload).decode("ascii"),
         "sealed_payload_digest": sealed_payload_digest,
     }
 
@@ -353,8 +357,8 @@ def _resolved_co_located_assets(
         )
         for artifact in recipe.artifacts
     }
-    payload_path = _verified_asset(
-        Path(payload["sealed_payload_path"]), payload["sealed_payload_digest"]
+    sealed_payload = _sealed_payload(
+        payload["sealed_payload"], payload["sealed_payload_digest"]
     )
     return GenerationWorkerCoLocatedAssets(
         package_root=package_root.resolve(strict=True),
@@ -363,7 +367,7 @@ def _resolved_co_located_assets(
         messages=_canonical_messages(
             payload["messages"], maximum_bytes=converter.max_input_bytes
         ),
-        sealed_payload_path=payload_path,
+        sealed_payload=sealed_payload,
     )
 
 
@@ -456,3 +460,17 @@ def _canonical_messages(
     ):
         raise GenerationWorkerAssetHandleError("generation worker asset is unavailable")
     return tuple(parsed)
+
+
+def _sealed_payload(value: object, expected_digest: object) -> bytes:
+    if not isinstance(value, str) or not _digest(expected_digest):
+        raise GenerationWorkerAssetHandleError("generation worker asset is unavailable")
+    try:
+        payload = base64.b64decode(value, validate=True)
+    except ValueError as error:
+        raise GenerationWorkerAssetHandleError(
+            "generation worker asset is unavailable"
+        ) from error
+    if not payload or sha256(payload).hexdigest() != expected_digest:
+        raise GenerationWorkerAssetHandleError("generation worker asset is unavailable")
+    return payload
