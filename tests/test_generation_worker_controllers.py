@@ -27,6 +27,15 @@ from dynamic_agent_runner.workflow_host.generation_worker_controllers import (
 from dynamic_agent_runner.workflow_host.generation_worker_assets import (
     GenerationWorkerAssetHandleService,
 )
+from dynamic_agent_runner.workflow_host.generation_worker_child_runtime import (
+    GenerationWorkerCoLocatedRuntimeFactory,
+)
+from dynamic_agent_runner.workflow_host.descriptor import DeclaredInputConverter
+from dynamic_agent_runner.local_model_preparation import (
+    LocalModelArtifact,
+    LocalModelPreparationRecipe,
+    PreparedArtifactSet,
+)
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 
 
@@ -66,6 +75,17 @@ class _CpuRuntimeFactory:
     def create_for_worker(self, *, descriptor: object, now: datetime) -> _CpuIpcRuntime:
         if getattr(descriptor, "runner_id", None) != "runner-v1" or now.tzinfo is None:
             raise ValueError("invalid test child descriptor")
+        return _CpuIpcRuntime()
+
+
+class _CpuCoLocatedRunnerRuntimeFactory:
+    """Pickle-safe receiver factory used after child converter loading."""
+
+    def create_runtime(self, *, assets: object, converter: object) -> _CpuIpcRuntime:
+        if getattr(assets, "messages", None) != (
+            {"role": "user", "content": "go"},
+        ) or not callable(getattr(converter, "pack", None)):
+            raise ValueError("invalid co-located test inputs")
         return _CpuIpcRuntime()
 
 
@@ -225,6 +245,105 @@ def test_cpu_child_constructs_a_runtime_only_after_child_bootstrap() -> None:
         invocation_id="invocation-1",
         invocation_digest="a" * 64,
         converter_digest="c" * 64,
+        material_lock_digest="d" * 64,
+        execution_device="cpu",
+        fragment_index=0,
+        packed_context_tokens=3,
+    )
+
+    try:
+        assert controller.wait_ready(child, 5.0) is True
+        child.install_bootstrap_limit(2**62, "cpu")
+        assert child.pack() == 3
+        child.authorize(receipt, 2)
+        assert child.generate() == (b"{}", 2)
+    finally:
+        assert controller.reap(child, 1.0) is True
+
+
+def test_cpu_child_constructs_a_co_located_runtime_from_opaque_assets(tmp_path) -> None:
+    package_root = tmp_path / "package"
+    package_root.mkdir()
+    converter_path = package_root / "converter.py"
+    converter_content = (
+        b"converter_contract_version = '1'\n"
+        b"compatible_runner_contract_id = 'runner-v1'\n"
+        b"class Converter:\n"
+        b"    def pack(self, **_kwargs):\n"
+        b"        return object()\n"
+        b"converter = Converter\n"
+    )
+    converter_path.write_bytes(converter_content)
+    payload_path = tmp_path / "payload"
+    payload_content = b"sealed payload"
+    payload_path.write_bytes(payload_content)
+    material_path = tmp_path / "material"
+    material_content = b"{}"
+    material_path.write_bytes(material_content)
+    converter = DeclaredInputConverter(
+        converter_id="converter-v1",
+        converter_contract_version="1",
+        compatible_runner_contract_id="runner-v1",
+        entrypoint="converter.py",
+        asset_digest=sha256(converter_content).hexdigest(),
+        max_input_bytes=64,
+        max_output_bytes=64,
+        timeout_seconds=1,
+    )
+    prepared_set = PreparedArtifactSet(
+        LocalModelPreparationRecipe(
+            model_id="model-v1",
+            adapter_id="adapter-v1",
+            runner_id="runner-v1",
+            artifacts=(
+                LocalModelArtifact(
+                    role="material",
+                    repo_id="test/model",
+                    revision="0" * 40,
+                    filename="material",
+                    sha256=sha256(material_content).hexdigest(),
+                ),
+            ),
+            transformation=None,
+        ),
+        {"material": material_path},
+    )
+    descriptor = replace(
+        _descriptor(execution_device="cpu"),
+        converter_asset_digest=converter.asset_digest,
+        budget=replace(
+            _descriptor(execution_device="cpu").budget, max_memory_bytes=2**62
+        ),
+    )
+    now = datetime.now(UTC)
+    service = GenerationWorkerAssetHandleService(
+        store=PrivateStateStore(tmp_path / "state"), owner="test-owner"
+    )
+    handle = service.issue_co_located(
+        descriptor=descriptor,
+        package_root=package_root,
+        converter=converter,
+        prepared_set=prepared_set,
+        messages=({"role": "user", "content": "go"},),
+        sealed_payload_path=payload_path,
+        sealed_payload_digest=sha256(payload_content).hexdigest(),
+        expires_at=now + timedelta(minutes=1),
+        now=now,
+    )
+    descriptor = replace(descriptor, asset_handles=(handle,))
+    controller = CpuMultiprocessingGenerationWorkerController(
+        runner_id="runner-v1",
+        asset_handles=service,
+        worker_runtime=GenerationWorkerCoLocatedRuntimeFactory(
+            asset_handles=service,
+            runner_runtime_factory=_CpuCoLocatedRunnerRuntimeFactory(),
+        ),
+    )
+    child = controller.launch(descriptor)
+    receipt = GenerationWorkerPackReceipt(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest=converter.asset_digest,
         material_lock_digest="d" * 64,
         execution_device="cpu",
         fragment_index=0,
