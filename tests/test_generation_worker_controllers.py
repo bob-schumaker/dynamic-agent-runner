@@ -293,6 +293,13 @@ def test_cpu_worker_requires_its_bound_transcript_identity_on_every_frame() -> N
         packed_context_tokens=None,
         authorized_remaining_generated_tokens=None,
     )
+    assert packed == {
+        "type": "packed",
+        "invocation_id": descriptor.invocation_id,
+        "invocation_digest": descriptor.invocation_digest,
+        "fragment_index": descriptor.fragment_index,
+        "packed_context_tokens": 3,
+    }
     receipt = GenerationWorkerPackReceipt(
         invocation_id="invocation-1",
         invocation_digest=descriptor.invocation_digest,

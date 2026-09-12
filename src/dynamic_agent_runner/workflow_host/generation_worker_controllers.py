@@ -206,41 +206,11 @@ class _CpuWorkerChild:
             raise GenerationWorkerOutputLimitExceeded(
                 "generation output limit exceeded"
             )
-        if (
-            not isinstance(response, Mapping)
-            or response.get("type") != response_type
-            or (
-                response_type == "packed"
-                and set(response) != {"type", "packed_context_tokens"}
-            )
-            or (response_type == "authorized" and set(response) != {"type"})
-            or (
-                response_type == "result"
-                and set(response)
-                not in (
-                    {"type", "candidate", "generated_tokens"},
-                    {
-                        "type",
-                        "candidate",
-                        "generated_tokens",
-                        "aggregate_generated_tokens",
-                        "aggregate_output_bytes",
-                    },
-                    {"type", "candidate", "generated_tokens", "exhausted"},
-                    {
-                        "type",
-                        "candidate",
-                        "generated_tokens",
-                        "aggregate_generated_tokens",
-                        "aggregate_output_bytes",
-                        "exhausted",
-                    },
-                )
-            )
-        ):
-            raise GenerationWorkerProtocolError("generation worker protocol invalid")
-        self._last_response = response
-        return response
+        validated_response = _validate_child_response(
+            response, response_type, self._transcript_fields()
+        )
+        self._last_response = validated_response
+        return validated_response
 
     def _transcript_fields(self) -> dict[str, object]:
         return {
@@ -739,6 +709,59 @@ def _matches_descriptor_transcript(
     )
 
 
+def _response_transcript(
+    descriptor: GenerationWorkerLaunchDescriptor,
+) -> dict[str, object]:
+    return {
+        "invocation_id": descriptor.invocation_id,
+        "invocation_digest": descriptor.invocation_digest,
+        "fragment_index": descriptor.fragment_index,
+    }
+
+
+def _valid_response_payload(response_type: str, payload: Mapping[str, object]) -> bool:
+    if response_type == "packed":
+        return set(payload) == {"type", "packed_context_tokens"}
+    if response_type == "authorized":
+        return set(payload) == {"type"}
+    return response_type == "result" and set(payload) in (
+        {"type", "candidate", "generated_tokens"},
+        {
+            "type",
+            "candidate",
+            "generated_tokens",
+            "aggregate_generated_tokens",
+            "aggregate_output_bytes",
+        },
+        {"type", "candidate", "generated_tokens", "exhausted"},
+        {
+            "type",
+            "candidate",
+            "generated_tokens",
+            "aggregate_generated_tokens",
+            "aggregate_output_bytes",
+            "exhausted",
+        },
+    )
+
+
+def _validate_child_response(
+    response: object,
+    response_type: str,
+    transcript: Mapping[str, object],
+) -> Mapping[str, object]:
+    if not isinstance(response, Mapping) or response.get("type") != response_type:
+        raise GenerationWorkerProtocolError("generation worker protocol invalid")
+    if any(response.get(field) != value for field, value in transcript.items()):
+        raise GenerationWorkerProtocolError("generation worker protocol invalid")
+    payload = {
+        field: value for field, value in response.items() if field not in transcript
+    }
+    if not _valid_response_payload(response_type, payload):
+        raise GenerationWorkerProtocolError("generation worker protocol invalid")
+    return response
+
+
 def _cpu_pack_response(
     request: Mapping[str, object],
     descriptor: GenerationWorkerLaunchDescriptor,
@@ -770,7 +793,11 @@ def _cpu_pack_response(
     )
     if not _nonnegative_int(tokens) or entered_model is not False:
         raise GenerationWorkerProtocolError("generation worker protocol invalid")
-    return {"type": "packed", "packed_context_tokens": tokens}
+    return {
+        "type": "packed",
+        **_response_transcript(descriptor),
+        "packed_context_tokens": tokens,
+    }
 
 
 def _cpu_authorize_response(
@@ -799,7 +826,7 @@ def _cpu_authorize_response(
     if not _receipt_matches_descriptor(receipt, descriptor, packed_context_tokens):
         raise GenerationWorkerProtocolError("generation worker protocol invalid")
     worker_runtime.authorize(receipt, request["remaining_generated_tokens"])
-    return {"type": "authorized"}
+    return {"type": "authorized", **_response_transcript(descriptor)}
 
 
 def _cpu_generate_response(
@@ -826,7 +853,12 @@ def _cpu_generate_response(
         raise GenerationWorkerProtocolError("generation worker protocol invalid")
     if len(result[0]) > descriptor.budget.max_total_output_bytes:
         raise GenerationWorkerOutputLimitExceeded("generation output limit exceeded")
-    response = {"type": "result", "candidate": result[0], "generated_tokens": result[1]}
+    response = {
+        "type": "result",
+        **_response_transcript(descriptor),
+        "candidate": result[0],
+        "generated_tokens": result[1],
+    }
     if len(result) in (2, 3):
         if len(result) == 3:
             if not isinstance(result[2], bool):
