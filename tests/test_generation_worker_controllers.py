@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
@@ -76,6 +78,21 @@ def test_cpu_controller_rejects_non_cpu_work_before_creating_a_process() -> None
 
     with pytest.raises(GenerationResourceBudgetError, match="unavailable"):
         controller.launch(_descriptor(execution_device="mps"))
+
+
+def test_cpu_controller_starts_and_reaps_a_controlled_no_model_child() -> None:
+    base_descriptor = _descriptor(execution_device="cpu")
+    descriptor = replace(
+        base_descriptor,
+        budget=replace(base_descriptor.budget, max_memory_bytes=2**62),
+    )
+    controller = CpuMultiprocessingGenerationWorkerController(runner_id="runner-v1")
+    child = controller.launch(descriptor)
+
+    try:
+        assert controller.wait_ready(child, 5.0) is True
+    finally:
+        assert controller.reap(child, 1.0) is True
 
 
 def test_mps_controller_requires_darwin_and_a_reviewed_memory_envelope() -> None:
