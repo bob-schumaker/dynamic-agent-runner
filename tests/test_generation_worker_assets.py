@@ -18,6 +18,12 @@ from dynamic_agent_runner.workflow_host.generation_worker_assets import (
     GenerationWorkerAssetHandleError,
     GenerationWorkerAssetHandleService,
 )
+from dynamic_agent_runner.workflow_host.descriptor import DeclaredInputConverter
+from dynamic_agent_runner.local_model_preparation import (
+    LocalModelArtifact,
+    LocalModelPreparationRecipe,
+    PreparedArtifactSet,
+)
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 
 
@@ -116,3 +122,93 @@ def test_issuing_a_symlinked_asset_fails_closed(tmp_path) -> None:
             expires_at=now + timedelta(minutes=1),
             now=now,
         )
+
+
+def _co_located_arguments(tmp_path, *, now: datetime) -> dict[str, object]:
+    package_root = tmp_path / "package"
+    package_root.mkdir()
+    converter_asset = package_root / "converter.py"
+    converter_content = b"converter = object()\n"
+    converter_asset.write_bytes(converter_content)
+    payload_asset = tmp_path / "sealed-payload"
+    payload_content = b"sealed input"
+    payload_asset.write_bytes(payload_content)
+    artifact_path = tmp_path / "base-config"
+    artifact_content = b"{}"
+    artifact_path.write_bytes(artifact_content)
+    converter = DeclaredInputConverter(
+        converter_id="converter-v1",
+        converter_contract_version="1",
+        compatible_runner_contract_id="runner-v1",
+        entrypoint="converter.py",
+        asset_digest=sha256(converter_content).hexdigest(),
+        max_input_bytes=64,
+        max_output_bytes=64,
+        timeout_seconds=1,
+    )
+    prepared_set = PreparedArtifactSet(
+        LocalModelPreparationRecipe(
+            model_id="model-v1",
+            adapter_id="adapter-v1",
+            runner_id="runner-v1",
+            artifacts=(
+                LocalModelArtifact(
+                    role="base_config",
+                    repo_id="test/model",
+                    revision="0" * 40,
+                    filename="base-config",
+                    sha256=sha256(artifact_content).hexdigest(),
+                ),
+            ),
+            transformation=None,
+        ),
+        {"base_config": artifact_path},
+    )
+    return {
+        "descriptor": _descriptor(asset_handles=("placeholder",)),
+        "package_root": package_root,
+        "converter": converter,
+        "prepared_set": prepared_set,
+        "sealed_payload_path": payload_asset,
+        "sealed_payload_digest": sha256(payload_content).hexdigest(),
+        "expires_at": now + timedelta(minutes=1),
+        "now": now,
+    }
+
+
+def test_co_located_handle_binds_converter_material_and_sealed_payload(
+    tmp_path,
+) -> None:
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    arguments = _co_located_arguments(tmp_path, now=now)
+
+    service = _service(tmp_path)
+    handle = service.issue_co_located(**arguments)
+    descriptor = _descriptor(asset_handles=(handle,))
+
+    assets = service.resolve_co_located(handle=handle, descriptor=descriptor, now=now)
+
+    assert descriptor.to_wire()["asset_handles"] == (handle,)
+    assert assets.package_root == arguments["package_root"]
+    assert assets.converter == arguments["converter"]
+    assert assets.prepared_set.recipe_digest == arguments["prepared_set"].recipe_digest
+    assert assets.sealed_payload_path == arguments["sealed_payload_path"]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    (
+        {"package_root": "/tmp/package"},
+        {"converter": object()},
+        {"prepared_set": object()},
+        {"sealed_payload_path": b"sealed input"},
+        {"sealed_payload_digest": "not-a-digest"},
+    ),
+)
+def test_co_located_handle_rejects_untyped_host_inputs(tmp_path, changes) -> None:
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    arguments = _co_located_arguments(tmp_path, now=now)
+    arguments.update(changes)
+
+    with pytest.raises(GenerationWorkerAssetHandleError, match="unavailable"):
+        _service(tmp_path).issue_co_located(**arguments)
