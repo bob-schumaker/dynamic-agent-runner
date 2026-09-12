@@ -6,6 +6,8 @@ import json
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from pathlib import Path
 from typing import Protocol
 
@@ -1070,6 +1072,7 @@ class DeferredTransformersPeftSingleImageAdapter:
         self._converter: PackedInputConverter | None = None
         self._generation_budget: GenerationResourceBudget | None = None
         self._generation_material_lock_digest: str | None = None
+        self._generation_execution_descriptor_digest: str | None = None
         self._generation_host_policy: GenerationExecutionHostPolicy | None = None
         self._payload_bound = False
         self._debug_fragment_recorder: (
@@ -1162,6 +1165,17 @@ class DeferredTransformersPeftSingleImageAdapter:
             ):
                 raise GenerationResourceBudgetError("generation budget is invalid")
             self._generation_material_lock_digest = material_lock_digest
+            execution_descriptor_digest = getattr(descriptor, "digest", None)
+            if (
+                not isinstance(execution_descriptor_digest, str)
+                or len(execution_descriptor_digest) != 64
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in execution_descriptor_digest
+                )
+            ):
+                raise GenerationResourceBudgetError("generation budget is invalid")
+            self._generation_execution_descriptor_digest = execution_descriptor_digest
             if not isinstance(host_policy, GenerationExecutionHostPolicy):
                 raise GenerationResourceBudgetError("generation budget is invalid")
             self._generation_host_policy = host_policy
@@ -1247,6 +1261,61 @@ class DeferredTransformersPeftSingleImageAdapter:
             finally:
                 self._payload_bound = False
         return self._resolved_adapter().create_response(request)
+
+    def _create_worker_invocation_factory(self, request: OpenAIModelRequest) -> object:
+        """Bind one child-only factory from sealed request-scoped inputs."""
+
+        factory = self._generation_worker_factory
+        converter = self._worker_converter
+        package_root = self._worker_converter_package_root
+        sealed_payload = self._worker_sealed_payload
+        budget = self._generation_budget
+        material_lock_digest = self._generation_material_lock_digest
+        execution_descriptor_digest = self._generation_execution_descriptor_digest
+        host_policy = self._generation_host_policy
+        create_for_invocation = getattr(factory, "create_for_invocation", None)
+        if (
+            not isinstance(request, OpenAIModelRequest)
+            or not callable(create_for_invocation)
+            or not isinstance(converter, DeclaredInputConverter)
+            or not isinstance(package_root, Path)
+            or not isinstance(sealed_payload, bytes)
+            or not sealed_payload
+            or not isinstance(budget, GenerationResourceBudget)
+            or not isinstance(material_lock_digest, str)
+            or not isinstance(execution_descriptor_digest, str)
+            or not isinstance(host_policy, GenerationExecutionHostPolicy)
+        ):
+            raise ModelExecutionError("generation worker is unavailable")
+        try:
+            canonical_invocation = json.dumps(
+                {
+                    "messages": request.messages,
+                    "sealed_payload_digest": sha256(sealed_payload).hexdigest(),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            now = datetime.now(UTC)
+            return create_for_invocation(
+                invocation_digest=sha256(canonical_invocation).hexdigest(),
+                fragment_index=0,
+                converter=converter,
+                package_root=package_root,
+                prepared_set=self._resolve_prepared_set(),
+                messages=request.messages,
+                sealed_payload=sealed_payload,
+                sealed_payload_digest=sha256(sealed_payload).hexdigest(),
+                material_lock_digest=material_lock_digest,
+                execution_descriptor_digest=execution_descriptor_digest,
+                execution_device=host_policy.execution_device,
+                budget=budget,
+                expires_at=now
+                + timedelta(milliseconds=budget.max_runtime_milliseconds),
+                now=now,
+            )
+        except (TypeError, ValueError) as error:
+            raise ModelExecutionError("generation worker is unavailable") from error
 
     def _resolved_adapter(self) -> TransformersPeftSingleImageAdapter:
         if self._adapter is None:
