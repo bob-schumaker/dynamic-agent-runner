@@ -5,17 +5,23 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
+import time
 
 import pytest
 
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    GenerationDeadline,
+    GenerationMemoryReservationRequest,
     GenerationResourceBudget,
     GenerationResourceBudgetError,
 )
 from dynamic_agent_runner.workflow_host.generation_worker import (
     GenerationWorkerLaunchDescriptor,
+    GenerationWorkerLauncher,
     GenerationWorkerPackReceipt,
     GenerationWorkerProtocolError,
+    GenerationWorkerSession,
+    GenerationWorkerDeadlineExceeded,
 )
 from dynamic_agent_runner.workflow_host.generation_worker_controllers import (
     CpuMultiprocessingGenerationWorkerController,
@@ -72,6 +78,12 @@ class _CpuInconsistentAggregateRuntime(_CpuIpcRuntime):
 class _CpuExhaustedRuntime(_CpuIpcRuntime):
     def generate(self) -> tuple[bytes, int, int, int, bool]:
         return b"{}", 2, 2, 2, True
+
+
+class _CpuBlockingRuntime(_CpuIpcRuntime):
+    def generate(self) -> tuple[bytes, int]:
+        time.sleep(5)
+        return b"{}", 2
 
 
 class _CpuRuntimeFactory:
@@ -410,6 +422,79 @@ def test_cpu_child_returns_the_bounded_exhaustion_scalar() -> None:
         assert child.generate() == (b"{}", 2, 2, 2, True)
     finally:
         assert controller.reap(child, 1.0) is True
+
+
+def test_cpu_child_blocked_in_generate_is_terminated_at_the_deadline() -> None:
+    base_descriptor = _descriptor(execution_device="cpu")
+    descriptor = replace(
+        base_descriptor,
+        budget=replace(base_descriptor.budget, max_memory_bytes=2**62),
+    )
+    controller = CpuMultiprocessingGenerationWorkerController(
+        runner_id="runner-v1", worker_runtime=_CpuBlockingRuntime()
+    )
+    child = controller.launch(descriptor)
+    deadline = GenerationDeadline.start(
+        time.monotonic(), max_runtime_milliseconds=1_000
+    )
+    session = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest=descriptor.invocation_digest,
+        converter_digest=descriptor.converter_asset_digest,
+        material_lock_digest=descriptor.material_lock_digest,
+        execution_device="cpu",
+        max_total_generated_tokens=descriptor.budget.max_total_generated_tokens,
+        max_total_output_bytes=descriptor.budget.max_total_output_bytes,
+    )
+
+    class Reservation:
+        def __init__(self) -> None:
+            self.released = False
+
+        def release(self) -> None:
+            self.released = True
+
+    reservation = Reservation()
+
+    class Provider:
+        def reserve(self, _request: object) -> Reservation:
+            return reservation
+
+    assert controller.wait_ready(child, 5.0) is True
+    launcher = GenerationWorkerLauncher()
+    receipt = launcher.pack_receipt(
+        child=child,
+        session=session,
+        fragment_index=0,
+        max_memory_bytes=descriptor.budget.max_memory_bytes,
+        execution_device="cpu",
+        deadline=deadline,
+        controller=controller,
+    )
+
+    with pytest.raises(GenerationWorkerDeadlineExceeded, match="deadline exceeded"):
+        launcher.generate(
+            child=child,
+            session=session,
+            receipt=receipt,
+            remaining_generated_tokens=2,
+            provider=Provider(),
+            request=GenerationMemoryReservationRequest(
+                material_lock_digest=descriptor.material_lock_digest,
+                runner_identity=descriptor.runner_id,
+                execution_device="cpu",
+                packed_context_tokens=receipt.packed_context_tokens,
+                requested_new_tokens=2,
+                max_memory_bytes=descriptor.budget.max_memory_bytes,
+                deadline_monotonic=deadline.expires_at,
+            ),
+            deadline=deadline,
+            now=time.monotonic(),
+            controller=controller,
+        )
+
+    assert reservation.released is True
+    assert controller.reap(child, 0.0) is True
 
 
 def test_cpu_child_rejects_a_result_larger_than_its_authorization() -> None:

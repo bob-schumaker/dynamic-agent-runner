@@ -402,6 +402,7 @@ class GenerationWorkerLauncher:
             pack=pack,
             reap=reap,
             deadline=deadline,
+            controller=controller,
         ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         if controller is not None and not isinstance(deadline, GenerationDeadline):
@@ -569,7 +570,11 @@ class GenerationWorkerLauncher:
         generate = getattr(child, "generate", None)
         reap = getattr(child, "reap", None)
         packed_receipt = self._packed_receipts.get(id(child))
-        if not callable(generate) or not callable(reap) or packed_receipt != receipt:
+        if (
+            not callable(generate)
+            or (not callable(reap) and controller is None)
+            or packed_receipt != receipt
+        ):
             if packed_receipt is not None:
                 self.abort(
                     child=child,
@@ -590,6 +595,7 @@ class GenerationWorkerLauncher:
             )
             _authorize_child_if_supported(child, receipt, remaining_generated_tokens)
             deadline.require_remaining(now)
+            _configure_child_deadline(child=child, deadline=deadline, clock=clock)
             return self._validated_generation_result(
                 generate=generate,
                 deadline=deadline,
@@ -734,6 +740,20 @@ def _authorize_child_if_supported(
         authorize(receipt, remaining_generated_tokens)
 
 
+def _configure_child_deadline(
+    *,
+    child: object,
+    deadline: GenerationDeadline,
+    clock: Callable[[], float],
+) -> None:
+    """Pass the remaining deadline only to children that support timed result waits."""
+
+    set_deadline_timeout = getattr(child, "set_deadline_timeout", None)
+    if callable(set_deadline_timeout):
+        deadline.require_remaining(clock())
+        set_deadline_timeout(deadline.remaining_seconds(clock()))
+
+
 def _nonnegative_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
@@ -774,6 +794,7 @@ def _valid_pack_request(
     pack: object,
     reap: object,
     deadline: object,
+    controller: object | None,
 ) -> bool:
     return (
         _positive_int(max_memory_bytes)
@@ -781,7 +802,7 @@ def _valid_pack_request(
         and bool(execution_device)
         and callable(install_limit)
         and callable(pack)
-        and callable(reap)
+        and (callable(reap) or controller is not None)
         and (deadline is None or isinstance(deadline, GenerationDeadline))
     )
 

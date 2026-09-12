@@ -19,6 +19,7 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
     GenerationResourceBudgetError,
 )
 from dynamic_agent_runner.workflow_host.generation_worker import (
+    GenerationWorkerDeadlineExceeded,
     GenerationWorkerLaunchDescriptor,
     GenerationWorkerPackReceipt,
     GenerationWorkerProtocolError,
@@ -80,6 +81,7 @@ class _CpuWorkerChild:
     command_connection: object
     response_connection: object
     ready_connection: object
+    _deadline_timeout: float | None = None
 
     def install_bootstrap_limit(
         self, max_memory_bytes: int, execution_device: str
@@ -124,7 +126,9 @@ class _CpuWorkerChild:
         | tuple[bytes, int, int, int]
         | tuple[bytes, int, int, int, bool]
     ):
-        response = self._request({"type": "generate"}, "result")
+        response = self._request(
+            {"type": "generate"}, "result", timeout=self._deadline_timeout
+        )
         candidate = response.get("candidate")
         generated_tokens = response.get("generated_tokens")
         aggregate_generated_tokens = response.get("aggregate_generated_tokens")
@@ -159,11 +163,22 @@ class _CpuWorkerChild:
         )
 
     def _request(
-        self, request: Mapping[str, object], response_type: str
+        self,
+        request: Mapping[str, object],
+        response_type: str,
+        *,
+        timeout: float | None = None,
     ) -> Mapping[str, object]:
+        timeout_seconds = _IPC_TIMEOUT_SECONDS if timeout is None else timeout
+        if not _positive_timeout(timeout_seconds):
+            raise GenerationWorkerDeadlineExceeded("generation deadline exceeded")
         try:
             self.command_connection.send(dict(request))
-            if not self.response_connection.poll(_IPC_TIMEOUT_SECONDS):
+            if not self.response_connection.poll(timeout_seconds):
+                if response_type == "result" and timeout is not None:
+                    raise GenerationWorkerDeadlineExceeded(
+                        "generation deadline exceeded"
+                    )
                 raise GenerationWorkerProtocolError(
                     "generation worker protocol invalid"
                 )
@@ -209,6 +224,13 @@ class _CpuWorkerChild:
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         self._last_response = response
         return response
+
+    def set_deadline_timeout(self, timeout: float) -> None:
+        """Bound the next result wait by the parent's remaining deadline."""
+
+        if not _positive_timeout(timeout):
+            raise GenerationWorkerDeadlineExceeded("generation deadline exceeded")
+        self._deadline_timeout = timeout
 
 
 class CpuMultiprocessingGenerationWorkerController:
@@ -323,7 +345,7 @@ class CpuMultiprocessingGenerationWorkerController:
                     worker.command_connection.send("close")
                 except Exception:
                     pass
-            worker.process.join(timeout)
+            worker.process.join(timeout if timeout > 0 else 0.05)
             return not worker.process.is_alive()
         except Exception:
             return False
