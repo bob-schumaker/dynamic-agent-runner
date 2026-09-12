@@ -588,3 +588,16 @@ def test_direct_skill_baseline_is_frozen_as_test_only_collateral() -> None:
     assert baseline["skill_identity"] == "agent-development@agent-engineering"
     assert baseline["plugin_tree_digest"] == _tree_digest(DIRECT_BASELINE_ROOT)
     assert (DIRECT_BASELINE_ROOT / ".codex-plugin" / "plugin.json").is_file()
+
+
+def test_direct_skill_baseline_uses_the_current_host_command_contract() -> None:
+    runtime_release = json.loads(RUNTIME_RELEASE_DESCRIPTOR.read_text(encoding="utf-8"))
+    guidance = (
+        DIRECT_BASELINE_ROOT
+        / "references"
+        / "dar-runtime-profile"
+        / "agent-development.md"
+    ).read_text(encoding="utf-8")
+
+    assert f"required_version: {runtime_release['runtime_version']}" in guidance
+    assert "Do not probe it with\n`dar-package version`" in guidance

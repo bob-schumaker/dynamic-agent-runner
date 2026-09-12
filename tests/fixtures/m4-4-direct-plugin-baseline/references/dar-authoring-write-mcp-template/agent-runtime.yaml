@@ -1,0 +1,75 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: dar-authoring-write-mcp-template
+name: DAR Authoring Reviewed Email Template
+description: A bounded local workflow with one reviewed email-send MCP tool.
+entrypoint: answer_request
+mermaid_diagram: agent-graph.mmd
+packaging:
+  mode: hybrid_bundle
+runtime:
+  execution_policy:
+    autonomy_level: assistive
+    allowed_execution_modes:
+      - sequential_fallback
+    external_backend_allowed: false
+    max_iterations: 1
+    max_steps: 3
+    model: local-model
+    tool_use_completion:
+      run_again: required
+      stop_on_tool: disabled
+      final_output: default
+metadata:
+  patterns_present:
+    - tool-server-or-mcp-style-agent
+  participant_groups: []
+  modes: []
+  phases: []
+  roles: []
+extensions: {}
+skills: []
+tools:
+  - id: mail_send
+    label: Send email
+    tool_type: external_api
+    description_for_llm: Send one approved email using declared recipient and body input.
+    adapter: host.mcp
+    input_schema:
+      type: object
+      properties:
+        recipient:
+          type: string
+        body:
+          type: string
+      required:
+        - recipient
+        - body
+      additionalProperties: false
+    side_effect: write
+    approval_required: true
+    timeout: runtime_default
+    retry_policy: none
+    failure_behavior: error
+nodes:
+  - id: answer_request
+    kind: llm_step
+    label: Prepare approved email send
+    model: local-model
+    prompt:
+      system: >-
+        Use mail_send exactly once when the prompt supplies an approved recipient
+        and body. Do not invent recipients, credentials, tools, or approvals.
+      user_template: "{prompt}"
+      input_vars:
+        - prompt
+    available_tools:
+      - mail_send
+edges: []
+output_contracts:
+  - id: final_answer
+    required_fields:
+      - message
+validation:
+  package_checks:
+    - Every node id is unique.

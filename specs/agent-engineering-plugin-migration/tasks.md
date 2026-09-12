@@ -20,7 +20,9 @@ sealed selector payload unchanged. A DAR release may update `V` without a
 plugin-version or marketplace-metadata change. The remaining runtime-linkage
 work validates only payload selectors that declare `V`; it must not make a DAR
 release a prerequisite for a plugin-only release or treat the two artifacts as
-a paired release.
+a paired release. In particular, do not infer a DAR version from the plugin
+version, require matching release numbers, or schedule a DAR publication solely
+because skills or marketplace metadata changed.
 
 ## Successor Clean-Codex Acceptance
 
@@ -115,10 +117,14 @@ a paired release.
     descriptor, PEP 621 project version, wheel metadata, source/generated
     payload selectors, and redacted descriptor/wheel/payload/selector digests.
     A descriptor/wheel mismatch fixture fails closed.
-- [ ] Capture and freeze the complete-manifest direct-skill timing baseline
+- [x] Capture and freeze the complete-manifest direct-skill timing baseline
       after `V` and its wheel identity are established, and record the
       plugin-tree digest. Retain it only as test-owned comparison collateral,
       never as a successor marketplace source.
+  - Delivery: the test-only direct baseline now carries tree digest
+    `9ad3164305d64b2b99ef70f3580a345cfac61b6a9d94dd1cda3f4e9089dc1b8c`
+    and the current `0.1.17` host-command contract; its complete authorized
+    replay is the timing comparator, not a marketplace source.
 - [x] RED/GREEN: define the canonical router-packaging source layout. Keep the
       private `agent-engineering-direct` build-input manifest and icon collateral
       source-owned; make the `agent-development`
@@ -174,11 +180,14 @@ a paired release.
       skill surface, then prove DAR-targeted bounded author/finalize/invoke
       behavior through packages, receipts, and traces without claiming a private
       module-load event.
-- [ ] GREEN: prove that the successor-only marketplace plus the minimal
+- [x] GREEN: prove that the successor-only marketplace plus the minimal
       DAR-targeted prompt, using the generated routed root, produces the bounded
       package/finalization route and preserves refusal boundaries. Treat
       generated package and receipt validation as evidence; do not claim insight
       into model reasoning.
+  - Delivery: the authorized generated-root replay completed all 23 manifest
+    scenarios with no harness failures and was formally compared to the frozen
+    direct baseline. The accepted result is recorded in `spec.md`.
 - [x] RED/GREEN: make the external command coverage-manifest-first. Add focused
       tests that load the versioned successor coverage manifest, derive its
       complete scenario set, reject a scenario-only or partial-manifest request,
@@ -265,7 +274,7 @@ a paired release.
     `harness_failure` records at their observed terminal phase. The aggregate
     writer retains that record alongside the complete 23-scenario manifest;
     success and expected-unavailable records still require their planned phase.
-- [ ] Replay the complete manifest against the generated routed root and compare
+- [x] Replay the complete manifest against the generated routed root and compare
       it with the frozen direct-skill baseline. Use identical coverage/scenario-
       plan digests, prompts, fixtures, controller, actor/Codex/model
       configuration, timeout, DAR runtime version `V`, wheel filename/metadata
@@ -274,11 +283,18 @@ a paired release.
       comparison provenance, excluding generation and marketplace staging.
       Reject comparison when any of those runtime identities differ. Do not
       use the router result to authorize source cleanup or plugin publication.
-- [ ] Record reviewed redacted successor evidence from one complete external
+  - Delivery: `compare_manifest_evidence` verifies the two redacted aggregates,
+    their complete record sets, each record digest and protected identity,
+    frozen direct-tree digest, and timeout before it writes comparison
+    provenance. The 2026-09-11 replay completed all 23 cases on each surface
+    without a harness failure.
+- [x] Record reviewed redacted successor evidence from one complete external
       generated-root manifest replay. Review aggregate completeness, public
       interface parity, and router/payload/source-map/release proof receipts;
       do not mark acceptance until that review is approved.
-- [ ] Update this record, `specs/README.md`, and the historical v1 acceptance
+  - Delivery: the accepted evidence and receipt fingerprints are recorded in
+    `spec.md`; focused generated-tree validation proves public-interface parity.
+- [x] Update this record, `specs/README.md`, and the historical v1 acceptance
       wording only after the external successor run is reviewed and accepted.
 
 ## Validation

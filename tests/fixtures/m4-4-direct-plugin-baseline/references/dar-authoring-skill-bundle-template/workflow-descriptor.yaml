@@ -1,12 +1,13 @@
 format_version: 1
-package_id: dar-authoring-no-tool-template
-purpose: Answer one bounded user request with a local model and no tools.
+package_id: dar-authoring-skill-bundle-template
+purpose: Review one bounded user request with one package-local skill and no tools.
 dar_runtime:
   distribution: dynamic-agent-runner
   required_version: 0.1.17
 model:
   profile_requirement: local-general-model
-skills: []
+skills:
+  - review-guide
 tools: []
 workspace:
   accepted_input_types: [text/plain]
@@ -17,7 +18,7 @@ input_contract:
   additional_context_max_bytes: 8192
   field_precedence: original_prompt
 task_invocation:
-  entrypoint: answer_request
+  entrypoint: route_request
   allowed_tool_ids: []
   max_total_tool_calls: 0
   allowed_structured_input_fields: []
@@ -26,4 +27,4 @@ task_invocation:
 output:
   schema_ref: final_answer
 limits:
-  max_steps: 2
+  max_steps: 4

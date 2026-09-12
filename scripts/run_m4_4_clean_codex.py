@@ -344,6 +344,159 @@ def write_manifest_evidence(
     return destination
 
 
+_REPLAY_IDENTITY_FIELDS = (
+    "scenario_contract_version",
+    "checker_version",
+    "harness_policy_digest",
+    "executable_identity",
+    "plugin_identity",
+    "skill_identity",
+    "dar_runtime_version",
+    "dar_runtime_wheel_filename",
+    "dar_runtime_wheel_metadata_digest",
+    "dar_runtime_release_descriptor_digest",
+    "dar_runtime_payload_selector_list_digest",
+    "controller_fixture_digest",
+    "expected_status",
+    "observed_status",
+    "terminal_phase",
+)
+
+
+def compare_manifest_evidence(
+    *,
+    direct_aggregate: Path,
+    generated_aggregate: Path,
+    frozen_baseline_tree_digest: str,
+    timeout_seconds: int,
+    destination: Path,
+) -> Path:
+    """Compare two complete replays without treating timings as behavioral parity."""
+
+    if not _is_digest(frozen_baseline_tree_digest):
+        raise HarnessError("frozen baseline tree digest is invalid")
+    if not isinstance(timeout_seconds, int) or timeout_seconds <= 0:
+        raise HarnessError("replay timeout is invalid")
+    if not destination.is_absolute() or destination.exists():
+        raise HarnessError("comparison destination must be fresh and absolute")
+
+    direct = _load_replay_aggregate(direct_aggregate)
+    generated = _load_replay_aggregate(generated_aggregate)
+    if (
+        direct["coverage_digest"] != generated["coverage_digest"]
+        or direct["scenario_plan_digest"] != generated["scenario_plan_digest"]
+    ):
+        raise HarnessError("replay inputs differ")
+    direct_records = _load_replay_records(direct_aggregate, direct)
+    generated_records = _load_replay_records(generated_aggregate, generated)
+    if set(direct_records) != set(generated_records):
+        raise HarnessError("replay scenario sets differ")
+    for scenario_id in sorted(direct_records):
+        direct_record = direct_records[scenario_id]
+        generated_record = generated_records[scenario_id]
+        if any(
+            direct_record[field] != generated_record[field]
+            for field in _REPLAY_IDENTITY_FIELDS
+        ):
+            raise HarnessError("replay identities differ")
+        if (
+            direct_record.get("failure_reason") is not None
+            or generated_record.get("failure_reason") is not None
+        ):
+            raise HarnessError("replay contains a harness failure")
+
+    comparison = {
+        "format_version": "m4.4-replay-comparison-v1",
+        "direct_aggregate_digest": _digest_file(direct_aggregate),
+        "generated_aggregate_digest": _digest_file(generated_aggregate),
+        "coverage_digest": direct["coverage_digest"],
+        "scenario_plan_digest": direct["scenario_plan_digest"],
+        "frozen_baseline_tree_digest": frozen_baseline_tree_digest,
+        "timeout_seconds": timeout_seconds,
+        "scenario_count": len(direct_records),
+        "direct_actor_duration_ms": direct["actor_duration_ms"],
+        "generated_actor_duration_ms": generated["actor_duration_ms"],
+        "observed_statuses_match": True,
+    }
+    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    destination.write_text(
+        json.dumps(comparison, sort_keys=True, separators=(",", ":")), encoding="utf-8"
+    )
+    os.chmod(destination, 0o600)
+    return destination
+
+
+def _load_replay_aggregate(path: Path) -> dict[str, object]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise HarnessError("replay aggregate is unavailable") from error
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "format_version",
+            "coverage_digest",
+            "scenario_plan_digest",
+            "records",
+            "actor_duration_ms",
+        }
+        or value["format_version"] != "m4.4-external-evidence-v1"
+        or not _is_digest(value["coverage_digest"])
+        or not _is_digest(value["scenario_plan_digest"])
+        or not isinstance(value["records"], list)
+        or not isinstance(value["actor_duration_ms"], int)
+        or value["actor_duration_ms"] < 0
+    ):
+        raise HarnessError("replay aggregate is invalid")
+    return value
+
+
+def _load_replay_records(
+    aggregate_path: Path, aggregate: Mapping[str, object]
+) -> dict[str, dict[str, object]]:
+    values: dict[str, dict[str, object]] = {}
+    records = aggregate["records"]
+    assert isinstance(records, list)
+    for entry in records:
+        if (
+            not isinstance(entry, dict)
+            or set(entry)
+            != {"scenario_id", "observed_status", "record_digest", "actor_duration_ms"}
+            or not isinstance(entry["scenario_id"], str)
+            or not isinstance(entry["observed_status"], str)
+            or not _is_digest(entry["record_digest"])
+            or not isinstance(entry["actor_duration_ms"], int)
+            or entry["actor_duration_ms"] < 0
+            or entry["scenario_id"] in values
+        ):
+            raise HarnessError("replay aggregate records are invalid")
+        record_path = (
+            aggregate_path.parent / entry["scenario_id"] / "author-then-run.json"
+        )
+        try:
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise HarnessError("replay record is unavailable") from error
+        if (
+            not isinstance(record, dict)
+            or _digest_file(record_path) != entry["record_digest"]
+            or record.get("scenario_id") != entry["scenario_id"]
+            or record.get("observed_status") != entry["observed_status"]
+        ):
+            raise HarnessError("replay record is invalid")
+        values[entry["scenario_id"]] = record
+    return values
+
+
+def _is_digest(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the complete manifest-defined clean-Codex M4.4 acceptance replay."""
 

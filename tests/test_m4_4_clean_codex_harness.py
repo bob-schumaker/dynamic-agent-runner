@@ -380,6 +380,56 @@ def test_manifest_evidence_requires_complete_fresh_redacted_record_set(
             ),
             records=_manifest_records(module)[:-1],
         )
+
+
+def test_replay_comparison_binds_the_frozen_baseline_and_runtime_identities(
+    tmp_path: Path,
+) -> None:
+    module = _harness_module()
+    common = {
+        "coverage_source": REPO_ROOT
+        / "tests"
+        / "fixtures"
+        / "m4-4-successor-coverage.json",
+        "scenario_plan_source": REPO_ROOT
+        / "tests"
+        / "fixtures"
+        / "m4-4-external-scenario-plan.json",
+        "scenario_roots": (
+            REPO_ROOT / "tests" / "fixtures" / "dar-authoring" / "m4-4",
+            REPO_ROOT / "tests" / "fixtures" / "m4-4-successor",
+        ),
+        "records": _manifest_records(module),
+    }
+    direct = module.write_manifest_evidence(
+        evidence_directory=(tmp_path / "direct").resolve(), **common
+    )
+    generated = module.write_manifest_evidence(
+        evidence_directory=(tmp_path / "generated").resolve(), **common
+    )
+
+    comparison = module.compare_manifest_evidence(
+        direct_aggregate=direct,
+        generated_aggregate=generated,
+        frozen_baseline_tree_digest="a" * 64,
+        timeout_seconds=300,
+        destination=(tmp_path / "comparison.json").resolve(),
+    )
+
+    value = json.loads(comparison.read_text(encoding="utf-8"))
+    assert value["format_version"] == "m4.4-replay-comparison-v1"
+    assert value["frozen_baseline_tree_digest"] == "a" * 64
+    assert value["scenario_count"] == 23
+    assert value["timeout_seconds"] == 300
+    assert value["observed_statuses_match"] is True
+    with pytest.raises(module.HarnessError, match="frozen baseline tree digest"):
+        module.compare_manifest_evidence(
+            direct_aggregate=direct,
+            generated_aggregate=generated,
+            frozen_baseline_tree_digest="bad",
+            timeout_seconds=300,
+            destination=(tmp_path / "invalid-comparison.json").resolve(),
+        )
     records = _manifest_records(module)
     with pytest.raises(module.HarnessError, match="runtime identities"):
         module.write_manifest_evidence(

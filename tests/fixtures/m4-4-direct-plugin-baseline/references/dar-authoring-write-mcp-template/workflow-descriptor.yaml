@@ -1,13 +1,18 @@
 format_version: 1
-package_id: dar-authoring-no-tool-template
-purpose: Answer one bounded user request with a local model and no tools.
+package_id: dar-authoring-write-mcp-template
+purpose: Send one bounded email through a reviewed host-owned MCP capability.
 dar_runtime:
   distribution: dynamic-agent-runner
   required_version: 0.1.17
 model:
   profile_requirement: local-general-model
 skills: []
-tools: []
+tools:
+  - id: mail_send
+    kind: mcp
+    remote_tool_name: send_email
+    side_effect: write
+    approval_required: true
 workspace:
   accepted_input_types: [text/plain]
   scratch_access: none
@@ -18,12 +23,20 @@ input_contract:
   field_precedence: original_prompt
 task_invocation:
   entrypoint: answer_request
-  allowed_tool_ids: []
-  max_total_tool_calls: 0
+  allowed_tool_ids: [mail_send]
+  max_total_tool_calls: 1
   allowed_structured_input_fields: []
   allowed_artifact_roles: []
+  argument_sources:
+    mail_send:
+      recipient:
+        sources: [cited_original_prompt_span]
+        authority: true
+      body:
+        sources: [cited_original_prompt_span]
+        authority: false
   terminal_output_schema_ref: final_answer
 output:
   schema_ref: final_answer
 limits:
-  max_steps: 2
+  max_steps: 3
