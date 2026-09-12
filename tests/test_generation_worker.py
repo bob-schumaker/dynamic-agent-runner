@@ -438,6 +438,7 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
         ),
         deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1),
         now=0.0,
+        clock=lambda: 0.0,
     )
     assert result == GenerationWorkerResult(
         candidate=b"{}",
@@ -448,7 +449,9 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
     assert events == ["limit", "pack", "reserve", "generate", "reap", "release"]
 
 
-def test_launcher_rejects_an_expired_deadline_before_child_generation() -> None:
+def test_launcher_discards_a_result_when_the_deadline_expires_during_generation() -> (
+    None
+):
     events: list[str] = []
 
     class Reservation:
@@ -468,9 +471,9 @@ def test_launcher_rejects_an_expired_deadline_before_child_generation() -> None:
             events.append("pack")
             return 3
 
-        def generate(self) -> bytes:
+        def generate(self) -> tuple[bytes, int]:
             events.append("generate")
-            return b"{}"
+            return b"{}", 1
 
         def reap(self) -> None:
             events.append("reap")
@@ -510,6 +513,7 @@ def test_launcher_rejects_an_expired_deadline_before_child_generation() -> None:
                 deadline_monotonic=1.0,
             ),
             deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1),
-            now=0.001,
+            now=0.0,
+            clock=lambda: 0.001,
         )
-    assert events == ["limit", "pack", "reserve", "reap", "release"]
+    assert events == ["limit", "pack", "reserve", "generate", "reap", "release"]

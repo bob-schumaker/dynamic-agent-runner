@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
@@ -258,6 +260,7 @@ class GenerationWorkerLauncher:
         request: GenerationMemoryReservationRequest,
         deadline: GenerationDeadline,
         now: float,
+        clock: Callable[[], float] = time.monotonic,
     ) -> GenerationWorkerResult:
         """Run one authorized child generation and validate its receipt-bound result."""
 
@@ -287,6 +290,7 @@ class GenerationWorkerLauncher:
                 raise GenerationWorkerProtocolError(
                     "generation worker protocol invalid"
                 )
+            deadline.require_remaining(clock())
             return session.result(
                 receipt=receipt,
                 fragment_index=receipt.fragment_index,
