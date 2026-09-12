@@ -113,7 +113,7 @@ Runtime changes remain gated by the RED-first tasks.
 
 ## S4 — Migration and Evidence
 
-- [ ] T4.1 [tests, RED] Migrate the Transformers/PEFT continuation path from
+- [x] T4.1 [tests, RED] Migrate the Transformers/PEFT continuation path from
   hard-coded `1_000_000`/`32` ceilings to the resolved canonical budget.
 - [ ] T4.2 [tests, RED] Add converter/plugin migration vectors. Prove a bounded
   worker co-locates the exact digest-verified converter and compatible runner,
