@@ -119,6 +119,47 @@ class GenerationWorkerSession:
         return GenerationWorkerResult(candidate, generated_tokens)
 
 
+class GenerationWorkerLauncher:
+    """Install the bootstrap envelope before allowing a child to pack input."""
+
+    def pack(
+        self, *, child: object, max_memory_bytes: int, execution_device: str
+    ) -> int:
+        install_limit = getattr(child, "install_bootstrap_limit", None)
+        pack = getattr(child, "pack", None)
+        reap = getattr(child, "reap", None)
+        if (
+            not _positive_int(max_memory_bytes)
+            or not isinstance(execution_device, str)
+            or not execution_device
+            or not callable(install_limit)
+            or not callable(pack)
+            or not callable(reap)
+        ):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        try:
+            install_limit(max_memory_bytes, execution_device)
+            packed_context_tokens = pack()
+            if not _nonnegative_int(packed_context_tokens):
+                raise GenerationWorkerProtocolError(
+                    "generation worker protocol invalid"
+                )
+            return packed_context_tokens
+        except GenerationWorkerProtocolError:
+            raise
+        except Exception as error:
+            raise GenerationWorkerProtocolError(
+                "generation worker protocol invalid"
+            ) from error
+        finally:
+            try:
+                reap()
+            except Exception as error:
+                raise GenerationWorkerProtocolError(
+                    "generation worker protocol invalid"
+                ) from error
+
+
 def _nonnegative_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 

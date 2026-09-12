@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from dynamic_agent_runner.workflow_host.generation_worker import (
+    GenerationWorkerLauncher,
     GenerationWorkerProtocolError,
     GenerationWorkerSession,
 )
@@ -116,3 +117,26 @@ def test_worker_rejects_a_candidate_over_its_authorized_byte_budget() -> None:
             candidate=b"{}",
             generated_tokens=1,
         )
+
+
+def test_launcher_installs_bootstrap_limit_before_packing() -> None:
+    events: list[tuple[object, ...]] = []
+
+    class Child:
+        def install_bootstrap_limit(self, memory_bytes: int, device: str) -> None:
+            events.append(("limit", memory_bytes, device))
+
+        def pack(self) -> int:
+            events.append(("pack",))
+            return 3
+
+        def reap(self) -> None:
+            events.append(("reap",))
+
+    assert (
+        GenerationWorkerLauncher().pack(
+            child=Child(), max_memory_bytes=8, execution_device="cpu"
+        )
+        == 3
+    )
+    assert events == [("limit", 8, "cpu"), ("pack",), ("reap",)]
