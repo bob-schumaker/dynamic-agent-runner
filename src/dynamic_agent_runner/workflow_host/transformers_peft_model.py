@@ -1518,6 +1518,7 @@ class DeferredTransformersPeftSingleImageAdapter:
         generated_tokens = 0
         output_bytes = 0
         for fragment_index in range(budget.max_continuations + 1):
+            deadline.require_remaining(time.monotonic())
             remaining_generated_tokens = (
                 budget.max_total_generated_tokens - generated_tokens
             )

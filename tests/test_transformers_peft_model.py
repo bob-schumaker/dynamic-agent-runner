@@ -776,6 +776,63 @@ def test_deferred_worker_adapter_binds_each_child_to_remaining_output_bytes(
     ]
 
 
+def test_deferred_worker_adapter_stops_before_binding_a_late_continuation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+        GenerationResourceBudgetError,
+    )
+    from dynamic_agent_runner.workflow_host.generation_worker import (
+        GenerationWorkerResult,
+    )
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+    )
+
+    budget = _generation_budget(max_continuations=1)
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id="model", adapter_id="adapter", resolve_prepared_set=lambda: object()
+    )
+    adapter._payload_bound = True
+    adapter._generation_worker_factory = object()
+    adapter._generation_budget = budget
+    adapter._generation_host_policy = _generation_host_policy(budget)
+    factories: list[object] = []
+
+    class Deadline:
+        expires_at = 1.0
+
+        def __init__(self) -> None:
+            self._checks = 0
+
+        def require_remaining(self, _now: float) -> None:
+            self._checks += 1
+            if self._checks > 1:
+                raise GenerationResourceBudgetError("generation deadline exceeded")
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.transformers_peft_model.GenerationDeadline.start",
+        lambda *_args, **_kwargs: Deadline(),
+    )
+    monkeypatch.setattr(
+        adapter,
+        "_create_worker_invocation_factory",
+        lambda *_args, **_kwargs: factories.append(object()) or object(),
+    )
+    monkeypatch.setattr(
+        adapter,
+        "_run_worker_fragment",
+        lambda **_kwargs: GenerationWorkerResult(b"first", 1, 1, 5, True),
+    )
+
+    with pytest.raises(ModelExecutionError, match="deadline exceeded"):
+        adapter.create_response(
+            build_openai_request(model="model", messages=[OpenAIMessage("user", "go")])
+        )
+
+    assert len(factories) == 1
+
+
 def test_transformers_worker_runtime_keeps_converter_and_packed_input_in_child(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
