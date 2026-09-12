@@ -5,7 +5,10 @@ from __future__ import annotations
 import pytest
 
 from dynamic_agent_runner.errors import ModelExecutionError
-from dynamic_agent_runner.workflow_host.host import _create_model_adapter
+from dynamic_agent_runner.workflow_host.host import (
+    LocalWorkflowHostError,
+    _create_model_adapter,
+)
 from dynamic_agent_runner.workflow_host.local_model_runners import (
     LocalModelRunnerCatalog,
 )
@@ -99,6 +102,81 @@ def test_host_routes_the_qwen_profile_through_the_builtin_runner() -> None:
 
     assert adapter.models == (profile.model_id,)
     assert adapter.execution_profile_adapter_id == profile.adapter_id
+
+
+def test_host_binds_a_reviewed_worker_pair_to_the_builtin_runner() -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+
+    profile = LocalModelProfile(
+        profile_id="profile",
+        model_id="qwen25-vl-3b-floorplan-grpo",
+        execution_model_id="qwen25-vl-3b-floorplan-grpo",
+        adapter_id="qwen25-vl-3b-floorplan-grpo-transformers-peft-adapter-v1",
+        base_url=None,
+        profile_requirement="local-multimodal-model-v1",
+        capabilities=frozenset({"text_generation", "multimodal_input"}),
+        runner_id="transformers-peft-v1",
+        profile_digest="digest",
+    )
+
+    class Factory:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        capability = TRANSFORMERS_GENERATE_CAPABILITY
+
+        def create_for_invocation(self, **_kwargs: object) -> object:
+            raise AssertionError("binding must not construct a worker")
+
+    class Controller:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        supported_execution_devices = frozenset({"cpu", "mps"})
+
+        def launch(self, _descriptor: object) -> object:
+            raise AssertionError("binding must not launch a worker")
+
+        def wait_ready(self, _child: object, _timeout: float) -> bool:
+            raise AssertionError("binding must not wait")
+
+        def terminate(self, _child: object) -> None:
+            raise AssertionError("binding must not terminate")
+
+        def kill(self, _child: object) -> None:
+            raise AssertionError("binding must not kill")
+
+        def reap(self, _child: object, _timeout: float) -> bool:
+            raise AssertionError("binding must not reap")
+
+    adapter = _create_model_adapter(
+        profile,
+        resolve_prepared_set=lambda: pytest.fail("resolution must be lazy"),
+        generation_worker_factory=Factory(),
+        generation_worker_controller=Controller(),
+    )
+
+    assert adapter._generation_worker_factory is not None
+    assert adapter._generation_worker_controller is not None
+
+
+def test_host_rejects_a_partial_builtin_worker_pair() -> None:
+    profile = LocalModelProfile(
+        profile_id="profile",
+        model_id="qwen25-vl-3b-floorplan-grpo",
+        execution_model_id="qwen25-vl-3b-floorplan-grpo",
+        adapter_id="qwen25-vl-3b-floorplan-grpo-transformers-peft-adapter-v1",
+        base_url=None,
+        profile_requirement="local-multimodal-model-v1",
+        capabilities=frozenset({"text_generation", "multimodal_input"}),
+        runner_id="transformers-peft-v1",
+        profile_digest="digest",
+    )
+
+    with pytest.raises(LocalWorkflowHostError, match="generation worker"):
+        _create_model_adapter(
+            profile,
+            resolve_prepared_set=lambda: pytest.fail("resolution must be lazy"),
+            generation_worker_factory=object(),
+        )
 
 
 def test_client_cannot_register_a_dar_owned_runner_id() -> None:

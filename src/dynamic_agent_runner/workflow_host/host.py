@@ -246,7 +246,11 @@ def _create_model_adapter(
     *,
     resolve_prepared_set: Callable[[], object] | None = None,
     runners: LocalModelRunnerCatalog | None = None,
+    generation_worker_factory: object | None = None,
+    generation_worker_controller: object | None = None,
 ):
+    if (generation_worker_factory is None) != (generation_worker_controller is None):
+        raise LocalWorkflowHostError("generation worker is unavailable")
     if profile.adapter_id == "strict-local-adapter-v1":
         return create_local_adapter(profile)
     if profile.adapter_id == "apple-foundation-models-adapter-v1":
@@ -262,11 +266,22 @@ def _create_model_adapter(
             DeferredTransformersPeftSingleImageAdapter,
         )
 
-        return DeferredTransformersPeftSingleImageAdapter(
+        adapter = DeferredTransformersPeftSingleImageAdapter(
             model_id=profile.model_id,
             adapter_id=profile.adapter_id,
             resolve_prepared_set=resolve_prepared_set,  # type: ignore[arg-type]
         )
+        if generation_worker_factory is not None:
+            from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+                TRANSFORMERS_GENERATE_CAPABILITY,
+            )
+
+            adapter.bind_generation_worker(
+                factory=generation_worker_factory,
+                controller=generation_worker_controller,
+                capability=TRANSFORMERS_GENERATE_CAPABILITY,
+            )
+        return adapter
     if profile.adapter_id == "hosted-openai-adapter-v1":
         return create_hosted_openai_adapter(profile)
     if resolve_prepared_set is not None and runners is not None:
