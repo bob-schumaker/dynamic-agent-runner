@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
+from collections.abc import Mapping
 
 from dynamic_agent_runner.local_model_preparation import PreparedArtifactSet
 from dynamic_agent_runner.workflow_host.descriptor import DeclaredInputConverter
@@ -35,6 +36,7 @@ class GenerationWorkerCoLocatedFactory:
         converter: DeclaredInputConverter,
         package_root: Path,
         prepared_set: PreparedArtifactSet,
+        messages: tuple[Mapping[str, object], ...],
         sealed_payload_path: Path,
         sealed_payload_digest: str,
         material_lock_digest: str,
@@ -76,6 +78,7 @@ class GenerationWorkerCoLocatedFactory:
                 package_root=package_root,
                 converter=converter,
                 prepared_set=prepared_set,
+                messages=messages,
                 sealed_payload_path=sealed_payload_path,
                 sealed_payload_digest=sealed_payload_digest,
                 expires_at=expires_at,

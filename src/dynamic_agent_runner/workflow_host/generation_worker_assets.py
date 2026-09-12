@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping
 from datetime import datetime
 from dataclasses import asdict, dataclass
 from hashlib import sha256
@@ -36,6 +38,7 @@ class GenerationWorkerCoLocatedAssets:
     package_root: Path
     converter: DeclaredInputConverter
     prepared_set: PreparedArtifactSet
+    messages: tuple[Mapping[str, object], ...]
     sealed_payload_path: Path
 
 
@@ -146,6 +149,7 @@ class GenerationWorkerAssetHandleService:
         package_root: Path,
         converter: DeclaredInputConverter,
         prepared_set: PreparedArtifactSet,
+        messages: tuple[Mapping[str, object], ...],
         sealed_payload_path: Path,
         sealed_payload_digest: str,
         expires_at: datetime,
@@ -159,6 +163,7 @@ class GenerationWorkerAssetHandleService:
                 package_root=package_root,
                 converter=converter,
                 prepared_set=prepared_set,
+                messages=messages,
                 sealed_payload_path=sealed_payload_path,
                 sealed_payload_digest=sealed_payload_digest,
             )
@@ -268,6 +273,7 @@ def _co_located_payload(
     package_root: object,
     converter: object,
     prepared_set: object,
+    messages: object,
     sealed_payload_path: object,
     sealed_payload_digest: object,
 ) -> dict[str, object]:
@@ -290,6 +296,9 @@ def _co_located_payload(
         expected_digest=converter.asset_digest,
     )
     payload_path = _verified_asset(sealed_payload_path, sealed_payload_digest)
+    canonical_messages = _canonical_messages(
+        messages, maximum_bytes=converter.max_input_bytes
+    )
     recipe = prepared_set.recipe
     paths: dict[str, str] = {}
     for artifact in recipe.artifacts:
@@ -305,6 +314,7 @@ def _co_located_payload(
         "prepared_recipe": _recipe_payload(recipe),
         "prepared_paths": paths,
         "prepared_recipe_digest": prepared_set.recipe_digest,
+        "messages": canonical_messages,
         "sealed_payload_path": str(payload_path),
         "sealed_payload_digest": sealed_payload_digest,
     }
@@ -350,6 +360,9 @@ def _resolved_co_located_assets(
         package_root=package_root.resolve(strict=True),
         converter=converter,
         prepared_set=PreparedArtifactSet(recipe, paths),
+        messages=_canonical_messages(
+            payload["messages"], maximum_bytes=converter.max_input_bytes
+        ),
         sealed_payload_path=payload_path,
     )
 
@@ -420,3 +433,26 @@ def _asset_within_root(*, root: Path, entrypoint: object, expected_digest: str) 
             "generation worker asset is unavailable"
         ) from error
     return _verified_asset(asset, expected_digest)
+
+
+def _canonical_messages(
+    value: object, *, maximum_bytes: int
+) -> tuple[Mapping[str, object], ...]:
+    if not isinstance(value, (tuple, list)) or not isinstance(maximum_bytes, int):
+        raise GenerationWorkerAssetHandleError("generation worker asset is unavailable")
+    try:
+        encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+        parsed = json.loads(encoded)
+    except (TypeError, ValueError) as error:
+        raise GenerationWorkerAssetHandleError(
+            "generation worker asset is unavailable"
+        ) from error
+    if (
+        len(encoded) > maximum_bytes
+        or not isinstance(parsed, list)
+        or not all(isinstance(message, dict) for message in parsed)
+    ):
+        raise GenerationWorkerAssetHandleError("generation worker asset is unavailable")
+    return tuple(parsed)
