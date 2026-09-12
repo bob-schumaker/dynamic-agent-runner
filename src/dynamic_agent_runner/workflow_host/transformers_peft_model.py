@@ -31,6 +31,7 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
     validate_generation_budget_field,
 )
 from dynamic_agent_runner.workflow_host.generation_worker import (
+    GenerationWorkerDeadlineExceeded,
     GenerationWorkerLaunchDescriptor,
     GenerationWorkerLauncher,
     GenerationWorkerPackReceipt,
@@ -1499,6 +1500,8 @@ class DeferredTransformersPeftSingleImageAdapter:
             raise ModelExecutionError(
                 "model generation budget is unavailable"
             ) from error
+        except GenerationWorkerDeadlineExceeded as error:
+            raise ModelExecutionError("model generation deadline exceeded") from error
         except GenerationWorkerProtocolError as error:
             raise ModelExecutionError("generation worker protocol invalid") from error
 
