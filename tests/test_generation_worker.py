@@ -292,6 +292,9 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
             events.append("generate")
             return b"{}", 1
 
+        def reap(self) -> None:
+            events.append("reap")
+
     worker = GenerationWorkerSession(
         invocation_id="invocation-1",
         invocation_digest="a" * 64,
@@ -326,7 +329,7 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
         aggregate_generated_tokens=1,
         aggregate_output_bytes=2,
     )
-    assert events == ["reserve", "generate", "release"]
+    assert events == ["reserve", "generate", "reap", "release"]
 
 
 def test_launcher_rejects_an_expired_deadline_before_child_generation() -> None:
@@ -345,6 +348,9 @@ def test_launcher_rejects_an_expired_deadline_before_child_generation() -> None:
         def generate(self) -> bytes:
             events.append("generate")
             return b"{}"
+
+        def reap(self) -> None:
+            events.append("reap")
 
     worker = GenerationWorkerSession(
         invocation_id="invocation-1",
@@ -375,4 +381,4 @@ def test_launcher_rejects_an_expired_deadline_before_child_generation() -> None:
             deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1),
             now=0.001,
         )
-    assert events == ["reserve", "release"]
+    assert events == ["reserve", "reap", "release"]

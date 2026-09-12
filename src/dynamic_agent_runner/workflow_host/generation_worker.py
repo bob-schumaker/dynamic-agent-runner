@@ -211,7 +211,8 @@ class GenerationWorkerLauncher:
         """Run one authorized child generation and validate its receipt-bound result."""
 
         generate = getattr(child, "generate", None)
-        if not callable(generate):
+        reap = getattr(child, "reap", None)
+        if not callable(generate) or not callable(reap):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         reservation = self.authorize(
             session=session,
@@ -244,7 +245,14 @@ class GenerationWorkerLauncher:
                 "generation worker protocol invalid"
             ) from error
         finally:
-            reservation.release()
+            try:
+                reap()
+            except Exception as error:
+                raise GenerationWorkerProtocolError(
+                    "generation worker protocol invalid"
+                ) from error
+            finally:
+                reservation.release()
 
     def authorize(
         self,
