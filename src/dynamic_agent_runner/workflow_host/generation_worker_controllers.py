@@ -673,7 +673,12 @@ def _cpu_generate_response(
     response = {"type": "result", "candidate": result[0], "generated_tokens": result[1]}
     if len(result) == 2:
         return response
-    if not _nonnegative_int(result[2]) or not _nonnegative_int(result[3]):
+    if (
+        not _nonnegative_int(result[2])
+        or not _nonnegative_int(result[3])
+        or result[2] != result[1]
+        or result[3] != len(result[0])
+    ):
         raise GenerationWorkerProtocolError("generation worker protocol invalid")
     return response | {
         "aggregate_generated_tokens": result[2],
