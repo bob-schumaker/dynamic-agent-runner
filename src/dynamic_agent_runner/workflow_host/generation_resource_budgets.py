@@ -115,7 +115,8 @@ class GenerationMemoryReservationRequest:
 
     def __post_init__(self) -> None:
         if (
-            len(self.material_lock_digest) != 64
+            not isinstance(self.material_lock_digest, str)
+            or len(self.material_lock_digest) != 64
             or any(
                 character not in "0123456789abcdef"
                 for character in self.material_lock_digest

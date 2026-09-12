@@ -303,6 +303,21 @@ def test_memory_reservation_rejects_missing_or_malformed_providers() -> None:
         reserve_generation_memory(object(), request)
 
 
+def test_memory_reservation_request_redacts_a_non_string_material_lock_identity() -> (
+    None
+):
+    with pytest.raises(GenerationResourceBudgetError, match="memory budget"):
+        GenerationMemoryReservationRequest(
+            material_lock_digest=1,  # type: ignore[arg-type]
+            runner_identity="runner",
+            execution_device="cpu",
+            packed_context_tokens=1,
+            requested_new_tokens=1,
+            max_memory_bytes=1,
+            deadline_monotonic=1.0,
+        )
+
+
 def test_generation_execution_host_policy_requires_a_private_budget_and_provider() -> (
     None
 ):
