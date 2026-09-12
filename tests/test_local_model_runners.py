@@ -191,6 +191,56 @@ def test_worker_runner_requires_one_identity_bound_factory_and_controller() -> N
     assert LocalModelRunnerCatalog((WorkerRunner(),))
 
 
+def test_worker_runner_accepts_an_exact_invocation_factory() -> None:
+    worker_capability = GenerationRunnerCapability(
+        runner_id="client-worker-v1",
+        max_effective_context_tokens=64,
+        memory_admission_method="process_hard_limit",
+        pre_packing_containment_method="process_hard_limit",
+        supported_execution_devices=frozenset({"cpu"}),
+        worker_protocol="generation-worker-v1",
+        bootstrap_hard_limit_method="process_hard_limit",
+        generation_hard_limit_method="process_hard_limit",
+    )
+
+    class Factory:
+        runner_id = worker_capability.runner_id
+        capability = worker_capability
+
+        def create_for_invocation(self, **_kwargs: object) -> object:
+            raise AssertionError("binding must not construct a worker")
+
+    class Controller:
+        runner_id = worker_capability.runner_id
+        supported_execution_devices = frozenset({"cpu"})
+
+        def launch(self, _descriptor: object) -> object:
+            raise AssertionError("binding must not launch a worker")
+
+        def wait_ready(self, _child: object, _timeout: float) -> bool:
+            raise AssertionError("binding must not wait")
+
+        def terminate(self, _child: object) -> None:
+            raise AssertionError("binding must not terminate")
+
+        def kill(self, _child: object) -> None:
+            raise AssertionError("binding must not kill")
+
+        def reap(self, _child: object, _timeout: float) -> bool:
+            raise AssertionError("binding must not reap")
+
+    class WorkerRunner:
+        runner_id = worker_capability.runner_id
+        generation_capability = worker_capability
+        generation_worker_factory = Factory()
+        generation_worker_controller = Controller()
+
+        def create_adapter(self, _profile: object, _resolve: object) -> object:
+            raise AssertionError("catalog construction must not create an adapter")
+
+    assert LocalModelRunnerCatalog((WorkerRunner(),))
+
+
 def test_cancellation_runner_cannot_bind_worker_components() -> None:
     worker_capability = GenerationRunnerCapability(
         runner_id="client-cancellable-v1",

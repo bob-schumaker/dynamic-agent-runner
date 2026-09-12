@@ -94,7 +94,10 @@ def _has_valid_worker_bindings(runner: LocalModelRunner) -> bool:
         or controller is None
         or getattr(factory, "runner_id", None) != runner.runner_id
         or getattr(factory, "capability", None) is not capability
-        or not callable(getattr(factory, "create_launch_descriptor", None))
+        or not any(
+            callable(getattr(factory, operation, None))
+            for operation in ("create_launch_descriptor", "create_for_invocation")
+        )
         or getattr(controller, "runner_id", None) != runner.runner_id
         or not isinstance(
             getattr(controller, "supported_execution_devices", None), frozenset
