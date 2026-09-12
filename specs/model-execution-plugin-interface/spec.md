@@ -51,8 +51,9 @@ This feature does not:
 
 - permit `trust_remote_code=True` for arbitrary Hub content;
 - define workflow-scoped generated input conversion; that narrower exception is
-  owned by `specs/workflow-input-converter-plugin/spec.md` and requires its
-  isolated-worker boundary;
+  owned by `specs/workflow-input-converter-plugin/spec.md` and, when its runner
+  is deadline-bounded but non-cooperative, the resource worker defined by
+  `specs/model-generation-resource-budgets/spec.md`;
 - create a general-purpose Python sandbox or let a plugin inspect arbitrary
   host files, environment variables, credentials, or networks;
 - standardize every inference framework or model architecture; or
@@ -143,8 +144,13 @@ DAR owns model residency, cleanup, concurrency, GPU/CPU/memory limits,
 cancellation, timeout policy, trace emission, and error shaping. The canonical
 generation-budget shape and enforcement rules are owned by
 `specs/model-generation-resource-budgets/spec.md`; a plugin receives only the
-already resolved host-issued budget. A plugin may request declared resources
-but cannot exceed host policy or manage another plugin's model instance.
+already resolved host-issued budget. Every plugin eligible for a bounded
+generation declares the reviewed `GenerationRunnerCapability` required there:
+context bound, memory-admission method, and either cancellation coverage for
+load/generate or supported terminable-worker protocol and hard-limit methods.
+Missing capability data fails before load; it is not an implementation choice
+left to the plugin. A plugin may request declared resources but cannot exceed
+host policy or manage another plugin's model instance.
 
 ### FR-4: Exact compatibility and fail-closed behavior
 

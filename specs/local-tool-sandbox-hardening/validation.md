@@ -2,8 +2,8 @@
 
 ## Status
 
-Future work. No backend is admitted for malicious local-tool or converter
-package code.
+Future work. No backend is admitted for malicious local-tool, converter-package,
+sealed-artifact, or generation-worker code.
 
 ## macOS `sandbox-exec` probes
 

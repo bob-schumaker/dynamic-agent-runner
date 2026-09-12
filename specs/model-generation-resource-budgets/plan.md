@@ -9,10 +9,14 @@ budget resolved before a model runner executes.
 
 1. Extend the sealed `execution-descriptor.json` ABI fields with one strict
    seven-field `generation_budget` record, then introduce an immutable canonical
-   budget value and host-policy resolver. Resolve the effective value as the
-   minimum of that sealed declaration, material/profile limit, receiving-runner
-   capability, host ceiling, and enclosing sealed-artifact runtime/memory cap.
-   Preserve legacy request fields only as reducing compatibility aliases.
+   budget value and host-policy resolver. Define the typed field applicability
+   matrix: workflow and host records cover all fields; material/profile records
+   are strict partial records; runner capability bounds context and declares
+   lifecycle/memory support; the outer artifact descriptor caps only runtime and
+   memory. Add `GenerationRunnerCapability` schema, identity binding, and
+   duplicate-rejecting registration to both DAR-owned and `LocalModelRunnerCatalog`
+   boundaries. Resolve the fieldwise minimum and preserve legacy request fields
+   only as reducing compatibility aliases.
 2. Pass the resolved value—not raw workflow request fields—through built-in and
    plugin runner boundaries. Measure packed input plus requested output against
    the lesser of the effective and runner-supported context, and count generated
@@ -20,31 +24,53 @@ budget resolved before a model runner executes.
    Reduce a fragment request to the remaining aggregate token allowance; reject
    an oversized assembled-byte candidate before terminal processing, and dispose
    of every partial candidate.
-3. Add a receiver-owned memory-reservation interface. A runner without a hard
-   limit, platform allocation control, or conservative reviewed reservation
-   estimator is unavailable for a memory-bounded invocation. Supply it only the
-   material-lock and runner identities, selected execution device, packed-context
-   and requested-new-token bounds, effective memory ceiling, and deadline.
-   Acquire the opaque reservation before model work and release it exactly once
-   on every terminal path after request-scoped cleanup is recorded.
+3. Add a receiver-owned memory-reservation interface and pre-packing
+   containment declaration. Every runner enters its platform/device-enforceable
+   bootstrap envelope before decode or packing. After a worker returns a
+   validated packing receipt—or an in-process runner has measured packed
+   context—the host atomically obtains the generation reservation before model
+   load or generation. A runner without both containment and one FR-3 admission
+   method is unavailable. Release each reservation exactly once after
+   request-scoped cleanup.
 4. Apply enclosing sealed-artifact runtime/memory ceilings as additional caps;
    do not reimplement artifact I/O, callback, or output-slot accounting.
-5. Start an invocation deadline before invocation-scoped load or generation.
+5. Start an invocation deadline before worker launch, invocation-scoped packing,
+   load, or generation.
    Admit only runners that support cancellation or execute in a terminable
    isolated worker; classify a noninterruptible runner as unavailable rather
-   than reporting a timeout after it returns. Discard late output and clear
-   request-scoped sealed, packed, generation, and KV-cache state.
+   than reporting a timeout after it returns. Implement the spec's
+   `GenerationWorkerLauncher` and `generation-worker-v1` state machine: install
+   bootstrap limits before pack; validate a receipt; reserve; authorize; then
+   load/generate. The launcher withholds host loader/device handles during pack;
+   unsupported containment fails closed. Before framing a candidate, the worker
+   checks aggregate bytes; the parent recomputes bytes and rejects inconsistent
+   frames; generated-token counts are receipt-bound compatible-runner
+   attestations checked for budget/protocol consistency without transporting
+   token IDs. The generation-stage limit remains installed across continuation
+   admissions. Reap on every terminal path, escalating a timed-out reap without
+   admitting late frames. The process uses only the current
+   personal-use exact-identity trust precedent, not untrusted-code isolation;
+   defer worker reuse and migrate every workflow-Python surface to the future
+   common isolation backend together.
 6. Retain per-fragment telemetry only for authorized debug runs: fragment index,
    packed-context and generated-token counts, output bytes, exhaustion, elapsed
    time, and budget-stop classification. Keep normal traces and results to
    safe aggregate counters and redacted classifications.
-7. Migrate Transformers/PEFT raw continuation first. It rejects context growth
+7. Migrate the converter/plugin boundary: bounded worker invocations co-locate
+   the digest-verified converter and compatible runner, retain the no-
+   `PackedModelInput`-serialization invariant, and register the generic
+   `GenerationRunnerCapability` for built-in and receiver-installed runners.
+8. Migrate Transformers/PEFT raw continuation first. It rejects context growth
    rather than compressing it. Workflow components remain responsible for
    independently valid paged output and deterministic merging.
 
 ## Verification
 
-Use fake-only unit tests to establish each rejection boundary, cleanup, and
-redaction behavior. Run focused budget, Transformers runner, sealed-artifact,
-and converter suites, then `poetry run pytest -q`,
+Use fake-only unit, deterministic fake-child-process conformance, and one
+controlled no-model real-child termination/reap test to establish each rejection
+boundary, limit-installation ordering, cleanup, and redaction behavior. Include
+built-in, receiver-installed/plugin, in-process, and worker capability rejection
+vectors. Run focused budget, worker transport, local-model-runners,
+Transformers runner, execution-plugin, sealed-artifact, and converter suites,
+then `poetry run pytest -q`,
 `poetry run ruff check src tests`, and `git diff --check` after implementation.

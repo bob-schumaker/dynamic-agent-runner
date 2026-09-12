@@ -11,6 +11,8 @@
   - `specs/host-workflow-integration/spec.md`
   - `specs/workflow-input-converter-plugin/spec.md`
   - `specs/workflow-embedding-index-artifacts/spec.md`
+  - `specs/sealed-artifact-workflow-runner/spec.md`
+  - `specs/model-generation-resource-budgets/spec.md`
 
 ## Explicit Deferral
 
@@ -33,9 +35,9 @@ bounded result-location primitive required by `sandbox-workspace-runtime`.
 ## Objective
 
 Before DAR admits an untrusted executable workflow-local asset, including a
-tool or workflow input-converter plugin, provide an OS or runtime isolation
-boundary that enforces the same capability model DAR already enforces for
-models.
+tool, workflow input-converter, sealed artifact, or generation worker, provide
+an OS or runtime isolation boundary that enforces the same capability model DAR
+already enforces for models.
 
 ## Current Boundary
 
@@ -51,12 +53,14 @@ network, and process permissions.
 
 ## Scope
 
-This future slice shall define and implement an isolation backend for untrusted
-local-tool or converter-package assets. It shall:
+This future slice shall define and implement one common isolation backend for
+untrusted local-tool, converter-package, sealed-artifact, and generation-worker
+assets. It shall:
 
 1. provide a per-invocation execution environment with no caller workspace
    path, host credential, inherited secret, or ambient writable directory;
-2. deliver only the sealed artifact bytes through a defined input channel;
+2. deliver only declared sealed inputs and verified read-only runtime/model
+   materials through defined channels;
 3. permit only the declared executable asset and its explicitly reviewed runtime
    dependencies;
 4. deny network, arbitrary process execution, filesystem reads outside the
@@ -76,8 +80,9 @@ tool named "sandbox."
 
 This slice does not:
 
-- change the sealed-artifact runner's local-owner admission boundary; it is not
-  an isolation claim or an admission route for untrusted packages;
+- change the sealed-artifact runner's local-owner admission boundary before the
+  common backend is available; it is not an isolation claim or an admission
+  route for untrusted packages;
 - add a binary-format registry or teach DAR SVG, PCAP, protobuf, or other
   domain semantics;
 - install, discover, download, or configure arbitrary tool packages;
@@ -134,8 +139,9 @@ remaining assumptions.
 This feature is complete only when DAR can distinguish trusted
 implementation-owned fixtures from untrusted executable assets, refuses the
 latter without the approved backend, and has the required positive and
-adversarial evidence for every supported platform. The workflow input converter
-plugin feature currently uses a sealed Python package contract without claiming
-OS isolation; this hardening feature is not its release gate. See
+adversarial evidence for every supported platform. The workflow input converter,
+sealed-artifact, and generation-worker features currently use exact-identity
+personal-use contracts without claiming OS isolation; this hardening feature is
+not their release gate. See
 [`validation.md`](validation.md) for experimental Docker and `sandbox-exec`
 evidence.

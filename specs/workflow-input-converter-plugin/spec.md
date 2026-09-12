@@ -90,7 +90,7 @@ payload bytes cannot select or replace them.
 
 The package also declares the standard DAR capability required to host the
 sealed converter ABI under `workflow-capability-requirements`. That requirement
-selects DAR's converter sandbox and runner context, not the package converter
+selects DAR's converter-host capability and runner context, not the package converter
 asset itself; the asset remains bound and validated by this specification. The
 manifest's compatible runner contract maps to exactly one required
 converter-host capability; DAR rejects a missing or incompatible mapping before
@@ -113,6 +113,14 @@ sealed payload bytes + prompt
 execution contract. It can be a mapping of framework tensors for
 `transformers-generate-v1`, but DAR neither inspects nor serializes it. There is
 no universal tensor schema.
+
+For a deadline-bounded generation using the terminable worker defined by
+`model-generation-resource-budgets`, the converter and its compatible runner
+move together into that worker. DAR verifies the same package, digest, and
+runner compatibility before launch; the converter returns `PackedModelInput`
+directly to the compatible runner within the worker; and no packed value crosses
+the worker protocol. This replaces the in-process edge only for that bounded
+execution mode. It does not create an OS-isolation claim.
 
 The converter is a private graph node. The package can declare it for
 validation and trace identity, but a workflow user cannot invoke it directly
@@ -314,8 +322,9 @@ and must not be represented as a current converter admission requirement.
 ### FR-4: Private packed-input handoff
 
 The converter may return only a value accepted by its compatible runner. DAR
-shall pass that value directly to the compatible standard runner and shall not
-persist, trace, expose, reuse, or serialize it. The runner shall reject a
+shall pass that value directly to the compatible standard runner, either in the
+existing process or together inside its admitted generation worker, and shall
+not persist, trace, expose, reuse, or serialize it. The runner shall reject a
 packed value that violates its contract without falling back to a different
 converter, model, or remote execution path.
 
@@ -482,9 +491,10 @@ contract.
 
 ## Deferred Decisions
 
-- Define OS-level isolation for malicious local-tool or converter-package code
-  in `local-tool-sandbox-hardening`; Docker and other full-isolation backends
-  are future work and do not gate this package contract.
+- Define the common OS-level isolation backend for malicious local-tool,
+  converter-package, sealed-artifact, and generation-worker code in
+  `local-tool-sandbox-hardening`; Docker and other full-isolation backends are
+  future work and do not gate this package contract.
 - Specify dependency packaging for converter packages when a second concrete
   package proves the existing standard runtime insufficient.
 - Define promotion policy for an instance-sealed converter that a host wishes

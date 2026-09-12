@@ -8,8 +8,10 @@ an explicit unreleased version and publish target remain in
 [`tasks.md`](tasks.md). DAR loads a sealed Python converter package through the
 standard runner interface. OS-level isolation is future hardening owned by
 `../local-tool-sandbox-hardening/spec.md`, not a converter-package admission
-gate. The Apple Metal addendum implementation, fake-test slice, and authorized
-warm benchmark are delivered.
+gate. Deadline-bounded worker co-location and generic runner-capability
+migration are owned by `../model-generation-resource-budgets/`; they preserve
+this plan's direct private `PackedModelInput` handoff. The Apple Metal addendum
+implementation, fake-test slice, and authorized warm benchmark are delivered.
 
 ## Execution Order
 
@@ -50,6 +52,10 @@ format or the resulting framework objects.
   implementation, then its focused regression suite.
 - `PackedModelInput` never crosses the converter/runner boundary. It is neither
   serialized, traced, stored, nor returned from a DAR API.
+- For the bounded generation-worker mode, the converter and compatible runner
+  co-locate in that worker. The same no-serialization rule applies; the
+  migration is owned by `model-generation-resource-budgets`, not a parallel
+  converter execution route.
 - Converter selection is exact: workflow binding, asset digest, converter
   contract, and runner contract must all match before a package is loaded.
 - The first slice reuses the installed Transformers and PEFT dependencies. It

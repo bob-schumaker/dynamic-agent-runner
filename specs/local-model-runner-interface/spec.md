@@ -74,14 +74,17 @@ image object and user text. It never receives a file path, URL, base64 source,
 or arbitrary additional message/media item. The generated response is returned
 through DAR's existing `ModelResponse` contract.
 
-### Future converter-backed execution
+### Converter-backed execution
 
-The closed profile above remains the implemented compatibility baseline. A
-future `transformers-generate-v1` execution contract extracts byte decoding and
-input packing into a workflow-sealed input converter plugin. Its standard
-Transformers/PEFT runner then receives only private packed model inputs. That
-future path is governed by `specs/workflow-input-converter-plugin/spec.md`; it
-does not broaden the current built-in profile or change its recorded evidence.
+The closed profile above remains the implemented compatibility baseline.
+`transformers-generate-v1` extracts byte decoding and input packing into a
+workflow-sealed input converter plugin; its standard Transformers/PEFT runner
+receives only private packed model inputs. That path is governed by
+`specs/workflow-input-converter-plugin/spec.md`. For a deadline-bounded,
+non-cooperatively-cancellable invocation, converter and runner execute together
+in the terminable worker governed by
+`specs/model-generation-resource-budgets/spec.md`; `PackedModelInput` remains
+private to that worker and is never serialized.
 
 The material-lock digest includes the runner ID, loader-profile ID, all
 group/role members, immutable revisions and hashes, and transformation (if
