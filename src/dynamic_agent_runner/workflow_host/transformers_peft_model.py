@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -1458,9 +1459,7 @@ class DeferredTransformersPeftSingleImageAdapter:
             ).encode("utf-8")
             now = datetime.now(UTC)
             return create_for_invocation(
-                invocation_id=sha256(
-                    f"{time.monotonic():.9f}".encode("ascii")
-                ).hexdigest(),
+                invocation_id=secrets.token_hex(32),
                 invocation_digest=sha256(canonical_invocation).hexdigest(),
                 fragment_index=fragment_index,
                 converter=converter,

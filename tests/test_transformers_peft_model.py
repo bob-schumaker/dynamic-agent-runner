@@ -502,7 +502,7 @@ def test_deferred_adapter_rejects_a_worker_controller_without_the_selected_devic
 
 
 def test_deferred_worker_adapter_builds_an_invocation_factory_from_private_assets(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from dynamic_agent_runner.workflow_host.execution_descriptors import (
         ExecutionDescriptor,
@@ -525,6 +525,7 @@ def test_deferred_worker_adapter_builds_an_invocation_factory_from_private_asset
         resolve_prepared_set=lambda: prepared_set,
     )
     captured: dict[str, object] = {}
+    invocation_ids: list[object] = []
 
     class Factory:
         runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
@@ -532,6 +533,7 @@ def test_deferred_worker_adapter_builds_an_invocation_factory_from_private_asset
 
         def create_for_invocation(self, **kwargs: object) -> object:
             captured.update(kwargs)
+            invocation_ids.append(kwargs["invocation_id"])
             return object()
 
     class Controller:
@@ -570,8 +572,13 @@ def test_deferred_worker_adapter_builds_an_invocation_factory_from_private_asset
         model=recipe.model_id,
         messages=[OpenAIMessage("user", "vectorize")],
     )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.transformers_peft_model.time.monotonic",
+        lambda: 1.0,
+    )
 
     factory = adapter._create_worker_invocation_factory(request)
+    second_factory = adapter._create_worker_invocation_factory(request)
 
     assert factory is not None
     assert captured["prepared_set"] is prepared_set
@@ -584,6 +591,8 @@ def test_deferred_worker_adapter_builds_an_invocation_factory_from_private_asset
     assert captured["execution_device"] == "cpu"
     assert captured["budget"] == _generation_budget()
     assert captured["messages"] == request.messages
+    assert factory is not second_factory
+    assert invocation_ids[0] != invocation_ids[1]
     assert "packed_input" not in captured
     assert "converter_state" not in captured
 
