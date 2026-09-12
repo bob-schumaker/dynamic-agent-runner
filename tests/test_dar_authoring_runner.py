@@ -2464,6 +2464,52 @@ def test_runner_rejects_declared_json_before_binding_sealed_payload(
     assert "sealed-image-bytes" not in repr(runner.traces())
 
 
+def test_runner_defers_worker_converter_loading_to_the_adapter(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+    )
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    worker_payloads: list[tuple[Path, object, bytes]] = []
+
+    def bind_worker_converter_payload(
+        *, package_root: Path, converter: object, content: bytes
+    ) -> None:
+        worker_payloads.append((package_root, converter, content))
+
+    adapter.bind_worker_converter_payload = bind_worker_converter_payload  # type: ignore[attr-defined]
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": registration.workflow_id,
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    assert result.output == {"message": "completed locally"}
+    assert len(worker_payloads) == 1
+    assert worker_payloads[0][1].converter_id == "qwen25-vl-3b-grpo-input-v1"
+    assert worker_payloads[0][2] == b"sealed-image-bytes"
+    assert adapter.bound_converters == []
+    assert adapter.bound_payloads == []
+
+
 def test_runner_redacts_converter_package_load_failure(tmp_path: Path) -> None:
     runner, preparation, registration, _, _ = _runner(
         tmp_path,

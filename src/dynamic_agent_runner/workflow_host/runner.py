@@ -580,6 +580,15 @@ class WorkflowRunner:
             != converter.compatible_runner_contract_id
         ):
             raise RunDarWorkflowError("configured adapter lacks input converter")
+        worker_payload = self._bind_worker_converter_payload(
+            converter=converter,
+            package_root=package_root,
+            sealed=sealed,
+            registration=registration,
+            now=now,
+        )
+        if worker_payload is not None:
+            return worker_payload
         bind_converter = getattr(self._model_adapter, "bind_input_converter", None)
         if not callable(bind_converter):
             raise RunDarWorkflowError("configured adapter lacks input converter")
@@ -603,6 +612,42 @@ class WorkflowRunner:
         if not callable(bind):
             raise RunDarWorkflowError("configured adapter lacks input converter")
         bind(content=binaries[0].content)
+        return binaries[0]
+
+    def _bind_worker_converter_payload(
+        self,
+        *,
+        converter: object,
+        package_root: Path,
+        sealed: SealedWorkflowInput,
+        registration: WorkflowRegistration,
+        now: datetime,
+    ) -> MaterializedWorkspaceBinaryArtifact | None:
+        """Bind worker-only converter inputs without loading converter code here."""
+
+        bind = getattr(self._model_adapter, "bind_worker_converter_payload", None)
+        if not callable(bind):
+            return None
+        try:
+            binaries = self._preparation.materialize_workspace_binaries(
+                sealed, registration=registration, now=now
+            )
+        except PreparedWorkflowInputError as error:
+            raise RunDarWorkflowError(
+                "sealed converter input is unavailable"
+            ) from error
+        if len(binaries) != 1 or len(binaries[0].content) > converter.max_input_bytes:
+            raise RunDarWorkflowError("sealed converter input is unavailable")
+        try:
+            bind(
+                package_root=package_root,
+                converter=converter,
+                content=binaries[0].content,
+            )
+        except Exception as error:  # noqa: BLE001 - adapter boundary stays private.
+            raise RunDarWorkflowError(
+                "sealed converter package is unavailable"
+            ) from error
         return binaries[0]
 
     def _bind_generation_budget(self, policy: Any) -> None:
