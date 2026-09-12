@@ -228,6 +228,7 @@ class GenerationWorkerSession:
     ) -> GenerationWorkerPackReceipt:
         if (
             self._failed
+            or self._receipt is not None
             or self._authorization is not None
             or fragment_index != self._next_fragment_index
             or not _nonnegative_int(packed_context_tokens)
@@ -308,6 +309,7 @@ class GenerationWorkerSession:
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         self._total_generated_tokens = aggregate_generated_tokens
         self._total_output_bytes = aggregate_output_bytes
+        self._receipt = None
         self._authorization = None
         self._next_fragment_index += 1
         return GenerationWorkerResult(
