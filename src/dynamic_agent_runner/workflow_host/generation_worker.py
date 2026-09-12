@@ -41,6 +41,7 @@ class GenerationWorkerSession:
         converter_digest: str,
         material_lock_digest: str,
         execution_device: str,
+        max_total_output_bytes: int,
     ) -> None:
         values = (
             invocation_id,
@@ -49,13 +50,16 @@ class GenerationWorkerSession:
             material_lock_digest,
             execution_device,
         )
-        if any(not isinstance(value, str) or not value for value in values) or any(
-            len(value) != 64 for value in values[1:4]
+        if (
+            any(not isinstance(value, str) or not value for value in values)
+            or any(len(value) != 64 for value in values[1:4])
+            or not _positive_int(max_total_output_bytes)
         ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         self._identity = values
         self._receipt: GenerationWorkerPackReceipt | None = None
         self._authorization: tuple[GenerationWorkerPackReceipt, int] | None = None
+        self._max_total_output_bytes = max_total_output_bytes
         self._resulted = False
 
     def pack(
@@ -106,6 +110,7 @@ class GenerationWorkerSession:
             or receipt != authorization[0]
             or fragment_index != receipt.fragment_index
             or not isinstance(candidate, bytes)
+            or len(candidate) > self._max_total_output_bytes
             or not _nonnegative_int(generated_tokens)
             or generated_tokens > authorization[1]
         ):
