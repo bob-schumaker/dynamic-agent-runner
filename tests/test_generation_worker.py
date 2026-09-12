@@ -746,6 +746,26 @@ def test_worker_requires_a_matching_pack_receipt_before_authorized_result() -> N
         )
 
 
+def test_worker_rejects_a_receipt_with_the_wrong_host_invocation_id() -> None:
+    worker = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=8,
+    )
+    receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        worker.authorize(
+            receipt=replace(receipt, invocation_id="other-invocation"),
+            fragment_index=0,
+            remaining_generated_tokens=4,
+        )
+
+
 def test_launcher_reaps_a_packed_child_through_its_controller_on_protocol_failure() -> (
     None
 ):
