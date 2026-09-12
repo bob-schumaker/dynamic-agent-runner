@@ -296,6 +296,28 @@ class GenerationWorkerSession:
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         self._authorization = (receipt, remaining_generated_tokens)
 
+    def validate_reservation_request(
+        self,
+        *,
+        receipt: GenerationWorkerPackReceipt,
+        remaining_generated_tokens: int,
+        request: GenerationMemoryReservationRequest,
+    ) -> None:
+        """Bind receiver admission facts to the one packed receipt."""
+
+        if (
+            self._failed
+            or receipt != self._receipt
+            or not _positive_int(remaining_generated_tokens)
+            or not isinstance(request, GenerationMemoryReservationRequest)
+            or request.material_lock_digest != receipt.material_lock_digest
+            or request.execution_device != receipt.execution_device
+            or request.packed_context_tokens != receipt.packed_context_tokens
+            or request.requested_new_tokens != remaining_generated_tokens
+        ):
+            self._failed = True
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+
     def result(
         self,
         *,
@@ -758,6 +780,11 @@ class GenerationWorkerLauncher:
         ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         try:
+            session.validate_reservation_request(
+                receipt=receipt,
+                remaining_generated_tokens=remaining_generated_tokens,
+                request=request,
+            )
             reservation = reserve_generation_memory(provider, request)
             try:
                 session.authorize(

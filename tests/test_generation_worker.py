@@ -1427,6 +1427,63 @@ def test_launcher_reserves_memory_before_authorizing_a_packed_receipt() -> None:
     assert events == ["reserve", "release"]
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("material_lock_digest", "d" * 64),
+        ("execution_device", "mps"),
+        ("packed_context_tokens", 4),
+        ("requested_new_tokens", 1),
+    ),
+)
+def test_launcher_rejects_reservation_requests_not_bound_to_packed_receipt(
+    field: str, value: str | int
+) -> None:
+    events: list[str] = []
+
+    class Provider:
+        def reserve(self, _request: object) -> object:
+            events.append("reserve")
+            pytest.fail("unbound reservation requests must not reach the provider")
+
+    worker = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=2,
+    )
+    receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
+    request = GenerationMemoryReservationRequest(
+        material_lock_digest="c" * 64,
+        runner_identity="runner",
+        execution_device="cpu",
+        packed_context_tokens=3,
+        requested_new_tokens=2,
+        max_memory_bytes=8,
+        deadline_monotonic=1.0,
+    )
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        GenerationWorkerLauncher().authorize(
+            session=worker,
+            receipt=receipt,
+            remaining_generated_tokens=2,
+            provider=Provider(),
+            request=replace(request, **{field: value}),
+        )
+
+    assert events == []
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        worker.authorize(
+            receipt=receipt,
+            fragment_index=0,
+            remaining_generated_tokens=2,
+        )
+
+
 def test_launcher_preserves_unavailable_memory_reservations() -> None:
     class Provider:
         def reserve(self, _request: object) -> None:
