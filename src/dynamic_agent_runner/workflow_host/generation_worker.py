@@ -4,19 +4,150 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+import json
+from typing import Mapping, NoReturn
 
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
     GenerationDeadline,
     GenerationMemoryReservationRequest,
     MemoryReservationProvider,
     ReservedGenerationMemory,
+    GenerationResourceBudget,
+    GenerationResourceBudgetError,
+    parse_generation_resource_budget,
     reserve_generation_memory,
 )
 
 
 class GenerationWorkerProtocolError(ValueError):
     """Raised without exposing worker inputs, paths, or candidate internals."""
+
+
+class GenerationWorkerDeadlineExceeded(GenerationWorkerProtocolError):
+    """Raised after a deadline path has discarded late worker output."""
+
+
+@dataclass(frozen=True)
+class GenerationWorkerLaunchDescriptor:
+    """Bounded non-executable launch data for the fixed worker entry point."""
+
+    protocol_version: str
+    invocation_digest: str
+    fragment_index: int
+    runner_id: str
+    capability_contract_digest: str
+    converter_id: str
+    converter_asset_digest: str
+    material_lock_digest: str
+    execution_descriptor_digest: str
+    execution_device: str
+    budget: GenerationResourceBudget
+    asset_handles: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        identifiers = (
+            self.protocol_version,
+            self.runner_id,
+            self.converter_id,
+            self.execution_device,
+        )
+        digests = (
+            self.invocation_digest,
+            self.capability_contract_digest,
+            self.converter_asset_digest,
+            self.material_lock_digest,
+            self.execution_descriptor_digest,
+        )
+        if (
+            self.protocol_version != "generation-worker-v1"
+            or any(not isinstance(value, str) or not value for value in identifiers)
+            or any(not _digest(value) for value in digests)
+            or not _nonnegative_int(self.fragment_index)
+            or not isinstance(self.budget, GenerationResourceBudget)
+            or not isinstance(self.asset_handles, tuple)
+            or not self.asset_handles
+            or len(self.asset_handles) > 16
+            or any(not _opaque_handle(handle) for handle in self.asset_handles)
+        ):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        if len(self._encoded()) > 8_192:
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+
+    def to_wire(self) -> dict[str, object]:
+        """Return the exact, versioned mapping accepted by the worker entry point."""
+
+        return {
+            "protocol_version": self.protocol_version,
+            "invocation_digest": self.invocation_digest,
+            "fragment_index": self.fragment_index,
+            "runner_id": self.runner_id,
+            "capability_contract_digest": self.capability_contract_digest,
+            "converter_id": self.converter_id,
+            "converter_asset_digest": self.converter_asset_digest,
+            "material_lock_digest": self.material_lock_digest,
+            "execution_descriptor_digest": self.execution_descriptor_digest,
+            "execution_device": self.execution_device,
+            "budget": asdict(self.budget),
+            "asset_handles": self.asset_handles,
+        }
+
+    @classmethod
+    def from_wire(cls, value: object) -> "GenerationWorkerLaunchDescriptor":
+        """Reject every field outside the fixed host-private descriptor mapping."""
+
+        if not isinstance(value, Mapping) or set(value) != _LAUNCH_DESCRIPTOR_FIELDS:
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        asset_handles = value["asset_handles"]
+        if not isinstance(asset_handles, (tuple, list)):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        try:
+            return cls(
+                protocol_version=value["protocol_version"],
+                invocation_digest=value["invocation_digest"],
+                fragment_index=value["fragment_index"],
+                runner_id=value["runner_id"],
+                capability_contract_digest=value["capability_contract_digest"],
+                converter_id=value["converter_id"],
+                converter_asset_digest=value["converter_asset_digest"],
+                material_lock_digest=value["material_lock_digest"],
+                execution_descriptor_digest=value["execution_descriptor_digest"],
+                execution_device=value["execution_device"],
+                budget=parse_generation_resource_budget(value["budget"]),
+                asset_handles=tuple(asset_handles),
+            )
+        except (
+            GenerationResourceBudgetError,
+            KeyError,
+            TypeError,
+            GenerationWorkerProtocolError,
+        ) as error:
+            raise GenerationWorkerProtocolError(
+                "generation worker protocol invalid"
+            ) from error
+
+    def _encoded(self) -> bytes:
+        return json.dumps(self.to_wire(), sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+
+
+_LAUNCH_DESCRIPTOR_FIELDS = frozenset(
+    {
+        "protocol_version",
+        "invocation_digest",
+        "fragment_index",
+        "runner_id",
+        "capability_contract_digest",
+        "converter_id",
+        "converter_asset_digest",
+        "material_lock_digest",
+        "execution_descriptor_digest",
+        "execution_device",
+        "budget",
+        "asset_handles",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -119,8 +250,12 @@ class GenerationWorkerSession:
         fragment_index: int,
         candidate: bytes,
         generated_tokens: int,
+        reported_aggregate_generated_tokens: int | None = None,
+        reported_aggregate_output_bytes: int | None = None,
     ) -> GenerationWorkerResult:
         authorization = self._authorization
+        aggregate_generated_tokens = self._total_generated_tokens + generated_tokens
+        aggregate_output_bytes = self._total_output_bytes + len(candidate)
         if (
             authorization is None
             or receipt != authorization[0]
@@ -128,13 +263,26 @@ class GenerationWorkerSession:
             or not isinstance(candidate, bytes)
             or not _nonnegative_int(generated_tokens)
             or generated_tokens > authorization[1]
-            or self._total_generated_tokens + generated_tokens
-            > self._max_total_generated_tokens
-            or self._total_output_bytes + len(candidate) > self._max_total_output_bytes
+            or aggregate_generated_tokens > self._max_total_generated_tokens
+            or aggregate_output_bytes > self._max_total_output_bytes
+            or (
+                reported_aggregate_generated_tokens is not None
+                and (
+                    not _nonnegative_int(reported_aggregate_generated_tokens)
+                    or reported_aggregate_generated_tokens != aggregate_generated_tokens
+                )
+            )
+            or (
+                reported_aggregate_output_bytes is not None
+                and (
+                    not _nonnegative_int(reported_aggregate_output_bytes)
+                    or reported_aggregate_output_bytes != aggregate_output_bytes
+                )
+            )
         ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
-        self._total_generated_tokens += generated_tokens
-        self._total_output_bytes += len(candidate)
+        self._total_generated_tokens = aggregate_generated_tokens
+        self._total_output_bytes = aggregate_output_bytes
         self._authorization = None
         self._next_fragment_index += 1
         return GenerationWorkerResult(
@@ -151,46 +299,109 @@ class GenerationWorkerLauncher:
     def __init__(self) -> None:
         self._packed_receipts: dict[int, GenerationWorkerPackReceipt] = {}
 
+    def launch(
+        self,
+        *,
+        factory: object,
+        controller: object,
+        deadline: GenerationDeadline,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> object:
+        """Create and revalidate one typed descriptor before child launch."""
+
+        create_descriptor = getattr(factory, "create_launch_descriptor", None)
+        launch = getattr(controller, "launch", None)
+        wait_ready = getattr(controller, "wait_ready", None)
+        if (
+            not isinstance(deadline, GenerationDeadline)
+            or not callable(create_descriptor)
+            or not callable(launch)
+            or not callable(wait_ready)
+        ):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        try:
+            deadline.require_remaining(clock())
+            descriptor = create_descriptor()
+            if not isinstance(descriptor, GenerationWorkerLaunchDescriptor):
+                raise GenerationWorkerProtocolError(
+                    "generation worker protocol invalid"
+                )
+            if not _has_matching_worker_bindings(
+                factory=factory,
+                controller=controller,
+                descriptor=descriptor,
+            ):
+                raise GenerationResourceBudgetError(
+                    "generation memory budget is unavailable"
+                )
+            child = launch(fixed_generation_worker_entry_point(descriptor.to_wire()))
+            if wait_ready(child, deadline.remaining_seconds(clock())) is not True:
+                self._close_with_controller(
+                    child=child,
+                    controller=controller,
+                    deadline=deadline,
+                    clock=clock,
+                )
+                raise GenerationWorkerProtocolError(
+                    "generation worker protocol invalid"
+                )
+            try:
+                deadline.require_remaining(clock())
+            except GenerationResourceBudgetError:
+                self._close_with_controller(
+                    child=child,
+                    controller=controller,
+                    deadline=deadline,
+                    clock=clock,
+                )
+                raise
+            return child
+        except GenerationWorkerProtocolError:
+            raise
+        except GenerationResourceBudgetError as error:
+            _raise_worker_budget_error(error)
+        except Exception as error:
+            raise GenerationWorkerProtocolError(
+                "generation worker protocol invalid"
+            ) from error
+
     def pack(
-        self, *, child: object, max_memory_bytes: int, execution_device: str
+        self,
+        *,
+        child: object,
+        max_memory_bytes: int,
+        execution_device: str,
+        deadline: GenerationDeadline | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> int:
         install_limit = getattr(child, "install_bootstrap_limit", None)
         pack = getattr(child, "pack", None)
         reap = getattr(child, "reap", None)
-        if (
-            not _positive_int(max_memory_bytes)
-            or not isinstance(execution_device, str)
-            or not execution_device
-            or not callable(install_limit)
-            or not callable(pack)
-            or not callable(reap)
+        if not _valid_pack_request(
+            max_memory_bytes=max_memory_bytes,
+            execution_device=execution_device,
+            install_limit=install_limit,
+            pack=pack,
+            reap=reap,
+            deadline=deadline,
         ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         packed_successfully = False
         try:
-            install_limit(max_memory_bytes, execution_device)
-            packed = pack()
-            packed_context_tokens = (
-                packed[0] if isinstance(packed, tuple) and len(packed) == 2 else packed
+            packed_context_tokens = self._pack_with_envelope(
+                install_limit=install_limit,
+                pack=pack,
+                max_memory_bytes=max_memory_bytes,
+                execution_device=execution_device,
+                deadline=deadline,
+                clock=clock,
             )
-            model_or_accelerator_entered = (
-                packed[1] if isinstance(packed, tuple) and len(packed) == 2 else None
-            )
-            if not _nonnegative_int(packed_context_tokens):
-                raise GenerationWorkerProtocolError(
-                    "generation worker protocol invalid"
-                )
-            if model_or_accelerator_entered is not None and (
-                not isinstance(model_or_accelerator_entered, bool)
-                or model_or_accelerator_entered
-            ):
-                raise GenerationWorkerProtocolError(
-                    "generation worker protocol invalid"
-                )
             packed_successfully = True
             return packed_context_tokens
         except GenerationWorkerProtocolError:
             raise
+        except GenerationResourceBudgetError as error:
+            _raise_worker_budget_error(error)
         except Exception as error:
             raise GenerationWorkerProtocolError(
                 "generation worker protocol invalid"
@@ -203,6 +414,38 @@ class GenerationWorkerLauncher:
                     raise GenerationWorkerProtocolError(
                         "generation worker protocol invalid"
                     ) from error
+
+    def _pack_with_envelope(
+        self,
+        *,
+        install_limit: Callable[[int, str], object],
+        pack: Callable[[], object],
+        max_memory_bytes: int,
+        execution_device: str,
+        deadline: GenerationDeadline | None,
+        clock: Callable[[], float],
+    ) -> int:
+        if deadline is not None:
+            deadline.require_remaining(clock())
+        install_limit(max_memory_bytes, execution_device)
+        packed = pack()
+        packed_context_tokens = (
+            packed[0] if isinstance(packed, tuple) and len(packed) == 2 else packed
+        )
+        model_or_accelerator_entered = (
+            packed[1] if isinstance(packed, tuple) and len(packed) == 2 else None
+        )
+        if not _nonnegative_int(packed_context_tokens) or (
+            model_or_accelerator_entered is not None
+            and (
+                not isinstance(model_or_accelerator_entered, bool)
+                or model_or_accelerator_entered
+            )
+        ):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        if deadline is not None:
+            deadline.require_remaining(clock())
+        return packed_context_tokens
 
     def abort(self, *, child: object) -> None:
         """Reap a packed child when admission cannot proceed."""
@@ -226,6 +469,8 @@ class GenerationWorkerLauncher:
         fragment_index: int,
         max_memory_bytes: int,
         execution_device: str,
+        deadline: GenerationDeadline | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> GenerationWorkerPackReceipt:
         """Pack once and bind its measured context to the current receipt."""
 
@@ -235,6 +480,8 @@ class GenerationWorkerLauncher:
             child=child,
             max_memory_bytes=max_memory_bytes,
             execution_device=execution_device,
+            deadline=deadline,
+            clock=clock,
         )
         try:
             receipt = session.pack(
@@ -261,6 +508,7 @@ class GenerationWorkerLauncher:
         deadline: GenerationDeadline,
         now: float,
         clock: Callable[[], float] = time.monotonic,
+        controller: object | None = None,
     ) -> GenerationWorkerResult:
         """Run one authorized child generation and validate its receipt-bound result."""
 
@@ -281,37 +529,98 @@ class GenerationWorkerLauncher:
         )
         try:
             deadline.require_remaining(now)
-            result = generate()
-            if (
-                not isinstance(result, tuple)
-                or len(result) != 2
-                or not isinstance(result[0], bytes)
-            ):
-                raise GenerationWorkerProtocolError(
-                    "generation worker protocol invalid"
-                )
-            deadline.require_remaining(clock())
-            return session.result(
+            return self._validated_generation_result(
+                generate=generate,
+                deadline=deadline,
+                clock=clock,
                 receipt=receipt,
-                fragment_index=receipt.fragment_index,
-                candidate=result[0],
-                generated_tokens=result[1],
+                session=session,
             )
         except GenerationWorkerProtocolError:
             raise
+        except GenerationResourceBudgetError as error:
+            _raise_worker_budget_error(error)
         except Exception as error:
             raise GenerationWorkerProtocolError(
                 "generation worker protocol invalid"
             ) from error
         finally:
             try:
-                reap()
+                if controller is None:
+                    reap()
+                else:
+                    self._close_with_controller(
+                        child=child,
+                        controller=controller,
+                        deadline=deadline,
+                        clock=clock,
+                    )
             except Exception as error:
                 raise GenerationWorkerProtocolError(
                     "generation worker protocol invalid"
                 ) from error
-            finally:
+            else:
                 reservation.release()
+
+    def _validated_generation_result(
+        self,
+        *,
+        generate: Callable[[], object],
+        deadline: GenerationDeadline,
+        clock: Callable[[], float],
+        receipt: GenerationWorkerPackReceipt,
+        session: GenerationWorkerSession,
+    ) -> GenerationWorkerResult:
+        result = generate()
+        if (
+            not isinstance(result, tuple)
+            or len(result) not in (2, 4)
+            or not isinstance(result[0], bytes)
+        ):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        deadline.require_remaining(clock())
+        reported_generated_tokens = result[2] if len(result) == 4 else None
+        reported_output_bytes = result[3] if len(result) == 4 else None
+        return session.result(
+            receipt=receipt,
+            fragment_index=receipt.fragment_index,
+            candidate=result[0],
+            generated_tokens=result[1],
+            reported_aggregate_generated_tokens=reported_generated_tokens,
+            reported_aggregate_output_bytes=reported_output_bytes,
+        )
+
+    def _close_with_controller(
+        self,
+        *,
+        child: object,
+        controller: object,
+        deadline: GenerationDeadline,
+        clock: Callable[[], float],
+    ) -> None:
+        """Confirm worker cleanup, escalating an expired deadline through kill."""
+
+        terminate = getattr(controller, "terminate", None)
+        kill = getattr(controller, "kill", None)
+        reap = getattr(controller, "reap", None)
+        if not all(callable(operation) for operation in (terminate, kill, reap)):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        expired = deadline.remaining_seconds(clock()) <= 0
+        if expired:
+            terminate(child)
+        try:
+            confirmed = reap(child, max(deadline.remaining_seconds(clock()), 0.0))
+            if confirmed is False:
+                raise GenerationWorkerProtocolError(
+                    "generation worker protocol invalid"
+                )
+        except Exception as error:
+            kill(child)
+            confirmed = reap(child, 0.0)
+            if confirmed is False:
+                raise GenerationWorkerProtocolError(
+                    "generation worker protocol invalid"
+                ) from error
 
     def authorize(
         self,
@@ -343,6 +652,8 @@ class GenerationWorkerLauncher:
                 reservation.release()
                 raise
             return reservation
+        except GenerationResourceBudgetError:
+            raise
         except Exception as error:
             raise GenerationWorkerProtocolError(
                 "generation worker protocol invalid"
@@ -355,3 +666,82 @@ def _nonnegative_int(value: object) -> bool:
 
 def _positive_int(value: object) -> bool:
     return _nonnegative_int(value) and value > 0
+
+
+def _digest(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _opaque_handle(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and 1 <= len(value) <= 256
+        and "/" not in value
+        and "\\" not in value
+        and all(
+            character.isprintable() and not character.isspace() for character in value
+        )
+    )
+
+
+def _memory_budget_unavailable(error: GenerationResourceBudgetError) -> bool:
+    return str(error) == "generation memory budget is unavailable"
+
+
+def _valid_pack_request(
+    *,
+    max_memory_bytes: object,
+    execution_device: object,
+    install_limit: object,
+    pack: object,
+    reap: object,
+    deadline: object,
+) -> bool:
+    return (
+        _positive_int(max_memory_bytes)
+        and isinstance(execution_device, str)
+        and bool(execution_device)
+        and callable(install_limit)
+        and callable(pack)
+        and callable(reap)
+        and (deadline is None or isinstance(deadline, GenerationDeadline))
+    )
+
+
+def _raise_worker_budget_error(error: GenerationResourceBudgetError) -> NoReturn:
+    if str(error) == "generation deadline exceeded":
+        raise GenerationWorkerDeadlineExceeded(
+            "generation deadline exceeded"
+        ) from error
+    if _memory_budget_unavailable(error):
+        raise error
+    raise GenerationWorkerProtocolError("generation worker protocol invalid") from error
+
+
+def _has_matching_worker_bindings(
+    *,
+    factory: object,
+    controller: object,
+    descriptor: GenerationWorkerLaunchDescriptor,
+) -> bool:
+    """Reject a mismatched runner/device controller before child launch."""
+
+    supported_devices = getattr(controller, "supported_execution_devices", None)
+    return (
+        getattr(factory, "runner_id", None) == descriptor.runner_id
+        and getattr(controller, "runner_id", None) == descriptor.runner_id
+        and isinstance(supported_devices, frozenset)
+        and descriptor.execution_device in supported_devices
+    )
+
+
+def fixed_generation_worker_entry_point(
+    wire_descriptor: object,
+) -> GenerationWorkerLaunchDescriptor:
+    """Validate fixed worker input before any child asset resolution can begin."""
+
+    return GenerationWorkerLaunchDescriptor.from_wire(wire_descriptor)

@@ -7,6 +7,7 @@ from dataclasses import replace
 import pytest
 
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    GenerationBudgetDescriptorValidator,
     GenerationDeadline,
     GenerationExecutionHostPolicy,
     GenerationMemoryReservationRequest,
@@ -23,6 +24,7 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
     ExecutionDescriptor,
     ExecutionDescriptorAbi,
+    ExecutionDescriptorError,
 )
 
 
@@ -226,6 +228,28 @@ def test_generation_budget_field_is_bound_by_the_canonical_descriptor() -> None:
     with pytest.raises(GenerationResourceBudgetError, match="invalid"):
         validate_generation_budget_field(
             ExecutionDescriptor(abi, ("weights",), {"generation_budget": {}})
+        )
+
+
+def test_generation_budget_descriptor_validator_rejects_bad_budgets_preflight() -> None:
+    abi = ExecutionDescriptorAbi("test-generation-v1", "1", "a" * 64)
+    validator = GenerationBudgetDescriptorValidator(abi)
+
+    validator.validate(
+        ExecutionDescriptor(
+            abi,
+            ("weights",),
+            {"generation_budget": _budget().__dict__},
+        )
+    )
+
+    with pytest.raises(ExecutionDescriptorError, match="generation budget"):
+        validator.validate(
+            ExecutionDescriptor(
+                abi,
+                ("weights",),
+                {"generation_budget": {"max_tokens": 1}},
+            )
         )
 
 

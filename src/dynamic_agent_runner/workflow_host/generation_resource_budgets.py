@@ -9,11 +9,33 @@ from typing import Protocol
 
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
     ExecutionDescriptor,
+    ExecutionDescriptorAbi,
+    ExecutionDescriptorError,
 )
 
 
 class GenerationResourceBudgetError(ValueError):
     """Raised with a redacted generation-budget admission classification."""
+
+
+@dataclass(frozen=True)
+class GenerationBudgetDescriptorValidator:
+    """Validate the canonical budget field for one exact execution ABI."""
+
+    identity: ExecutionDescriptorAbi
+
+    def validate(self, descriptor: ExecutionDescriptor) -> None:
+        if (
+            not isinstance(descriptor, ExecutionDescriptor)
+            or descriptor.architecture_abi != self.identity
+        ):
+            raise ExecutionDescriptorError("execution descriptor ABI is invalid")
+        try:
+            validate_generation_budget_field(descriptor)
+        except GenerationResourceBudgetError as error:
+            raise ExecutionDescriptorError(
+                "execution descriptor generation budget is invalid"
+            ) from error
 
 
 @dataclass(frozen=True)

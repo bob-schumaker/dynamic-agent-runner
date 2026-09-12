@@ -7,6 +7,8 @@ from dataclasses import replace
 import pytest
 
 from dynamic_agent_runner.workflow_host.generation_worker import (
+    GenerationWorkerDeadlineExceeded,
+    GenerationWorkerLaunchDescriptor,
     GenerationWorkerLauncher,
     GenerationWorkerPackReceipt,
     GenerationWorkerProtocolError,
@@ -16,7 +18,505 @@ from dynamic_agent_runner.workflow_host.generation_worker import (
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
     GenerationDeadline,
     GenerationMemoryReservationRequest,
+    GenerationResourceBudget,
+    GenerationResourceBudgetError,
 )
+
+
+def _budget() -> GenerationResourceBudget:
+    return GenerationResourceBudget(
+        max_new_tokens_per_fragment=4,
+        max_continuations=1,
+        max_total_generated_tokens=8,
+        max_total_output_bytes=64,
+        max_effective_context_tokens=32,
+        max_runtime_milliseconds=1_000,
+        max_memory_bytes=1_024,
+    )
+
+
+def test_launch_descriptor_has_a_bounded_exact_non_executable_wire_mapping() -> None:
+    descriptor = GenerationWorkerLaunchDescriptor(
+        protocol_version="generation-worker-v1",
+        invocation_digest="a" * 64,
+        fragment_index=0,
+        runner_id="runner-v1",
+        capability_contract_digest="b" * 64,
+        converter_id="converter-v1",
+        converter_asset_digest="c" * 64,
+        material_lock_digest="d" * 64,
+        execution_descriptor_digest="e" * 64,
+        execution_device="cpu",
+        budget=_budget(),
+        asset_handles=("asset-handle-1",),
+    )
+
+    encoded = descriptor.to_wire()
+
+    assert GenerationWorkerLaunchDescriptor.from_wire(encoded) == descriptor
+    assert set(encoded) == {
+        "protocol_version",
+        "invocation_digest",
+        "fragment_index",
+        "runner_id",
+        "capability_contract_digest",
+        "converter_id",
+        "converter_asset_digest",
+        "material_lock_digest",
+        "execution_descriptor_digest",
+        "execution_device",
+        "budget",
+        "asset_handles",
+    }
+    for invalid in (
+        {**encoded, "path": "/tmp/model"},
+        {**encoded, "asset_handles": ("/tmp/model",)},
+        {**encoded, "asset_handles": "asset-handle-1"},
+        {**encoded, "asset_handles": (lambda: None,)},
+        {**encoded, "unknown": "value"},
+    ):
+        with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+            GenerationWorkerLaunchDescriptor.from_wire(invalid)
+
+
+def test_launcher_revalidates_a_factory_descriptor_before_controller_launch() -> None:
+    descriptor = GenerationWorkerLaunchDescriptor(
+        protocol_version="generation-worker-v1",
+        invocation_digest="a" * 64,
+        fragment_index=0,
+        runner_id="runner-v1",
+        capability_contract_digest="b" * 64,
+        converter_id="converter-v1",
+        converter_asset_digest="c" * 64,
+        material_lock_digest="d" * 64,
+        execution_descriptor_digest="e" * 64,
+        execution_device="cpu",
+        budget=_budget(),
+        asset_handles=("asset-handle-1",),
+    )
+    events: list[object] = []
+    child = object()
+
+    class Factory:
+        runner_id = "runner-v1"
+
+        def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
+            events.append("factory")
+            return descriptor
+
+    class Controller:
+        runner_id = "runner-v1"
+        supported_execution_devices = frozenset({"cpu"})
+
+        def launch(self, received: GenerationWorkerLaunchDescriptor) -> object:
+            events.append(received)
+            return child
+
+        def wait_ready(self, received: object, timeout: float) -> bool:
+            events.append(("ready", received, timeout))
+            return True
+
+    assert (
+        GenerationWorkerLauncher().launch(
+            factory=Factory(),
+            controller=Controller(),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000),
+            clock=lambda: 0.0,
+        )
+        is child
+    )
+
+    assert events == ["factory", descriptor, ("ready", child, 1.0)]
+
+
+def test_launcher_rejects_an_untyped_factory_result_before_controller_launch() -> None:
+    class Factory:
+        def create_launch_descriptor(self) -> object:
+            return {"path": "/tmp/model"}
+
+    class Controller:
+        def launch(self, _descriptor: object) -> object:
+            pytest.fail("invalid descriptors must not launch")
+
+        def wait_ready(self, _child: object, _timeout: float) -> bool:
+            pytest.fail("invalid descriptors must not wait")
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        GenerationWorkerLauncher().launch(
+            factory=Factory(),
+            controller=Controller(),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000),
+            clock=lambda: 0.0,
+        )
+
+
+def test_launcher_rejects_a_controller_that_cannot_enforce_the_selected_device() -> (
+    None
+):
+    descriptor = GenerationWorkerLaunchDescriptor(
+        "generation-worker-v1",
+        "a" * 64,
+        0,
+        "runner-v1",
+        "b" * 64,
+        "converter-v1",
+        "c" * 64,
+        "d" * 64,
+        "e" * 64,
+        "mps",
+        _budget(),
+        ("asset-handle-1",),
+    )
+
+    class Factory:
+        runner_id = "runner-v1"
+
+        def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
+            return descriptor
+
+    class Controller:
+        runner_id = "runner-v1"
+        supported_execution_devices = frozenset({"cpu"})
+
+        def launch(self, _descriptor: object) -> object:
+            pytest.fail("an unmatched device must fail before launch")
+
+        def wait_ready(self, _child: object, _timeout: float) -> bool:
+            pytest.fail("an unmatched device must not await readiness")
+
+    with pytest.raises(GenerationResourceBudgetError, match="memory budget"):
+        GenerationWorkerLauncher().launch(
+            factory=Factory(),
+            controller=Controller(),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000),
+            clock=lambda: 0.0,
+        )
+
+
+def test_launcher_preserves_controller_memory_unavailability() -> None:
+    descriptor = GenerationWorkerLaunchDescriptor(
+        "generation-worker-v1",
+        "a" * 64,
+        0,
+        "runner-v1",
+        "b" * 64,
+        "converter-v1",
+        "c" * 64,
+        "d" * 64,
+        "e" * 64,
+        "cpu",
+        _budget(),
+        ("asset-handle-1",),
+    )
+
+    class Factory:
+        runner_id = "runner-v1"
+
+        def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
+            return descriptor
+
+    class Controller:
+        runner_id = "runner-v1"
+        supported_execution_devices = frozenset({"cpu"})
+
+        def launch(self, _descriptor: object) -> object:
+            raise GenerationResourceBudgetError(
+                "generation memory budget is unavailable"
+            )
+
+        def wait_ready(self, _child: object, _timeout: float) -> bool:
+            pytest.fail("unavailable launch must not await readiness")
+
+    with pytest.raises(GenerationResourceBudgetError, match="memory budget"):
+        GenerationWorkerLauncher().launch(
+            factory=Factory(),
+            controller=Controller(),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000),
+            clock=lambda: 0.0,
+        )
+
+
+def test_launcher_reaps_a_child_when_readiness_fails() -> None:
+    descriptor = GenerationWorkerLaunchDescriptor(
+        protocol_version="generation-worker-v1",
+        invocation_digest="a" * 64,
+        fragment_index=0,
+        runner_id="runner-v1",
+        capability_contract_digest="b" * 64,
+        converter_id="converter-v1",
+        converter_asset_digest="c" * 64,
+        material_lock_digest="d" * 64,
+        execution_descriptor_digest="e" * 64,
+        execution_device="cpu",
+        budget=_budget(),
+        asset_handles=("asset-handle-1",),
+    )
+    events: list[str] = []
+    child = object()
+
+    class Factory:
+        runner_id = "runner-v1"
+
+        def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
+            return descriptor
+
+    class Controller:
+        runner_id = "runner-v1"
+        supported_execution_devices = frozenset({"cpu"})
+
+        def launch(self, _descriptor: object) -> object:
+            events.append("launch")
+            return child
+
+        def wait_ready(self, _child: object, _timeout: float) -> bool:
+            events.append("wait_ready")
+            return False
+
+        def terminate(self, _child: object) -> None:
+            events.append("terminate")
+
+        def kill(self, _child: object) -> None:
+            events.append("kill")
+
+        def reap(self, _child: object, _timeout: float) -> bool:
+            events.append("reap")
+            return True
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        GenerationWorkerLauncher().launch(
+            factory=Factory(),
+            controller=Controller(),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000),
+            clock=lambda: 0.0,
+        )
+
+    assert events == ["launch", "wait_ready", "reap"]
+
+
+def test_launcher_reaps_a_ready_child_when_its_deadline_expires() -> None:
+    descriptor = GenerationWorkerLaunchDescriptor(
+        "generation-worker-v1",
+        "a" * 64,
+        0,
+        "runner-v1",
+        "b" * 64,
+        "converter-v1",
+        "c" * 64,
+        "d" * 64,
+        "e" * 64,
+        "cpu",
+        _budget(),
+        ("asset-handle-1",),
+    )
+    events: list[str] = []
+    child = object()
+
+    class Factory:
+        runner_id = "runner-v1"
+
+        def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
+            return descriptor
+
+    class Controller:
+        runner_id = "runner-v1"
+        supported_execution_devices = frozenset({"cpu"})
+
+        def launch(self, _descriptor: object) -> object:
+            events.append("launch")
+            return child
+
+        def wait_ready(self, _child: object, _timeout: float) -> bool:
+            events.append("wait_ready")
+            return True
+
+        def terminate(self, _child: object) -> None:
+            events.append("terminate")
+
+        def kill(self, _child: object) -> None:
+            events.append("kill")
+
+        def reap(self, _child: object, _timeout: float) -> bool:
+            events.append("reap")
+            return True
+
+    ticks = iter((0.0, 0.0, 1.0, 1.0, 1.0))
+    with pytest.raises(GenerationWorkerDeadlineExceeded, match="deadline exceeded"):
+        GenerationWorkerLauncher().launch(
+            factory=Factory(),
+            controller=Controller(),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1),
+            clock=lambda: next(ticks),
+        )
+    assert events == ["launch", "wait_ready", "terminate", "reap"]
+
+
+def test_launcher_terminates_and_confirms_reap_before_releasing_on_deadline() -> None:
+    events: list[str] = []
+
+    class Reservation:
+        def release(self) -> None:
+            events.append("release")
+
+    class Provider:
+        def reserve(self, _request: object) -> Reservation:
+            events.append("reserve")
+            return Reservation()
+
+    class Child:
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            events.append("limit")
+
+        def pack(self) -> int:
+            events.append("pack")
+            return 3
+
+        def generate(self) -> tuple[bytes, int]:
+            events.append("generate")
+            return b"{}", 1
+
+        def reap(self) -> None:
+            pytest.fail("controller lifecycle must own reap")
+
+    class Controller:
+        def terminate(self, _child: object) -> None:
+            events.append("terminate")
+
+        def kill(self, _child: object) -> None:
+            events.append("kill")
+
+        def reap(self, _child: object, _timeout: float) -> bool:
+            events.append("reap")
+            return True
+
+    session = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=2,
+    )
+    child = Child()
+    launcher = GenerationWorkerLauncher()
+    receipt = launcher.pack_receipt(
+        child=child,
+        session=session,
+        fragment_index=0,
+        max_memory_bytes=8,
+        execution_device="cpu",
+    )
+
+    with pytest.raises(GenerationWorkerDeadlineExceeded, match="deadline exceeded"):
+        launcher.generate(
+            child=child,
+            session=session,
+            receipt=receipt,
+            remaining_generated_tokens=1,
+            provider=Provider(),
+            request=GenerationMemoryReservationRequest(
+                material_lock_digest="c" * 64,
+                runner_identity="runner",
+                execution_device="cpu",
+                packed_context_tokens=3,
+                requested_new_tokens=1,
+                max_memory_bytes=8,
+                deadline_monotonic=1.0,
+            ),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1),
+            now=0.0,
+            clock=lambda: 1.0,
+            controller=Controller(),
+        )
+
+    assert events == [
+        "limit",
+        "pack",
+        "reserve",
+        "generate",
+        "terminate",
+        "reap",
+        "release",
+    ]
+
+
+def test_launcher_keeps_its_reservation_when_reap_cannot_be_confirmed() -> None:
+    events: list[str] = []
+
+    class Reservation:
+        def release(self) -> None:
+            events.append("release")
+
+    class Provider:
+        def reserve(self, _request: object) -> Reservation:
+            return Reservation()
+
+    class Child:
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            pass
+
+        def pack(self) -> int:
+            return 3
+
+        def generate(self) -> tuple[bytes, int]:
+            return b"{}", 1
+
+        def reap(self) -> None:
+            pytest.fail("controller lifecycle must own reap")
+
+    class Controller:
+        def terminate(self, _child: object) -> None:
+            events.append("terminate")
+
+        def kill(self, _child: object) -> None:
+            events.append("kill")
+
+        def reap(self, _child: object, _timeout: float) -> bool:
+            events.append("reap")
+            return False
+
+    session = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=2,
+    )
+    child = Child()
+    launcher = GenerationWorkerLauncher()
+    receipt = launcher.pack_receipt(
+        child=child,
+        session=session,
+        fragment_index=0,
+        max_memory_bytes=8,
+        execution_device="cpu",
+    )
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        launcher.generate(
+            child=child,
+            session=session,
+            receipt=receipt,
+            remaining_generated_tokens=1,
+            provider=Provider(),
+            request=GenerationMemoryReservationRequest(
+                material_lock_digest="c" * 64,
+                runner_identity="runner",
+                execution_device="cpu",
+                packed_context_tokens=3,
+                requested_new_tokens=1,
+                max_memory_bytes=8,
+                deadline_monotonic=1.0,
+            ),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1),
+            now=0.0,
+            clock=lambda: 1.0,
+            controller=Controller(),
+        )
+
+    assert events == ["terminate", "reap", "kill", "reap"]
 
 
 def test_worker_requires_a_matching_pack_receipt_before_authorized_result() -> None:
@@ -128,6 +628,58 @@ def test_worker_rejects_a_candidate_over_its_authorized_byte_budget() -> None:
             candidate=b"{}",
             generated_tokens=1,
         )
+
+
+def test_worker_recomputes_reported_aggregate_result_counters() -> None:
+    worker = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=4,
+    )
+    receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
+    worker.authorize(
+        receipt=receipt,
+        fragment_index=0,
+        remaining_generated_tokens=2,
+    )
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        worker.result(
+            receipt=receipt,
+            fragment_index=0,
+            candidate=b"{}",
+            generated_tokens=2,
+            reported_aggregate_generated_tokens=1,
+            reported_aggregate_output_bytes=2,
+        )
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        worker.result(
+            receipt=receipt,
+            fragment_index=0,
+            candidate=b"{}",
+            generated_tokens=2,
+            reported_aggregate_generated_tokens=True,
+            reported_aggregate_output_bytes=2,
+        )
+
+    assert worker.result(
+        receipt=receipt,
+        fragment_index=0,
+        candidate=b"{}",
+        generated_tokens=2,
+        reported_aggregate_generated_tokens=2,
+        reported_aggregate_output_bytes=2,
+    ) == GenerationWorkerResult(
+        candidate=b"{}",
+        generated_tokens=2,
+        aggregate_generated_tokens=2,
+        aggregate_output_bytes=2,
+    )
 
 
 def test_worker_binds_sequential_fragments_to_aggregate_token_and_byte_limits() -> None:
@@ -333,6 +885,56 @@ def test_launcher_accepts_an_explicit_clean_packing_attestation() -> None:
     )
 
 
+def test_launcher_preserves_unavailable_prepacking_containment() -> None:
+    reaped: list[bool] = []
+
+    class Child:
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            raise GenerationResourceBudgetError(
+                "generation memory budget is unavailable"
+            )
+
+        def pack(self) -> int:
+            pytest.fail("packing must not start without containment")
+
+        def reap(self) -> None:
+            reaped.append(True)
+
+    with pytest.raises(GenerationResourceBudgetError, match="memory budget"):
+        GenerationWorkerLauncher().pack(
+            child=Child(), max_memory_bytes=8, execution_device="cpu"
+        )
+
+    assert reaped == [True]
+
+
+def test_launcher_deadline_covers_prepacking_containment_and_packing() -> None:
+    events: list[str] = []
+
+    class Child:
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            events.append("limit")
+
+        def pack(self) -> int:
+            events.append("pack")
+            return 3
+
+        def reap(self) -> None:
+            events.append("reap")
+
+    ticks = iter((0.0, 0.001))
+    with pytest.raises(GenerationWorkerDeadlineExceeded, match="deadline exceeded"):
+        GenerationWorkerLauncher().pack(
+            child=Child(),
+            max_memory_bytes=8,
+            execution_device="cpu",
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1),
+            clock=lambda: next(ticks),
+        )
+
+    assert events == ["limit", "pack", "reap"]
+
+
 def test_launcher_reserves_memory_before_authorizing_a_packed_receipt() -> None:
     events: list[str] = []
 
@@ -374,6 +976,40 @@ def test_launcher_reserves_memory_before_authorizing_a_packed_receipt() -> None:
     assert events == ["reserve"]
     reservation.release()
     assert events == ["reserve", "release"]
+
+
+def test_launcher_preserves_unavailable_memory_reservations() -> None:
+    class Provider:
+        def reserve(self, _request: object) -> None:
+            return None
+
+    worker = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=2,
+    )
+    receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
+
+    with pytest.raises(GenerationResourceBudgetError, match="memory budget"):
+        GenerationWorkerLauncher().authorize(
+            session=worker,
+            receipt=receipt,
+            remaining_generated_tokens=2,
+            provider=Provider(),
+            request=GenerationMemoryReservationRequest(
+                material_lock_digest="c" * 64,
+                runner_identity="runner",
+                execution_device="cpu",
+                packed_context_tokens=3,
+                requested_new_tokens=2,
+                max_memory_bytes=8,
+                deadline_monotonic=1.0,
+            ),
+        )
 
 
 def test_launcher_releases_reservation_after_authorized_generation() -> None:
@@ -496,7 +1132,7 @@ def test_launcher_discards_a_result_when_the_deadline_expires_during_generation(
         max_memory_bytes=8,
         execution_device="cpu",
     )
-    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+    with pytest.raises(GenerationWorkerDeadlineExceeded, match="deadline exceeded"):
         launcher.generate(
             child=child,
             session=worker,
