@@ -166,6 +166,7 @@ def test_fixed_entry_loads_co_located_converter_after_descriptor_validation(
         package_root=tmp_path,
         converter=converter,
         prepared_set=object(),  # type: ignore[arg-type]
+        messages=({"role": "user", "content": "describe"},),
         sealed_payload_path=tmp_path / "sealed-payload",
     )
     loaded: list[tuple[object, object]] = []
