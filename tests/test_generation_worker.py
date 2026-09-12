@@ -800,6 +800,11 @@ def test_worker_result_rejects_a_non_bytes_candidate() -> None:
         )
 
 
+def test_worker_result_rejects_an_aggregate_smaller_than_its_fragment() -> None:
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        GenerationWorkerResult(b"ok", 2, 1, 2)
+
+
 def test_worker_rejects_repacking_before_authorization() -> None:
     worker = GenerationWorkerSession(
         invocation_id="invocation-1",

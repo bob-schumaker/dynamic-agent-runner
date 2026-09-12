@@ -209,6 +209,8 @@ class GenerationWorkerResult:
             or not _nonnegative_int(self.generated_tokens)
             or not _nonnegative_int(self.aggregate_generated_tokens)
             or not _nonnegative_int(self.aggregate_output_bytes)
+            or self.aggregate_generated_tokens < self.generated_tokens
+            or self.aggregate_output_bytes < len(self.candidate)
             or not isinstance(self.exhausted, bool)
             or (
                 self.packed_context_tokens is not None
