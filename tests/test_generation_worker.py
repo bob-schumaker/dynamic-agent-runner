@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from dynamic_agent_runner.workflow_host.generation_worker import (
@@ -234,6 +236,65 @@ def test_launcher_binds_packed_context_to_its_session_receipt() -> None:
         fragment_index=0,
         packed_context_tokens=3,
     )
+
+
+def test_launcher_reaps_a_packed_child_when_its_receipt_is_mismatched() -> None:
+    events: list[str] = []
+
+    class Child:
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            events.append("limit")
+
+        def pack(self) -> int:
+            events.append("pack")
+            return 3
+
+        def generate(self) -> tuple[bytes, int]:
+            pytest.fail("mismatched receipt must not dispatch")
+
+        def reap(self) -> None:
+            events.append("reap")
+
+    session = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=8,
+    )
+    child = Child()
+    launcher = GenerationWorkerLauncher()
+    receipt = launcher.pack_receipt(
+        child=child,
+        session=session,
+        fragment_index=0,
+        max_memory_bytes=8,
+        execution_device="cpu",
+    )
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        launcher.generate(
+            child=child,
+            session=session,
+            receipt=replace(receipt, packed_context_tokens=4),
+            remaining_generated_tokens=1,
+            provider=object(),
+            request=GenerationMemoryReservationRequest(
+                material_lock_digest="c" * 64,
+                runner_identity="runner",
+                execution_device="cpu",
+                packed_context_tokens=3,
+                requested_new_tokens=1,
+                max_memory_bytes=8,
+                deadline_monotonic=1.0,
+            ),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1),
+            now=0.0,
+        )
+
+    assert events == ["limit", "pack", "reap"]
 
 
 def test_launcher_rejects_model_or_accelerator_entry_during_packing() -> None:

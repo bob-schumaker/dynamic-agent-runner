@@ -263,9 +263,12 @@ class GenerationWorkerLauncher:
 
         generate = getattr(child, "generate", None)
         reap = getattr(child, "reap", None)
-        packed_receipt = self._packed_receipts.pop(id(child), None)
+        packed_receipt = self._packed_receipts.get(id(child))
         if not callable(generate) or not callable(reap) or packed_receipt != receipt:
+            if packed_receipt is not None:
+                self.abort(child=child)
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        self._packed_receipts.pop(id(child), None)
         reservation = self.authorize(
             session=session,
             receipt=receipt,
