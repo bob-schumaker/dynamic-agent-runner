@@ -694,7 +694,6 @@ def test_deferred_worker_adapter_continues_with_parent_aggregate_accounting(
     def create_factory(
         _request: object, *, budget: object = None, **kwargs: object
     ) -> object:
-        assert budget == _generation_budget(max_continuations=1)
         factories.append(kwargs)
         return object()
 
@@ -727,6 +726,54 @@ def test_deferred_worker_adapter_continues_with_parent_aggregate_accounting(
             "Return only the remaining text.",
         },
     )
+
+
+def test_deferred_worker_adapter_binds_each_child_to_remaining_output_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.workflow_host.generation_worker import (
+        GenerationWorkerResult,
+    )
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+    )
+
+    budget = _generation_budget(max_continuations=1, max_total_output_bytes=10)
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id="model", adapter_id="adapter", resolve_prepared_set=lambda: object()
+    )
+    adapter._payload_bound = True
+    adapter._generation_worker_factory = object()
+    adapter._generation_budget = budget
+    adapter._generation_host_policy = _generation_host_policy(budget)
+    child_budgets: list[object] = []
+    results = iter(
+        (
+            GenerationWorkerResult(b"first!", 2, 2, 6, True),
+            GenerationWorkerResult(b"last", 2, 2, 4, False),
+        )
+    )
+
+    def create_factory(
+        _request: object, *, budget: object = None, **_kwargs: object
+    ) -> object:
+        child_budgets.append(budget)
+        return object()
+
+    monkeypatch.setattr(adapter, "_create_worker_invocation_factory", create_factory)
+    monkeypatch.setattr(
+        adapter, "_run_worker_fragment", lambda **_kwargs: next(results)
+    )
+
+    response = adapter.create_response(
+        build_openai_request(model="model", messages=[OpenAIMessage("user", "go")])
+    )
+
+    assert response.content == "first!last"
+    assert child_budgets == [
+        budget,
+        _generation_budget(max_continuations=1, max_total_output_bytes=4),
+    ]
 
 
 def test_transformers_worker_runtime_keeps_converter_and_packed_input_in_child(

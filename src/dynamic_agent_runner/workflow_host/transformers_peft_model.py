@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
@@ -1521,18 +1521,24 @@ class DeferredTransformersPeftSingleImageAdapter:
             remaining_generated_tokens = (
                 budget.max_total_generated_tokens - generated_tokens
             )
+            remaining_output_bytes = budget.max_total_output_bytes - output_bytes
             if remaining_generated_tokens < 1:
                 raise ModelExecutionError("model generation token budget exceeded")
+            if remaining_output_bytes < 1:
+                raise ModelExecutionError("model generation output limit exceeded")
+            fragment_budget = replace(
+                budget, max_total_output_bytes=remaining_output_bytes
+            )
             factory = self._create_worker_invocation_factory(
                 request,
-                budget=budget,
+                budget=fragment_budget,
                 messages=messages,
                 fragment_index=fragment_index,
             )
             result = self._run_worker_fragment(
                 factory=factory,
                 controller=controller,
-                budget=budget,
+                budget=fragment_budget,
                 deadline=deadline,
                 host_policy=host_policy,
                 remaining_generated_tokens=remaining_generated_tokens,
