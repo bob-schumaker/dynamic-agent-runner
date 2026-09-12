@@ -104,6 +104,45 @@ def test_cpu_resource_limit_caps_address_space_before_worker_entry() -> None:
     assert events == [("get", 1), ("set", 1, (2_048, 2_048))]
 
 
+def test_cpu_entry_installs_the_cap_before_resolving_child_assets(monkeypatch) -> None:
+    from dynamic_agent_runner.workflow_host import generation_worker_controllers
+
+    descriptor = _descriptor(execution_device="cpu")
+    events: list[str] = []
+
+    class Connection:
+        def send(self, _value: object) -> None:
+            pass
+
+        def recv(self) -> str:
+            return "close"
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(
+        generation_worker_controllers,
+        "install_cpu_memory_limit",
+        lambda _limit: events.append("limit"),
+    )
+    monkeypatch.setattr(
+        generation_worker_controllers,
+        "fixed_generation_worker_entry_point",
+        lambda _wire, **_kwargs: events.append("entry") or descriptor,
+    )
+
+    generation_worker_controllers._cpu_worker_entry(
+        Connection(),
+        Connection(),
+        Connection(),
+        descriptor.to_wire(),
+        object(),
+        None,
+    )
+
+    assert events == ["limit", "entry"]
+
+
 def test_cpu_controller_rejects_non_cpu_work_before_creating_a_process() -> None:
     class Context:
         def Process(self, *args: object, **kwargs: object) -> object:

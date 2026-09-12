@@ -508,12 +508,15 @@ def _cpu_worker_entry(
     """Fixed CPU bootstrap: validate, cap process memory, then acknowledge ready."""
 
     try:
+        bootstrap_descriptor = GenerationWorkerLaunchDescriptor.from_wire(
+            wire_descriptor
+        )
+        install_cpu_memory_limit(bootstrap_descriptor.budget.max_memory_bytes)
         descriptor = fixed_generation_worker_entry_point(
             wire_descriptor,
             asset_handles=asset_handles,
             now=datetime.now(UTC) if asset_handles is not None else None,
         )
-        install_cpu_memory_limit(descriptor.budget.max_memory_bytes)
         ready_connection.send(("ready",))
         _run_cpu_worker_protocol(
             command_connection=command_connection,
