@@ -7,6 +7,7 @@ from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
 import sys
+import time
 
 import pytest
 
@@ -856,6 +857,74 @@ def test_deferred_worker_adapter_records_only_verified_fragment_facts(
             output_bytes=2,
         )
     ]
+
+
+def test_deferred_worker_adapter_rejects_a_factory_budget_broader_than_effective() -> (
+    None
+):
+    from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+        GenerationDeadline,
+    )
+    from dynamic_agent_runner.workflow_host.generation_worker import (
+        GenerationWorkerLaunchDescriptor,
+        GenerationWorkerProtocolError,
+    )
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+        TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+
+    effective_budget = _generation_budget(max_new_tokens_per_fragment=2)
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id="model", adapter_id="adapter", resolve_prepared_set=lambda: object()
+    )
+    launched: list[object] = []
+
+    class Factory:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        capability = TRANSFORMERS_GENERATE_CAPABILITY
+
+        def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
+            return GenerationWorkerLaunchDescriptor(
+                protocol_version="generation-worker-v1",
+                invocation_digest="a" * 64,
+                fragment_index=0,
+                runner_id=self.runner_id,
+                capability_contract_digest=self.capability.contract_digest,
+                converter_id="converter-v1",
+                converter_asset_digest="b" * 64,
+                material_lock_digest="c" * 64,
+                execution_descriptor_digest="d" * 64,
+                execution_device="cpu",
+                budget=_generation_budget(),
+                asset_handles=("opaque",),
+            )
+
+    class Controller:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        supported_execution_devices = frozenset({"cpu", "mps"})
+
+        def launch(self, _descriptor: object) -> object:
+            launched.append(object())
+            raise AssertionError("a broader worker descriptor must not launch")
+
+        def wait_ready(self, _child: object, _timeout: float) -> bool:
+            return True
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        adapter._run_worker_fragment(
+            factory=Factory(),
+            controller=Controller(),
+            budget=effective_budget,
+            deadline=GenerationDeadline.start(
+                time.monotonic(),
+                max_runtime_milliseconds=effective_budget.max_runtime_milliseconds,
+            ),
+            host_policy=_generation_host_policy(effective_budget),
+            remaining_generated_tokens=effective_budget.max_total_generated_tokens,
+        )
+
+    assert launched == []
 
 
 def test_converter_adapter_runs_one_packed_generation_and_clears_payload(

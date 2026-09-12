@@ -1592,7 +1592,11 @@ class DeferredTransformersPeftSingleImageAdapter:
         if not callable(create_descriptor):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         descriptor = create_descriptor()
-        if not isinstance(descriptor, GenerationWorkerLaunchDescriptor):
+        if (
+            not isinstance(descriptor, GenerationWorkerLaunchDescriptor)
+            or descriptor.budget != budget
+            or descriptor.execution_device != host_policy.execution_device
+        ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         session = GenerationWorkerSession(
             invocation_id=sha256(f"{time.monotonic():.9f}".encode("ascii")).hexdigest(),
