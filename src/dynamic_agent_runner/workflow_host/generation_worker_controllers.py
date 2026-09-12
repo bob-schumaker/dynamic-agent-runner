@@ -483,6 +483,8 @@ def machine_generation_worker_controllers(
     metal_runtime: MetalMpsWorkerRuntime | None = None,
     platform_system: Callable[[], str] = platform.system,
     process_context: object | None = None,
+    asset_handles: object | None = None,
+    worker_runtime: CpuGenerationWorkerRuntime | None = None,
 ) -> GenerationWorkerControllerSet:
     """Build only the CPU/MPS controllers the receiving machine can enforce."""
 
@@ -491,6 +493,8 @@ def machine_generation_worker_controllers(
         controllers["cpu"] = CpuMultiprocessingGenerationWorkerController(
             runner_id=runner_id,
             process_context=process_context,
+            asset_handles=asset_handles,
+            worker_runtime=worker_runtime,
         )
     except GenerationResourceBudgetError:
         pass
