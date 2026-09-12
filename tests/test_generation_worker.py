@@ -908,6 +908,46 @@ def test_launcher_preserves_unavailable_prepacking_containment() -> None:
     assert reaped == [True]
 
 
+def test_launcher_uses_the_controller_to_clean_up_failed_packing() -> None:
+    events: list[str] = []
+
+    class Child:
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            events.append("limit")
+            raise GenerationResourceBudgetError(
+                "generation memory budget is unavailable"
+            )
+
+        def pack(self) -> int:
+            pytest.fail("packing must not proceed")
+
+        def reap(self) -> None:
+            pytest.fail("the controller owns cleanup")
+
+    class Controller:
+        def terminate(self, _child: object) -> None:
+            events.append("terminate")
+
+        def kill(self, _child: object) -> None:
+            events.append("kill")
+
+        def reap(self, _child: object, _timeout: float) -> bool:
+            events.append("reap")
+            return True
+
+    with pytest.raises(GenerationResourceBudgetError, match="memory budget"):
+        GenerationWorkerLauncher().pack(
+            child=Child(),
+            max_memory_bytes=8,
+            execution_device="cpu",
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000),
+            clock=lambda: 0.0,
+            controller=Controller(),
+        )
+
+    assert events == ["limit", "reap"]
+
+
 def test_launcher_deadline_covers_prepacking_containment_and_packing() -> None:
     events: list[str] = []
 

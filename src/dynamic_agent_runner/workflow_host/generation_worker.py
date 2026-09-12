@@ -373,6 +373,7 @@ class GenerationWorkerLauncher:
         execution_device: str,
         deadline: GenerationDeadline | None = None,
         clock: Callable[[], float] = time.monotonic,
+        controller: object | None = None,
     ) -> int:
         install_limit = getattr(child, "install_bootstrap_limit", None)
         pack = getattr(child, "pack", None)
@@ -385,6 +386,8 @@ class GenerationWorkerLauncher:
             reap=reap,
             deadline=deadline,
         ):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        if controller is not None and not isinstance(deadline, GenerationDeadline):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         packed_successfully = False
         try:
@@ -409,7 +412,15 @@ class GenerationWorkerLauncher:
         finally:
             if not packed_successfully:
                 try:
-                    reap()
+                    if controller is None:
+                        reap()
+                    else:
+                        self._close_with_controller(
+                            child=child,
+                            controller=controller,
+                            deadline=deadline,
+                            clock=clock,
+                        )
                 except Exception as error:
                     raise GenerationWorkerProtocolError(
                         "generation worker protocol invalid"
@@ -447,15 +458,34 @@ class GenerationWorkerLauncher:
             deadline.require_remaining(clock())
         return packed_context_tokens
 
-    def abort(self, *, child: object) -> None:
+    def abort(
+        self,
+        *,
+        child: object,
+        controller: object | None = None,
+        deadline: GenerationDeadline | None = None,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         """Reap a packed child when admission cannot proceed."""
 
         self._packed_receipts.pop(id(child), None)
-        reap = getattr(child, "reap", None)
-        if not callable(reap):
+        if controller is not None and not isinstance(deadline, GenerationDeadline):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         try:
-            reap()
+            if controller is None:
+                reap = getattr(child, "reap", None)
+                if not callable(reap):
+                    raise GenerationWorkerProtocolError(
+                        "generation worker protocol invalid"
+                    )
+                reap()
+            else:
+                self._close_with_controller(
+                    child=child,
+                    controller=controller,
+                    deadline=deadline,
+                    clock=clock,
+                )
         except Exception as error:
             raise GenerationWorkerProtocolError(
                 "generation worker protocol invalid"
@@ -471,6 +501,7 @@ class GenerationWorkerLauncher:
         execution_device: str,
         deadline: GenerationDeadline | None = None,
         clock: Callable[[], float] = time.monotonic,
+        controller: object | None = None,
     ) -> GenerationWorkerPackReceipt:
         """Pack once and bind its measured context to the current receipt."""
 
@@ -482,6 +513,7 @@ class GenerationWorkerLauncher:
             execution_device=execution_device,
             deadline=deadline,
             clock=clock,
+            controller=controller,
         )
         try:
             receipt = session.pack(
@@ -491,7 +523,12 @@ class GenerationWorkerLauncher:
             self._packed_receipts[id(child)] = receipt
             return receipt
         except Exception as error:
-            self.abort(child=child)
+            self.abort(
+                child=child,
+                controller=controller,
+                deadline=deadline,
+                clock=clock,
+            )
             raise GenerationWorkerProtocolError(
                 "generation worker protocol invalid"
             ) from error
