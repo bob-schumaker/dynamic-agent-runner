@@ -500,6 +500,169 @@ def test_deferred_worker_adapter_builds_an_invocation_factory_from_private_asset
     assert "converter_state" not in captured
 
 
+def test_deferred_worker_adapter_runs_one_fragment_in_the_selected_worker(  # noqa: C901
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.execution_descriptors import (
+        ExecutionDescriptor,
+        ExecutionDescriptorAbi,
+    )
+    from dynamic_agent_runner.workflow_host.generation_worker import (
+        GenerationWorkerLaunchDescriptor,
+    )
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+        TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+
+    budget = _generation_budget(max_continuations=0)
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    prepared_set = PreparedArtifactSet(
+        recipe,
+        {
+            artifact.role: tmp_path / artifact.group / artifact.filename
+            for artifact in recipe.artifacts
+        },
+    )
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id=recipe.model_id,
+        adapter_id=recipe.adapter_id,
+        resolve_prepared_set=lambda: prepared_set,
+    )
+    events: list[str] = []
+
+    class Child:
+        def install_bootstrap_limit(
+            self, max_memory_bytes: int, execution_device: str
+        ) -> None:
+            assert max_memory_bytes == budget.max_memory_bytes
+            assert execution_device == "cpu"
+            events.append("limit")
+
+        def pack(self) -> int:
+            events.append("pack")
+            return 2
+
+        def authorize(self, _receipt: object, remaining: int) -> None:
+            assert remaining == budget.max_new_tokens_per_fragment
+            events.append("authorize")
+
+        def generate(self) -> tuple[bytes, int, int, int]:
+            events.append("generate")
+            candidate = b'{"walls":[]}'
+            return candidate, 2, 2, len(candidate)
+
+        def reap(self) -> None:
+            events.append("child-reap")
+
+    class InvocationFactory:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        capability = TRANSFORMERS_GENERATE_CAPABILITY
+
+        def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
+            return GenerationWorkerLaunchDescriptor(
+                protocol_version="generation-worker-v1",
+                invocation_digest="d" * 64,
+                fragment_index=0,
+                runner_id=self.runner_id,
+                capability_contract_digest=self.capability.contract_digest,
+                converter_id="converter-v1",
+                converter_asset_digest="c" * 64,
+                material_lock_digest="b" * 64,
+                execution_descriptor_digest="e" * 64,
+                execution_device="cpu",
+                budget=budget,
+                asset_handles=("opaque-handle",),
+            )
+
+    class Factory:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        capability = TRANSFORMERS_GENERATE_CAPABILITY
+
+        def create_for_invocation(self, **_kwargs: object) -> InvocationFactory:
+            events.append("factory")
+            return InvocationFactory()
+
+    class Controller:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        supported_execution_devices = frozenset({"cpu", "mps"})
+
+        def launch(self, descriptor: GenerationWorkerLaunchDescriptor) -> Child:
+            assert isinstance(descriptor, GenerationWorkerLaunchDescriptor)
+            events.append("launch")
+            return Child()
+
+        def wait_ready(self, _child: Child, _timeout: float) -> bool:
+            events.append("ready")
+            return True
+
+        def terminate(self, _child: Child) -> None:
+            events.append("terminate")
+
+        def kill(self, _child: Child) -> None:
+            events.append("kill")
+
+        def reap(self, _child: Child, _timeout: float) -> bool:
+            events.append("controller-reap")
+            return True
+
+    adapter.bind_generation_worker(
+        factory=Factory(),
+        controller=Controller(),
+        capability=TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+    descriptor = ExecutionDescriptor(
+        ExecutionDescriptorAbi("test-generation-v1", "1", "a" * 64),
+        ("weights",),
+        {"generation_budget": budget.__dict__},
+    )
+    adapter.bind_generation_budget(
+        descriptor=descriptor,
+        material_lock_digest="b" * 64,
+        host_policy=_generation_host_policy(budget),
+    )
+    adapter.bind_worker_converter_payload(
+        package_root=tmp_path,
+        converter=DeclaredInputConverter(
+            converter_id="converter-v1",
+            converter_contract_version="1",
+            compatible_runner_contract_id="transformers-generate-v1",
+            entrypoint="converter.py",
+            asset_digest="c" * 64,
+            max_input_bytes=64,
+            max_output_bytes=64,
+            timeout_seconds=1,
+        ),
+        content=b"sealed",
+    )
+
+    response = adapter.create_response(
+        build_openai_request(
+            model=recipe.model_id,
+            messages=[OpenAIMessage("user", "vectorize")],
+        )
+    )
+
+    assert response.content == '{"walls":[]}'
+    assert response.metadata == {
+        "generation": {
+            "generated_tokens": 2,
+            "output_bytes": len(b'{"walls":[]}'),
+        }
+    }
+    assert events == [
+        "factory",
+        "launch",
+        "ready",
+        "limit",
+        "pack",
+        "authorize",
+        "generate",
+        "controller-reap",
+    ]
+    assert adapter._worker_sealed_payload is None
+
+
 def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
     tmp_path: Path,
 ) -> None:

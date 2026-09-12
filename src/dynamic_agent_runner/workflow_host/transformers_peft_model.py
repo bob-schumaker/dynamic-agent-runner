@@ -30,6 +30,12 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
     reserve_generation_memory,
     validate_generation_budget_field,
 )
+from dynamic_agent_runner.workflow_host.generation_worker import (
+    GenerationWorkerLaunchDescriptor,
+    GenerationWorkerLauncher,
+    GenerationWorkerProtocolError,
+    GenerationWorkerSession,
+)
 
 
 TRANSFORMERS_GENERATE_V1 = "transformers-generate-v1"
@@ -1257,19 +1263,26 @@ class DeferredTransformersPeftSingleImageAdapter:
     def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         if self._payload_bound:
             try:
+                if self._generation_worker_factory is not None:
+                    return self._create_worker_response(request)
                 return self._resolved_packed_adapter().create_response(request)
             finally:
-                self._payload_bound = False
+                self.clear_sealed_payload()
         return self._resolved_adapter().create_response(request)
 
-    def _create_worker_invocation_factory(self, request: OpenAIModelRequest) -> object:
+    def _create_worker_invocation_factory(
+        self,
+        request: OpenAIModelRequest,
+        *,
+        budget: GenerationResourceBudget | None = None,
+    ) -> object:
         """Bind one child-only factory from sealed request-scoped inputs."""
 
         factory = self._generation_worker_factory
         converter = self._worker_converter
         package_root = self._worker_converter_package_root
         sealed_payload = self._worker_sealed_payload
-        budget = self._generation_budget
+        budget = budget or self._generation_budget
         material_lock_digest = self._generation_material_lock_digest
         execution_descriptor_digest = self._generation_execution_descriptor_digest
         host_policy = self._generation_host_policy
@@ -1316,6 +1329,185 @@ class DeferredTransformersPeftSingleImageAdapter:
             )
         except (TypeError, ValueError) as error:
             raise ModelExecutionError("generation worker is unavailable") from error
+
+    def _create_worker_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        """Execute one bounded fragment and retain only aggregate parent facts."""
+
+        if request.response_format is not None:
+            raise ModelExecutionError("local model response format is unsupported")
+        budget = self._resolved_worker_generation_budget(request)
+        deadline = GenerationDeadline.start(
+            time.monotonic(), max_runtime_milliseconds=budget.max_runtime_milliseconds
+        )
+        factory = self._create_worker_invocation_factory(request, budget=budget)
+        controller = self._generation_worker_controller
+        host_policy = self._generation_host_policy
+        if not isinstance(host_policy, GenerationExecutionHostPolicy):
+            raise ModelExecutionError("generation worker is unavailable")
+        try:
+            result = self._run_worker_fragment(
+                factory=factory,
+                controller=controller,
+                budget=budget,
+                deadline=deadline,
+                host_policy=host_policy,
+            )
+            try:
+                content = result.candidate.decode("utf-8").strip()
+            except UnicodeDecodeError as error:
+                raise ModelExecutionError(
+                    "local model returned an invalid response"
+                ) from error
+            if not content:
+                raise ModelExecutionError("local model returned an empty response")
+            return ModelResponse(
+                content=content,
+                metadata={
+                    "generation": {
+                        "generated_tokens": result.aggregate_generated_tokens,
+                        "output_bytes": result.aggregate_output_bytes,
+                    }
+                },
+            )
+        except ModelExecutionError:
+            raise
+        except GenerationResourceBudgetError as error:
+            if str(error) == "generation deadline exceeded":
+                raise ModelExecutionError(
+                    "model generation deadline exceeded"
+                ) from error
+            raise ModelExecutionError(
+                "model generation budget is unavailable"
+            ) from error
+        except GenerationWorkerProtocolError as error:
+            raise ModelExecutionError("generation worker protocol invalid") from error
+
+    def _run_worker_fragment(
+        self,
+        *,
+        factory: object,
+        controller: object,
+        budget: GenerationResourceBudget,
+        deadline: GenerationDeadline,
+        host_policy: GenerationExecutionHostPolicy,
+    ) -> object:
+        """Launch, pack, reserve, authorize, and reap one worker fragment."""
+
+        create_descriptor = getattr(factory, "create_launch_descriptor", None)
+        if not callable(create_descriptor):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        descriptor = create_descriptor()
+        if not isinstance(descriptor, GenerationWorkerLaunchDescriptor):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        session = GenerationWorkerSession(
+            invocation_id=sha256(f"{time.monotonic():.9f}".encode("ascii")).hexdigest(),
+            invocation_digest=descriptor.invocation_digest,
+            converter_digest=descriptor.converter_asset_digest,
+            material_lock_digest=descriptor.material_lock_digest,
+            execution_device=descriptor.execution_device,
+            max_total_generated_tokens=budget.max_total_generated_tokens,
+            max_total_output_bytes=budget.max_total_output_bytes,
+        )
+        launcher = GenerationWorkerLauncher()
+        child = launcher.launch(
+            factory=factory, controller=controller, deadline=deadline
+        )
+        receipt = self._worker_pack_receipt(
+            launcher=launcher,
+            child=child,
+            controller=controller,
+            session=session,
+            descriptor=descriptor,
+            budget=budget,
+            deadline=deadline,
+        )
+        try:
+            return launcher.generate(
+                child=child,
+                session=session,
+                receipt=receipt,
+                remaining_generated_tokens=min(
+                    budget.max_new_tokens_per_fragment,
+                    budget.max_total_generated_tokens,
+                ),
+                provider=host_policy.memory_reservation_provider,
+                request=GenerationMemoryReservationRequest(
+                    material_lock_digest=descriptor.material_lock_digest,
+                    runner_identity=descriptor.runner_id,
+                    execution_device=descriptor.execution_device,
+                    packed_context_tokens=receipt.packed_context_tokens,
+                    requested_new_tokens=min(
+                        budget.max_new_tokens_per_fragment,
+                        budget.max_total_generated_tokens,
+                    ),
+                    max_memory_bytes=budget.max_memory_bytes,
+                    deadline_monotonic=deadline.expires_at,
+                ),
+                deadline=deadline,
+                now=time.monotonic(),
+                controller=controller,
+            )
+        finally:
+            child = None
+
+    def _worker_pack_receipt(
+        self,
+        *,
+        launcher: GenerationWorkerLauncher,
+        child: object,
+        controller: object,
+        session: GenerationWorkerSession,
+        descriptor: GenerationWorkerLaunchDescriptor,
+        budget: GenerationResourceBudget,
+        deadline: GenerationDeadline,
+    ) -> object:
+        """Reject context growth before the worker receives authorization."""
+
+        try:
+            receipt = launcher.pack_receipt(
+                child=child,
+                session=session,
+                fragment_index=0,
+                max_memory_bytes=budget.max_memory_bytes,
+                execution_device=descriptor.execution_device,
+                deadline=deadline,
+                controller=controller,
+            )
+        except Exception:
+            child = None
+            raise
+        remaining_generated_tokens = min(
+            budget.max_new_tokens_per_fragment,
+            budget.max_total_generated_tokens,
+        )
+        if (
+            receipt.packed_context_tokens + remaining_generated_tokens
+            > budget.max_effective_context_tokens
+        ):
+            launcher.abort(child=child, controller=controller, deadline=deadline)
+            raise ModelExecutionError("model generation context limit exceeded")
+        return receipt
+
+    def _resolved_worker_generation_budget(
+        self, request: OpenAIModelRequest
+    ) -> GenerationResourceBudget:
+        """Resolve public compatibility aliases before the child factory binds them."""
+
+        budget = self._generation_budget
+        policy = self._generation_host_policy
+        if budget is None or policy is None:
+            raise ModelExecutionError("model generation budget is unavailable")
+        try:
+            return resolve_generation_resource_budget(
+                declared=budget,
+                runner_capability=TRANSFORMERS_GENERATE_CAPABILITY,
+                host=policy.ceiling,
+                execution_device=policy.execution_device,
+                max_tokens=request.extra.get("max_tokens"),
+                max_continuations=request.extra.get("max_continuations"),
+            )
+        except GenerationResourceBudgetError as error:
+            raise ModelExecutionError("model generation budget is invalid") from error
 
     def _resolved_adapter(self) -> TransformersPeftSingleImageAdapter:
         if self._adapter is None:
