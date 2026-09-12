@@ -1275,6 +1275,8 @@ class DeferredTransformersPeftSingleImageAdapter:
         request: OpenAIModelRequest,
         *,
         budget: GenerationResourceBudget | None = None,
+        messages: tuple[Mapping[str, object], ...] | None = None,
+        fragment_index: int = 0,
     ) -> object:
         """Bind one child-only factory from sealed request-scoped inputs."""
 
@@ -1298,12 +1300,16 @@ class DeferredTransformersPeftSingleImageAdapter:
             or not isinstance(material_lock_digest, str)
             or not isinstance(execution_descriptor_digest, str)
             or not isinstance(host_policy, GenerationExecutionHostPolicy)
+            or not isinstance(fragment_index, int)
+            or isinstance(fragment_index, bool)
+            or fragment_index < 0
         ):
             raise ModelExecutionError("generation worker is unavailable")
         try:
+            canonical_messages = request.messages if messages is None else messages
             canonical_invocation = json.dumps(
                 {
-                    "messages": request.messages,
+                    "messages": canonical_messages,
                     "sealed_payload_digest": sha256(sealed_payload).hexdigest(),
                 },
                 sort_keys=True,
@@ -1312,11 +1318,11 @@ class DeferredTransformersPeftSingleImageAdapter:
             now = datetime.now(UTC)
             return create_for_invocation(
                 invocation_digest=sha256(canonical_invocation).hexdigest(),
-                fragment_index=0,
+                fragment_index=fragment_index,
                 converter=converter,
                 package_root=package_root,
                 prepared_set=self._resolve_prepared_set(),
-                messages=request.messages,
+                messages=canonical_messages,
                 sealed_payload=sealed_payload,
                 sealed_payload_digest=sha256(sealed_payload).hexdigest(),
                 material_lock_digest=material_lock_digest,
@@ -1339,33 +1345,27 @@ class DeferredTransformersPeftSingleImageAdapter:
         deadline = GenerationDeadline.start(
             time.monotonic(), max_runtime_milliseconds=budget.max_runtime_milliseconds
         )
-        factory = self._create_worker_invocation_factory(request, budget=budget)
         controller = self._generation_worker_controller
         host_policy = self._generation_host_policy
         if not isinstance(host_policy, GenerationExecutionHostPolicy):
             raise ModelExecutionError("generation worker is unavailable")
         try:
-            result = self._run_worker_fragment(
-                factory=factory,
-                controller=controller,
-                budget=budget,
-                deadline=deadline,
-                host_policy=host_policy,
+            content, generated_tokens, output_bytes, chunk_count = (
+                self._run_worker_fragments(
+                    request=request,
+                    controller=controller,
+                    budget=budget,
+                    deadline=deadline,
+                    host_policy=host_policy,
+                )
             )
-            try:
-                content = result.candidate.decode("utf-8").strip()
-            except UnicodeDecodeError as error:
-                raise ModelExecutionError(
-                    "local model returned an invalid response"
-                ) from error
-            if not content:
-                raise ModelExecutionError("local model returned an empty response")
             return ModelResponse(
                 content=content,
                 metadata={
                     "generation": {
-                        "generated_tokens": result.aggregate_generated_tokens,
-                        "output_bytes": result.aggregate_output_bytes,
+                        "chunk_count": chunk_count,
+                        "generated_tokens": generated_tokens,
+                        "output_bytes": output_bytes,
                     }
                 },
             )
@@ -1382,6 +1382,71 @@ class DeferredTransformersPeftSingleImageAdapter:
         except GenerationWorkerProtocolError as error:
             raise ModelExecutionError("generation worker protocol invalid") from error
 
+    def _run_worker_fragments(
+        self,
+        *,
+        request: OpenAIModelRequest,
+        controller: object,
+        budget: GenerationResourceBudget,
+        deadline: GenerationDeadline,
+        host_policy: GenerationExecutionHostPolicy,
+    ) -> tuple[str, int, int, int]:
+        """Continue only while child exhaustion and all parent counters permit it."""
+
+        messages = tuple(request.messages)
+        fragments: list[str] = []
+        generated_tokens = 0
+        output_bytes = 0
+        for fragment_index in range(budget.max_continuations + 1):
+            remaining_generated_tokens = (
+                budget.max_total_generated_tokens - generated_tokens
+            )
+            if remaining_generated_tokens < 1:
+                raise ModelExecutionError("model generation token budget exceeded")
+            factory = self._create_worker_invocation_factory(
+                request,
+                budget=budget,
+                messages=messages,
+                fragment_index=fragment_index,
+            )
+            result = self._run_worker_fragment(
+                factory=factory,
+                controller=controller,
+                budget=budget,
+                deadline=deadline,
+                host_policy=host_policy,
+                remaining_generated_tokens=remaining_generated_tokens,
+            )
+            try:
+                fragment = result.candidate.decode("utf-8")
+            except UnicodeDecodeError as error:
+                raise ModelExecutionError(
+                    "local model returned an invalid response"
+                ) from error
+            generated_tokens += result.generated_tokens
+            output_bytes += len(result.candidate)
+            if (
+                result.aggregate_generated_tokens != result.generated_tokens
+                or result.aggregate_output_bytes != len(result.candidate)
+                or generated_tokens > budget.max_total_generated_tokens
+                or output_bytes > budget.max_total_output_bytes
+            ):
+                raise ModelExecutionError("generation worker protocol invalid")
+            fragments.append(fragment)
+            content = "".join(fragments).strip()
+            if not result.exhausted:
+                if not content:
+                    raise ModelExecutionError("local model returned an empty response")
+                return content, generated_tokens, output_bytes, fragment_index + 1
+            if fragment_index == budget.max_continuations:
+                raise ModelExecutionError("local model continuation limit exceeded")
+            messages = (
+                *messages,
+                {"role": "assistant", "content": fragment},
+                {"role": "user", "content": _CONTINUATION_INSTRUCTION},
+            )
+        raise AssertionError("worker continuation loop must return or raise")
+
     def _run_worker_fragment(
         self,
         *,
@@ -1390,6 +1455,7 @@ class DeferredTransformersPeftSingleImageAdapter:
         budget: GenerationResourceBudget,
         deadline: GenerationDeadline,
         host_policy: GenerationExecutionHostPolicy,
+        remaining_generated_tokens: int,
     ) -> object:
         """Launch, pack, reserve, authorize, and reap one worker fragment."""
 
@@ -1420,6 +1486,7 @@ class DeferredTransformersPeftSingleImageAdapter:
             descriptor=descriptor,
             budget=budget,
             deadline=deadline,
+            remaining_generated_tokens=remaining_generated_tokens,
         )
         try:
             return launcher.generate(
@@ -1427,8 +1494,7 @@ class DeferredTransformersPeftSingleImageAdapter:
                 session=session,
                 receipt=receipt,
                 remaining_generated_tokens=min(
-                    budget.max_new_tokens_per_fragment,
-                    budget.max_total_generated_tokens,
+                    budget.max_new_tokens_per_fragment, remaining_generated_tokens
                 ),
                 provider=host_policy.memory_reservation_provider,
                 request=GenerationMemoryReservationRequest(
@@ -1437,8 +1503,7 @@ class DeferredTransformersPeftSingleImageAdapter:
                     execution_device=descriptor.execution_device,
                     packed_context_tokens=receipt.packed_context_tokens,
                     requested_new_tokens=min(
-                        budget.max_new_tokens_per_fragment,
-                        budget.max_total_generated_tokens,
+                        budget.max_new_tokens_per_fragment, remaining_generated_tokens
                     ),
                     max_memory_bytes=budget.max_memory_bytes,
                     deadline_monotonic=deadline.expires_at,
@@ -1460,6 +1525,7 @@ class DeferredTransformersPeftSingleImageAdapter:
         descriptor: GenerationWorkerLaunchDescriptor,
         budget: GenerationResourceBudget,
         deadline: GenerationDeadline,
+        remaining_generated_tokens: int,
     ) -> object:
         """Reject context growth before the worker receives authorization."""
 
@@ -1476,12 +1542,11 @@ class DeferredTransformersPeftSingleImageAdapter:
         except Exception:
             child = None
             raise
-        remaining_generated_tokens = min(
-            budget.max_new_tokens_per_fragment,
-            budget.max_total_generated_tokens,
+        requested_new_tokens = min(
+            budget.max_new_tokens_per_fragment, remaining_generated_tokens
         )
         if (
-            receipt.packed_context_tokens + remaining_generated_tokens
+            receipt.packed_context_tokens + requested_new_tokens
             > budget.max_effective_context_tokens
         ):
             launcher.abort(child=child, controller=controller, deadline=deadline)

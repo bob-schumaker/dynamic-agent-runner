@@ -646,6 +646,7 @@ def test_deferred_worker_adapter_runs_one_fragment_in_the_selected_worker(  # no
     assert response.content == '{"walls":[]}'
     assert response.metadata == {
         "generation": {
+            "chunk_count": 1,
             "generated_tokens": 2,
             "output_bytes": len(b'{"walls":[]}'),
         }
@@ -661,6 +662,70 @@ def test_deferred_worker_adapter_runs_one_fragment_in_the_selected_worker(  # no
         "controller-reap",
     ]
     assert adapter._worker_sealed_payload is None
+
+
+def test_deferred_worker_adapter_continues_with_parent_aggregate_accounting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.workflow_host.generation_worker import (
+        GenerationWorkerResult,
+    )
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+    )
+
+    budget = _generation_budget(max_continuations=1)
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id="model", adapter_id="adapter", resolve_prepared_set=lambda: object()
+    )
+    adapter._payload_bound = True
+    adapter._generation_worker_factory = object()
+    adapter._generation_budget = budget
+    adapter._generation_host_policy = _generation_host_policy(budget)
+    factories: list[dict[str, object]] = []
+    results = iter(
+        (
+            GenerationWorkerResult(b"first ", 2, 2, len(b"first "), True),
+            GenerationWorkerResult(b"second", 2, 2, len(b"second"), False),
+        )
+    )
+
+    def create_factory(
+        _request: object, *, budget: object = None, **kwargs: object
+    ) -> object:
+        assert budget == _generation_budget(max_continuations=1)
+        factories.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(adapter, "_create_worker_invocation_factory", create_factory)
+    monkeypatch.setattr(
+        adapter, "_run_worker_fragment", lambda **_kwargs: next(results)
+    )
+
+    response = adapter.create_response(
+        build_openai_request(
+            model="model", messages=[OpenAIMessage("user", "vectorize")]
+        )
+    )
+
+    assert response.content == "first second"
+    assert response.metadata == {
+        "generation": {
+            "chunk_count": 2,
+            "generated_tokens": 4,
+            "output_bytes": len(b"first second"),
+        }
+    }
+    assert [factory["fragment_index"] for factory in factories] == [0, 1]
+    assert factories[1]["messages"] == (
+        {"role": "user", "content": "vectorize"},
+        {"role": "assistant", "content": "first "},
+        {
+            "role": "user",
+            "content": "Continue the exact response from where it stopped. "
+            "Return only the remaining text.",
+        },
+    )
 
 
 def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
