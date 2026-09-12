@@ -62,7 +62,109 @@ def _test_transformers_recipe() -> LocalModelPreparationRecipe:
     )
 
 
+def _generation_budget(**changes: int):
+    from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+        GenerationResourceBudget,
+    )
+
+    values = {
+        "max_new_tokens_per_fragment": 4,
+        "max_continuations": 1,
+        "max_total_generated_tokens": 8,
+        "max_total_output_bytes": 64,
+        "max_effective_context_tokens": 8,
+        "max_runtime_milliseconds": 1_000,
+        "max_memory_bytes": 1_024,
+    }
+    values.update(changes)
+    return GenerationResourceBudget(**values)
+
+
+def _generation_host_policy(budget: object):
+    from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+        GenerationExecutionHostPolicy,
+    )
+
+    class Reservation:
+        def release(self) -> None:
+            pass
+
+    class Provider:
+        def reserve(self, _request: object) -> Reservation:
+            return Reservation()
+
+    return GenerationExecutionHostPolicy(
+        ceiling=budget, execution_device="cpu", memory_reservation_provider=Provider()
+    )
+
+
 QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE = _test_transformers_recipe()
+
+
+def test_packed_runner_rejects_context_before_backend_dispatch(tmp_path: Path) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        PackedModelInput,
+        TransformersGenerateRunner,
+    )
+
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE.artifacts
+    }
+    calls: list[object] = []
+
+    class Backend:
+        processor = object()
+
+        def generate_packed(self, _inputs: object, **_kwargs: object) -> str:
+            calls.append(_inputs)
+            return "unreachable"
+
+    runner = TransformersGenerateRunner(
+        PreparedArtifactSet(
+            QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE, paths
+        ),
+        dependency_loader=lambda _base, _adapter: Backend(),
+    )
+    packed = PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 5))})
+
+    with pytest.raises(ModelExecutionError, match="context"):
+        runner.generate_chunk(
+            packed,
+            max_new_tokens=4,
+            budget=_generation_budget(max_effective_context_tokens=8),
+        )
+
+    assert calls == []
+    assert packed.is_cleared
+
+
+def test_packed_runner_loads_processor_without_loading_the_model_backend(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TransformersGenerateRunner,
+    )
+
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE.artifacts
+    }
+    processor = object()
+    calls: list[str] = []
+
+    runner = TransformersGenerateRunner(
+        PreparedArtifactSet(
+            QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE, paths
+        ),
+        dependency_loader=lambda _base, _adapter: (_ for _ in ()).throw(
+            AssertionError("packing must not load the model backend")
+        ),
+        processor_loader=lambda _base: calls.append("processor") or processor,
+    )
+
+    assert runner.input_context.processor is processor
+    assert calls == ["processor"]
 
 
 def test_deferred_adapter_exposes_the_converter_payload_contract(
@@ -84,6 +186,56 @@ def test_deferred_adapter_exposes_the_converter_payload_contract(
     )
 
     assert adapter.input_converter_contract_id == "transformers-generate-v1"
+
+
+def test_deferred_adapter_binds_only_a_valid_sealed_generation_budget(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.execution_descriptors import (
+        ExecutionDescriptor,
+        ExecutionDescriptorAbi,
+    )
+    from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+        GenerationExecutionHostPolicy,
+    )
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id=recipe.model_id,
+        adapter_id=recipe.adapter_id,
+        resolve_prepared_set=lambda: PreparedArtifactSet(recipe, paths),
+    )
+    descriptor = ExecutionDescriptor(
+        ExecutionDescriptorAbi("test-generation-v1", "1", "a" * 64),
+        ("weights",),
+        {"generation_budget": _generation_budget().__dict__},
+    )
+
+    class Provider:
+        def reserve(self, _request: object) -> object:
+            return object()
+
+    host_policy = GenerationExecutionHostPolicy(
+        ceiling=_generation_budget(),
+        execution_device="mps",
+        memory_reservation_provider=Provider(),
+    )
+    adapter.bind_generation_budget(
+        descriptor=descriptor,
+        material_lock_digest="b" * 64,
+        host_policy=host_policy,
+    )
+
+    assert adapter._generation_budget == _generation_budget()
+    assert adapter._generation_material_lock_digest == "b" * 64
+    assert adapter._generation_host_policy is host_policy
 
 
 def test_deferred_adapter_requires_a_manifest_bound_converter_package(
@@ -328,6 +480,219 @@ def test_converter_adapter_assembles_bounded_json_continuations(
             b"sealed image",
         ),
     ]
+    assert adapter._sealed_payload is None
+
+
+def test_converter_adapter_discards_an_oversized_budgeted_completion(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        GeneratedText,
+        PackedModelInput,
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+
+    class Runner:
+        input_context = object()
+        supports_json_mode = True
+        supports_generation_resource_budgets = True
+        supports_generation_deadline = True
+
+        def generate_chunk(
+            self, _packed: PackedModelInput, **_kwargs: object
+        ) -> GeneratedText:
+            return GeneratedText("oversized", exhausted=False, generated_tokens=1)
+
+    class Converter:
+        def pack(self, **_kwargs: object) -> PackedModelInput:
+            return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
+
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths),
+        converter=Converter(),
+        runner=Runner(),
+        generation_budget=_generation_budget(max_total_output_bytes=3),
+        generation_material_lock_digest="a" * 64,
+        generation_host_policy=_generation_host_policy(
+            _generation_budget(max_total_output_bytes=3)
+        ),
+    )
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    with pytest.raises(ModelExecutionError, match="output"):
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id,
+                messages=[OpenAIMessage("user", "vectorize")],
+            )
+        )
+
+    assert adapter._sealed_payload is None
+
+
+def test_budgeted_converter_adapter_rejects_a_noninterruptible_runner(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        PackedModelInput,
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.filename for artifact in recipe.artifacts
+    }
+
+    class Runner:
+        input_context = object()
+        supports_json_mode = True
+        supports_generation_resource_budgets = True
+
+        def generate_chunk(
+            self, _packed: PackedModelInput, **_kwargs: object
+        ) -> object:
+            raise AssertionError("backend must not run")
+
+    class Converter:
+        def pack(self, **_kwargs: object) -> PackedModelInput:
+            return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
+
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths),
+        converter=Converter(),
+        runner=Runner(),
+        generation_budget=_generation_budget(),
+        generation_material_lock_digest="a" * 64,
+        generation_host_policy=_generation_host_policy(_generation_budget()),
+    )
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    with pytest.raises(ModelExecutionError, match="deadline"):
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id, messages=[OpenAIMessage("user", "go")]
+            )
+        )
+
+
+def test_budgeted_converter_adapter_rejects_an_expired_deadline_before_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import dynamic_agent_runner.workflow_host.transformers_peft_model as module
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        PackedModelInput,
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.filename for artifact in recipe.artifacts
+    }
+    calls: list[object] = []
+
+    class Runner:
+        input_context = object()
+        supports_json_mode = True
+        supports_generation_resource_budgets = True
+        supports_generation_deadline = True
+
+        def generate_chunk(
+            self, _packed: PackedModelInput, **_kwargs: object
+        ) -> object:
+            calls.append(_packed)
+            raise AssertionError("expired generation must not dispatch")
+
+    class Converter:
+        def pack(self, **_kwargs: object) -> PackedModelInput:
+            return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
+
+    budget = _generation_budget(max_runtime_milliseconds=1)
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths),
+        converter=Converter(),
+        runner=Runner(),
+        generation_budget=budget,
+        generation_material_lock_digest="a" * 64,
+        generation_host_policy=_generation_host_policy(budget),
+    )
+    monkeypatch.setattr(module.time, "monotonic", iter((1.0, 1.001)).__next__)
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    with pytest.raises(ModelExecutionError, match="deadline exceeded"):
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id, messages=[OpenAIMessage("user", "go")]
+            )
+        )
+
+    assert calls == []
+
+
+def test_converter_adapter_stops_at_the_remaining_aggregate_token_budget(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        GeneratedText,
+        PackedModelInput,
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    requested: list[int] = []
+    chunks = iter(
+        (
+            GeneratedText("first", exhausted=True, generated_tokens=4),
+            GeneratedText("second", exhausted=False, generated_tokens=2),
+        )
+    )
+
+    class Runner:
+        input_context = object()
+        supports_json_mode = True
+        supports_generation_resource_budgets = True
+        supports_generation_deadline = True
+
+        def generate_chunk(
+            self, _packed: PackedModelInput, **kwargs: object
+        ) -> GeneratedText:
+            requested.append(kwargs["max_new_tokens"])
+            return next(chunks)
+
+    class Converter:
+        def pack(self, **_kwargs: object) -> PackedModelInput:
+            return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
+
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths),
+        converter=Converter(),
+        runner=Runner(),
+        generation_budget=_generation_budget(max_total_generated_tokens=5),
+        generation_material_lock_digest="a" * 64,
+        generation_host_policy=_generation_host_policy(
+            _generation_budget(max_total_generated_tokens=5)
+        ),
+    )
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    with pytest.raises(ModelExecutionError, match="token budget"):
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id,
+                messages=[OpenAIMessage("user", "vectorize")],
+            )
+        )
+
+    assert requested == [4, 1]
     assert adapter._sealed_payload is None
 
 

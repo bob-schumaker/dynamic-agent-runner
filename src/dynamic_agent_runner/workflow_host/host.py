@@ -119,6 +119,9 @@ from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
     ExecutionDescriptorValidatorRegistry,
 )
+from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    GenerationExecutionHostPolicy,
+)
 from dynamic_agent_runner.workflow_host.embedding_execution import (
     EmbeddingExecutionService,
     EmbeddingLimitProjectorRegistry,
@@ -770,6 +773,7 @@ class LocalWorkflowHost:
         locked_inference_provider_registry: LockedInferenceProviderRegistry
         | None = None,
         locked_inference_host_limits: LockedInferenceHostLimits | None = None,
+        generation_execution_host_policy: GenerationExecutionHostPolicy | None = None,
     ) -> LocalWorkflowHost:
         """Open a configured local host for the current OS user."""
 
@@ -952,6 +956,7 @@ class LocalWorkflowHost:
                 capability_catalog=capability_catalog,
                 model_runner_registry=model_runner_registry,
                 descriptor_validators=descriptor_validators,
+                generation_execution_host_policy=generation_execution_host_policy,
             ),
             workspace_ingress=workspace_ingress,
             authoring_materials=AuthoringMaterialService(

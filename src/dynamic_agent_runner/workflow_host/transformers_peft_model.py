@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Mapping
+import time
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -16,6 +17,16 @@ from dynamic_agent_runner.local_model_preparation import (
 )
 from dynamic_agent_runner.openai_client import ModelResponse, OpenAIModelRequest
 from dynamic_agent_runner.workflow_host.descriptor import DeclaredInputConverter
+from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    GenerationResourceBudget,
+    GenerationResourceBudgetError,
+    GenerationExecutionHostPolicy,
+    GenerationDeadline,
+    GenerationMemoryReservationRequest,
+    resolve_generation_resource_budget,
+    reserve_generation_memory,
+    validate_generation_budget_field,
+)
 
 
 TRANSFORMERS_GENERATE_V1 = "transformers-generate-v1"
@@ -80,6 +91,7 @@ class GeneratedCompletion:
 
 DependencyLoader = Callable[[Path, Path], TransformersPeftBackend]
 PackedDependencyLoader = Callable[[Path, Path], TransformersGenerateBackend]
+ProcessorLoader = Callable[[Path], object]
 ImageDecoder = Callable[[bytes], object]
 
 
@@ -131,22 +143,35 @@ class TransformersGenerateRunner:
 
     contract_id = TRANSFORMERS_GENERATE_V1
     supports_json_mode = True
+    supports_generation_resource_budgets = True
 
     def __init__(
         self,
         prepared_set: PreparedArtifactSet,
         *,
         dependency_loader: PackedDependencyLoader | None = None,
+        processor_loader: ProcessorLoader | None = None,
     ) -> None:
         self._base, self._adapter = _verified_prepared_paths(prepared_set)
         self._dependency_loader = dependency_loader or _load_default_backend
+        self._processor_loader = processor_loader
         self._backend: TransformersGenerateBackend | None = None
+        self._processor: object | None = None
 
     @property
     def processor(self) -> object:
         """Expose the reviewed processor and no model-loading controls."""
 
-        return self._get_backend().processor
+        if self._processor_loader is None:
+            return self._get_backend().processor
+        if self._processor is None:
+            try:
+                self._processor = self._processor_loader(self._base)
+            except ImportError as error:
+                raise ModelExecutionError(
+                    "Transformers + PEFT dependencies unavailable"
+                ) from error
+        return self._processor
 
     @property
     def input_context(self) -> TransformersGenerateInputContext:
@@ -177,11 +202,15 @@ class TransformersGenerateRunner:
         *,
         max_new_tokens: int,
         json_mode: bool = False,
+        budget: GenerationResourceBudget | None = None,
     ) -> GeneratedText:
         """Generate one private fragment and report whether it hit its ceiling."""
 
         try:
             _validate_max_new_tokens(max_new_tokens)
+            _validate_packed_generation_budget(
+                packed_input, max_new_tokens=max_new_tokens, budget=budget
+            )
             backend = self._get_backend()
             if json_mode:
                 generated = backend.generate_packed(
@@ -236,12 +265,18 @@ class TransformersPeftPackedInputAdapter:
         *,
         converter: PackedInputConverter,
         runner: TransformersGenerateRunner | None = None,
+        generation_budget: GenerationResourceBudget | None = None,
+        generation_material_lock_digest: str | None = None,
+        generation_host_policy: GenerationExecutionHostPolicy | None = None,
     ) -> None:
         _verified_prepared_paths(prepared_set)
         self._model_id = prepared_set.recipe.model_id
         self._adapter_id = prepared_set.recipe.adapter_id
         self._converter = converter
         self._runner = runner or TransformersGenerateRunner(prepared_set)
+        self._generation_budget = generation_budget
+        self._generation_material_lock_digest = generation_material_lock_digest
+        self._generation_host_policy = generation_host_policy
         self._sealed_payload: bytes | None = None
         self._debug_fragment_recorder: Callable[[GeneratedText], None] | None = None
 
@@ -292,18 +327,37 @@ class TransformersPeftPackedInputAdapter:
                 request.response_format,
                 supported=bool(getattr(self._runner, "supports_json_mode", False)),
             )
+            budget = self._resolved_generation_budget(request)
+            deadline = (
+                GenerationDeadline.start(
+                    time.monotonic(),
+                    max_runtime_milliseconds=budget.max_runtime_milliseconds,
+                )
+                if budget is not None
+                else None
+            )
             generation_kwargs: dict[str, object] = {
-                "max_new_tokens": _max_new_tokens(request)
+                "max_new_tokens": (
+                    budget.max_new_tokens_per_fragment
+                    if budget is not None
+                    else _max_new_tokens(request)
+                )
             }
             if json_mode:
                 generation_kwargs["json_mode"] = True
             messages = tuple(request.messages)
-            max_continuations = _max_continuations(request)
+            max_continuations = (
+                budget.max_continuations
+                if budget is not None
+                else _max_continuations(request)
+            )
             if max_continuations:
                 completion = self._generate_with_continuations(
                     messages=messages,
                     payload=payload,
                     max_continuations=max_continuations,
+                    budget=budget,
+                    deadline=deadline,
                     **generation_kwargs,
                 )
                 return ModelResponse(
@@ -315,12 +369,17 @@ class TransformersPeftPackedInputAdapter:
                 payload=payload,
                 context=self._runner.input_context,
             )
-            if bool(getattr(self._runner, "uses_mps", False)) or (
-                self._debug_fragment_recorder is not None
+            if (
+                budget is not None
+                or bool(getattr(self._runner, "uses_mps", False))
+                or (self._debug_fragment_recorder is not None)
             ):
-                generated = self._runner.generate_chunk(packed, **generation_kwargs)
+                generated = self._generate_admitted_chunk(
+                    packed, budget=budget, deadline=deadline, **generation_kwargs
+                )
                 self._record_generated_fragment(generated)
                 content = generated.content.strip()
+                _validate_generated_completion(content, (generated,), budget)
                 if json_mode:
                     content = _validated_json_object(content)
                 if bool(getattr(self._runner, "uses_mps", False)):
@@ -354,27 +413,40 @@ class TransformersPeftPackedInputAdapter:
         max_new_tokens: int,
         max_continuations: int,
         json_mode: bool = False,
+        budget: GenerationResourceBudget | None = None,
+        deadline: GenerationDeadline | None = None,
     ) -> GeneratedCompletion:
         fragments: list[str] = []
         chunk_exhausted: list[bool] = []
         generated_tokens: list[int | None] = []
         continuation_messages = messages
         for continuation in range(max_continuations + 1):
+            remaining = (
+                budget.max_total_generated_tokens
+                - sum(token for token in generated_tokens if token is not None)
+                if budget is not None
+                else max_new_tokens
+            )
+            if remaining < 1:
+                raise ModelExecutionError("model generation token budget exceeded")
             packed = self._converter.pack(
                 messages=continuation_messages,
                 payload=payload,
                 context=self._runner.input_context,
             )
-            generated = self._runner.generate_chunk(
+            generated = self._generate_admitted_chunk(
                 packed,
-                max_new_tokens=max_new_tokens,
+                max_new_tokens=min(max_new_tokens, remaining),
                 json_mode=json_mode and continuation == 0,
+                budget=budget,
+                deadline=deadline,
             )
             self._record_generated_fragment(generated)
             fragments.append(generated.content)
             chunk_exhausted.append(generated.exhausted)
             generated_tokens.append(generated.generated_tokens)
             completion = "".join(fragments).strip()
+            _validate_generated_completion(completion, tuple(generated_tokens), budget)
             incomplete_json = json_mode and _is_incomplete_json_object(completion)
             if not generated.exhausted and not incomplete_json:
                 content = (
@@ -398,6 +470,108 @@ class TransformersPeftPackedInputAdapter:
                 {"role": "user", "content": _CONTINUATION_INSTRUCTION},
             )
         raise AssertionError("continuation loop must return or raise")
+
+    def _resolved_generation_budget(
+        self, request: OpenAIModelRequest
+    ) -> GenerationResourceBudget | None:
+        if self._generation_budget is None:
+            return None
+        try:
+            return resolve_generation_resource_budget(
+                declared=self._generation_budget,
+                host=(
+                    self._generation_host_policy.ceiling
+                    if self._generation_host_policy is not None
+                    else None
+                ),
+                max_tokens=request.extra.get("max_tokens"),
+                max_continuations=request.extra.get("max_continuations"),
+            )
+        except GenerationResourceBudgetError as error:
+            raise ModelExecutionError("model generation budget is invalid") from error
+
+    def _generate_admitted_chunk(
+        self,
+        packed: PackedModelInput,
+        *,
+        max_new_tokens: int,
+        json_mode: bool = False,
+        budget: GenerationResourceBudget | None,
+        deadline: GenerationDeadline | None,
+    ) -> GeneratedText:
+        if budget is None:
+            return self._generate_chunk(
+                packed, max_new_tokens=max_new_tokens, json_mode=json_mode, budget=None
+            )
+        policy = self._generation_host_policy
+        material_lock_digest = self._generation_material_lock_digest
+        if policy is None or material_lock_digest is None or deadline is None:
+            packed.clear()
+            raise ModelExecutionError("model generation budget is unavailable")
+        try:
+            deadline.require_remaining(time.monotonic())
+            inputs = packed.take()
+            input_ids = inputs.get("input_ids") if isinstance(inputs, Mapping) else None
+            shape = getattr(input_ids, "shape", None)
+            if not isinstance(shape, Sequence) or len(shape) < 2:
+                raise ModelExecutionError("model generation context is unavailable")
+            reservation = reserve_generation_memory(
+                policy.memory_reservation_provider,
+                GenerationMemoryReservationRequest(
+                    material_lock_digest=material_lock_digest,
+                    runner_identity=str(
+                        getattr(
+                            self._runner, "contract_id", type(self._runner).__name__
+                        )
+                    ),
+                    execution_device=policy.execution_device,
+                    packed_context_tokens=shape[-1],
+                    requested_new_tokens=max_new_tokens,
+                    max_memory_bytes=budget.max_memory_bytes,
+                    deadline_monotonic=deadline.expires_at,
+                ),
+            )
+            try:
+                return self._generate_chunk(
+                    packed,
+                    max_new_tokens=max_new_tokens,
+                    json_mode=json_mode,
+                    budget=budget,
+                )
+            finally:
+                reservation.release()
+        except GenerationResourceBudgetError as error:
+            packed.clear()
+            message = (
+                "model generation deadline exceeded"
+                if str(error) == "generation deadline exceeded"
+                else "model generation memory budget is unavailable"
+            )
+            raise ModelExecutionError(message) from error
+
+    def _generate_chunk(
+        self,
+        packed: PackedModelInput,
+        *,
+        max_new_tokens: int,
+        json_mode: bool = False,
+        budget: GenerationResourceBudget | None,
+    ) -> GeneratedText:
+        if budget is not None and not bool(
+            getattr(self._runner, "supports_generation_resource_budgets", False)
+        ):
+            raise ModelExecutionError("model generation budget is unavailable")
+        if budget is not None and not bool(
+            getattr(self._runner, "supports_generation_deadline", False)
+        ):
+            raise ModelExecutionError("model generation deadline unavailable")
+        kwargs: dict[str, object] = {
+            "max_new_tokens": max_new_tokens,
+            "json_mode": json_mode,
+        }
+        if budget is not None:
+            kwargs["budget"] = budget
+        return self._runner.generate_chunk(packed, **kwargs)
 
     def _record_generated_fragment(self, generated: GeneratedText) -> None:
         if self._debug_fragment_recorder is not None:
@@ -510,6 +684,53 @@ def _max_continuations(request: OpenAIModelRequest) -> int:
     if not isinstance(value, int) or not 0 <= value <= _MAX_CONTINUATIONS:
         raise ModelExecutionError("model continuation limit is invalid")
     return value
+
+
+def _validate_packed_generation_budget(
+    packed_input: PackedModelInput,
+    *,
+    max_new_tokens: int,
+    budget: GenerationResourceBudget | None,
+) -> None:
+    if budget is None:
+        return
+    if max_new_tokens > budget.max_new_tokens_per_fragment:
+        raise ModelExecutionError("model generation budget is invalid")
+    inputs = packed_input.take()
+    input_ids = inputs.get("input_ids") if isinstance(inputs, Mapping) else None
+    shape = getattr(input_ids, "shape", None)
+    if (
+        not isinstance(shape, Sequence)
+        or len(shape) < 2
+        or not isinstance(shape[-1], int)
+        or isinstance(shape[-1], bool)
+        or shape[-1] < 0
+    ):
+        raise ModelExecutionError("model generation context is unavailable")
+    if shape[-1] + max_new_tokens > budget.max_effective_context_tokens:
+        raise ModelExecutionError("model generation context exceeds limit")
+
+
+def _validate_generated_completion(
+    content: str,
+    generated: tuple[GeneratedText | int | None, ...],
+    budget: GenerationResourceBudget | None,
+) -> None:
+    if budget is None:
+        return
+    if len(content.encode("utf-8")) > budget.max_total_output_bytes:
+        raise ModelExecutionError("model generation output exceeds limit")
+    token_counts = tuple(
+        item.generated_tokens if isinstance(item, GeneratedText) else item
+        for item in generated
+    )
+    if any(
+        not isinstance(count, int) or isinstance(count, bool) or count < 0
+        for count in token_counts
+    ):
+        raise ModelExecutionError("model generation budget is unavailable")
+    if sum(token_counts) > budget.max_total_generated_tokens:
+        raise ModelExecutionError("model generation token budget exceeded")
 
 
 def _validate_max_new_tokens(value: object) -> None:
@@ -687,6 +908,14 @@ def _load_default_backend(base: Path, adapter: Path) -> TransformersPeftBackend:
     )
 
 
+def _load_default_processor(base: Path) -> object:
+    from transformers import AutoProcessor
+
+    return AutoProcessor.from_pretrained(
+        base, local_files_only=True, trust_remote_code=False
+    )
+
+
 def _mps_available() -> bool:
     try:
         import torch
@@ -793,6 +1022,9 @@ class DeferredTransformersPeftSingleImageAdapter:
         self._adapter: TransformersPeftSingleImageAdapter | None = None
         self._packed_adapter: TransformersPeftPackedInputAdapter | None = None
         self._converter: PackedInputConverter | None = None
+        self._generation_budget: GenerationResourceBudget | None = None
+        self._generation_material_lock_digest: str | None = None
+        self._generation_host_policy: GenerationExecutionHostPolicy | None = None
         self._payload_bound = False
         self._debug_fragment_recorder: Callable[[GeneratedText], None] | None = None
 
@@ -854,6 +1086,36 @@ class DeferredTransformersPeftSingleImageAdapter:
         self._converter = loaded  # type: ignore[assignment]
         self._packed_adapter = None
 
+    def bind_generation_budget(
+        self,
+        *,
+        descriptor: object,
+        material_lock_digest: str,
+        host_policy: GenerationExecutionHostPolicy,
+    ) -> None:
+        """Bind the sealed descriptor budget before accepting converter payloads."""
+
+        if self._payload_bound:
+            raise ModelExecutionError("model generation budget is unavailable")
+        try:
+            self._generation_budget = validate_generation_budget_field(descriptor)
+            if (
+                not isinstance(material_lock_digest, str)
+                or len(material_lock_digest) != 64
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in material_lock_digest
+                )
+            ):
+                raise GenerationResourceBudgetError("generation budget is invalid")
+            self._generation_material_lock_digest = material_lock_digest
+            if not isinstance(host_policy, GenerationExecutionHostPolicy):
+                raise GenerationResourceBudgetError("generation budget is invalid")
+            self._generation_host_policy = host_policy
+        except GenerationResourceBudgetError as error:
+            raise ModelExecutionError("model generation budget is invalid") from error
+        self._packed_adapter = None
+
     def bind_sealed_payload(self, *, content: bytes) -> None:
         if self._payload_bound:
             raise ModelExecutionError("sealed converter input is unavailable")
@@ -894,7 +1156,11 @@ class DeferredTransformersPeftSingleImageAdapter:
             if self._converter is None:
                 raise ModelExecutionError("sealed converter input is unavailable")
             self._packed_adapter = TransformersPeftPackedInputAdapter(
-                self._resolve_prepared_set(), converter=self._converter
+                self._resolve_prepared_set(),
+                converter=self._converter,
+                generation_budget=self._generation_budget,
+                generation_material_lock_digest=self._generation_material_lock_digest,
+                generation_host_policy=self._generation_host_policy,
             )
             self._packed_adapter.set_debug_fragment_recorder(
                 self._debug_fragment_recorder

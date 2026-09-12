@@ -44,6 +44,9 @@ from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
     ExecutionDescriptorValidatorRegistry,
 )
+from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    GenerationExecutionHostPolicy,
+)
 from dynamic_agent_runner.workflow_host.model_execution_binding import (
     ModelExecutionBindingError,
     ModelRunnerRegistry,
@@ -325,6 +328,7 @@ class WorkflowRunner:
         capability_catalog: CapabilityCatalog | None = None,
         model_runner_registry: ModelRunnerRegistry | None = None,
         descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
+        generation_execution_host_policy: GenerationExecutionHostPolicy | None = None,
     ) -> None:
         self._registrations = registrations
         self._catalog = catalog
@@ -345,6 +349,7 @@ class WorkflowRunner:
         self._capability_catalog = capability_catalog
         self._model_runner_registry = model_runner_registry
         self._descriptor_validators = descriptor_validators
+        self._generation_execution_host_policy = generation_execution_host_policy
         self._terminal_diagnostic_owner = (
             terminal_diagnostic_owner or InstallationIdentityProvider().principal
         )
@@ -569,6 +574,7 @@ class WorkflowRunner:
         converter = policy.input_converter
         if converter is None:
             return None
+        self._bind_generation_budget(policy)
         if (
             getattr(self._model_adapter, "input_converter_contract_id", None)
             != converter.compatible_runner_contract_id
@@ -598,6 +604,29 @@ class WorkflowRunner:
             raise RunDarWorkflowError("configured adapter lacks input converter")
         bind(content=binaries[0].content)
         return binaries[0]
+
+    def _bind_generation_budget(self, policy: Any) -> None:
+        """Bind the immutable descriptor budget before converter payload ingress."""
+
+        if policy.execution_descriptor is None:
+            return
+        binding = policy.model_execution_binding
+        host_policy = self._generation_execution_host_policy
+        if binding is None or host_policy is None:
+            raise RunDarWorkflowError("model generation budget is unavailable")
+        bind_budget = getattr(self._model_adapter, "bind_generation_budget", None)
+        if not callable(bind_budget):
+            raise RunDarWorkflowError("model generation budget is unavailable")
+        try:
+            bind_budget(
+                descriptor=policy.execution_descriptor,
+                material_lock_digest=binding.material_lock_digest,
+                host_policy=host_policy,
+            )
+        except Exception as error:  # noqa: BLE001 - adapter admission stays private.
+            raise RunDarWorkflowError(
+                "model generation budget is unavailable"
+            ) from error
 
     def _clear_sealed_image(
         self, image: MaterializedWorkspaceImageArtifact | None
