@@ -517,12 +517,13 @@ def _cpu_worker_entry(
             asset_handles=asset_handles,
             now=datetime.now(UTC) if asset_handles is not None else None,
         )
+        active_worker_runtime = _materialize_child_runtime(worker_runtime, descriptor)
         ready_connection.send(("ready",))
         _run_cpu_worker_protocol(
             command_connection=command_connection,
             response_connection=response_connection,
             descriptor=descriptor,
-            worker_runtime=worker_runtime,
+            worker_runtime=active_worker_runtime,
         )
     except Exception:
         try:
@@ -533,6 +534,23 @@ def _cpu_worker_entry(
         _close(ready_connection)
         _close(command_connection)
         _close(response_connection)
+
+
+def _materialize_child_runtime(
+    worker_runtime: CpuGenerationWorkerRuntime | None,
+    descriptor: GenerationWorkerLaunchDescriptor,
+) -> CpuGenerationWorkerRuntime | None:
+    """Create receiver-installed child state only after fixed bootstrap checks."""
+
+    create_for_worker = getattr(worker_runtime, "create_for_worker", None)
+    if not callable(create_for_worker):
+        return worker_runtime
+    try:
+        return create_for_worker(descriptor=descriptor, now=datetime.now(UTC))
+    except Exception as error:
+        raise GenerationWorkerProtocolError(
+            "generation worker protocol invalid"
+        ) from error
 
 
 def _run_cpu_worker_protocol(

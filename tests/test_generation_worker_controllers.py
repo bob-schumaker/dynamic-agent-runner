@@ -60,6 +60,15 @@ class _CpuInconsistentAggregateRuntime(_CpuIpcRuntime):
         return b"{}", 2, 3, 1
 
 
+class _CpuRuntimeFactory:
+    """Pickle-safe child-only runtime construction for the CPU controller."""
+
+    def create_for_worker(self, *, descriptor: object, now: datetime) -> _CpuIpcRuntime:
+        if getattr(descriptor, "runner_id", None) != "runner-v1" or now.tzinfo is None:
+            raise ValueError("invalid test child descriptor")
+        return _CpuIpcRuntime()
+
+
 def _descriptor(*, execution_device: str) -> GenerationWorkerLaunchDescriptor:
     return GenerationWorkerLaunchDescriptor(
         protocol_version="generation-worker-v1",
@@ -180,6 +189,36 @@ def test_cpu_child_transports_pack_authorize_and_generate_frames() -> None:
     )
     controller = CpuMultiprocessingGenerationWorkerController(
         runner_id="runner-v1", worker_runtime=_CpuIpcRuntime()
+    )
+    child = controller.launch(descriptor)
+    receipt = GenerationWorkerPackReceipt(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="c" * 64,
+        material_lock_digest="d" * 64,
+        execution_device="cpu",
+        fragment_index=0,
+        packed_context_tokens=3,
+    )
+
+    try:
+        assert controller.wait_ready(child, 5.0) is True
+        child.install_bootstrap_limit(2**62, "cpu")
+        assert child.pack() == 3
+        child.authorize(receipt, 2)
+        assert child.generate() == (b"{}", 2)
+    finally:
+        assert controller.reap(child, 1.0) is True
+
+
+def test_cpu_child_constructs_a_runtime_only_after_child_bootstrap() -> None:
+    base_descriptor = _descriptor(execution_device="cpu")
+    descriptor = replace(
+        base_descriptor,
+        budget=replace(base_descriptor.budget, max_memory_bytes=2**62),
+    )
+    controller = CpuMultiprocessingGenerationWorkerController(
+        runner_id="runner-v1", worker_runtime=_CpuRuntimeFactory()
     )
     child = controller.launch(descriptor)
     receipt = GenerationWorkerPackReceipt(
