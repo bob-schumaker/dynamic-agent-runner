@@ -289,6 +289,47 @@ def _create_model_adapter(
     raise LocalWorkflowHostError("configured execution profile is unavailable")
 
 
+def _dar_owned_generation_worker_pair(
+    *, store: PrivateStateStore, owner: str
+) -> tuple[object, object]:
+    """Build the CPU-gated generic worker pair for DAR's Transformers runner."""
+
+    try:
+        from dynamic_agent_runner.workflow_host.generation_worker_assets import (
+            GenerationWorkerAssetHandleService,
+        )
+        from dynamic_agent_runner.workflow_host.generation_worker_child_runtime import (
+            GenerationWorkerCoLocatedRuntimeFactory,
+        )
+        from dynamic_agent_runner.workflow_host.generation_worker_controllers import (
+            machine_generation_worker_controllers,
+        )
+        from dynamic_agent_runner.workflow_host.generation_worker_factory import (
+            GenerationWorkerCoLocatedFactoryBuilder,
+        )
+        from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+            TRANSFORMERS_GENERATE_CAPABILITY,
+            TransformersPeftGenerationWorkerRuntimeFactory,
+        )
+
+        asset_handles = GenerationWorkerAssetHandleService(store=store, owner=owner)
+        factory = GenerationWorkerCoLocatedFactoryBuilder(
+            capability=TRANSFORMERS_GENERATE_CAPABILITY,
+            asset_handles=asset_handles,
+        )
+        controller = machine_generation_worker_controllers(
+            runner_id=TRANSFORMERS_GENERATE_CAPABILITY.runner_id,
+            asset_handles=asset_handles,
+            worker_runtime=GenerationWorkerCoLocatedRuntimeFactory(
+                asset_handles=asset_handles,
+                runner_runtime_factory=TransformersPeftGenerationWorkerRuntimeFactory(),
+            ),
+        )
+    except Exception as error:  # noqa: BLE001 - machine capabilities are optional.
+        raise LocalWorkflowHostError("generation worker is unavailable") from error
+    return factory, controller
+
+
 @dataclass(frozen=True)
 class DiscoveredOAuthAuthorizationResult:
     """Redaction-safe result of one human-only discovered OAuth setup operation."""
@@ -835,6 +876,18 @@ class LocalWorkflowHost:
         store = PrivateStateStore(root)
         profiles = LocalModelProfileControlPlane(store=store)
         profile = profiles.load(configuration.profile_id)
+        generation_worker_factory: object | None = None
+        generation_worker_controller: object | None = None
+        if (
+            generation_execution_host_policy is not None
+            and profile.runner_id == "transformers-peft-v1"
+        ):
+            generation_worker_factory, generation_worker_controller = (
+                _dar_owned_generation_worker_pair(
+                    store=store,
+                    owner=InstallationIdentityProvider().principal,
+                )
+            )
         connections = mcp_connections or MCPConnectionControlPlane(
             store=store, profiles=profiles
         )
@@ -947,6 +1000,8 @@ class LocalWorkflowHost:
                         runner_id=profile.runner_id,
                     ),
                     runners=LocalModelRunnerCatalog(local_model_runners),
+                    generation_worker_factory=generation_worker_factory,
+                    generation_worker_controller=generation_worker_controller,
                 ),
                 configured_profile=profile,
                 mcp_bindings=mcp_bindings if mcp_client is not None else None,

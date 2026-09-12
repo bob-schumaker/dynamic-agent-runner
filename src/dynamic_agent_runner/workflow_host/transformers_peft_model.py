@@ -1342,7 +1342,7 @@ class DeferredTransformersPeftSingleImageAdapter:
                 getattr(controller, "supported_execution_devices", None), frozenset
             )
             or not capability.supported_execution_devices
-            <= controller.supported_execution_devices
+            & controller.supported_execution_devices
         ):
             raise ModelExecutionError("local model runner is unavailable")
         self._generation_worker_factory = factory

@@ -7,8 +7,10 @@ import pytest
 from dynamic_agent_runner.errors import ModelExecutionError
 from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHostError,
+    _dar_owned_generation_worker_pair,
     _create_model_adapter,
 )
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 from dynamic_agent_runner.workflow_host.local_model_runners import (
     LocalModelRunnerCatalog,
 )
@@ -177,6 +179,21 @@ def test_host_rejects_a_partial_builtin_worker_pair() -> None:
             resolve_prepared_set=lambda: pytest.fail("resolution must be lazy"),
             generation_worker_factory=object(),
         )
+
+
+def test_host_builds_a_cpu_gated_dar_owned_worker_pair(tmp_path) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+
+    factory, controller = _dar_owned_generation_worker_pair(
+        store=PrivateStateStore(tmp_path), owner="test-owner"
+    )
+
+    assert factory.capability is TRANSFORMERS_GENERATE_CAPABILITY
+    assert factory.runner_id == TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+    assert controller.runner_id == TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+    assert "cpu" in controller.supported_execution_devices
 
 
 def test_client_cannot_register_a_dar_owned_runner_id() -> None:

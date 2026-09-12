@@ -414,6 +414,36 @@ def test_deferred_adapter_accepts_an_exact_invocation_worker_factory() -> None:
     assert adapter._generation_worker_factory is not None
 
 
+def test_deferred_adapter_accepts_a_controller_for_one_supported_device() -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+        TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id="model", adapter_id="adapter", resolve_prepared_set=lambda: object()
+    )
+
+    class Factory:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        capability = TRANSFORMERS_GENERATE_CAPABILITY
+
+        def create_for_invocation(self, **_kwargs: object) -> object:
+            raise AssertionError("binding must not construct a worker")
+
+    class Controller:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        supported_execution_devices = frozenset({"cpu"})
+
+    adapter.bind_generation_worker(
+        factory=Factory(),
+        controller=Controller(),
+        capability=TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+
+    assert adapter._generation_worker_controller is not None
+
+
 def test_deferred_worker_adapter_builds_an_invocation_factory_from_private_assets(
     tmp_path: Path,
 ) -> None:

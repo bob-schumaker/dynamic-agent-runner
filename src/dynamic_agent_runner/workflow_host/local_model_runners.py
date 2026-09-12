@@ -103,7 +103,7 @@ def _has_valid_worker_bindings(runner: LocalModelRunner) -> bool:
             getattr(controller, "supported_execution_devices", None), frozenset
         )
         or not capability.supported_execution_devices
-        <= controller.supported_execution_devices
+        & controller.supported_execution_devices
         or any(
             not callable(getattr(controller, operation, None))
             for operation in ("launch", "wait_ready", "terminate", "kill", "reap")
