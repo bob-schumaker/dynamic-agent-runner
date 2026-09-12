@@ -317,6 +317,9 @@ def test_deferred_adapter_accepts_only_the_exact_worker_capability_binding() -> 
     )
     assert adapter._generation_worker_factory is not None
 
+    with pytest.raises(ModelExecutionError, match="worker is unavailable"):
+        adapter.bind_sealed_payload(content=b"sealed")
+
     with pytest.raises(ModelExecutionError, match="unavailable"):
         adapter.bind_generation_worker(
             factory=Factory(),

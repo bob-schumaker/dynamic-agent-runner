@@ -1191,6 +1191,8 @@ class DeferredTransformersPeftSingleImageAdapter:
     def bind_sealed_payload(self, *, content: bytes) -> None:
         if self._payload_bound:
             raise ModelExecutionError("sealed converter input is unavailable")
+        if self._generation_worker_factory is not None:
+            raise ModelExecutionError("generation worker is unavailable")
         self._resolved_packed_adapter().bind_sealed_payload(content=content)
         self._payload_bound = True
 
