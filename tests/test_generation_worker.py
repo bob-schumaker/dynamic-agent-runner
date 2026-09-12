@@ -578,6 +578,65 @@ def test_worker_requires_a_matching_pack_receipt_before_authorized_result() -> N
         )
 
 
+def test_launcher_reaps_a_packed_child_through_its_controller_on_protocol_failure() -> (
+    None
+):
+    session = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=8,
+    )
+    receipt = session.pack(fragment_index=0, packed_context_tokens=3)
+    events: list[str] = []
+
+    class Child:
+        def reap(self) -> None:
+            events.append("child-reap")
+
+    class Controller:
+        def terminate(self, _child: object) -> None:
+            events.append("terminate")
+
+        def kill(self, _child: object) -> None:
+            events.append("kill")
+
+        def reap(self, _child: object, _timeout: float) -> bool:
+            events.append("controller-reap")
+            return True
+
+    child = Child()
+    launcher = GenerationWorkerLauncher()
+    launcher._packed_receipts[id(child)] = receipt  # type: ignore[attr-defined]
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        launcher.generate(
+            child=child,
+            session=session,
+            receipt=receipt,
+            remaining_generated_tokens=4,
+            provider=object(),
+            request=GenerationMemoryReservationRequest(
+                material_lock_digest="c" * 64,
+                runner_identity="runner-v1",
+                execution_device="cpu",
+                packed_context_tokens=3,
+                requested_new_tokens=4,
+                max_memory_bytes=8,
+                deadline_monotonic=1.0,
+            ),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000),
+            clock=lambda: 0.0,
+            controller=Controller(),
+            now=0.0,
+        )
+
+    assert events == ["controller-reap"]
+
+
 def test_worker_rejects_stale_receipts_out_of_order_authorization_and_overage() -> None:
     worker = GenerationWorkerSession(
         invocation_id="invocation-1",

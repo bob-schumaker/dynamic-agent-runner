@@ -565,7 +565,12 @@ class GenerationWorkerLauncher:
         packed_receipt = self._packed_receipts.get(id(child))
         if not callable(generate) or not callable(reap) or packed_receipt != receipt:
             if packed_receipt is not None:
-                self.abort(child=child)
+                self.abort(
+                    child=child,
+                    controller=controller,
+                    deadline=deadline,
+                    clock=clock,
+                )
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         self._packed_receipts.pop(id(child), None)
         reservation: ReservedGenerationMemory | None = None
