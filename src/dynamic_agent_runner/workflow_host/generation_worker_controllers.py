@@ -198,11 +198,11 @@ class _CpuWorkerChild:
             raise GenerationWorkerProtocolError(
                 "generation worker protocol invalid"
             ) from error
-        if isinstance(response, Mapping) and dict(response) == {"type": "failed"}:
+        if _is_child_failure(response, "failed", self._transcript_fields()):
             raise GenerationWorkerExecutionFailed("generation execution failed")
-        if isinstance(response, Mapping) and dict(response) == {
-            "type": "output_limit_exceeded"
-        }:
+        if _is_child_failure(
+            response, "output_limit_exceeded", self._transcript_fields()
+        ):
             raise GenerationWorkerOutputLimitExceeded(
                 "generation output limit exceeded"
             )
@@ -646,18 +646,24 @@ def _run_cpu_worker_protocol(
             if response["type"] == "result":
                 return
         except Exception as error:
-            _send_cpu_worker_failure(response_connection, error)
+            _send_cpu_worker_failure(response_connection, error, descriptor)
             return
 
 
-def _send_cpu_worker_failure(response_connection: object, error: Exception) -> None:
+def _send_cpu_worker_failure(
+    response_connection: object,
+    error: Exception,
+    descriptor: GenerationWorkerLaunchDescriptor,
+) -> None:
     response_type = "failed"
     if isinstance(error, GenerationWorkerOutputLimitExceeded):
         response_type = "output_limit_exceeded"
     elif isinstance(error, GenerationWorkerProtocolError):
         response_type = "protocol_invalid"
     try:
-        response_connection.send({"type": response_type})
+        response_connection.send(
+            {"type": response_type, **_response_transcript(descriptor)}
+        )
     except Exception:
         pass
 
@@ -760,6 +766,15 @@ def _validate_child_response(
     if not _valid_response_payload(response_type, payload):
         raise GenerationWorkerProtocolError("generation worker protocol invalid")
     return response
+
+
+def _is_child_failure(
+    response: object, response_type: str, transcript: Mapping[str, object]
+) -> bool:
+    return isinstance(response, Mapping) and dict(response) == {
+        "type": response_type,
+        **transcript,
+    }
 
 
 def _cpu_pack_response(

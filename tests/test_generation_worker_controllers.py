@@ -644,6 +644,30 @@ def test_cpu_child_reports_a_runtime_failure_without_protocol_contents() -> None
         assert controller.reap(child, 1.0) is True
 
 
+def test_cpu_worker_failure_frame_binds_the_transcript_identity() -> None:
+    from dynamic_agent_runner.workflow_host import generation_worker_controllers
+
+    descriptor = _descriptor(execution_device="cpu")
+    frames: list[object] = []
+
+    class Connection:
+        def send(self, value: object) -> None:
+            frames.append(value)
+
+    generation_worker_controllers._send_cpu_worker_failure(
+        Connection(), RuntimeError("private failure"), descriptor
+    )
+
+    assert frames == [
+        {
+            "type": "failed",
+            "invocation_id": descriptor.invocation_id,
+            "invocation_digest": descriptor.invocation_digest,
+            "fragment_index": descriptor.fragment_index,
+        }
+    ]
+
+
 def test_cpu_child_rejects_an_oversized_candidate_before_framing_it() -> None:
     base_descriptor = _descriptor(execution_device="cpu")
     descriptor = replace(
