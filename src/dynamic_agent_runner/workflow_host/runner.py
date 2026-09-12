@@ -195,6 +195,7 @@ class DebugGeneratedFragment:
     exhausted: bool
     generated_tokens: int | None
     output_bytes: int
+    packed_context_tokens: int | None
 
 
 @dataclass(frozen=True)
@@ -241,6 +242,7 @@ class _DebugDiagnosticCollector:
         exhausted = getattr(value, "exhausted", None)
         generated_tokens = getattr(value, "generated_tokens", None)
         output_bytes = getattr(value, "output_bytes", None)
+        packed_context_tokens = getattr(value, "packed_context_tokens", None)
         if output_bytes is None and isinstance(content, str):
             output_bytes = len(content.encode("utf-8"))
         if (
@@ -248,6 +250,7 @@ class _DebugDiagnosticCollector:
             or not isinstance(exhausted, bool)
             or not _optional_nonnegative_int(generated_tokens)
             or not _nonnegative_int(output_bytes)
+            or not _optional_nonnegative_int(packed_context_tokens)
         ):
             self.retention_limited = True
             return
@@ -257,6 +260,7 @@ class _DebugDiagnosticCollector:
                 exhausted,
                 generated_tokens,
                 output_bytes,
+                packed_context_tokens,
             )
         )
 
@@ -930,6 +934,7 @@ class WorkflowRunner:
                             "exhausted": fragment.exhausted,
                             "generated_tokens": fragment.generated_tokens,
                             "output_bytes": fragment.output_bytes,
+                            "packed_context_tokens": fragment.packed_context_tokens,
                         }
                         for fragment in collector.fragments
                     ],
@@ -1510,13 +1515,21 @@ def _debug_diagnostic(payload: Mapping[str, object]) -> DebugWorkflowDiagnostic:
         exhausted = fragment.get("exhausted")
         generated_tokens = fragment.get("generated_tokens")
         output_bytes = fragment.get("output_bytes")
+        packed_context_tokens = fragment.get("packed_context_tokens")
         if (
             set(fragment)
-            != {"fragment_index", "exhausted", "generated_tokens", "output_bytes"}
+            != {
+                "fragment_index",
+                "exhausted",
+                "generated_tokens",
+                "output_bytes",
+                "packed_context_tokens",
+            }
             or not _nonnegative_int(fragment_index)
             or not isinstance(exhausted, bool)
             or not _optional_nonnegative_int(generated_tokens)
             or not _nonnegative_int(output_bytes)
+            or not _optional_nonnegative_int(packed_context_tokens)
         ):
             raise RunDarWorkflowError("debug diagnostic is unavailable")
         parsed.append(
@@ -1525,6 +1538,7 @@ def _debug_diagnostic(payload: Mapping[str, object]) -> DebugWorkflowDiagnostic:
                 exhausted,
                 generated_tokens,
                 output_bytes,
+                packed_context_tokens,
             )
         )
     terminal = (

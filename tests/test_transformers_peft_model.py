@@ -1054,7 +1054,9 @@ def test_deferred_worker_adapter_records_only_verified_fragment_facts(
     monkeypatch.setattr(
         adapter,
         "_run_worker_fragment",
-        lambda **_kwargs: GenerationWorkerResult(b"ok", 1, 1, 2, False),
+        lambda **_kwargs: GenerationWorkerResult(
+            b"ok", 1, 1, 2, False, packed_context_tokens=3
+        ),
     )
 
     response = adapter.create_response(
@@ -1068,6 +1070,7 @@ def test_deferred_worker_adapter_records_only_verified_fragment_facts(
             exhausted=False,
             generated_tokens=1,
             output_bytes=2,
+            packed_context_tokens=3,
         )
     ]
 

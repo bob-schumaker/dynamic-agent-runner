@@ -121,6 +121,7 @@ class GenerationDebugFragment:
     exhausted: bool
     generated_tokens: int | None
     output_bytes: int
+    packed_context_tokens: int | None = None
 
 
 @dataclass(frozen=True)
@@ -1585,6 +1586,7 @@ class DeferredTransformersPeftSingleImageAdapter:
                         exhausted=result.exhausted,
                         generated_tokens=result.generated_tokens,
                         output_bytes=len(result.candidate),
+                        packed_context_tokens=result.packed_context_tokens,
                     )
                 )
             fragments.append(fragment)
