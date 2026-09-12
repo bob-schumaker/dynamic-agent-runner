@@ -287,7 +287,7 @@ def test_deferred_adapter_requires_a_manifest_bound_converter_package(
     adapter.clear_sealed_payload()
 
 
-def test_deferred_adapter_accepts_only_the_exact_worker_capability_binding() -> None:
+def test_deferred_adapter_rejects_a_child_descriptor_factory() -> None:
     from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
         GenerationRunnerCapability,
     )
@@ -311,15 +311,12 @@ def test_deferred_adapter_accepts_only_the_exact_worker_capability_binding() -> 
         runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
         supported_execution_devices = frozenset({"cpu", "mps"})
 
-    adapter.bind_generation_worker(
-        factory=Factory(),
-        controller=Controller(),
-        capability=TRANSFORMERS_GENERATE_CAPABILITY,
-    )
-    assert adapter._generation_worker_factory is not None
-
-    with pytest.raises(ModelExecutionError, match="worker is unavailable"):
-        adapter.bind_sealed_payload(content=b"sealed")
+    with pytest.raises(ModelExecutionError, match="unavailable"):
+        adapter.bind_generation_worker(
+            factory=Factory(),
+            controller=Controller(),
+            capability=TRANSFORMERS_GENERATE_CAPABILITY,
+        )
 
     with pytest.raises(ModelExecutionError, match="unavailable"):
         adapter.bind_generation_worker(
@@ -352,7 +349,7 @@ def test_deferred_worker_adapter_defers_converter_loading_until_child_start(
         runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
         capability = TRANSFORMERS_GENERATE_CAPABILITY
 
-        def create_launch_descriptor(self) -> object:
+        def create_for_invocation(self, **_kwargs: object) -> object:
             return object()
 
     class Controller:
