@@ -98,8 +98,8 @@ class GenerationWorkerAssetHandleService:
         handle: str,
         descriptor: GenerationWorkerLaunchDescriptor,
         now: datetime,
-    ) -> Path:
-        """Return one revalidated asset only for the descriptor that issued it."""
+    ) -> Path | GenerationWorkerCoLocatedAssets:
+        """Return one descriptor-bound ordinary asset or typed co-located bundle."""
 
         if (
             not isinstance(descriptor, GenerationWorkerLaunchDescriptor)
@@ -109,14 +109,24 @@ class GenerationWorkerAssetHandleService:
                 "generation worker asset is unavailable"
             )
         try:
-            record = self._store.load(
-                handle, expected_kind=self._KIND, owner=self._owner, now=now
-            )
+            try:
+                record = self._store.load(
+                    handle, expected_kind=self._KIND, owner=self._owner, now=now
+                )
+            except OpaqueRecordError:
+                record = self._store.load(
+                    handle,
+                    expected_kind=self._CO_LOCATED_KIND,
+                    owner=self._owner,
+                    now=now,
+                )
             payload = record.payload
             if payload.get("descriptor") != _descriptor_binding(descriptor):
                 raise GenerationWorkerAssetHandleError(
                     "generation worker asset is unavailable"
                 )
+            if record.kind == self._CO_LOCATED_KIND:
+                return _resolved_co_located_assets(payload, descriptor)
             return _verified_asset(Path(payload["path"]), payload["digest"])
         except (
             OpaqueRecordError,

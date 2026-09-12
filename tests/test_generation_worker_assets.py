@@ -189,7 +189,11 @@ def test_co_located_handle_binds_converter_material_and_sealed_payload(
     handle = service.issue_co_located(**arguments)
     descriptor = replace(arguments["descriptor"], asset_handles=(handle,))
 
-    assets = service.resolve_co_located(handle=handle, descriptor=descriptor, now=now)
+    assets = service.resolve(handle=handle, descriptor=descriptor, now=now)
+    assert (
+        service.resolve_co_located(handle=handle, descriptor=descriptor, now=now)
+        == assets
+    )
 
     assert descriptor.to_wire()["asset_handles"] == (handle,)
     assert assets.package_root == arguments["package_root"]

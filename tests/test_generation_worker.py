@@ -17,6 +17,10 @@ from dynamic_agent_runner.workflow_host.generation_worker import (
     GenerationWorkerSession,
     fixed_generation_worker_entry_point,
 )
+from dynamic_agent_runner.workflow_host.generation_worker_assets import (
+    GenerationWorkerCoLocatedAssets,
+)
+from dynamic_agent_runner.workflow_host.descriptor import DeclaredInputConverter
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
     GenerationDeadline,
     GenerationMemoryReservationRequest,
@@ -129,6 +133,69 @@ def test_fixed_entry_resolves_every_opaque_asset_handle_before_ready() -> None:
         == descriptor
     )
     assert resolved == ["asset-handle-1", "asset-handle-2"]
+
+
+def test_fixed_entry_loads_co_located_converter_after_descriptor_validation(
+    monkeypatch, tmp_path
+) -> None:
+    descriptor = GenerationWorkerLaunchDescriptor(
+        "generation-worker-v1",
+        "a" * 64,
+        0,
+        "runner-v1",
+        "b" * 64,
+        "converter-v1",
+        "c" * 64,
+        "d" * 64,
+        "e" * 64,
+        "cpu",
+        _budget(),
+        ("co-located-handle",),
+    )
+    converter = DeclaredInputConverter(
+        converter_id="converter-v1",
+        converter_contract_version="1",
+        compatible_runner_contract_id="runner-v1",
+        entrypoint="converter.py",
+        asset_digest="c" * 64,
+        max_input_bytes=64,
+        max_output_bytes=64,
+        timeout_seconds=1,
+    )
+    assets = GenerationWorkerCoLocatedAssets(
+        package_root=tmp_path,
+        converter=converter,
+        prepared_set=object(),  # type: ignore[arg-type]
+        sealed_payload_path=tmp_path / "sealed-payload",
+    )
+    loaded: list[tuple[object, object]] = []
+
+    def load_input_converter(*, package_root: object, converter: object) -> object:
+        loaded.append((package_root, converter))
+        return object()
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.input_converter_loader.load_input_converter",
+        load_input_converter,
+    )
+
+    class Handles:
+        def resolve(self, *, handle: str, descriptor: object, now: datetime) -> object:
+            assert handle == "co-located-handle"
+            assert descriptor == descriptor_to_resolve
+            assert now == datetime(2026, 1, 1, tzinfo=UTC)
+            return assets
+
+    descriptor_to_resolve = descriptor
+    assert (
+        fixed_generation_worker_entry_point(
+            descriptor.to_wire(),
+            asset_handles=Handles(),
+            now=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+        == descriptor
+    )
+    assert loaded == [(tmp_path, converter)]
 
 
 def test_launcher_revalidates_a_factory_descriptor_before_controller_launch() -> None:
