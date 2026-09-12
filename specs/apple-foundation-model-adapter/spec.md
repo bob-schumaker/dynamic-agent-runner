@@ -23,6 +23,7 @@
   - `specs/model-event-streaming/spec.md`
   - `specs/mlx-local-model-adapter/spec.md`
   - `specs/model-interface-parity/spec.md`
+  - `specs/model-generation-resource-budgets/spec.md`
 - Related implementation surfaces:
   - `src/dynamic_agent_runner/openai_client.py`
   - `src/dynamic_agent_runner/executor.py`
@@ -421,9 +422,11 @@ Acceptance criteria:
 - Given a request supplies `temperature`, when the value is valid for the Apple
   SDK, then the provider maps it to Apple `GenerationOptions.temperature`.
 - Given a request supplies DAR's existing local-adapter option `max_tokens` or
-  the Responses-compatible alias `max_output_tokens`, then the provider maps it
-  to
-  `GenerationOptions.maximum_response_tokens`.
+  the Responses-compatible alias `max_output_tokens`, then the provider maps
+  the accepted request-boundary value to
+  `GenerationOptions.maximum_response_tokens`. For a budget-governed
+  invocation, `specs/model-generation-resource-budgets/spec.md` owns alias
+  resolution and supplies the resolved per-fragment bound instead.
 - Given both token-limit aliases are supplied, then request validation rejects
   the ambiguous request before generation.
 - Given no supported generation options are supplied, then the provider uses

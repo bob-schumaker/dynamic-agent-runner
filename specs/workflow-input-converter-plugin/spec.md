@@ -240,12 +240,13 @@ restricted context, receives an opaque mapping suitable for
 A JPEG/PNG Qwen converter is one implementation; a TIFF Qwen converter is a
 different implementation. Neither changes DAR's core interface.
 
-The generic runner accepts a workflow-declared `max_tokens` value from one
-through 1,000,000 for one generation fragment, and zero through 32 requested
-continuations. These are host safety bounds, not a claim that every locked
-model material set supports the resulting prompt or context length. A workflow
-creator shall select values within the selected model's documented context and
-generation limits.
+The generic runner's current `max_tokens` and `max_continuations` request
+fields are compatibility behavior. Canonical per-fragment, aggregate output,
+context, deadline, and memory controls are defined by
+`specs/model-generation-resource-budgets/spec.md`. Until that migration is
+implemented, the current one-through-1,000,000 per-fragment and zero-through-32
+continuation ceilings remain temporary host bounds; they are not a claim that a
+locked model supports the resulting prompt or context length.
 
 The current Qwen image converter is migration evidence, not a host-owned
 implementation target: its payload limits, Pillow decode, Qwen chat-template

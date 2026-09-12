@@ -23,13 +23,11 @@ composition boundary:
   enforcement, and redacted receipts; and
 - `LocalWorkflowHost` composition with explicit callback resolution.
 
-S1, S3, and S4 are therefore complete. S2 remains open only for the evidence
-gap identified in `tasks.md`: its admission sentinels prove the internal
-receiver order, but must also observe the actual package/ZIP, input-byte,
-callback-provider/material, output-publication, and egress boundaries. S5
-cannot start until the dependent consumer contracts are admission-complete:
-the embedding portable-package runtime work (E6) and the locked-inference
-admission vectors (I2) remain open in their owning specifications.
+S1 through S5 are complete. The S2 admission sentinels now observe actual
+package/ZIP, input-byte, callback-provider/material, output-publication, and
+egress boundaries. The embedding-index and locked-inference consumers now use
+the same generic runner, so neither retains a parallel asset-execution or
+artifact-egress route.
 
 ## Boundaries and decisions
 

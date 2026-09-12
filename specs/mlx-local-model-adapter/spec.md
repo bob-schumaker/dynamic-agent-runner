@@ -14,6 +14,7 @@
   - `specs/model-adapter-coverage/spec.md`
   - `specs/openai-compatible-provider-wrapper/spec.md`
   - `specs/mlx-local-model-tool-use/spec.md`
+  - `specs/model-generation-resource-budgets/spec.md`
 - Related implementation surfaces:
   - `src/dynamic_agent_runner/executor.py`
   - `src/dynamic_agent_runner/context.py`
@@ -200,6 +201,11 @@ Async callers should use `create_mlx_local_async_adapter(...)` with the same
 configuration. The async adapter may wrap blocking generation in a non-blocking
 executor path; it must not pretend MLX itself is a native async provider unless
 the implementation uses a documented async MLX LLM surface.
+
+`generation_kwargs["max_tokens"]` remains a compatibility configuration input
+for the current direct adapter. When MLX is used as a DAR model-generation
+runner, `specs/model-generation-resource-budgets/spec.md` owns canonical budget
+resolution and the adapter receives only the resolved per-fragment bound.
 
 ## Functional Requirements
 

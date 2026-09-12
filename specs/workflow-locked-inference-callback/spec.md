@@ -12,6 +12,7 @@
   - `specs/workflow-capability-requirements/spec.md`
   - `specs/sandbox-workspace-runtime/spec.md`
   - `specs/workflow-embedding-index-artifacts/spec.md`
+  - `specs/model-generation-resource-budgets/spec.md`
 
 ## Objective
 
@@ -132,9 +133,12 @@ This feature does not:
    `generate(binding, instruction_bytes, request_bytes) -> response_bytes`;
    package assets see only the narrow callback. Effective per-role limits are
    the minimum of declared and host ceilings: calls, aggregate/per-call input
-   and output bytes, timeout milliseconds, and concurrency. DAR atomically
-   reserves a call budget before provider entry, does not retry, cancels on the
-   deadline, discards late responses, and revokes the callback on asset exit.
+   and output bytes, timeout milliseconds, and concurrency. The role timeout is
+   an outer callback ceiling; it caps but does not replace the canonical
+   model-generation budget owned by
+   `specs/model-generation-resource-budgets/spec.md`. DAR atomically reserves a
+   call budget before provider entry, does not retry, cancels on the deadline,
+   discards late responses, and revokes the callback on asset exit.
    Provider output enters a bounded host-owned reader before parsing. Ordinary
    telemetry retains only binding digests, counts, and stable classifications.
 5. A callback-enabled asset has a versioned ABI declaring its asset digest,

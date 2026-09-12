@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `sealed-artifact-workflow-runner`
-- Status: approved for implementation
+- Status: implemented through the sealed portable runtime
 - Owner: dynamic-agent-runner host package admission and execution boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`
@@ -23,6 +23,12 @@ bindings, and a runtime-profile identity. Its canonical digest binds package
 registration and ZIP export. Invocation accepts only opaque prepared-artifact
 handles; it never accepts a path, URL, model, provider, endpoint, executable,
 or output destination.
+
+When an approved callback invokes a model-generation capability, this
+descriptor remains the outer asset boundary. The model invocation's
+per-fragment, aggregate output, context, deadline, and memory controls are
+defined by `specs/model-generation-resource-budgets/spec.md`; effective runtime
+and memory values are capped by this descriptor's enclosing limits.
 
 ### Canonical v1 descriptor
 

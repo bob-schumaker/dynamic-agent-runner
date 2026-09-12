@@ -11,6 +11,7 @@
   - `specs/local-model-runner-interface/spec.md`
   - `specs/model-adapter-coverage/spec.md`
   - `specs/workflow-input-converter-plugin/spec.md`
+  - `specs/model-generation-resource-budgets/spec.md`
 
 ## Objective
 
@@ -139,9 +140,11 @@ supported platform before declaring a plugin profile production-ready.
 ### FR-3: Host-owned lifecycle and resources
 
 DAR owns model residency, cleanup, concurrency, GPU/CPU/memory limits,
-cancellation, timeout policy, trace emission, and error shaping. A plugin may
-request declared resources but cannot exceed host policy or manage another
-plugin's model instance.
+cancellation, timeout policy, trace emission, and error shaping. The canonical
+generation-budget shape and enforcement rules are owned by
+`specs/model-generation-resource-budgets/spec.md`; a plugin receives only the
+already resolved host-issued budget. A plugin may request declared resources
+but cannot exceed host policy or manage another plugin's model instance.
 
 ### FR-4: Exact compatibility and fail-closed behavior
 

@@ -303,6 +303,10 @@ the standard runner interface. Docker and OS-level isolation are deferred to
 
 ## T5.9 — Generic generation safety bounds
 
+This completed compatibility ceiling is superseded as the canonical generation
+policy by `specs/model-generation-resource-budgets/spec.md`. It remains in
+place until that specification's migration tasks remove duplicate ownership.
+
 - [x] T5.9.1 [tests, RED/GREEN] Raise the generic `transformers-peft-v1`
   per-fragment `max_tokens` validation ceiling from 65,536 to 1,000,000 while
   retaining the existing 32-continuation ceiling. Prove the inclusive 1,000,000
