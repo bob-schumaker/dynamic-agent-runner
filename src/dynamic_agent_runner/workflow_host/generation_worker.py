@@ -4,6 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    GenerationMemoryReservationRequest,
+    MemoryReservationProvider,
+    ReservedGenerationMemory,
+    reserve_generation_memory,
+)
+
 
 class GenerationWorkerProtocolError(ValueError):
     """Raised without exposing worker inputs, paths, or candidate internals."""
@@ -171,6 +178,41 @@ class GenerationWorkerLauncher:
                 raise GenerationWorkerProtocolError(
                     "generation worker protocol invalid"
                 ) from error
+
+    def authorize(
+        self,
+        *,
+        session: GenerationWorkerSession,
+        receipt: GenerationWorkerPackReceipt,
+        remaining_generated_tokens: int,
+        provider: MemoryReservationProvider,
+        request: GenerationMemoryReservationRequest,
+    ) -> ReservedGenerationMemory:
+        """Reserve first, then grant the one receipt-bound generation permit."""
+
+        if (
+            not isinstance(session, GenerationWorkerSession)
+            or not isinstance(receipt, GenerationWorkerPackReceipt)
+            or not _positive_int(remaining_generated_tokens)
+            or not isinstance(request, GenerationMemoryReservationRequest)
+        ):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        try:
+            reservation = reserve_generation_memory(provider, request)
+            try:
+                session.authorize(
+                    receipt=receipt,
+                    fragment_index=receipt.fragment_index,
+                    remaining_generated_tokens=remaining_generated_tokens,
+                )
+            except Exception:
+                reservation.release()
+                raise
+            return reservation
+        except Exception as error:
+            raise GenerationWorkerProtocolError(
+                "generation worker protocol invalid"
+            ) from error
 
 
 def _nonnegative_int(value: object) -> bool:
