@@ -265,6 +265,7 @@ def test_converter_adapter_assembles_bounded_json_continuations(
         for artifact in recipe.artifacts
     }
     calls: list[tuple[tuple[object, ...], bytes]] = []
+    json_modes: list[bool] = []
     chunks = iter(
         (
             GeneratedText('{"walls":', exhausted=True),
@@ -284,7 +285,7 @@ def test_converter_adapter_assembles_bounded_json_continuations(
             json_mode: bool,
         ) -> GeneratedText:
             assert max_new_tokens == 4
-            assert json_mode is True
+            json_modes.append(json_mode)
             return next(chunks)
 
     class Converter:
@@ -311,6 +312,7 @@ def test_converter_adapter_assembles_bounded_json_continuations(
     )
 
     assert response.content == '{"walls":[]}'
+    assert json_modes == [True, False]
     assert calls == [
         (({"role": "user", "content": "vectorize"},), b"sealed image"),
         (

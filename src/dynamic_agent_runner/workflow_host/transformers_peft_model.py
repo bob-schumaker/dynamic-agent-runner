@@ -368,7 +368,7 @@ class TransformersPeftPackedInputAdapter:
             generated = self._runner.generate_chunk(
                 packed,
                 max_new_tokens=max_new_tokens,
-                json_mode=json_mode,
+                json_mode=json_mode and continuation == 0,
             )
             self._record_generated_fragment(generated)
             fragments.append(generated.content)
