@@ -161,6 +161,7 @@ class GenerationWorkerLauncher:
             or not callable(reap)
         ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        packed_successfully = False
         try:
             install_limit(max_memory_bytes, execution_device)
             packed = pack()
@@ -181,6 +182,7 @@ class GenerationWorkerLauncher:
                 raise GenerationWorkerProtocolError(
                     "generation worker protocol invalid"
                 )
+            packed_successfully = True
             return packed_context_tokens
         except GenerationWorkerProtocolError:
             raise
@@ -189,12 +191,26 @@ class GenerationWorkerLauncher:
                 "generation worker protocol invalid"
             ) from error
         finally:
-            try:
-                reap()
-            except Exception as error:
-                raise GenerationWorkerProtocolError(
-                    "generation worker protocol invalid"
-                ) from error
+            if not packed_successfully:
+                try:
+                    reap()
+                except Exception as error:
+                    raise GenerationWorkerProtocolError(
+                        "generation worker protocol invalid"
+                    ) from error
+
+    def abort(self, *, child: object) -> None:
+        """Reap a packed child when admission cannot proceed."""
+
+        reap = getattr(child, "reap", None)
+        if not callable(reap):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        try:
+            reap()
+        except Exception as error:
+            raise GenerationWorkerProtocolError(
+                "generation worker protocol invalid"
+            ) from error
 
     def generate(
         self,

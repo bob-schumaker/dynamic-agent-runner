@@ -173,7 +173,7 @@ def test_worker_binds_sequential_fragments_to_aggregate_token_and_byte_limits() 
         )
 
 
-def test_launcher_installs_bootstrap_limit_before_packing() -> None:
+def test_launcher_keeps_a_successfully_packed_child_for_authorization() -> None:
     events: list[tuple[object, ...]] = []
 
     class Child:
@@ -187,12 +187,13 @@ def test_launcher_installs_bootstrap_limit_before_packing() -> None:
         def reap(self) -> None:
             events.append(("reap",))
 
-    assert (
-        GenerationWorkerLauncher().pack(
-            child=Child(), max_memory_bytes=8, execution_device="cpu"
-        )
-        == 3
-    )
+    child = Child()
+    launcher = GenerationWorkerLauncher()
+
+    assert launcher.pack(child=child, max_memory_bytes=8, execution_device="cpu") == 3
+    assert events == [("limit", 8, "cpu"), ("pack",)]
+
+    launcher.abort(child=child)
     assert events == [("limit", 8, "cpu"), ("pack",), ("reap",)]
 
 
