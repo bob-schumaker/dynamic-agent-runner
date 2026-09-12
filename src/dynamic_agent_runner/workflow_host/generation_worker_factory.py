@@ -101,3 +101,39 @@ class GenerationWorkerCoLocatedFactory:
         """Return the sole typed child-facing artifact from this factory."""
 
         return self._descriptor
+
+
+class GenerationWorkerCoLocatedFactoryBuilder:
+    """Receiver-installed parent factory for one exact worker invocation."""
+
+    def __init__(
+        self,
+        *,
+        capability: GenerationRunnerCapability,
+        asset_handles: GenerationWorkerAssetHandleService,
+    ) -> None:
+        if (
+            not isinstance(capability, GenerationRunnerCapability)
+            or capability.worker_protocol != "generation-worker-v1"
+            or not isinstance(asset_handles, GenerationWorkerAssetHandleService)
+        ):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        self.runner_id = capability.runner_id
+        self.capability = capability
+        self._asset_handles = asset_handles
+
+    def create_for_invocation(
+        self, **kwargs: object
+    ) -> GenerationWorkerCoLocatedFactory:
+        """Return an immutable factory with only this invocation's opaque assets."""
+
+        try:
+            return GenerationWorkerCoLocatedFactory(
+                capability=self.capability,
+                asset_handles=self._asset_handles,
+                **kwargs,
+            )
+        except (GenerationWorkerProtocolError, TypeError) as error:
+            raise GenerationWorkerProtocolError(
+                "generation worker protocol invalid"
+            ) from error

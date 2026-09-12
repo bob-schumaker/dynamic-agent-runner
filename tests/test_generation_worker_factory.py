@@ -117,6 +117,25 @@ def test_factory_issues_one_bound_opaque_co_location_handle(tmp_path) -> None:
     assert all("/" not in handle for handle in descriptor.asset_handles)
 
 
+def test_builder_creates_one_factory_for_an_exact_worker_invocation(tmp_path) -> None:
+    from dynamic_agent_runner.workflow_host.generation_worker_factory import (
+        GenerationWorkerCoLocatedFactoryBuilder,
+    )
+
+    arguments = _factory_arguments(tmp_path)
+    capability = arguments.pop("capability")
+    asset_handles = arguments.pop("asset_handles")
+
+    factory = GenerationWorkerCoLocatedFactoryBuilder(
+        capability=capability, asset_handles=asset_handles
+    ).create_for_invocation(**arguments)
+
+    descriptor = factory.create_launch_descriptor()
+    assert factory.runner_id == "runner-v1"
+    assert descriptor.converter_id == "converter-v1"
+    assert len(descriptor.asset_handles) == 1
+
+
 @pytest.mark.parametrize(
     "changes",
     (
