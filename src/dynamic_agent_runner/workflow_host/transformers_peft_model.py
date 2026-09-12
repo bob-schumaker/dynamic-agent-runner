@@ -1294,7 +1294,7 @@ class DeferredTransformersPeftSingleImageAdapter:
         if self._payload_bound:
             raise ModelExecutionError("model generation budget is unavailable")
         try:
-            self._generation_budget = validate_generation_budget_field(descriptor)
+            budget = validate_generation_budget_field(descriptor)
             if (
                 not isinstance(material_lock_digest, str)
                 or len(material_lock_digest) != 64
@@ -1304,7 +1304,6 @@ class DeferredTransformersPeftSingleImageAdapter:
                 )
             ):
                 raise GenerationResourceBudgetError("generation budget is invalid")
-            self._generation_material_lock_digest = material_lock_digest
             execution_descriptor_digest = getattr(descriptor, "digest", None)
             if (
                 not isinstance(execution_descriptor_digest, str)
@@ -1315,12 +1314,23 @@ class DeferredTransformersPeftSingleImageAdapter:
                 )
             ):
                 raise GenerationResourceBudgetError("generation budget is invalid")
-            self._generation_execution_descriptor_digest = execution_descriptor_digest
             if not isinstance(host_policy, GenerationExecutionHostPolicy):
                 raise GenerationResourceBudgetError("generation budget is invalid")
-            self._generation_host_policy = host_policy
         except GenerationResourceBudgetError as error:
             raise ModelExecutionError("model generation budget is invalid") from error
+        controller = self._generation_worker_controller
+        supported_execution_devices = getattr(
+            controller, "supported_execution_devices", None
+        )
+        if controller is not None and (
+            not isinstance(supported_execution_devices, frozenset)
+            or host_policy.execution_device not in supported_execution_devices
+        ):
+            raise ModelExecutionError("generation worker is unavailable")
+        self._generation_budget = budget
+        self._generation_material_lock_digest = material_lock_digest
+        self._generation_execution_descriptor_digest = execution_descriptor_digest
+        self._generation_host_policy = host_policy
         self._packed_adapter = None
 
     def bind_generation_worker(

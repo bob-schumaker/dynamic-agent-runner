@@ -444,6 +444,66 @@ def test_deferred_adapter_accepts_a_controller_for_one_supported_device() -> Non
     assert adapter._generation_worker_controller is not None
 
 
+def test_deferred_adapter_rejects_a_worker_controller_without_the_selected_device() -> (
+    None
+):
+    from dynamic_agent_runner.workflow_host.execution_descriptors import (
+        ExecutionDescriptor,
+        ExecutionDescriptorAbi,
+    )
+    from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+        GenerationExecutionHostPolicy,
+    )
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+        TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id="model", adapter_id="adapter", resolve_prepared_set=lambda: object()
+    )
+
+    class Factory:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        capability = TRANSFORMERS_GENERATE_CAPABILITY
+
+        def create_for_invocation(self, **_kwargs: object) -> object:
+            raise AssertionError("binding must not construct a worker")
+
+    class Controller:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        supported_execution_devices = frozenset({"cpu"})
+
+    adapter.bind_generation_worker(
+        factory=Factory(),
+        controller=Controller(),
+        capability=TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+    descriptor = ExecutionDescriptor(
+        ExecutionDescriptorAbi("test-generation-v1", "1", "a" * 64),
+        ("weights",),
+        {"generation_budget": _generation_budget().__dict__},
+    )
+
+    class Provider:
+        def reserve(self, _request: object) -> object:
+            return object()
+
+    with pytest.raises(ModelExecutionError, match="generation worker is unavailable"):
+        adapter.bind_generation_budget(
+            descriptor=descriptor,
+            material_lock_digest="b" * 64,
+            host_policy=GenerationExecutionHostPolicy(
+                ceiling=_generation_budget(),
+                execution_device="mps",
+                memory_reservation_provider=Provider(),
+            ),
+        )
+
+    assert adapter._generation_budget is None
+    assert adapter._worker_sealed_payload is None
+
+
 def test_deferred_worker_adapter_builds_an_invocation_factory_from_private_assets(
     tmp_path: Path,
 ) -> None:
