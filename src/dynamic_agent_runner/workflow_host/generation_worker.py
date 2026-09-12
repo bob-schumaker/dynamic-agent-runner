@@ -177,6 +177,20 @@ class GenerationWorkerPackReceipt:
     fragment_index: int
     packed_context_tokens: int
 
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.invocation_id, str)
+            or not self.invocation_id
+            or not _digest(self.invocation_digest)
+            or not _digest(self.converter_digest)
+            or not _digest(self.material_lock_digest)
+            or not isinstance(self.execution_device, str)
+            or not self.execution_device
+            or not _nonnegative_int(self.fragment_index)
+            or not _nonnegative_int(self.packed_context_tokens)
+        ):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+
 
 @dataclass(frozen=True)
 class GenerationWorkerResult:

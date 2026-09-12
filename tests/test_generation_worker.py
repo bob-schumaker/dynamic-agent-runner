@@ -777,6 +777,19 @@ def test_worker_rejects_a_receipt_with_the_wrong_host_invocation_id() -> None:
         )
 
 
+def test_pack_receipt_rejects_a_malformed_invocation_digest() -> None:
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        GenerationWorkerPackReceipt(
+            invocation_id="invocation-1",
+            invocation_digest="not-a-digest",
+            converter_digest="b" * 64,
+            material_lock_digest="c" * 64,
+            execution_device="cpu",
+            fragment_index=0,
+            packed_context_tokens=3,
+        )
+
+
 def test_worker_rejects_repacking_before_authorization() -> None:
     worker = GenerationWorkerSession(
         invocation_id="invocation-1",
