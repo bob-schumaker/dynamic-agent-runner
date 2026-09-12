@@ -44,8 +44,6 @@ TRANSFORMERS_GENERATE_CAPABILITY = GenerationRunnerCapability(
 _CONTINUATION_INSTRUCTION = (
     "Continue the exact response from where it stopped. Return only the remaining text."
 )
-_MAX_CONTINUATIONS = 32
-_MAX_NEW_TOKENS = 1_000_000
 
 
 class TransformersPeftBackend(Protocol):
@@ -705,7 +703,7 @@ def _max_new_tokens(request: OpenAIModelRequest) -> int:
 
 def _max_continuations(request: OpenAIModelRequest) -> int:
     value = request.extra.get("max_continuations", 0)
-    if not isinstance(value, int) or not 0 <= value <= _MAX_CONTINUATIONS:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise ModelExecutionError("model continuation limit is invalid")
     return value
 
@@ -758,7 +756,7 @@ def _validate_generated_completion(
 
 
 def _validate_max_new_tokens(value: object) -> None:
-    if not isinstance(value, int) or not 1 <= value <= _MAX_NEW_TOKENS:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
         raise ModelExecutionError("model generation limit is invalid")
 
 

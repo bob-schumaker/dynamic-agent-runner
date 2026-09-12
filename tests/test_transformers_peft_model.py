@@ -1350,7 +1350,7 @@ def test_generic_runner_rejects_bad_decodes_and_generation_limits(
             build_openai_request(
                 model=recipe.model_id,
                 messages=[OpenAIMessage("user", "vectorize")],
-                max_tokens=1_000_001,
+                max_tokens=0,
             )
         )
     assert adapter._sealed_image is None
@@ -1383,7 +1383,7 @@ def test_generic_runner_rejects_bad_decodes_and_generation_limits(
     assert loader_calls == 0
 
 
-def test_standard_runner_accepts_the_extended_generation_limits() -> None:
+def test_standard_runner_does_not_own_generation_ceiling_constants() -> None:
     from dynamic_agent_runner.workflow_host.transformers_peft_model import (
         _max_continuations,
         _max_new_tokens,
@@ -1392,19 +1392,19 @@ def test_standard_runner_accepts_the_extended_generation_limits() -> None:
     request = build_openai_request(
         model="qwen25-vl-3b-floorplan-grpo",
         messages=[OpenAIMessage("user", "vectorize")],
-        max_tokens=1_000_000,
-        max_continuations=32,
+        max_tokens=1_000_001,
+        max_continuations=33,
     )
 
-    assert _max_new_tokens(request) == 1_000_000
-    assert _max_continuations(request) == 32
+    assert _max_new_tokens(request) == 1_000_001
+    assert _max_continuations(request) == 33
 
     with pytest.raises(ModelExecutionError, match="generation limit"):
         _max_new_tokens(
             build_openai_request(
                 model="qwen25-vl-3b-floorplan-grpo",
                 messages=[OpenAIMessage("user", "vectorize")],
-                max_tokens=1_000_001,
+                max_tokens=0,
             )
         )
     with pytest.raises(ModelExecutionError, match="continuation limit"):
@@ -1412,7 +1412,7 @@ def test_standard_runner_accepts_the_extended_generation_limits() -> None:
             build_openai_request(
                 model="qwen25-vl-3b-floorplan-grpo",
                 messages=[OpenAIMessage("user", "vectorize")],
-                max_continuations=33,
+                max_continuations=-1,
             )
         )
 
