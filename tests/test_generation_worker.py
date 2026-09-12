@@ -288,9 +288,9 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
             return Reservation()
 
     class Child:
-        def generate(self) -> bytes:
+        def generate(self) -> tuple[bytes, int]:
             events.append("generate")
-            return b"{}"
+            return b"{}", 1
 
     worker = GenerationWorkerSession(
         invocation_id="invocation-1",
@@ -302,26 +302,29 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
         max_total_output_bytes=2,
     )
     receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
-    assert (
-        GenerationWorkerLauncher().generate(
-            child=Child(),
-            session=worker,
-            receipt=receipt,
-            remaining_generated_tokens=1,
-            provider=Provider(),
-            request=GenerationMemoryReservationRequest(
-                material_lock_digest="c" * 64,
-                runner_identity="runner",
-                execution_device="cpu",
-                packed_context_tokens=3,
-                requested_new_tokens=1,
-                max_memory_bytes=8,
-                deadline_monotonic=1.0,
-            ),
-            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1),
-            now=0.0,
-        )
-        == b"{}"
+    result = GenerationWorkerLauncher().generate(
+        child=Child(),
+        session=worker,
+        receipt=receipt,
+        remaining_generated_tokens=1,
+        provider=Provider(),
+        request=GenerationMemoryReservationRequest(
+            material_lock_digest="c" * 64,
+            runner_identity="runner",
+            execution_device="cpu",
+            packed_context_tokens=3,
+            requested_new_tokens=1,
+            max_memory_bytes=8,
+            deadline_monotonic=1.0,
+        ),
+        deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1),
+        now=0.0,
+    )
+    assert result == GenerationWorkerResult(
+        candidate=b"{}",
+        generated_tokens=1,
+        aggregate_generated_tokens=1,
+        aggregate_output_bytes=2,
     )
     assert events == ["reserve", "generate", "release"]
 

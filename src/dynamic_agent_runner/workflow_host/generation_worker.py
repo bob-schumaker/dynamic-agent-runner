@@ -207,8 +207,8 @@ class GenerationWorkerLauncher:
         request: GenerationMemoryReservationRequest,
         deadline: GenerationDeadline,
         now: float,
-    ) -> bytes:
-        """Run one authorized child generation and release its reservation."""
+    ) -> GenerationWorkerResult:
+        """Run one authorized child generation and validate its receipt-bound result."""
 
         generate = getattr(child, "generate", None)
         if not callable(generate):
@@ -222,12 +222,21 @@ class GenerationWorkerLauncher:
         )
         try:
             deadline.require_remaining(now)
-            candidate = generate()
-            if not isinstance(candidate, bytes):
+            result = generate()
+            if (
+                not isinstance(result, tuple)
+                or len(result) != 2
+                or not isinstance(result[0], bytes)
+            ):
                 raise GenerationWorkerProtocolError(
                     "generation worker protocol invalid"
                 )
-            return candidate
+            return session.result(
+                receipt=receipt,
+                fragment_index=receipt.fragment_index,
+                candidate=result[0],
+                generated_tokens=result[1],
+            )
         except GenerationWorkerProtocolError:
             raise
         except Exception as error:
