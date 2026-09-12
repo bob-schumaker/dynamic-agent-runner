@@ -94,6 +94,7 @@ class GeneratedText:
 class GenerationDebugFragment:
     """One content-free debug fact record for an admitted fragment."""
 
+    fragment_index: int
     exhausted: bool
     generated_tokens: int | None
     output_bytes: int
@@ -299,6 +300,7 @@ class TransformersPeftPackedInputAdapter:
         self._debug_fragment_recorder: (
             Callable[[GenerationDebugFragment], None] | None
         ) = None
+        self._debug_fragment_index = 0
 
     @property
     def models(self) -> tuple[str, ...]:
@@ -342,6 +344,7 @@ class TransformersPeftPackedInputAdapter:
         if self._sealed_payload is None:
             raise ModelExecutionError("sealed converter input is unavailable")
         payload = self._sealed_payload
+        self._debug_fragment_index = 0
         try:
             json_mode = _json_mode_requested(
                 request.response_format,
@@ -610,11 +613,13 @@ class TransformersPeftPackedInputAdapter:
         if self._debug_fragment_recorder is not None:
             self._debug_fragment_recorder(
                 GenerationDebugFragment(
+                    fragment_index=self._debug_fragment_index,
                     exhausted=generated.exhausted,
                     generated_tokens=generated.generated_tokens,
                     output_bytes=len(generated.content.encode("utf-8")),
                 )
             )
+            self._debug_fragment_index += 1
 
 
 class TransformersPeftSingleImageAdapter:

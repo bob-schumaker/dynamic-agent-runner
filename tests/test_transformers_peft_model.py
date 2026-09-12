@@ -863,6 +863,7 @@ def test_converter_adapter_records_only_scalar_debug_fragment_facts(
     assert recorded[0].generated_tokens == 3
     assert recorded[0].output_bytes == len('{"walls":['.encode())
     assert recorded[0].exhausted is True
+    assert recorded[0].fragment_index == 0
     assert adapter._sealed_payload is None
 
 
