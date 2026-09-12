@@ -43,6 +43,7 @@ class GenerationWorkerLaunchDescriptor:
     """Bounded non-executable launch data for the fixed worker entry point."""
 
     protocol_version: str
+    invocation_id: str
     invocation_digest: str
     fragment_index: int
     runner_id: str
@@ -58,6 +59,7 @@ class GenerationWorkerLaunchDescriptor:
     def __post_init__(self) -> None:
         identifiers = (
             self.protocol_version,
+            self.invocation_id,
             self.runner_id,
             self.converter_id,
             self.execution_device,
@@ -89,6 +91,7 @@ class GenerationWorkerLaunchDescriptor:
 
         return {
             "protocol_version": self.protocol_version,
+            "invocation_id": self.invocation_id,
             "invocation_digest": self.invocation_digest,
             "fragment_index": self.fragment_index,
             "runner_id": self.runner_id,
@@ -114,6 +117,7 @@ class GenerationWorkerLaunchDescriptor:
         try:
             return cls(
                 protocol_version=value["protocol_version"],
+                invocation_id=value["invocation_id"],
                 invocation_digest=value["invocation_digest"],
                 fragment_index=value["fragment_index"],
                 runner_id=value["runner_id"],
@@ -145,6 +149,7 @@ class GenerationWorkerLaunchDescriptor:
 _LAUNCH_DESCRIPTOR_FIELDS = frozenset(
     {
         "protocol_version",
+        "invocation_id",
         "invocation_digest",
         "fragment_index",
         "runner_id",

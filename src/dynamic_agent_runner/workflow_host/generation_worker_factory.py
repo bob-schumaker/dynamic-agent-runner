@@ -31,6 +31,7 @@ class GenerationWorkerCoLocatedFactory:
         *,
         capability: GenerationRunnerCapability,
         asset_handles: GenerationWorkerAssetHandleService,
+        invocation_id: str,
         invocation_digest: str,
         fragment_index: int,
         converter: DeclaredInputConverter,
@@ -61,6 +62,7 @@ class GenerationWorkerCoLocatedFactory:
         try:
             provisional = GenerationWorkerLaunchDescriptor(
                 protocol_version="generation-worker-v1",
+                invocation_id=invocation_id,
                 invocation_digest=invocation_digest,
                 fragment_index=fragment_index,
                 runner_id=capability.runner_id,

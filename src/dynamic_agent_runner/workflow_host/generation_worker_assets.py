@@ -226,6 +226,7 @@ def _descriptor_binding(
 ) -> dict[str, object]:
     return {
         "protocol_version": descriptor.protocol_version,
+        "invocation_id": descriptor.invocation_id,
         "invocation_digest": descriptor.invocation_digest,
         "fragment_index": descriptor.fragment_index,
         "runner_id": descriptor.runner_id,

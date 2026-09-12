@@ -1461,6 +1461,9 @@ class DeferredTransformersPeftSingleImageAdapter:
             ).encode("utf-8")
             now = datetime.now(UTC)
             return create_for_invocation(
+                invocation_id=sha256(
+                    f"{time.monotonic():.9f}".encode("ascii")
+                ).hexdigest(),
                 invocation_digest=sha256(canonical_invocation).hexdigest(),
                 fragment_index=fragment_index,
                 converter=converter,
@@ -1653,7 +1656,7 @@ class DeferredTransformersPeftSingleImageAdapter:
         ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         session = GenerationWorkerSession(
-            invocation_id=sha256(f"{time.monotonic():.9f}".encode("ascii")).hexdigest(),
+            invocation_id=descriptor.invocation_id,
             invocation_digest=descriptor.invocation_digest,
             converter_digest=descriptor.converter_asset_digest,
             material_lock_digest=descriptor.material_lock_digest,

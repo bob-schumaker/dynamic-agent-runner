@@ -21,6 +21,7 @@ from dynamic_agent_runner.workflow_host.generation_worker_assets import (
 def _descriptor() -> GenerationWorkerLaunchDescriptor:
     return GenerationWorkerLaunchDescriptor(
         "generation-worker-v1",
+        "invocation-1",
         "a" * 64,
         0,
         "runner-v1",

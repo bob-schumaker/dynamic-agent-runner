@@ -58,6 +58,7 @@ def _worker_capability() -> GenerationRunnerCapability:
 def test_launch_descriptor_has_a_bounded_exact_non_executable_wire_mapping() -> None:
     descriptor = GenerationWorkerLaunchDescriptor(
         protocol_version="generation-worker-v1",
+        invocation_id="invocation-1",
         invocation_digest="a" * 64,
         fragment_index=0,
         runner_id="runner-v1",
@@ -76,6 +77,7 @@ def test_launch_descriptor_has_a_bounded_exact_non_executable_wire_mapping() -> 
     assert GenerationWorkerLaunchDescriptor.from_wire(encoded) == descriptor
     assert set(encoded) == {
         "protocol_version",
+        "invocation_id",
         "invocation_digest",
         "fragment_index",
         "runner_id",
@@ -102,6 +104,7 @@ def test_launch_descriptor_has_a_bounded_exact_non_executable_wire_mapping() -> 
 def test_fixed_entry_resolves_every_opaque_asset_handle_before_ready() -> None:
     descriptor = GenerationWorkerLaunchDescriptor(
         "generation-worker-v1",
+        "invocation-1",
         "a" * 64,
         0,
         "runner-v1",
@@ -140,6 +143,7 @@ def test_fixed_entry_defers_co_located_converter_loading_to_child_runtime(
 ) -> None:
     descriptor = GenerationWorkerLaunchDescriptor(
         "generation-worker-v1",
+        "invocation-1",
         "a" * 64,
         0,
         "runner-v1",
@@ -203,6 +207,7 @@ def test_launcher_revalidates_a_factory_descriptor_before_controller_launch() ->
     worker_capability = _worker_capability()
     descriptor = GenerationWorkerLaunchDescriptor(
         protocol_version="generation-worker-v1",
+        invocation_id="invocation-1",
         invocation_digest="a" * 64,
         fragment_index=0,
         runner_id="runner-v1",
@@ -277,6 +282,7 @@ def test_launcher_rejects_a_controller_that_cannot_enforce_the_selected_device()
 ):
     descriptor = GenerationWorkerLaunchDescriptor(
         "generation-worker-v1",
+        "invocation-1",
         "a" * 64,
         0,
         "runner-v1",
@@ -318,6 +324,7 @@ def test_launcher_rejects_a_controller_that_cannot_enforce_the_selected_device()
 def test_launcher_rejects_a_factory_with_an_unbound_capability_contract() -> None:
     descriptor = GenerationWorkerLaunchDescriptor(
         "generation-worker-v1",
+        "invocation-1",
         "a" * 64,
         0,
         "runner-v1",
@@ -360,6 +367,7 @@ def test_launcher_rejects_a_factory_with_an_unbound_capability_contract() -> Non
 def test_launcher_preserves_controller_memory_unavailability() -> None:
     descriptor = GenerationWorkerLaunchDescriptor(
         "generation-worker-v1",
+        "invocation-1",
         "a" * 64,
         0,
         "runner-v1",
@@ -404,6 +412,7 @@ def test_launcher_reaps_a_child_when_readiness_fails() -> None:
     worker_capability = _worker_capability()
     descriptor = GenerationWorkerLaunchDescriptor(
         protocol_version="generation-worker-v1",
+        invocation_id="invocation-1",
         invocation_digest="a" * 64,
         fragment_index=0,
         runner_id="runner-v1",
@@ -463,6 +472,7 @@ def test_launcher_reaps_a_ready_child_when_its_deadline_expires() -> None:
     worker_capability = _worker_capability()
     descriptor = GenerationWorkerLaunchDescriptor(
         "generation-worker-v1",
+        "invocation-1",
         "a" * 64,
         0,
         "runner-v1",

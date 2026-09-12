@@ -30,6 +30,7 @@ from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 def _descriptor(*, asset_handles: tuple[str, ...]) -> GenerationWorkerLaunchDescriptor:
     return GenerationWorkerLaunchDescriptor(
         protocol_version="generation-worker-v1",
+        invocation_id="invocation-1",
         invocation_digest="a" * 64,
         fragment_index=0,
         runner_id="runner-v1",

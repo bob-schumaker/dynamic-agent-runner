@@ -83,6 +83,7 @@ class _CpuWorkerChild:
     command_connection: object
     response_connection: object
     ready_connection: object
+    invocation_id: str
     invocation_digest: str
     fragment_index: int
     _deadline_timeout: float | None = None
@@ -243,6 +244,7 @@ class _CpuWorkerChild:
 
     def _transcript_fields(self) -> dict[str, object]:
         return {
+            "invocation_id": self.invocation_id,
             "invocation_digest": self.invocation_digest,
             "fragment_index": self.fragment_index,
         }
@@ -315,6 +317,7 @@ class CpuMultiprocessingGenerationWorkerController:
                 command_connection=parent_command,
                 response_connection=response_receiver,
                 ready_connection=ready_receiver,
+                invocation_id=descriptor.invocation_id,
                 invocation_digest=descriptor.invocation_digest,
                 fragment_index=descriptor.fragment_index,
             )
@@ -730,7 +733,8 @@ def _matches_descriptor_transcript(
     request: Mapping[str, object], descriptor: GenerationWorkerLaunchDescriptor
 ) -> bool:
     return (
-        request.get("invocation_digest") == descriptor.invocation_digest
+        request.get("invocation_id") == descriptor.invocation_id
+        and request.get("invocation_digest") == descriptor.invocation_digest
         and request.get("fragment_index") == descriptor.fragment_index
     )
 
@@ -746,6 +750,7 @@ def _cpu_pack_response(
         or set(request)
         != {
             "type",
+            "invocation_id",
             "invocation_digest",
             "fragment_index",
             "max_memory_bytes",
@@ -781,6 +786,7 @@ def _cpu_authorize_response(
         or set(request)
         != {
             "type",
+            "invocation_id",
             "invocation_digest",
             "fragment_index",
             "receipt",
@@ -804,6 +810,7 @@ def _cpu_generate_response(
 ) -> dict[str, object]:
     if authorized_remaining_generated_tokens is None or set(request) != {
         "type",
+        "invocation_id",
         "invocation_digest",
         "fragment_index",
     }:
@@ -886,7 +893,8 @@ def _receipt_matches_descriptor(
     packed_context_tokens: int,
 ) -> bool:
     return (
-        receipt.invocation_digest == descriptor.invocation_digest
+        receipt.invocation_id == descriptor.invocation_id
+        and receipt.invocation_digest == descriptor.invocation_digest
         and receipt.converter_digest == descriptor.converter_asset_digest
         and receipt.material_lock_digest == descriptor.material_lock_digest
         and receipt.execution_device == descriptor.execution_device

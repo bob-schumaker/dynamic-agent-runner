@@ -121,6 +121,7 @@ class _CpuCoLocatedRunnerRuntimeFactory:
 def _descriptor(*, execution_device: str) -> GenerationWorkerLaunchDescriptor:
     return GenerationWorkerLaunchDescriptor(
         protocol_version="generation-worker-v1",
+        invocation_id="invocation-1",
         invocation_digest="a" * 64,
         fragment_index=0,
         runner_id="runner-v1",
@@ -281,6 +282,7 @@ def test_cpu_worker_requires_its_bound_transcript_identity_on_every_frame() -> N
         )
 
     pack_request |= {
+        "invocation_id": descriptor.invocation_id,
         "invocation_digest": descriptor.invocation_digest,
         "fragment_index": descriptor.fragment_index,
     }
@@ -302,6 +304,7 @@ def test_cpu_worker_requires_its_bound_transcript_identity_on_every_frame() -> N
     )
     authorize_request = {
         "type": "authorize",
+        "invocation_id": descriptor.invocation_id,
         "invocation_digest": descriptor.invocation_digest,
         "fragment_index": descriptor.fragment_index + 1,
         "receipt": generation_worker_controllers._receipt_to_wire(receipt),
@@ -317,6 +320,21 @@ def test_cpu_worker_requires_its_bound_transcript_identity_on_every_frame() -> N
         )
 
     authorize_request["fragment_index"] = descriptor.fragment_index
+    authorize_request["receipt"] = generation_worker_controllers._receipt_to_wire(
+        replace(receipt, invocation_id="other-invocation")
+    )
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        generation_worker_controllers._cpu_worker_response(
+            request=authorize_request,
+            descriptor=descriptor,
+            worker_runtime=runtime,
+            packed_context_tokens=packed["packed_context_tokens"],
+            authorized_remaining_generated_tokens=None,
+        )
+
+    authorize_request["receipt"] = generation_worker_controllers._receipt_to_wire(
+        receipt
+    )
     generation_worker_controllers._cpu_worker_response(
         request=authorize_request,
         descriptor=descriptor,
@@ -328,6 +346,7 @@ def test_cpu_worker_requires_its_bound_transcript_identity_on_every_frame() -> N
         generation_worker_controllers._cpu_worker_response(
             request={
                 "type": "generate",
+                "invocation_id": descriptor.invocation_id,
                 "invocation_digest": "f" * 64,
                 "fragment_index": descriptor.fragment_index,
             },

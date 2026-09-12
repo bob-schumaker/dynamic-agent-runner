@@ -653,6 +653,7 @@ def test_deferred_worker_adapter_runs_one_fragment_in_the_selected_worker(  # no
         def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
             return GenerationWorkerLaunchDescriptor(
                 protocol_version="generation-worker-v1",
+                invocation_id="invocation-1",
                 invocation_digest="d" * 64,
                 fragment_index=0,
                 runner_id=self.runner_id,
@@ -1193,6 +1194,7 @@ def test_deferred_worker_adapter_rejects_a_factory_budget_broader_than_effective
         def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
             return GenerationWorkerLaunchDescriptor(
                 protocol_version="generation-worker-v1",
+                invocation_id="invocation-1",
                 invocation_digest="a" * 64,
                 fragment_index=0,
                 runner_id=self.runner_id,
