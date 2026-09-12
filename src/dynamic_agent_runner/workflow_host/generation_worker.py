@@ -209,12 +209,14 @@ class GenerationWorkerSession:
         self._total_output_bytes = 0
         self._max_total_generated_tokens = max_total_generated_tokens
         self._max_total_output_bytes = max_total_output_bytes
+        self._failed = False
 
     def pack(
         self, *, fragment_index: int, packed_context_tokens: int
     ) -> GenerationWorkerPackReceipt:
         if (
-            self._authorization is not None
+            self._failed
+            or self._authorization is not None
             or fragment_index != self._next_fragment_index
             or not _nonnegative_int(packed_context_tokens)
         ):
@@ -235,7 +237,8 @@ class GenerationWorkerSession:
         remaining_generated_tokens: int,
     ) -> None:
         if (
-            self._authorization is not None
+            self._failed
+            or self._authorization is not None
             or receipt != self._receipt
             or fragment_index != getattr(receipt, "fragment_index", None)
             or not _positive_int(remaining_generated_tokens)
@@ -254,15 +257,20 @@ class GenerationWorkerSession:
         reported_aggregate_output_bytes: int | None = None,
     ) -> GenerationWorkerResult:
         authorization = self._authorization
-        aggregate_generated_tokens = self._total_generated_tokens + generated_tokens
-        aggregate_output_bytes = self._total_output_bytes + len(candidate)
         if (
-            authorization is None
+            self._failed
+            or authorization is None
             or receipt != authorization[0]
             or fragment_index != receipt.fragment_index
             or not isinstance(candidate, bytes)
             or not _nonnegative_int(generated_tokens)
-            or generated_tokens > authorization[1]
+        ):
+            self._failed = True
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        aggregate_generated_tokens = self._total_generated_tokens + generated_tokens
+        aggregate_output_bytes = self._total_output_bytes + len(candidate)
+        if (
+            generated_tokens > authorization[1]
             or aggregate_generated_tokens > self._max_total_generated_tokens
             or aggregate_output_bytes > self._max_total_output_bytes
             or (
@@ -280,6 +288,7 @@ class GenerationWorkerSession:
                 )
             )
         ):
+            self._failed = True
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         self._total_generated_tokens = aggregate_generated_tokens
         self._total_output_bytes = aggregate_output_bytes

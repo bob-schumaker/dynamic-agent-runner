@@ -584,6 +584,16 @@ def test_worker_rejects_stale_receipts_out_of_order_authorization_and_overage() 
             generated_tokens=1,
         )
 
+    worker = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=2,
+    )
+    receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
     worker.authorize(
         receipt=receipt,
         fragment_index=0,
@@ -666,6 +676,34 @@ def test_worker_recomputes_reported_aggregate_result_counters() -> None:
             reported_aggregate_generated_tokens=True,
             reported_aggregate_output_bytes=2,
         )
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        worker.result(
+            receipt=receipt,
+            fragment_index=0,
+            candidate=b"{}",
+            generated_tokens=2,
+            reported_aggregate_generated_tokens=2,
+            reported_aggregate_output_bytes=2,
+        )
+
+
+def test_worker_accepts_exact_reported_aggregate_result_counters() -> None:
+    worker = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=4,
+    )
+    receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
+    worker.authorize(
+        receipt=receipt,
+        fragment_index=0,
+        remaining_generated_tokens=2,
+    )
 
     assert worker.result(
         receipt=receipt,
