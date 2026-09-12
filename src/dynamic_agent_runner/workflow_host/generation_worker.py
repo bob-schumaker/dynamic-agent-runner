@@ -36,6 +36,8 @@ class GenerationWorkerResult:
 
     candidate: bytes
     generated_tokens: int
+    aggregate_generated_tokens: int
+    aggregate_output_bytes: int
 
 
 class GenerationWorkerSession:
@@ -49,6 +51,7 @@ class GenerationWorkerSession:
         converter_digest: str,
         material_lock_digest: str,
         execution_device: str,
+        max_total_generated_tokens: int,
         max_total_output_bytes: int,
     ) -> None:
         values = (
@@ -61,21 +64,25 @@ class GenerationWorkerSession:
         if (
             any(not isinstance(value, str) or not value for value in values)
             or any(len(value) != 64 for value in values[1:4])
+            or not _positive_int(max_total_generated_tokens)
             or not _positive_int(max_total_output_bytes)
         ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         self._identity = values
         self._receipt: GenerationWorkerPackReceipt | None = None
         self._authorization: tuple[GenerationWorkerPackReceipt, int] | None = None
+        self._next_fragment_index = 0
+        self._total_generated_tokens = 0
+        self._total_output_bytes = 0
+        self._max_total_generated_tokens = max_total_generated_tokens
         self._max_total_output_bytes = max_total_output_bytes
-        self._resulted = False
 
     def pack(
         self, *, fragment_index: int, packed_context_tokens: int
     ) -> GenerationWorkerPackReceipt:
         if (
-            self._receipt is not None
-            or not _nonnegative_int(fragment_index)
+            self._authorization is not None
+            or fragment_index != self._next_fragment_index
             or not _nonnegative_int(packed_context_tokens)
         ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
@@ -113,18 +120,27 @@ class GenerationWorkerSession:
     ) -> GenerationWorkerResult:
         authorization = self._authorization
         if (
-            self._resulted
-            or authorization is None
+            authorization is None
             or receipt != authorization[0]
             or fragment_index != receipt.fragment_index
             or not isinstance(candidate, bytes)
-            or len(candidate) > self._max_total_output_bytes
             or not _nonnegative_int(generated_tokens)
             or generated_tokens > authorization[1]
+            or self._total_generated_tokens + generated_tokens
+            > self._max_total_generated_tokens
+            or self._total_output_bytes + len(candidate) > self._max_total_output_bytes
         ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
-        self._resulted = True
-        return GenerationWorkerResult(candidate, generated_tokens)
+        self._total_generated_tokens += generated_tokens
+        self._total_output_bytes += len(candidate)
+        self._authorization = None
+        self._next_fragment_index += 1
+        return GenerationWorkerResult(
+            candidate,
+            generated_tokens,
+            self._total_generated_tokens,
+            self._total_output_bytes,
+        )
 
 
 class GenerationWorkerLauncher:

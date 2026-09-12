@@ -7,6 +7,7 @@ import pytest
 from dynamic_agent_runner.workflow_host.generation_worker import (
     GenerationWorkerLauncher,
     GenerationWorkerProtocolError,
+    GenerationWorkerResult,
     GenerationWorkerSession,
 )
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
@@ -22,6 +23,7 @@ def test_worker_requires_a_matching_pack_receipt_before_authorized_result() -> N
         converter_digest="b" * 64,
         material_lock_digest="c" * 64,
         execution_device="cpu",
+        max_total_generated_tokens=4,
         max_total_output_bytes=2,
     )
 
@@ -60,6 +62,7 @@ def test_worker_rejects_stale_receipts_out_of_order_authorization_and_overage() 
         converter_digest="b" * 64,
         material_lock_digest="c" * 64,
         execution_device="cpu",
+        max_total_generated_tokens=4,
         max_total_output_bytes=2,
     )
     receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
@@ -105,6 +108,7 @@ def test_worker_rejects_a_candidate_over_its_authorized_byte_budget() -> None:
         converter_digest="b" * 64,
         material_lock_digest="c" * 64,
         execution_device="cpu",
+        max_total_generated_tokens=4,
         max_total_output_bytes=1,
     )
     receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
@@ -120,6 +124,52 @@ def test_worker_rejects_a_candidate_over_its_authorized_byte_budget() -> None:
             fragment_index=0,
             candidate=b"{}",
             generated_tokens=1,
+        )
+
+
+def test_worker_binds_sequential_fragments_to_aggregate_token_and_byte_limits() -> None:
+    worker = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=2,
+        max_total_output_bytes=3,
+    )
+    first = worker.pack(fragment_index=0, packed_context_tokens=3)
+    worker.authorize(
+        receipt=first,
+        fragment_index=0,
+        remaining_generated_tokens=2,
+    )
+    assert worker.result(
+        receipt=first,
+        fragment_index=0,
+        candidate=b"a",
+        generated_tokens=1,
+    ) == GenerationWorkerResult(
+        candidate=b"a",
+        generated_tokens=1,
+        aggregate_generated_tokens=1,
+        aggregate_output_bytes=1,
+    )
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        worker.pack(fragment_index=2, packed_context_tokens=3)
+
+    second = worker.pack(fragment_index=1, packed_context_tokens=3)
+    worker.authorize(
+        receipt=second,
+        fragment_index=1,
+        remaining_generated_tokens=2,
+    )
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        worker.result(
+            receipt=second,
+            fragment_index=1,
+            candidate=b"xyz",
+            generated_tokens=2,
         )
 
 
@@ -200,6 +250,7 @@ def test_launcher_reserves_memory_before_authorizing_a_packed_receipt() -> None:
         converter_digest="b" * 64,
         material_lock_digest="c" * 64,
         execution_device="cpu",
+        max_total_generated_tokens=4,
         max_total_output_bytes=2,
     )
     receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
@@ -247,6 +298,7 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
         converter_digest="b" * 64,
         material_lock_digest="c" * 64,
         execution_device="cpu",
+        max_total_generated_tokens=4,
         max_total_output_bytes=2,
     )
     receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
@@ -297,6 +349,7 @@ def test_launcher_rejects_an_expired_deadline_before_child_generation() -> None:
         converter_digest="b" * 64,
         material_lock_digest="c" * 64,
         execution_device="cpu",
+        max_total_generated_tokens=4,
         max_total_output_bytes=2,
     )
     receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
