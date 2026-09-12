@@ -65,7 +65,7 @@ def test_child_runtime_builds_runner_from_typed_assets_and_loaded_converter(
     created: list[tuple[object, object]] = []
 
     monkeypatch.setattr(
-        "dynamic_agent_runner.workflow_host.input_converter_loader.load_input_converter",
+        "dynamic_agent_runner.workflow_host.generation_worker_child_runtime.load_input_converter",
         lambda **_kwargs: loaded_converter,
     )
 
