@@ -1497,6 +1497,10 @@ class DeferredTransformersPeftSingleImageAdapter:
                 raise ModelExecutionError(
                     "model generation deadline exceeded"
                 ) from error
+            if str(error) == "generation memory budget is unavailable":
+                raise ModelExecutionError(
+                    "model generation memory budget is unavailable"
+                ) from error
             raise ModelExecutionError(
                 "model generation budget is unavailable"
             ) from error
