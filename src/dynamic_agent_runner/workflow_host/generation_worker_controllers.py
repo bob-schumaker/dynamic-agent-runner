@@ -542,7 +542,7 @@ def _run_cpu_worker_protocol(
     """Serve one fixed pack/authorize/generate transcript without object frames."""
 
     packed_context_tokens: int | None = None
-    authorized = False
+    authorized_remaining_generated_tokens: int | None = None
     while True:
         try:
             request = command_connection.recv()
@@ -553,12 +553,14 @@ def _run_cpu_worker_protocol(
                 descriptor=descriptor,
                 worker_runtime=worker_runtime,
                 packed_context_tokens=packed_context_tokens,
-                authorized=authorized,
+                authorized_remaining_generated_tokens=authorized_remaining_generated_tokens,
             )
             if response["type"] == "packed":
                 packed_context_tokens = response["packed_context_tokens"]
             elif response["type"] == "authorized":
-                authorized = True
+                authorized_remaining_generated_tokens = request[
+                    "remaining_generated_tokens"
+                ]
             response_connection.send(response)
             if response["type"] == "result":
                 return
@@ -576,7 +578,7 @@ def _cpu_worker_response(
     descriptor: GenerationWorkerLaunchDescriptor,
     worker_runtime: CpuGenerationWorkerRuntime | None,
     packed_context_tokens: int | None,
-    authorized: bool,
+    authorized_remaining_generated_tokens: int | None,
 ) -> dict[str, object]:
     if worker_runtime is None or not isinstance(request, Mapping):
         raise GenerationWorkerProtocolError("generation worker protocol invalid")
@@ -587,10 +589,19 @@ def _cpu_worker_response(
         )
     if request_type == "authorize":
         return _cpu_authorize_response(
-            request, descriptor, worker_runtime, packed_context_tokens, authorized
+            request,
+            descriptor,
+            worker_runtime,
+            packed_context_tokens,
+            authorized_remaining_generated_tokens is not None,
         )
     if request_type == "generate":
-        return _cpu_generate_response(request, descriptor, worker_runtime, authorized)
+        return _cpu_generate_response(
+            request,
+            descriptor,
+            worker_runtime,
+            authorized_remaining_generated_tokens,
+        )
     raise GenerationWorkerProtocolError("generation worker protocol invalid")
 
 
@@ -645,9 +656,9 @@ def _cpu_generate_response(
     request: Mapping[str, object],
     descriptor: GenerationWorkerLaunchDescriptor,
     worker_runtime: CpuGenerationWorkerRuntime,
-    authorized: bool,
+    authorized_remaining_generated_tokens: int | None,
 ) -> dict[str, object]:
-    if authorized is not True or set(request) != {"type"}:
+    if authorized_remaining_generated_tokens is None or set(request) != {"type"}:
         raise GenerationWorkerProtocolError("generation worker protocol invalid")
     result = worker_runtime.generate()
     if (
@@ -655,6 +666,7 @@ def _cpu_generate_response(
         or len(result) not in (2, 4)
         or not isinstance(result[0], bytes)
         or not _nonnegative_int(result[1])
+        or result[1] > authorized_remaining_generated_tokens
         or len(result[0]) > descriptor.budget.max_total_output_bytes
     ):
         raise GenerationWorkerProtocolError("generation worker protocol invalid")

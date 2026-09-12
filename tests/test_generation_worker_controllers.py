@@ -50,6 +50,11 @@ class _CpuIpcRuntime:
         return b"{}", 2
 
 
+class _CpuOverAuthorizedRuntime(_CpuIpcRuntime):
+    def generate(self) -> tuple[bytes, int]:
+        return b"{}", 3
+
+
 def _descriptor(*, execution_device: str) -> GenerationWorkerLaunchDescriptor:
     return GenerationWorkerLaunchDescriptor(
         protocol_version="generation-worker-v1",
@@ -166,6 +171,36 @@ def test_cpu_child_rejects_generation_before_authorization() -> None:
 
     try:
         assert controller.wait_ready(child, 5.0) is True
+        with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+            child.generate()
+    finally:
+        assert controller.reap(child, 1.0) is True
+
+
+def test_cpu_child_rejects_a_result_larger_than_its_authorization() -> None:
+    base_descriptor = _descriptor(execution_device="cpu")
+    descriptor = replace(
+        base_descriptor,
+        budget=replace(base_descriptor.budget, max_memory_bytes=2**62),
+    )
+    controller = CpuMultiprocessingGenerationWorkerController(
+        runner_id="runner-v1", worker_runtime=_CpuOverAuthorizedRuntime()
+    )
+    child = controller.launch(descriptor)
+    receipt = GenerationWorkerPackReceipt(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="c" * 64,
+        material_lock_digest="d" * 64,
+        execution_device="cpu",
+        fragment_index=0,
+        packed_context_tokens=3,
+    )
+
+    try:
+        assert controller.wait_ready(child, 5.0) is True
+        child.install_bootstrap_limit(2**62, "cpu")
+        child.authorize(receipt, 2)
         with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
             child.generate()
     finally:
