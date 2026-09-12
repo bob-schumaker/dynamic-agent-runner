@@ -1663,6 +1663,7 @@ class DeferredTransformersPeftSingleImageAdapter:
             execution_device=descriptor.execution_device,
             max_total_generated_tokens=budget.max_total_generated_tokens,
             max_total_output_bytes=budget.max_total_output_bytes,
+            initial_fragment_index=descriptor.fragment_index,
         )
         launcher = GenerationWorkerLauncher()
         child = launcher.launch(
@@ -1723,7 +1724,7 @@ class DeferredTransformersPeftSingleImageAdapter:
             receipt = launcher.pack_receipt(
                 child=child,
                 session=session,
-                fragment_index=0,
+                fragment_index=descriptor.fragment_index,
                 max_memory_bytes=budget.max_memory_bytes,
                 execution_device=descriptor.execution_device,
                 deadline=deadline,

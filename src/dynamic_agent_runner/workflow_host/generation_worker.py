@@ -233,6 +233,7 @@ class GenerationWorkerSession:
         execution_device: str,
         max_total_generated_tokens: int,
         max_total_output_bytes: int,
+        initial_fragment_index: int = 0,
     ) -> None:
         values = (
             invocation_id,
@@ -246,12 +247,13 @@ class GenerationWorkerSession:
             or any(len(value) != 64 for value in values[1:4])
             or not _positive_int(max_total_generated_tokens)
             or not _positive_int(max_total_output_bytes)
+            or not _nonnegative_int(initial_fragment_index)
         ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         self._identity = values
         self._receipt: GenerationWorkerPackReceipt | None = None
         self._authorization: tuple[GenerationWorkerPackReceipt, int] | None = None
-        self._next_fragment_index = 0
+        self._next_fragment_index = initial_fragment_index
         self._total_generated_tokens = 0
         self._total_output_bytes = 0
         self._max_total_generated_tokens = max_total_generated_tokens

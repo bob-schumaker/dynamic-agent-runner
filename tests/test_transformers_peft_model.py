@@ -819,6 +819,78 @@ def test_deferred_worker_adapter_continues_with_parent_aggregate_accounting(
     )
 
 
+def test_deferred_worker_adapter_packs_the_descriptor_fragment_index() -> None:
+    from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+        GenerationDeadline,
+    )
+    from dynamic_agent_runner.workflow_host.generation_worker import (
+        GenerationWorkerLaunchDescriptor,
+        GenerationWorkerLauncher,
+        GenerationWorkerSession,
+    )
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+        TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+
+    budget = _generation_budget()
+    descriptor = GenerationWorkerLaunchDescriptor(
+        protocol_version="generation-worker-v1",
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        fragment_index=1,
+        runner_id=TRANSFORMERS_GENERATE_CAPABILITY.runner_id,
+        capability_contract_digest=TRANSFORMERS_GENERATE_CAPABILITY.contract_digest,
+        converter_id="converter-v1",
+        converter_asset_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_descriptor_digest="d" * 64,
+        execution_device="cpu",
+        budget=budget,
+        asset_handles=("opaque",),
+    )
+    session = GenerationWorkerSession(
+        invocation_id=descriptor.invocation_id,
+        invocation_digest=descriptor.invocation_digest,
+        converter_digest=descriptor.converter_asset_digest,
+        material_lock_digest=descriptor.material_lock_digest,
+        execution_device=descriptor.execution_device,
+        max_total_generated_tokens=budget.max_total_generated_tokens,
+        max_total_output_bytes=budget.max_total_output_bytes,
+        initial_fragment_index=descriptor.fragment_index,
+    )
+    events: list[str] = []
+
+    class Child:
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            events.append("limit")
+
+        def pack(self) -> int:
+            events.append("pack")
+            return 2
+
+        def reap(self) -> None:
+            events.append("reap")
+
+    receipt = DeferredTransformersPeftSingleImageAdapter(
+        model_id="model", adapter_id="adapter", resolve_prepared_set=lambda: object()
+    )._worker_pack_receipt(
+        launcher=GenerationWorkerLauncher(),
+        child=Child(),
+        controller=None,
+        session=session,
+        descriptor=descriptor,
+        budget=budget,
+        deadline=GenerationDeadline.start(
+            time.monotonic(), max_runtime_milliseconds=1_000
+        ),
+        remaining_generated_tokens=budget.max_new_tokens_per_fragment,
+    )
+
+    assert receipt.fragment_index == 1
+    assert events == ["limit", "pack"]
+
+
 def test_deferred_worker_adapter_binds_each_child_to_remaining_output_bytes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
