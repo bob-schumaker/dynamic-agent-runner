@@ -146,6 +146,9 @@ class GenerationWorkerSession:
 class GenerationWorkerLauncher:
     """Install the bootstrap envelope before allowing a child to pack input."""
 
+    def __init__(self) -> None:
+        self._packed_receipts: dict[int, GenerationWorkerPackReceipt] = {}
+
     def pack(
         self, *, child: object, max_memory_bytes: int, execution_device: str
     ) -> int:
@@ -202,6 +205,7 @@ class GenerationWorkerLauncher:
     def abort(self, *, child: object) -> None:
         """Reap a packed child when admission cannot proceed."""
 
+        self._packed_receipts.pop(id(child), None)
         reap = getattr(child, "reap", None)
         if not callable(reap):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
@@ -231,10 +235,12 @@ class GenerationWorkerLauncher:
             execution_device=execution_device,
         )
         try:
-            return session.pack(
+            receipt = session.pack(
                 fragment_index=fragment_index,
                 packed_context_tokens=packed_context_tokens,
             )
+            self._packed_receipts[id(child)] = receipt
+            return receipt
         except Exception as error:
             self.abort(child=child)
             raise GenerationWorkerProtocolError(
@@ -257,7 +263,8 @@ class GenerationWorkerLauncher:
 
         generate = getattr(child, "generate", None)
         reap = getattr(child, "reap", None)
-        if not callable(generate) or not callable(reap):
+        packed_receipt = self._packed_receipts.pop(id(child), None)
+        if not callable(generate) or not callable(reap) or packed_receipt != receipt:
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         reservation = self.authorize(
             session=session,

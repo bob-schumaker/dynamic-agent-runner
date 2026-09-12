@@ -328,6 +328,13 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
             return Reservation()
 
     class Child:
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            events.append("limit")
+
+        def pack(self) -> int:
+            events.append("pack")
+            return 3
+
         def generate(self) -> tuple[bytes, int]:
             events.append("generate")
             return b"{}", 1
@@ -344,9 +351,17 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
         max_total_generated_tokens=4,
         max_total_output_bytes=2,
     )
-    receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
-    result = GenerationWorkerLauncher().generate(
-        child=Child(),
+    child = Child()
+    launcher = GenerationWorkerLauncher()
+    receipt = launcher.pack_receipt(
+        child=child,
+        session=worker,
+        fragment_index=0,
+        max_memory_bytes=8,
+        execution_device="cpu",
+    )
+    result = launcher.generate(
+        child=child,
         session=worker,
         receipt=receipt,
         remaining_generated_tokens=1,
@@ -369,7 +384,7 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
         aggregate_generated_tokens=1,
         aggregate_output_bytes=2,
     )
-    assert events == ["reserve", "generate", "reap", "release"]
+    assert events == ["limit", "pack", "reserve", "generate", "reap", "release"]
 
 
 def test_launcher_rejects_an_expired_deadline_before_child_generation() -> None:
@@ -385,6 +400,13 @@ def test_launcher_rejects_an_expired_deadline_before_child_generation() -> None:
             return Reservation()
 
     class Child:
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            events.append("limit")
+
+        def pack(self) -> int:
+            events.append("pack")
+            return 3
+
         def generate(self) -> bytes:
             events.append("generate")
             return b"{}"
@@ -401,10 +423,18 @@ def test_launcher_rejects_an_expired_deadline_before_child_generation() -> None:
         max_total_generated_tokens=4,
         max_total_output_bytes=2,
     )
-    receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
+    child = Child()
+    launcher = GenerationWorkerLauncher()
+    receipt = launcher.pack_receipt(
+        child=child,
+        session=worker,
+        fragment_index=0,
+        max_memory_bytes=8,
+        execution_device="cpu",
+    )
     with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
-        GenerationWorkerLauncher().generate(
-            child=Child(),
+        launcher.generate(
+            child=child,
             session=worker,
             receipt=receipt,
             remaining_generated_tokens=1,
@@ -421,4 +451,4 @@ def test_launcher_rejects_an_expired_deadline_before_child_generation() -> None:
             deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1),
             now=0.001,
         )
-    assert events == ["reserve", "reap", "release"]
+    assert events == ["limit", "pack", "reserve", "reap", "release"]
