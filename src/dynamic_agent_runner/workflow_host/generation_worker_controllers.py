@@ -20,6 +20,7 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
 )
 from dynamic_agent_runner.workflow_host.generation_worker import (
     GenerationWorkerDeadlineExceeded,
+    GenerationWorkerExecutionFailed,
     GenerationWorkerLaunchDescriptor,
     GenerationWorkerPackReceipt,
     GenerationWorkerProtocolError,
@@ -189,6 +190,8 @@ class _CpuWorkerChild:
             raise GenerationWorkerProtocolError(
                 "generation worker protocol invalid"
             ) from error
+        if isinstance(response, Mapping) and dict(response) == {"type": "failed"}:
+            raise GenerationWorkerExecutionFailed("generation execution failed")
         if (
             not isinstance(response, Mapping)
             or response.get("type") != response_type
@@ -648,6 +651,12 @@ def _run_cpu_worker_protocol(
             response_connection.send(response)
             if response["type"] == "result":
                 return
+        except GenerationWorkerProtocolError:
+            try:
+                response_connection.send({"type": "protocol_invalid"})
+            except Exception:
+                pass
+            return
         except Exception:
             try:
                 response_connection.send({"type": "failed"})

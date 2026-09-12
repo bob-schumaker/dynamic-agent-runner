@@ -32,6 +32,7 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
 )
 from dynamic_agent_runner.workflow_host.generation_worker import (
     GenerationWorkerDeadlineExceeded,
+    GenerationWorkerExecutionFailed,
     GenerationWorkerLaunchDescriptor,
     GenerationWorkerLauncher,
     GenerationWorkerPackReceipt,
@@ -1506,6 +1507,8 @@ class DeferredTransformersPeftSingleImageAdapter:
             ) from error
         except GenerationWorkerDeadlineExceeded as error:
             raise ModelExecutionError("model generation deadline exceeded") from error
+        except GenerationWorkerExecutionFailed as error:
+            raise ModelExecutionError("local model generation failed") from error
         except GenerationWorkerProtocolError as error:
             raise ModelExecutionError("generation worker protocol invalid") from error
 

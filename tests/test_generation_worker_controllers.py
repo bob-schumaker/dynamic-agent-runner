@@ -17,6 +17,7 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
 )
 from dynamic_agent_runner.workflow_host.generation_worker import (
     GenerationWorkerLaunchDescriptor,
+    GenerationWorkerExecutionFailed,
     GenerationWorkerLauncher,
     GenerationWorkerPackReceipt,
     GenerationWorkerProtocolError,
@@ -84,6 +85,11 @@ class _CpuBlockingRuntime(_CpuIpcRuntime):
     def generate(self) -> tuple[bytes, int]:
         time.sleep(5)
         return b"{}", 2
+
+
+class _CpuFailingRuntime(_CpuIpcRuntime):
+    def generate(self) -> tuple[bytes, int]:
+        raise RuntimeError("test runtime failure")
 
 
 class _CpuRuntimeFactory:
@@ -495,6 +501,37 @@ def test_cpu_child_blocked_in_generate_is_terminated_at_the_deadline() -> None:
 
     assert reservation.released is True
     assert controller.reap(child, 0.0) is True
+
+
+def test_cpu_child_reports_a_runtime_failure_without_protocol_contents() -> None:
+    base_descriptor = _descriptor(execution_device="cpu")
+    descriptor = replace(
+        base_descriptor,
+        budget=replace(base_descriptor.budget, max_memory_bytes=2**62),
+    )
+    controller = CpuMultiprocessingGenerationWorkerController(
+        runner_id="runner-v1", worker_runtime=_CpuFailingRuntime()
+    )
+    child = controller.launch(descriptor)
+    receipt = GenerationWorkerPackReceipt(
+        invocation_id="invocation-1",
+        invocation_digest=descriptor.invocation_digest,
+        converter_digest=descriptor.converter_asset_digest,
+        material_lock_digest=descriptor.material_lock_digest,
+        execution_device="cpu",
+        fragment_index=0,
+        packed_context_tokens=3,
+    )
+
+    try:
+        assert controller.wait_ready(child, 5.0) is True
+        child.install_bootstrap_limit(descriptor.budget.max_memory_bytes, "cpu")
+        assert child.pack() == 3
+        child.authorize(receipt, 2)
+        with pytest.raises(GenerationWorkerExecutionFailed, match="execution failed"):
+            child.generate()
+    finally:
+        assert controller.reap(child, 1.0) is True
 
 
 def test_cpu_child_rejects_a_result_larger_than_its_authorization() -> None:

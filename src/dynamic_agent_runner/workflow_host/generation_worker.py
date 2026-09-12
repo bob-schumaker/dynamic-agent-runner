@@ -30,6 +30,10 @@ class GenerationWorkerDeadlineExceeded(GenerationWorkerProtocolError):
     """Raised after a deadline path has discarded late worker output."""
 
 
+class GenerationWorkerExecutionFailed(GenerationWorkerProtocolError):
+    """Raised for a redacted terminal failure inside an otherwise valid worker."""
+
+
 @dataclass(frozen=True)
 class GenerationWorkerLaunchDescriptor:
     """Bounded non-executable launch data for the fixed worker entry point."""
