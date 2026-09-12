@@ -151,6 +151,17 @@ gated by the RED-first tasks.
   never serializes `PackedModelInput`, admits the registered
   `GenerationRunnerCapability`, and rejects a missing/incompatible receiver
   capability before launch. Reuse the S3 descriptor/factory conformance suite.
+- [ ] T4.2a [tests, RED] Add typed worker-factory descriptor vectors for generic
+  converter co-location: the factory binds the declared converter identity,
+  digest-verified creator asset, prepared-set identity, and sealed payload only
+  through bounded opaque handles; reject paths, packed inputs, converter
+  objects, callbacks, arbitrary imports, missing handles, and incompatible
+  runner capability before child launch.
+- [ ] T4.2b [implementation] Extend the generic worker-factory and launch
+  descriptor contract with those bound opaque handles. In the child, resolve
+  them after fixed descriptor validation, load the converter only through the
+  existing sealed creator-asset loader and restricted runner context, and keep
+  converter state, sealed payload, and `PackedModelInput` child-private.
 - [ ] T4.3 [implementation] Remove duplicate generation-limit ownership from
   the generic converter-capable adapter, converter, and local-runner paths
   while retaining temporary compatibility aliases at the public request
