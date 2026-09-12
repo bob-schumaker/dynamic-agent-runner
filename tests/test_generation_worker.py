@@ -790,6 +790,16 @@ def test_pack_receipt_rejects_a_malformed_invocation_digest() -> None:
         )
 
 
+def test_worker_result_rejects_a_non_bytes_candidate() -> None:
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        GenerationWorkerResult(  # type: ignore[arg-type]
+            candidate="not-bytes",
+            generated_tokens=1,
+            aggregate_generated_tokens=1,
+            aggregate_output_bytes=1,
+        )
+
+
 def test_worker_rejects_repacking_before_authorization() -> None:
     worker = GenerationWorkerSession(
         invocation_id="invocation-1",

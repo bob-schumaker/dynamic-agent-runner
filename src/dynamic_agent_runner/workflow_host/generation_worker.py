@@ -203,6 +203,20 @@ class GenerationWorkerResult:
     exhausted: bool = False
     packed_context_tokens: int | None = None
 
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.candidate, bytes)
+            or not _nonnegative_int(self.generated_tokens)
+            or not _nonnegative_int(self.aggregate_generated_tokens)
+            or not _nonnegative_int(self.aggregate_output_bytes)
+            or not isinstance(self.exhausted, bool)
+            or (
+                self.packed_context_tokens is not None
+                and not _nonnegative_int(self.packed_context_tokens)
+            )
+        ):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+
 
 class GenerationWorkerSession:
     """Enforce pack, authorization, and one result for one private invocation."""
