@@ -11,8 +11,11 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
     GenerationExecutionHostPolicy,
     GenerationMemoryReservationRequest,
     GenerationResourceBudget,
+    GenerationResourceBudgetCap,
     GenerationResourceBudgetError,
+    GenerationRunnerCapability,
     parse_generation_resource_budget,
+    parse_generation_resource_budget_cap,
     reserve_generation_memory,
     resolve_generation_resource_budget,
     validate_generation_budget_field,
@@ -35,6 +38,20 @@ def _budget(**changes: int) -> GenerationResourceBudget:
             max_memory_bytes=1_024,
         ),
         **changes,
+    )
+
+
+def _runner_capability(**changes: object) -> GenerationRunnerCapability:
+    values = {
+        "runner_id": "runner-v1",
+        "max_effective_context_tokens": 64,
+        "memory_admission_method": "conservative_reservation",
+        "pre_packing_containment_method": "runtime_allocation_limit",
+        "supported_execution_devices": frozenset({"cpu", "mps"}),
+        "cancellation_phases": frozenset({"load", "generate"}),
+    }
+    return GenerationRunnerCapability(
+        **(values | changes),
     )
 
 
@@ -67,10 +84,11 @@ def test_parse_generation_budget_requires_exact_non_boolean_fields() -> None:
 def test_resolver_takes_the_fieldwise_minimum_from_every_source() -> None:
     resolved = resolve_generation_resource_budget(
         declared=_budget(),
-        material_profile=_budget(max_total_generated_tokens=19),
-        runner=_budget(max_effective_context_tokens=63),
+        material_profile=GenerationResourceBudgetCap(max_total_generated_tokens=19),
+        runner_capability=_runner_capability(max_effective_context_tokens=63),
         host=_budget(max_memory_bytes=1_023),
-        sealed_artifact=_budget(max_runtime_milliseconds=999),
+        sealed_artifact_cap=GenerationResourceBudgetCap(max_runtime_milliseconds=999),
+        execution_device="cpu",
     )
 
     assert resolved == _budget(
@@ -81,17 +99,112 @@ def test_resolver_takes_the_fieldwise_minimum_from_every_source() -> None:
     )
 
 
+def test_partial_material_cap_and_runner_capability_limit_only_their_fields() -> None:
+    material_cap = parse_generation_resource_budget_cap(
+        {"max_total_generated_tokens": 19}
+    )
+    runner = _runner_capability(max_effective_context_tokens=63)
+
+    assert material_cap == GenerationResourceBudgetCap(max_total_generated_tokens=19)
+    assert resolve_generation_resource_budget(
+        declared=_budget(),
+        material_profile=material_cap,
+        runner_capability=runner,
+        host=_budget(),
+        execution_device="cpu",
+    ) == _budget(max_total_generated_tokens=19, max_effective_context_tokens=63)
+
+    for invalid in (
+        {},
+        {"max_total_generated_tokens": True},
+        {"max_total_generated_tokens": 0},
+        {"not_a_budget_field": 1},
+    ):
+        with pytest.raises(GenerationResourceBudgetError, match="invalid"):
+            parse_generation_resource_budget_cap(invalid)
+
+
+def test_resolver_rejects_missing_sources_and_uncovered_devices() -> None:
+    for changes in (
+        {"runner_capability": None},
+        {"host": None},
+        {"execution_device": None},
+        {"execution_device": "cuda"},
+        {
+            "sealed_artifact_cap": GenerationResourceBudgetCap(
+                max_total_output_bytes=127
+            )
+        },
+    ):
+        with pytest.raises(GenerationResourceBudgetError, match="unavailable"):
+            resolve_generation_resource_budget(
+                **(
+                    {
+                        "declared": _budget(),
+                        "runner_capability": _runner_capability(),
+                        "host": _budget(),
+                        "execution_device": "cpu",
+                    }
+                    | changes
+                )
+            )
+
+
+def test_runner_capability_requires_one_valid_lifecycle_form() -> None:
+    common = {
+        "runner_id": "runner-v1",
+        "max_effective_context_tokens": 64,
+        "memory_admission_method": "conservative_reservation",
+        "pre_packing_containment_method": "runtime_allocation_limit",
+        "supported_execution_devices": frozenset({"cpu"}),
+    }
+
+    with pytest.raises(GenerationResourceBudgetError, match="invalid"):
+        GenerationRunnerCapability(**common, cancellation_phases=frozenset())
+    with pytest.raises(GenerationResourceBudgetError, match="invalid"):
+        GenerationRunnerCapability(
+            **common,
+            cancellation_phases=frozenset({"load", "generate"}),
+            worker_protocol="generation-worker-v1",
+            bootstrap_hard_limit_method="process_hard_limit",
+            generation_hard_limit_method="process_hard_limit",
+        )
+    with pytest.raises(GenerationResourceBudgetError, match="invalid"):
+        GenerationRunnerCapability(
+            **common,
+            worker_protocol="generation-worker-v1",
+            bootstrap_hard_limit_method="process_hard_limit",
+        )
+
+
 def test_legacy_aliases_only_reduce_fragment_and_continuation_limits() -> None:
     resolved = resolve_generation_resource_budget(
-        declared=_budget(), max_tokens=4, max_continuations=1
+        declared=_budget(),
+        runner_capability=_runner_capability(),
+        host=_budget(),
+        execution_device="cpu",
+        max_tokens=4,
+        max_continuations=1,
     )
 
     assert resolved == _budget(max_new_tokens_per_fragment=4, max_continuations=1)
 
     with pytest.raises(GenerationResourceBudgetError, match="invalid"):
-        resolve_generation_resource_budget(declared=_budget(), max_tokens=9)
+        resolve_generation_resource_budget(
+            declared=_budget(),
+            runner_capability=_runner_capability(),
+            host=_budget(),
+            execution_device="cpu",
+            max_tokens=9,
+        )
     with pytest.raises(GenerationResourceBudgetError, match="invalid"):
-        resolve_generation_resource_budget(declared=_budget(), max_continuations=3)
+        resolve_generation_resource_budget(
+            declared=_budget(),
+            runner_capability=_runner_capability(),
+            host=_budget(),
+            execution_device="cpu",
+            max_continuations=3,
+        )
 
 
 def test_generation_budget_field_is_bound_by_the_canonical_descriptor() -> None:

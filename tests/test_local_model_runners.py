@@ -9,6 +9,9 @@ from dynamic_agent_runner.workflow_host.host import _create_model_adapter
 from dynamic_agent_runner.workflow_host.local_model_runners import (
     LocalModelRunnerCatalog,
 )
+from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    GenerationRunnerCapability,
+)
 from dynamic_agent_runner.workflow_host.profiles import LocalModelProfile
 
 
@@ -30,6 +33,14 @@ def test_host_delegates_a_nonstandard_model_to_the_client_runner() -> None:
 
     class ClientRunner:
         runner_id = profile.runner_id
+        generation_capability = GenerationRunnerCapability(
+            runner_id=runner_id,
+            max_effective_context_tokens=64,
+            memory_admission_method="conservative_reservation",
+            pre_packing_containment_method="runtime_allocation_limit",
+            supported_execution_devices=frozenset({"cpu"}),
+            cancellation_phases=frozenset({"load", "generate"}),
+        )
 
         def create_adapter(self, received_profile, resolve_prepared_set):
             observed.append((received_profile, resolve_prepared_set()))
@@ -99,3 +110,27 @@ def test_client_cannot_register_a_dar_owned_runner_id() -> None:
 
     with pytest.raises(ModelExecutionError, match="unavailable"):
         LocalModelRunnerCatalog((ClientRunner(),))
+
+
+def test_client_runner_requires_an_exact_generation_capability() -> None:
+    class ClientRunner:
+        runner_id = "client-nonstandard-v1"
+
+        def create_adapter(self, profile, resolve_prepared_set):
+            raise AssertionError("must not be called")
+
+    with pytest.raises(ModelExecutionError, match="unavailable"):
+        LocalModelRunnerCatalog((ClientRunner(),))
+
+    class MismatchedRunner(ClientRunner):
+        generation_capability = GenerationRunnerCapability(
+            runner_id="other-runner-v1",
+            max_effective_context_tokens=64,
+            memory_admission_method="conservative_reservation",
+            pre_packing_containment_method="runtime_allocation_limit",
+            supported_execution_devices=frozenset({"cpu"}),
+            cancellation_phases=frozenset({"load", "generate"}),
+        )
+
+    with pytest.raises(ModelExecutionError, match="unavailable"):
+        LocalModelRunnerCatalog((MismatchedRunner(),))

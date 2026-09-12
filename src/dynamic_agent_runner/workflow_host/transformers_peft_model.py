@@ -18,6 +18,7 @@ from dynamic_agent_runner.local_model_preparation import (
 from dynamic_agent_runner.openai_client import ModelResponse, OpenAIModelRequest
 from dynamic_agent_runner.workflow_host.descriptor import DeclaredInputConverter
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    GenerationRunnerCapability,
     GenerationResourceBudget,
     GenerationResourceBudgetError,
     GenerationExecutionHostPolicy,
@@ -30,6 +31,16 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
 
 
 TRANSFORMERS_GENERATE_V1 = "transformers-generate-v1"
+TRANSFORMERS_GENERATE_CAPABILITY = GenerationRunnerCapability(
+    runner_id=TRANSFORMERS_GENERATE_V1,
+    max_effective_context_tokens=1_000_000,
+    memory_admission_method="conservative_reservation",
+    pre_packing_containment_method="runtime_allocation_limit",
+    supported_execution_devices=frozenset({"cpu", "mps"}),
+    worker_protocol="generation-worker-v1",
+    bootstrap_hard_limit_method="runtime_allocation_limit",
+    generation_hard_limit_method="runtime_allocation_limit",
+)
 _CONTINUATION_INSTRUCTION = (
     "Continue the exact response from where it stopped. Return only the remaining text."
 )
@@ -479,8 +490,14 @@ class TransformersPeftPackedInputAdapter:
         try:
             return resolve_generation_resource_budget(
                 declared=self._generation_budget,
+                runner_capability=TRANSFORMERS_GENERATE_CAPABILITY,
                 host=(
                     self._generation_host_policy.ceiling
+                    if self._generation_host_policy is not None
+                    else None
+                ),
+                execution_device=(
+                    self._generation_host_policy.execution_device
                     if self._generation_host_policy is not None
                     else None
                 ),

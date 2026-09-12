@@ -7,6 +7,9 @@ from typing import Protocol
 
 from dynamic_agent_runner.errors import ModelExecutionError
 from dynamic_agent_runner.local_model_preparation import PreparedArtifactSet
+from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    GenerationRunnerCapability,
+)
 from dynamic_agent_runner.workflow_host.profiles import LocalModelProfile
 
 
@@ -17,6 +20,7 @@ class LocalModelRunner(Protocol):
     """One client-owned factory that turns a prepared set into a model adapter."""
 
     runner_id: str
+    generation_capability: GenerationRunnerCapability
 
     def create_adapter(
         self,
@@ -37,6 +41,11 @@ class LocalModelRunnerCatalog:
             if (
                 runner.runner_id in resolved
                 or runner.runner_id in _DAR_OWNED_RUNNER_IDS
+                or not isinstance(
+                    getattr(runner, "generation_capability", None),
+                    GenerationRunnerCapability,
+                )
+                or runner.generation_capability.runner_id != runner.runner_id
             ):
                 raise ModelExecutionError("local model runner is unavailable")
             resolved[runner.runner_id] = runner

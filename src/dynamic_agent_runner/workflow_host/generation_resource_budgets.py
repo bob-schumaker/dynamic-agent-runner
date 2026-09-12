@@ -144,6 +144,94 @@ class GenerationResourceBudget:
 
 
 _FIELD_NAMES = frozenset(field.name for field in fields(GenerationResourceBudget))
+_OUTER_CAP_FIELDS = frozenset({"max_runtime_milliseconds", "max_memory_bytes"})
+_MEMORY_ADMISSION_METHODS = frozenset(
+    {
+        "conservative_reservation",
+        "process_hard_limit",
+        "runtime_allocation_limit",
+    }
+)
+_PRE_PACKING_CONTAINMENT_METHODS = frozenset(
+    {"process_hard_limit", "runtime_allocation_limit"}
+)
+_HARD_LIMIT_METHODS = _PRE_PACKING_CONTAINMENT_METHODS
+
+
+@dataclass(frozen=True)
+class GenerationResourceBudgetCap:
+    """A strict partial cap record from selected materials or an outer artifact."""
+
+    max_new_tokens_per_fragment: int | None = None
+    max_continuations: int | None = None
+    max_total_generated_tokens: int | None = None
+    max_total_output_bytes: int | None = None
+    max_effective_context_tokens: int | None = None
+    max_runtime_milliseconds: int | None = None
+    max_memory_bytes: int | None = None
+
+    def __post_init__(self) -> None:
+        if not any(getattr(self, field) is not None for field in _FIELD_NAMES):
+            raise GenerationResourceBudgetError("generation budget is invalid")
+        for field in _FIELD_NAMES:
+            value = getattr(self, field)
+            if value is None:
+                continue
+            minimum = 0 if field == "max_continuations" else 1
+            if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
+                raise GenerationResourceBudgetError("generation budget is invalid")
+
+
+@dataclass(frozen=True)
+class GenerationRunnerCapability:
+    """Reviewed runner facts needed before a bounded generation starts."""
+
+    runner_id: str
+    max_effective_context_tokens: int
+    memory_admission_method: str
+    pre_packing_containment_method: str
+    supported_execution_devices: frozenset[str]
+    cancellation_phases: frozenset[str] = frozenset()
+    worker_protocol: str | None = None
+    bootstrap_hard_limit_method: str | None = None
+    generation_hard_limit_method: str | None = None
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.runner_id, str)
+            or not self.runner_id
+            or not _positive_int(self.max_effective_context_tokens)
+            or self.memory_admission_method not in _MEMORY_ADMISSION_METHODS
+            or self.pre_packing_containment_method
+            not in _PRE_PACKING_CONTAINMENT_METHODS
+            or not isinstance(self.supported_execution_devices, frozenset)
+            or not self.supported_execution_devices
+            or any(
+                not isinstance(device, str) or not device
+                for device in self.supported_execution_devices
+            )
+            or not isinstance(self.cancellation_phases, frozenset)
+        ):
+            raise GenerationResourceBudgetError("generation budget is invalid")
+        cancellation = self.cancellation_phases == frozenset({"load", "generate"})
+        worker = (
+            self.worker_protocol == "generation-worker-v1"
+            and self.bootstrap_hard_limit_method in _HARD_LIMIT_METHODS
+            and self.generation_hard_limit_method in _HARD_LIMIT_METHODS
+        )
+        worker_fields_present = any(
+            value is not None
+            for value in (
+                self.worker_protocol,
+                self.bootstrap_hard_limit_method,
+                self.generation_hard_limit_method,
+            )
+        )
+        if (cancellation and not worker_fields_present) or (
+            worker and not self.cancellation_phases
+        ):
+            return
+        raise GenerationResourceBudgetError("generation budget is invalid")
 
 
 def parse_generation_resource_budget(value: object) -> GenerationResourceBudget:
@@ -153,6 +241,17 @@ def parse_generation_resource_budget(value: object) -> GenerationResourceBudget:
         raise GenerationResourceBudgetError("generation budget is invalid")
     try:
         return GenerationResourceBudget(**dict(value))
+    except (TypeError, GenerationResourceBudgetError) as error:
+        raise GenerationResourceBudgetError("generation budget is invalid") from error
+
+
+def parse_generation_resource_budget_cap(value: object) -> GenerationResourceBudgetCap:
+    """Parse one strict partial material/profile generation cap record."""
+
+    if not isinstance(value, Mapping) or not value or not set(value) <= _FIELD_NAMES:
+        raise GenerationResourceBudgetError("generation budget is invalid")
+    try:
+        return GenerationResourceBudgetCap(**dict(value))
     except (TypeError, GenerationResourceBudgetError) as error:
         raise GenerationResourceBudgetError("generation budget is invalid") from error
 
@@ -197,25 +296,54 @@ def reserve_generation_memory(
 def resolve_generation_resource_budget(
     *,
     declared: GenerationResourceBudget,
-    material_profile: GenerationResourceBudget | None = None,
-    runner: GenerationResourceBudget | None = None,
+    material_profile: GenerationResourceBudgetCap | None = None,
+    runner_capability: GenerationRunnerCapability | None = None,
     host: GenerationResourceBudget | None = None,
-    sealed_artifact: GenerationResourceBudget | None = None,
+    sealed_artifact_cap: GenerationResourceBudgetCap | None = None,
+    execution_device: str | None = None,
     max_tokens: object | None = None,
     max_continuations: object | None = None,
 ) -> GenerationResourceBudget:
-    """Resolve the strict fieldwise minimum and reducing legacy aliases."""
+    """Resolve declared limits against their typed, applicable caps."""
 
-    sources = (declared, material_profile, runner, host, sealed_artifact)
-    if any(
-        source is not None and not isinstance(source, GenerationResourceBudget)
-        for source in sources
+    if (
+        not isinstance(declared, GenerationResourceBudget)
+        or not isinstance(runner_capability, GenerationRunnerCapability)
+        or not isinstance(host, GenerationResourceBudget)
+        or not isinstance(execution_device, str)
+        or not execution_device
+        or execution_device not in runner_capability.supported_execution_devices
+        or (
+            material_profile is not None
+            and not isinstance(material_profile, GenerationResourceBudgetCap)
+        )
+        or (
+            sealed_artifact_cap is not None
+            and not isinstance(sealed_artifact_cap, GenerationResourceBudgetCap)
+        )
+        or (
+            sealed_artifact_cap is not None
+            and any(
+                getattr(sealed_artifact_cap, field) is not None
+                for field in _FIELD_NAMES - _OUTER_CAP_FIELDS
+            )
+        )
     ):
         raise GenerationResourceBudgetError("generation budget is unavailable")
-    resolved = {
-        field: min(getattr(source, field) for source in sources if source is not None)
-        for field in _FIELD_NAMES
-    }
+    resolved: dict[str, int] = {}
+    for field in _FIELD_NAMES:
+        limits = [getattr(declared, field), getattr(host, field)]
+        if material_profile is not None:
+            cap = getattr(material_profile, field)
+            if cap is not None:
+                limits.append(cap)
+        if sealed_artifact_cap is not None:
+            cap = getattr(sealed_artifact_cap, field)
+            if cap is not None:
+                limits.append(cap)
+        if field == "max_effective_context_tokens":
+            limits.append(runner_capability.max_effective_context_tokens)
+        resolved[field] = min(limits)
     _reduce_legacy_limit(
         resolved,
         field="max_new_tokens_per_fragment",
