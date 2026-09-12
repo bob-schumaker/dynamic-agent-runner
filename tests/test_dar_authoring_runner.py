@@ -1212,6 +1212,8 @@ def test_runner_retains_and_loads_debug_fragments_for_the_local_owner(
         exhausted = True
         generated_tokens = 3
         packed_context_tokens = 3
+        elapsed_milliseconds = 42
+        stop_classification = "completed"
         runner_max_new_tokens = 65_536
         backend_max_new_tokens = 65_536
 
@@ -1231,6 +1233,8 @@ def test_runner_retains_and_loads_debug_fragments_for_the_local_owner(
     assert diagnostic.fragments[0].generated_tokens == 3
     assert diagnostic.fragments[0].output_bytes == len(b'{"walls":[')
     assert diagnostic.fragments[0].packed_context_tokens == 3
+    assert diagnostic.fragments[0].elapsed_milliseconds == 42
+    assert diagnostic.fragments[0].stop_classification == "completed"
     assert diagnostic.terminal is None
     assert diagnostic.retention_limited is False
 

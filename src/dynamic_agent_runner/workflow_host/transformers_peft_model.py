@@ -122,6 +122,8 @@ class GenerationDebugFragment:
     generated_tokens: int | None
     output_bytes: int
     packed_context_tokens: int | None = None
+    elapsed_milliseconds: int | None = None
+    stop_classification: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1556,6 +1558,7 @@ class DeferredTransformersPeftSingleImageAdapter:
                 messages=messages,
                 fragment_index=fragment_index,
             )
+            fragment_started_at = time.monotonic()
             result = self._run_worker_fragment(
                 factory=factory,
                 controller=controller,
@@ -1563,6 +1566,9 @@ class DeferredTransformersPeftSingleImageAdapter:
                 deadline=deadline,
                 host_policy=host_policy,
                 remaining_generated_tokens=remaining_generated_tokens,
+            )
+            elapsed_milliseconds = max(
+                int((time.monotonic() - fragment_started_at) * 1_000), 0
             )
             try:
                 fragment = result.candidate.decode("utf-8")
@@ -1587,6 +1593,16 @@ class DeferredTransformersPeftSingleImageAdapter:
                         generated_tokens=result.generated_tokens,
                         output_bytes=len(result.candidate),
                         packed_context_tokens=result.packed_context_tokens,
+                        elapsed_milliseconds=elapsed_milliseconds,
+                        stop_classification=(
+                            "completed"
+                            if not result.exhausted
+                            else (
+                                "continuation_limit_exceeded"
+                                if fragment_index == budget.max_continuations
+                                else "continuation"
+                            )
+                        ),
                     )
                 )
             fragments.append(fragment)

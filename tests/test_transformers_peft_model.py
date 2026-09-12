@@ -1064,15 +1064,15 @@ def test_deferred_worker_adapter_records_only_verified_fragment_facts(
     )
 
     assert response.content == "ok"
-    assert facts == [
-        GenerationDebugFragment(
-            fragment_index=0,
-            exhausted=False,
-            generated_tokens=1,
-            output_bytes=2,
-            packed_context_tokens=3,
-        )
-    ]
+    assert len(facts) == 1
+    assert facts[0].fragment_index == 0
+    assert facts[0].exhausted is False
+    assert facts[0].generated_tokens == 1
+    assert facts[0].output_bytes == 2
+    assert facts[0].packed_context_tokens == 3
+    assert facts[0].stop_classification == "completed"
+    assert isinstance(facts[0].elapsed_milliseconds, int)
+    assert facts[0].elapsed_milliseconds >= 0
 
 
 def test_deferred_worker_adapter_rejects_a_factory_budget_broader_than_effective() -> (

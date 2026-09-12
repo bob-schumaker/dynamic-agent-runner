@@ -196,6 +196,8 @@ class DebugGeneratedFragment:
     generated_tokens: int | None
     output_bytes: int
     packed_context_tokens: int | None
+    elapsed_milliseconds: int | None
+    stop_classification: str | None
 
 
 @dataclass(frozen=True)
@@ -243,6 +245,8 @@ class _DebugDiagnosticCollector:
         generated_tokens = getattr(value, "generated_tokens", None)
         output_bytes = getattr(value, "output_bytes", None)
         packed_context_tokens = getattr(value, "packed_context_tokens", None)
+        elapsed_milliseconds = getattr(value, "elapsed_milliseconds", None)
+        stop_classification = getattr(value, "stop_classification", None)
         if output_bytes is None and isinstance(content, str):
             output_bytes = len(content.encode("utf-8"))
         if (
@@ -251,6 +255,8 @@ class _DebugDiagnosticCollector:
             or not _optional_nonnegative_int(generated_tokens)
             or not _nonnegative_int(output_bytes)
             or not _optional_nonnegative_int(packed_context_tokens)
+            or not _optional_nonnegative_int(elapsed_milliseconds)
+            or not _optional_stop_classification(stop_classification)
         ):
             self.retention_limited = True
             return
@@ -261,6 +267,8 @@ class _DebugDiagnosticCollector:
                 generated_tokens,
                 output_bytes,
                 packed_context_tokens,
+                elapsed_milliseconds,
+                stop_classification,
             )
         )
 
@@ -935,6 +943,8 @@ class WorkflowRunner:
                             "generated_tokens": fragment.generated_tokens,
                             "output_bytes": fragment.output_bytes,
                             "packed_context_tokens": fragment.packed_context_tokens,
+                            "elapsed_milliseconds": fragment.elapsed_milliseconds,
+                            "stop_classification": fragment.stop_classification,
                         }
                         for fragment in collector.fragments
                     ],
@@ -1516,6 +1526,8 @@ def _debug_diagnostic(payload: Mapping[str, object]) -> DebugWorkflowDiagnostic:
         generated_tokens = fragment.get("generated_tokens")
         output_bytes = fragment.get("output_bytes")
         packed_context_tokens = fragment.get("packed_context_tokens")
+        elapsed_milliseconds = fragment.get("elapsed_milliseconds")
+        stop_classification = fragment.get("stop_classification")
         if (
             set(fragment)
             != {
@@ -1524,12 +1536,16 @@ def _debug_diagnostic(payload: Mapping[str, object]) -> DebugWorkflowDiagnostic:
                 "generated_tokens",
                 "output_bytes",
                 "packed_context_tokens",
+                "elapsed_milliseconds",
+                "stop_classification",
             }
             or not _nonnegative_int(fragment_index)
             or not isinstance(exhausted, bool)
             or not _optional_nonnegative_int(generated_tokens)
             or not _nonnegative_int(output_bytes)
             or not _optional_nonnegative_int(packed_context_tokens)
+            or not _optional_nonnegative_int(elapsed_milliseconds)
+            or not _optional_stop_classification(stop_classification)
         ):
             raise RunDarWorkflowError("debug diagnostic is unavailable")
         parsed.append(
@@ -1539,6 +1555,8 @@ def _debug_diagnostic(payload: Mapping[str, object]) -> DebugWorkflowDiagnostic:
                 generated_tokens,
                 output_bytes,
                 packed_context_tokens,
+                elapsed_milliseconds,
+                stop_classification,
             )
         )
     terminal = (
@@ -1553,6 +1571,14 @@ def _debug_diagnostic(payload: Mapping[str, object]) -> DebugWorkflowDiagnostic:
 
 def _optional_nonnegative_int(value: object) -> bool:
     return value is None or _nonnegative_int(value)
+
+
+def _optional_stop_classification(value: object) -> bool:
+    return value is None or value in {
+        "completed",
+        "continuation",
+        "continuation_limit_exceeded",
+    }
 
 
 def _nonnegative_int(value: object) -> bool:
