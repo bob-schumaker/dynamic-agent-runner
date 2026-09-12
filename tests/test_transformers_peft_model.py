@@ -286,6 +286,52 @@ def test_deferred_adapter_requires_a_manifest_bound_converter_package(
     adapter.clear_sealed_payload()
 
 
+def test_deferred_adapter_accepts_only_the_exact_worker_capability_binding() -> None:
+    from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+        GenerationRunnerCapability,
+    )
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+        TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id="model", adapter_id="adapter", resolve_prepared_set=lambda: object()
+    )
+
+    class Factory:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        capability = TRANSFORMERS_GENERATE_CAPABILITY
+
+        def create_launch_descriptor(self) -> object:
+            return object()
+
+    class Controller:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        supported_execution_devices = frozenset({"cpu", "mps"})
+
+    adapter.bind_generation_worker(
+        factory=Factory(),
+        controller=Controller(),
+        capability=TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+    assert adapter._generation_worker_factory is not None
+
+    with pytest.raises(ModelExecutionError, match="unavailable"):
+        adapter.bind_generation_worker(
+            factory=Factory(),
+            controller=Controller(),
+            capability=GenerationRunnerCapability(
+                runner_id="wrong",
+                max_effective_context_tokens=1,
+                memory_admission_method="conservative_reservation",
+                pre_packing_containment_method="runtime_allocation_limit",
+                supported_execution_devices=frozenset({"cpu"}),
+                cancellation_phases=frozenset({"load", "generate"}),
+            ),
+        )
+
+
 def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
     tmp_path: Path,
 ) -> None:

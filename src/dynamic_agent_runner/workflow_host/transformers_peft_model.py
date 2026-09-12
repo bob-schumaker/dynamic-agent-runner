@@ -300,6 +300,8 @@ class TransformersPeftPackedInputAdapter:
         self._debug_fragment_recorder: (
             Callable[[GenerationDebugFragment], None] | None
         ) = None
+        self._generation_worker_factory: object | None = None
+        self._generation_worker_controller: object | None = None
         self._debug_fragment_index = 0
 
     @property
@@ -1073,6 +1075,8 @@ class DeferredTransformersPeftSingleImageAdapter:
         self._debug_fragment_recorder: (
             Callable[[GenerationDebugFragment], None] | None
         ) = None
+        self._generation_worker_factory: object | None = None
+        self._generation_worker_controller: object | None = None
 
     @property
     def input_converter_contract_id(self) -> str:
@@ -1161,6 +1165,28 @@ class DeferredTransformersPeftSingleImageAdapter:
         except GenerationResourceBudgetError as error:
             raise ModelExecutionError("model generation budget is invalid") from error
         self._packed_adapter = None
+
+    def bind_generation_worker(
+        self, *, factory: object, controller: object, capability: object
+    ) -> None:
+        """Bind only the reviewed worker pair for the compatible runner."""
+
+        if (
+            self._generation_worker_factory is not None
+            or capability is not TRANSFORMERS_GENERATE_CAPABILITY
+            or getattr(factory, "runner_id", None) != capability.runner_id
+            or getattr(factory, "capability", None) is not capability
+            or not callable(getattr(factory, "create_launch_descriptor", None))
+            or getattr(controller, "runner_id", None) != capability.runner_id
+            or not isinstance(
+                getattr(controller, "supported_execution_devices", None), frozenset
+            )
+            or not capability.supported_execution_devices
+            <= controller.supported_execution_devices
+        ):
+            raise ModelExecutionError("local model runner is unavailable")
+        self._generation_worker_factory = factory
+        self._generation_worker_controller = controller
 
     def bind_sealed_payload(self, *, content: bytes) -> None:
         if self._payload_bound:
