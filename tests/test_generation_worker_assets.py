@@ -165,7 +165,10 @@ def _co_located_arguments(tmp_path, *, now: datetime) -> dict[str, object]:
         {"base_config": artifact_path},
     )
     return {
-        "descriptor": _descriptor(asset_handles=("placeholder",)),
+        "descriptor": replace(
+            _descriptor(asset_handles=("placeholder",)),
+            converter_asset_digest=converter.asset_digest,
+        ),
         "package_root": package_root,
         "converter": converter,
         "prepared_set": prepared_set,
@@ -184,7 +187,7 @@ def test_co_located_handle_binds_converter_material_and_sealed_payload(
 
     service = _service(tmp_path)
     handle = service.issue_co_located(**arguments)
-    descriptor = _descriptor(asset_handles=(handle,))
+    descriptor = replace(arguments["descriptor"], asset_handles=(handle,))
 
     assets = service.resolve_co_located(handle=handle, descriptor=descriptor, now=now)
 
