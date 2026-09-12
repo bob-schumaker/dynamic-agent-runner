@@ -1077,6 +1077,9 @@ class DeferredTransformersPeftSingleImageAdapter:
         ) = None
         self._generation_worker_factory: object | None = None
         self._generation_worker_controller: object | None = None
+        self._worker_converter_package_root: Path | None = None
+        self._worker_converter: DeclaredInputConverter | None = None
+        self._worker_sealed_payload: bytes | None = None
 
     @property
     def input_converter_contract_id(self) -> str:
@@ -1196,9 +1199,33 @@ class DeferredTransformersPeftSingleImageAdapter:
         self._resolved_packed_adapter().bind_sealed_payload(content=content)
         self._payload_bound = True
 
+    def bind_worker_converter_payload(
+        self, *, package_root: Path, converter: DeclaredInputConverter, content: bytes
+    ) -> None:
+        """Retain sealed converter inputs for child-only construction."""
+
+        if (
+            self._payload_bound
+            or self._generation_worker_factory is None
+            or not isinstance(package_root, Path)
+            or not isinstance(converter, DeclaredInputConverter)
+            or converter.compatible_runner_contract_id != TRANSFORMERS_GENERATE_V1
+            or not isinstance(content, bytes)
+            or not content
+            or len(content) > converter.max_input_bytes
+        ):
+            raise ModelExecutionError("sealed converter input is unavailable")
+        self._worker_converter_package_root = package_root
+        self._worker_converter = converter
+        self._worker_sealed_payload = content
+        self._payload_bound = True
+
     def clear_sealed_payload(self) -> None:
         if self._packed_adapter is not None:
             self._packed_adapter.clear_sealed_payload()
+        self._worker_converter_package_root = None
+        self._worker_converter = None
+        self._worker_sealed_payload = None
         self._payload_bound = False
 
     def set_debug_fragment_recorder(

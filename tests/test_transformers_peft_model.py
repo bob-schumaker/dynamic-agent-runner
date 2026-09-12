@@ -335,6 +335,54 @@ def test_deferred_adapter_accepts_only_the_exact_worker_capability_binding() -> 
         )
 
 
+def test_deferred_worker_adapter_defers_converter_loading_until_child_start(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+        TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id="model", adapter_id="adapter", resolve_prepared_set=lambda: object()
+    )
+
+    class Factory:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        capability = TRANSFORMERS_GENERATE_CAPABILITY
+
+        def create_launch_descriptor(self) -> object:
+            return object()
+
+    class Controller:
+        runner_id = TRANSFORMERS_GENERATE_CAPABILITY.runner_id
+        supported_execution_devices = frozenset({"cpu", "mps"})
+
+    adapter.bind_generation_worker(
+        factory=Factory(),
+        controller=Controller(),
+        capability=TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+    converter = DeclaredInputConverter(
+        converter_id="converter-v1",
+        converter_contract_version="1",
+        compatible_runner_contract_id="transformers-generate-v1",
+        entrypoint="converter.py",
+        asset_digest="a" * 64,
+        max_input_bytes=64,
+        max_output_bytes=64,
+        timeout_seconds=1,
+    )
+
+    adapter.bind_worker_converter_payload(
+        package_root=tmp_path, converter=converter, content=b"sealed"
+    )
+
+    assert adapter._worker_converter_package_root == tmp_path
+    assert adapter._worker_converter == converter
+    assert adapter._worker_sealed_payload == b"sealed"
+
+
 def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
     tmp_path: Path,
 ) -> None:
