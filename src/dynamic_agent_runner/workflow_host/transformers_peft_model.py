@@ -33,8 +33,12 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
 from dynamic_agent_runner.workflow_host.generation_worker import (
     GenerationWorkerLaunchDescriptor,
     GenerationWorkerLauncher,
+    GenerationWorkerPackReceipt,
     GenerationWorkerProtocolError,
     GenerationWorkerSession,
+)
+from dynamic_agent_runner.workflow_host.generation_worker_assets import (
+    GenerationWorkerCoLocatedAssets,
 )
 
 
@@ -279,6 +283,122 @@ class TransformersGenerateRunner:
         """Return whether the loaded backend selected the Apple MPS device."""
 
         return bool(getattr(self._get_backend(), "uses_mps", False))
+
+
+class TransformersPeftGenerationWorkerRuntime:
+    """Child-private converter, packed input, and compatible runner state."""
+
+    def __init__(
+        self,
+        *,
+        assets: GenerationWorkerCoLocatedAssets,
+        converter: PackedInputConverter,
+        runner: TransformersGenerateRunner,
+    ) -> None:
+        self._assets = assets
+        self._converter = converter
+        self._runner = runner
+        self._packed: PackedModelInput | None = None
+        self._remaining_generated_tokens: int | None = None
+
+    def install_bootstrap_limit(
+        self, max_memory_bytes: int, execution_device: str
+    ) -> None:
+        if (
+            not isinstance(max_memory_bytes, int)
+            or isinstance(max_memory_bytes, bool)
+            or max_memory_bytes < 1
+            or execution_device
+            not in TRANSFORMERS_GENERATE_CAPABILITY.supported_execution_devices
+        ):
+            raise ModelExecutionError("model generation budget is unavailable")
+
+    def pack(self) -> int:
+        if self._packed is not None:
+            raise ModelExecutionError("packed model input is unavailable")
+        packed = self._converter.pack(
+            messages=self._assets.messages,
+            payload=self._assets.sealed_payload,
+            context=self._runner.input_context,
+        )
+        if not isinstance(packed, PackedModelInput):
+            raise ModelExecutionError("packed model input is unavailable")
+        inputs = packed.take()
+        input_ids = inputs.get("input_ids") if isinstance(inputs, Mapping) else None
+        shape = getattr(input_ids, "shape", None)
+        if (
+            not isinstance(shape, Sequence)
+            or len(shape) < 2
+            or not isinstance(shape[-1], int)
+            or isinstance(shape[-1], bool)
+            or shape[-1] < 0
+        ):
+            packed.clear()
+            raise ModelExecutionError("model generation context is unavailable")
+        self._packed = packed
+        return shape[-1]
+
+    def authorize(
+        self, receipt: GenerationWorkerPackReceipt, remaining_generated_tokens: int
+    ) -> None:
+        if (
+            self._packed is None
+            or not isinstance(receipt, GenerationWorkerPackReceipt)
+            or not isinstance(remaining_generated_tokens, int)
+            or isinstance(remaining_generated_tokens, bool)
+            or remaining_generated_tokens < 1
+        ):
+            raise ModelExecutionError("generation worker protocol invalid")
+        self._remaining_generated_tokens = remaining_generated_tokens
+
+    def generate(self) -> tuple[bytes, int, int, int, bool]:
+        packed = self._packed
+        remaining_generated_tokens = self._remaining_generated_tokens
+        self._packed = None
+        self._remaining_generated_tokens = None
+        if packed is None or remaining_generated_tokens is None:
+            raise ModelExecutionError("generation worker protocol invalid")
+        try:
+            generated = self._runner.generate_chunk(
+                packed, max_new_tokens=remaining_generated_tokens
+            )
+            generated_tokens = generated.generated_tokens
+            if (
+                not isinstance(generated_tokens, int)
+                or isinstance(generated_tokens, bool)
+                or generated_tokens < 0
+                or generated_tokens > remaining_generated_tokens
+            ):
+                raise ModelExecutionError("generation worker protocol invalid")
+            candidate = generated.content.encode("utf-8")
+            return (
+                candidate,
+                generated_tokens,
+                generated_tokens,
+                len(candidate),
+                generated.exhausted,
+            )
+        finally:
+            packed.clear()
+
+
+class TransformersPeftGenerationWorkerRuntimeFactory:
+    """Receiver-installed child constructor for the Transformers conformance fixture."""
+
+    def create_runtime(
+        self, *, assets: GenerationWorkerCoLocatedAssets, converter: object
+    ) -> TransformersPeftGenerationWorkerRuntime:
+        if not isinstance(assets, GenerationWorkerCoLocatedAssets) or not callable(
+            getattr(converter, "pack", None)
+        ):
+            raise ModelExecutionError("generation worker protocol invalid")
+        return TransformersPeftGenerationWorkerRuntime(
+            assets=assets,
+            converter=converter,
+            runner=TransformersGenerateRunner(
+                assets.prepared_set, processor_loader=_load_default_processor
+            ),
+        )
 
 
 class TransformersPeftPackedInputAdapter:

@@ -728,6 +728,91 @@ def test_deferred_worker_adapter_continues_with_parent_aggregate_accounting(
     )
 
 
+def test_transformers_worker_runtime_keeps_converter_and_packed_input_in_child(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.generation_worker import (
+        GenerationWorkerPackReceipt,
+    )
+    from dynamic_agent_runner.workflow_host.generation_worker_assets import (
+        GenerationWorkerCoLocatedAssets,
+    )
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        GeneratedText,
+        PackedModelInput,
+        TransformersPeftGenerationWorkerRuntimeFactory,
+    )
+
+    packed = PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 3))})
+    events: list[str] = []
+
+    class Converter:
+        def pack(self, **kwargs: object) -> PackedModelInput:
+            assert kwargs["messages"] == ({"role": "user", "content": "go"},)
+            assert kwargs["payload"] == b"sealed"
+            events.append("pack")
+            return packed
+
+    class Runner:
+        input_context = object()
+
+        def __init__(self, _prepared_set: object, **kwargs: object) -> None:
+            assert callable(kwargs["processor_loader"])
+            events.append("runner")
+
+        def generate_chunk(
+            self, received: PackedModelInput, *, max_new_tokens: int
+        ) -> GeneratedText:
+            assert received is packed
+            assert max_new_tokens == 4
+            events.append("generate")
+            return GeneratedText("answer", exhausted=True, generated_tokens=2)
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.transformers_peft_model.TransformersGenerateRunner",
+        Runner,
+    )
+    assets = GenerationWorkerCoLocatedAssets(
+        package_root=tmp_path,
+        converter=DeclaredInputConverter(
+            converter_id="converter-v1",
+            converter_contract_version="1",
+            compatible_runner_contract_id="transformers-generate-v1",
+            entrypoint="converter.py",
+            asset_digest="a" * 64,
+            max_input_bytes=64,
+            max_output_bytes=64,
+            timeout_seconds=1,
+        ),
+        prepared_set=SimpleNamespace(),
+        messages=({"role": "user", "content": "go"},),
+        sealed_payload=b"sealed",
+    )
+    runtime = TransformersPeftGenerationWorkerRuntimeFactory().create_runtime(
+        assets=assets, converter=Converter()
+    )
+
+    runtime.install_bootstrap_limit(1_024, "cpu")
+    assert runtime.pack() == 3
+    runtime.authorize(
+        GenerationWorkerPackReceipt(
+            invocation_id="invocation",
+            invocation_digest="a" * 64,
+            converter_digest="a" * 64,
+            material_lock_digest="b" * 64,
+            execution_device="cpu",
+            fragment_index=0,
+            packed_context_tokens=3,
+        ),
+        4,
+    )
+
+    assert runtime.generate() == (b"answer", 2, 2, len(b"answer"), True)
+    assert packed.is_cleared is True
+    assert events == ["runner", "pack", "generate"]
+
+
 def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
     tmp_path: Path,
 ) -> None:
