@@ -260,6 +260,84 @@ def test_cpu_child_transports_pack_authorize_and_generate_frames() -> None:
         assert controller.reap(child, 1.0) is True
 
 
+def test_cpu_worker_requires_its_bound_transcript_identity_on_every_frame() -> None:
+    from dynamic_agent_runner.workflow_host import generation_worker_controllers
+
+    descriptor = _descriptor(execution_device="cpu")
+    runtime = _CpuIpcRuntime()
+    pack_request = {
+        "type": "pack",
+        "max_memory_bytes": descriptor.budget.max_memory_bytes,
+        "execution_device": "cpu",
+    }
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        generation_worker_controllers._cpu_worker_response(
+            request=pack_request,
+            descriptor=descriptor,
+            worker_runtime=runtime,
+            packed_context_tokens=None,
+            authorized_remaining_generated_tokens=None,
+        )
+
+    pack_request |= {
+        "invocation_digest": descriptor.invocation_digest,
+        "fragment_index": descriptor.fragment_index,
+    }
+    packed = generation_worker_controllers._cpu_worker_response(
+        request=pack_request,
+        descriptor=descriptor,
+        worker_runtime=runtime,
+        packed_context_tokens=None,
+        authorized_remaining_generated_tokens=None,
+    )
+    receipt = GenerationWorkerPackReceipt(
+        invocation_id="invocation-1",
+        invocation_digest=descriptor.invocation_digest,
+        converter_digest=descriptor.converter_asset_digest,
+        material_lock_digest=descriptor.material_lock_digest,
+        execution_device="cpu",
+        fragment_index=descriptor.fragment_index,
+        packed_context_tokens=packed["packed_context_tokens"],
+    )
+    authorize_request = {
+        "type": "authorize",
+        "invocation_digest": descriptor.invocation_digest,
+        "fragment_index": descriptor.fragment_index + 1,
+        "receipt": generation_worker_controllers._receipt_to_wire(receipt),
+        "remaining_generated_tokens": 2,
+    }
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        generation_worker_controllers._cpu_worker_response(
+            request=authorize_request,
+            descriptor=descriptor,
+            worker_runtime=runtime,
+            packed_context_tokens=packed["packed_context_tokens"],
+            authorized_remaining_generated_tokens=None,
+        )
+
+    authorize_request["fragment_index"] = descriptor.fragment_index
+    generation_worker_controllers._cpu_worker_response(
+        request=authorize_request,
+        descriptor=descriptor,
+        worker_runtime=runtime,
+        packed_context_tokens=packed["packed_context_tokens"],
+        authorized_remaining_generated_tokens=None,
+    )
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        generation_worker_controllers._cpu_worker_response(
+            request={
+                "type": "generate",
+                "invocation_digest": "f" * 64,
+                "fragment_index": descriptor.fragment_index,
+            },
+            descriptor=descriptor,
+            worker_runtime=runtime,
+            packed_context_tokens=packed["packed_context_tokens"],
+            authorized_remaining_generated_tokens=2,
+        )
+
+
 def test_cpu_child_constructs_a_runtime_only_after_child_bootstrap() -> None:
     base_descriptor = _descriptor(execution_device="cpu")
     descriptor = replace(

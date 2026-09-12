@@ -83,6 +83,8 @@ class _CpuWorkerChild:
     command_connection: object
     response_connection: object
     ready_connection: object
+    invocation_digest: str
+    fragment_index: int
     _deadline_timeout: float | None = None
 
     def install_bootstrap_limit(
@@ -91,6 +93,7 @@ class _CpuWorkerChild:
         self._request(
             {
                 "type": "pack",
+                **self._transcript_fields(),
                 "max_memory_bytes": max_memory_bytes,
                 "execution_device": execution_device,
             },
@@ -114,6 +117,7 @@ class _CpuWorkerChild:
         self._request(
             {
                 "type": "authorize",
+                **self._transcript_fields(),
                 "receipt": _receipt_to_wire(receipt),
                 "remaining_generated_tokens": remaining_generated_tokens,
             },
@@ -129,7 +133,9 @@ class _CpuWorkerChild:
         | tuple[bytes, int, int, int, bool]
     ):
         response = self._request(
-            {"type": "generate"}, "result", timeout=self._deadline_timeout
+            {"type": "generate", **self._transcript_fields()},
+            "result",
+            timeout=self._deadline_timeout,
         )
         candidate = response.get("candidate")
         generated_tokens = response.get("generated_tokens")
@@ -235,6 +241,12 @@ class _CpuWorkerChild:
         self._last_response = response
         return response
 
+    def _transcript_fields(self) -> dict[str, object]:
+        return {
+            "invocation_digest": self.invocation_digest,
+            "fragment_index": self.fragment_index,
+        }
+
     def set_deadline_timeout(self, timeout: float) -> None:
         """Bound the next result wait by the parent's remaining deadline."""
 
@@ -303,6 +315,8 @@ class CpuMultiprocessingGenerationWorkerController:
                 command_connection=parent_command,
                 response_connection=response_receiver,
                 ready_connection=ready_receiver,
+                invocation_digest=descriptor.invocation_digest,
+                fragment_index=descriptor.fragment_index,
             )
         except Exception as error:
             raise GenerationResourceBudgetError(
@@ -683,7 +697,11 @@ def _cpu_worker_response(
     packed_context_tokens: int | None,
     authorized_remaining_generated_tokens: int | None,
 ) -> dict[str, object]:
-    if worker_runtime is None or not isinstance(request, Mapping):
+    if (
+        worker_runtime is None
+        or not isinstance(request, Mapping)
+        or not _matches_descriptor_transcript(request, descriptor)
+    ):
         raise GenerationWorkerProtocolError("generation worker protocol invalid")
     request_type = request.get("type")
     if request_type == "pack":
@@ -708,6 +726,15 @@ def _cpu_worker_response(
     raise GenerationWorkerProtocolError("generation worker protocol invalid")
 
 
+def _matches_descriptor_transcript(
+    request: Mapping[str, object], descriptor: GenerationWorkerLaunchDescriptor
+) -> bool:
+    return (
+        request.get("invocation_digest") == descriptor.invocation_digest
+        and request.get("fragment_index") == descriptor.fragment_index
+    )
+
+
 def _cpu_pack_response(
     request: Mapping[str, object],
     descriptor: GenerationWorkerLaunchDescriptor,
@@ -716,7 +743,14 @@ def _cpu_pack_response(
 ) -> dict[str, object]:
     if (
         packed_context_tokens is not None
-        or set(request) != {"type", "max_memory_bytes", "execution_device"}
+        or set(request)
+        != {
+            "type",
+            "invocation_digest",
+            "fragment_index",
+            "max_memory_bytes",
+            "execution_device",
+        }
         or request["max_memory_bytes"] != descriptor.budget.max_memory_bytes
         or request["execution_device"] != descriptor.execution_device
     ):
@@ -744,7 +778,14 @@ def _cpu_authorize_response(
     if (
         packed_context_tokens is None
         or authorized
-        or set(request) != {"type", "receipt", "remaining_generated_tokens"}
+        or set(request)
+        != {
+            "type",
+            "invocation_digest",
+            "fragment_index",
+            "receipt",
+            "remaining_generated_tokens",
+        }
         or not _positive_int(request["remaining_generated_tokens"])
     ):
         raise GenerationWorkerProtocolError("generation worker protocol invalid")
@@ -761,7 +802,11 @@ def _cpu_generate_response(
     worker_runtime: CpuGenerationWorkerRuntime,
     authorized_remaining_generated_tokens: int | None,
 ) -> dict[str, object]:
-    if authorized_remaining_generated_tokens is None or set(request) != {"type"}:
+    if authorized_remaining_generated_tokens is None or set(request) != {
+        "type",
+        "invocation_digest",
+        "fragment_index",
+    }:
         raise GenerationWorkerProtocolError("generation worker protocol invalid")
     result = worker_runtime.generate()
     if (
