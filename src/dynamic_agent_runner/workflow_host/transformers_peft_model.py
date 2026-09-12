@@ -532,6 +532,13 @@ class TransformersPeftPackedInputAdapter:
             shape = getattr(input_ids, "shape", None)
             if not isinstance(shape, Sequence) or len(shape) < 2:
                 raise ModelExecutionError("model generation context is unavailable")
+            try:
+                _validate_packed_generation_budget(
+                    packed, max_new_tokens=max_new_tokens, budget=budget
+                )
+            except ModelExecutionError:
+                packed.clear()
+                raise
             reservation = reserve_generation_memory(
                 policy.memory_reservation_provider,
                 GenerationMemoryReservationRequest(

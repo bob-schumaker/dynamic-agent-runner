@@ -696,6 +696,69 @@ def test_converter_adapter_stops_at_the_remaining_aggregate_token_budget(
     assert adapter._sealed_payload is None
 
 
+def test_converter_adapter_rejects_over_context_continuation_before_dispatch(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        GeneratedText,
+        PackedModelInput,
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    calls = 0
+    packed: list[PackedModelInput] = []
+
+    class Runner:
+        input_context = object()
+        supports_json_mode = True
+        supports_generation_resource_budgets = True
+        supports_generation_deadline = True
+
+        def generate_chunk(
+            self, _packed: PackedModelInput, **_kwargs: object
+        ) -> GeneratedText:
+            nonlocal calls
+            calls += 1
+            return GeneratedText("first", exhausted=True, generated_tokens=1)
+
+    class Converter:
+        def pack(self, **_kwargs: object) -> PackedModelInput:
+            item = PackedModelInput(
+                {"input_ids": SimpleNamespace(shape=(1, 2 if not packed else 5))}
+            )
+            packed.append(item)
+            return item
+
+    budget = _generation_budget(max_continuations=2, max_effective_context_tokens=8)
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths),
+        converter=Converter(),
+        runner=Runner(),
+        generation_budget=budget,
+        generation_material_lock_digest="a" * 64,
+        generation_host_policy=_generation_host_policy(budget),
+    )
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    with pytest.raises(ModelExecutionError, match="context"):
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id,
+                messages=[OpenAIMessage("user", "vectorize")],
+                max_tokens=4,
+            )
+        )
+
+    assert calls == 1
+    assert packed[1].is_cleared
+    assert adapter._sealed_payload is None
+
+
 def test_converter_adapter_emits_redacted_mps_metadata_for_direct_response(
     tmp_path: Path,
 ) -> None:
