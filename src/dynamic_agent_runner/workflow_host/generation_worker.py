@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    GenerationDeadline,
     GenerationMemoryReservationRequest,
     MemoryReservationProvider,
     ReservedGenerationMemory,
@@ -188,6 +189,8 @@ class GenerationWorkerLauncher:
         remaining_generated_tokens: int,
         provider: MemoryReservationProvider,
         request: GenerationMemoryReservationRequest,
+        deadline: GenerationDeadline,
+        now: float,
     ) -> bytes:
         """Run one authorized child generation and release its reservation."""
 
@@ -202,6 +205,7 @@ class GenerationWorkerLauncher:
             request=request,
         )
         try:
+            deadline.require_remaining(now)
             candidate = generate()
             if not isinstance(candidate, bytes):
                 raise GenerationWorkerProtocolError(
