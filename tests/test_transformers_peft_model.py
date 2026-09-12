@@ -813,7 +813,7 @@ def test_converter_adapter_emits_redacted_mps_metadata_for_direct_response(
     assert adapter._sealed_payload is None
 
 
-def test_converter_adapter_records_a_malformed_chunk_before_json_rejection(
+def test_converter_adapter_records_only_scalar_debug_fragment_facts(
     tmp_path: Path,
 ) -> None:
     from dynamic_agent_runner.workflow_host.transformers_peft_model import (
@@ -827,7 +827,7 @@ def test_converter_adapter_records_a_malformed_chunk_before_json_rejection(
         artifact.role: tmp_path / artifact.group / artifact.filename
         for artifact in recipe.artifacts
     }
-    recorded: list[GeneratedText] = []
+    recorded: list[object] = []
 
     class Runner:
         input_context = object()
@@ -858,7 +858,11 @@ def test_converter_adapter_records_a_malformed_chunk_before_json_rejection(
             )
         )
 
-    assert recorded == [GeneratedText('{"walls":[', exhausted=True, generated_tokens=3)]
+    assert len(recorded) == 1
+    assert not hasattr(recorded[0], "content")
+    assert recorded[0].generated_tokens == 3
+    assert recorded[0].output_bytes == len('{"walls":['.encode())
+    assert recorded[0].exhausted is True
     assert adapter._sealed_payload is None
 
 

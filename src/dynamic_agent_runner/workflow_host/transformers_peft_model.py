@@ -91,6 +91,15 @@ class GeneratedText:
 
 
 @dataclass(frozen=True)
+class GenerationDebugFragment:
+    """One content-free debug fact record for an admitted fragment."""
+
+    exhausted: bool
+    generated_tokens: int | None
+    output_bytes: int
+
+
+@dataclass(frozen=True)
 class GeneratedCompletion:
     """One assembled completion with safe generation metadata."""
 
@@ -287,7 +296,9 @@ class TransformersPeftPackedInputAdapter:
         self._generation_material_lock_digest = generation_material_lock_digest
         self._generation_host_policy = generation_host_policy
         self._sealed_payload: bytes | None = None
-        self._debug_fragment_recorder: Callable[[GeneratedText], None] | None = None
+        self._debug_fragment_recorder: (
+            Callable[[GenerationDebugFragment], None] | None
+        ) = None
 
     @property
     def models(self) -> tuple[str, ...]:
@@ -321,7 +332,7 @@ class TransformersPeftPackedInputAdapter:
         self._sealed_payload = None
 
     def set_debug_fragment_recorder(
-        self, recorder: Callable[[GeneratedText], None] | None
+        self, recorder: Callable[[GenerationDebugFragment], None] | None
     ) -> None:
         """Set the host-private observer for generated fragments in a debug run."""
 
@@ -597,7 +608,13 @@ class TransformersPeftPackedInputAdapter:
 
     def _record_generated_fragment(self, generated: GeneratedText) -> None:
         if self._debug_fragment_recorder is not None:
-            self._debug_fragment_recorder(generated)
+            self._debug_fragment_recorder(
+                GenerationDebugFragment(
+                    exhausted=generated.exhausted,
+                    generated_tokens=generated.generated_tokens,
+                    output_bytes=len(generated.content.encode("utf-8")),
+                )
+            )
 
 
 class TransformersPeftSingleImageAdapter:
@@ -1048,7 +1065,9 @@ class DeferredTransformersPeftSingleImageAdapter:
         self._generation_material_lock_digest: str | None = None
         self._generation_host_policy: GenerationExecutionHostPolicy | None = None
         self._payload_bound = False
-        self._debug_fragment_recorder: Callable[[GeneratedText], None] | None = None
+        self._debug_fragment_recorder: (
+            Callable[[GenerationDebugFragment], None] | None
+        ) = None
 
     @property
     def input_converter_contract_id(self) -> str:
@@ -1150,7 +1169,7 @@ class DeferredTransformersPeftSingleImageAdapter:
         self._payload_bound = False
 
     def set_debug_fragment_recorder(
-        self, recorder: Callable[[GeneratedText], None] | None
+        self, recorder: Callable[[GenerationDebugFragment], None] | None
     ) -> None:
         """Set the host-private recorder for a converter-backed debug run."""
 
