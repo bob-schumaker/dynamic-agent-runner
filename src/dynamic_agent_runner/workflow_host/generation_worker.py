@@ -212,6 +212,35 @@ class GenerationWorkerLauncher:
                 "generation worker protocol invalid"
             ) from error
 
+    def pack_receipt(
+        self,
+        *,
+        child: object,
+        session: GenerationWorkerSession,
+        fragment_index: int,
+        max_memory_bytes: int,
+        execution_device: str,
+    ) -> GenerationWorkerPackReceipt:
+        """Pack once and bind its measured context to the current receipt."""
+
+        if not isinstance(session, GenerationWorkerSession):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        packed_context_tokens = self.pack(
+            child=child,
+            max_memory_bytes=max_memory_bytes,
+            execution_device=execution_device,
+        )
+        try:
+            return session.pack(
+                fragment_index=fragment_index,
+                packed_context_tokens=packed_context_tokens,
+            )
+        except Exception as error:
+            self.abort(child=child)
+            raise GenerationWorkerProtocolError(
+                "generation worker protocol invalid"
+            ) from error
+
     def generate(
         self,
         *,

@@ -6,6 +6,7 @@ import pytest
 
 from dynamic_agent_runner.workflow_host.generation_worker import (
     GenerationWorkerLauncher,
+    GenerationWorkerPackReceipt,
     GenerationWorkerProtocolError,
     GenerationWorkerResult,
     GenerationWorkerSession,
@@ -195,6 +196,44 @@ def test_launcher_keeps_a_successfully_packed_child_for_authorization() -> None:
 
     launcher.abort(child=child)
     assert events == [("limit", 8, "cpu"), ("pack",), ("reap",)]
+
+
+def test_launcher_binds_packed_context_to_its_session_receipt() -> None:
+    class Child:
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            pass
+
+        def pack(self) -> int:
+            return 3
+
+        def reap(self) -> None:
+            pass
+
+    session = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=8,
+    )
+
+    assert GenerationWorkerLauncher().pack_receipt(
+        child=Child(),
+        session=session,
+        fragment_index=0,
+        max_memory_bytes=8,
+        execution_device="cpu",
+    ) == GenerationWorkerPackReceipt(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        fragment_index=0,
+        packed_context_tokens=3,
+    )
 
 
 def test_launcher_rejects_model_or_accelerator_entry_during_packing() -> None:
