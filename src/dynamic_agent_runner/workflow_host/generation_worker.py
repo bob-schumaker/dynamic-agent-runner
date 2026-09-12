@@ -182,6 +182,7 @@ class GenerationWorkerResult:
     aggregate_generated_tokens: int
     aggregate_output_bytes: int
     exhausted: bool = False
+    packed_context_tokens: int | None = None
 
 
 class GenerationWorkerSession:
@@ -315,6 +316,7 @@ class GenerationWorkerSession:
             self._total_generated_tokens,
             self._total_output_bytes,
             exhausted,
+            receipt.packed_context_tokens,
         )
 
 

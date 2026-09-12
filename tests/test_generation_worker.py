@@ -736,6 +736,7 @@ def test_worker_requires_a_matching_pack_receipt_before_authorized_result() -> N
 
     assert result.candidate == b"{}"
     assert result.generated_tokens == 2
+    assert result.packed_context_tokens == 3
 
     with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
         worker.result(
@@ -1002,6 +1003,7 @@ def test_worker_accepts_exact_reported_aggregate_result_counters() -> None:
         generated_tokens=2,
         aggregate_generated_tokens=2,
         aggregate_output_bytes=2,
+        packed_context_tokens=3,
     )
 
 
@@ -1031,6 +1033,7 @@ def test_worker_binds_sequential_fragments_to_aggregate_token_and_byte_limits() 
         generated_tokens=1,
         aggregate_generated_tokens=1,
         aggregate_output_bytes=1,
+        packed_context_tokens=3,
     )
 
     with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
@@ -1061,6 +1064,7 @@ def test_worker_binds_sequential_fragments_to_aggregate_token_and_byte_limits() 
         generated_tokens=1,
         aggregate_generated_tokens=1,
         aggregate_output_bytes=1,
+        packed_context_tokens=3,
     )
 
     second = worker.pack(fragment_index=1, packed_context_tokens=3)
@@ -1540,6 +1544,7 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
         generated_tokens=1,
         aggregate_generated_tokens=1,
         aggregate_output_bytes=2,
+        packed_context_tokens=3,
     )
     assert events == [
         "limit",
