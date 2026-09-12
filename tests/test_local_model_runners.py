@@ -231,7 +231,7 @@ def test_client_runner_requires_an_exact_generation_capability() -> None:
         LocalModelRunnerCatalog((MismatchedRunner(),))
 
 
-def test_worker_runner_requires_one_identity_bound_factory_and_controller() -> None:
+def test_worker_runner_requires_a_parent_invocation_factory_and_controller() -> None:
     worker_capability = GenerationRunnerCapability(
         runner_id="client-worker-v1",
         max_effective_context_tokens=64,
@@ -283,7 +283,8 @@ def test_worker_runner_requires_one_identity_bound_factory_and_controller() -> N
         generation_worker_factory = Factory()
         generation_worker_controller = Controller()
 
-    assert LocalModelRunnerCatalog((WorkerRunner(),))
+    with pytest.raises(ModelExecutionError, match="unavailable"):
+        LocalModelRunnerCatalog((WorkerRunner(),))
 
 
 def test_worker_runner_accepts_an_exact_invocation_factory() -> None:
@@ -386,8 +387,8 @@ def test_worker_runner_binds_its_exact_factory_controller_and_capability() -> No
         runner_id = profile.runner_id
         capability = worker_capability
 
-        def create_launch_descriptor(self) -> object:
-            raise AssertionError("binding must not launch a worker")
+        def create_for_invocation(self, **_kwargs: object) -> object:
+            raise AssertionError("binding must not construct a worker")
 
     class Controller:
         runner_id = profile.runner_id
@@ -464,8 +465,8 @@ def test_worker_runner_rejects_an_adapter_that_cannot_accept_its_binding() -> No
         runner_id = profile.runner_id
         capability = worker_capability
 
-        def create_launch_descriptor(self) -> object:
-            raise AssertionError("must not launch")
+        def create_for_invocation(self, **_kwargs: object) -> object:
+            raise AssertionError("binding must not construct a worker")
 
     class Controller:
         runner_id = profile.runner_id
