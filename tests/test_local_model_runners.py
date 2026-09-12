@@ -134,3 +134,223 @@ def test_client_runner_requires_an_exact_generation_capability() -> None:
 
     with pytest.raises(ModelExecutionError, match="unavailable"):
         LocalModelRunnerCatalog((MismatchedRunner(),))
+
+
+def test_worker_runner_requires_one_identity_bound_factory_and_controller() -> None:
+    worker_capability = GenerationRunnerCapability(
+        runner_id="client-worker-v1",
+        max_effective_context_tokens=64,
+        memory_admission_method="process_hard_limit",
+        pre_packing_containment_method="process_hard_limit",
+        supported_execution_devices=frozenset({"cpu"}),
+        worker_protocol="generation-worker-v1",
+        bootstrap_hard_limit_method="process_hard_limit",
+        generation_hard_limit_method="process_hard_limit",
+    )
+
+    class MissingWorkerBindings:
+        runner_id = worker_capability.runner_id
+        generation_capability = worker_capability
+
+        def create_adapter(self, profile, resolve_prepared_set):
+            raise AssertionError("must not be called")
+
+    with pytest.raises(ModelExecutionError, match="unavailable"):
+        LocalModelRunnerCatalog((MissingWorkerBindings(),))
+
+    class Factory:
+        runner_id = worker_capability.runner_id
+        capability = worker_capability
+
+        def create_launch_descriptor(self, **_kwargs):
+            raise AssertionError("must not be called")
+
+    class Controller:
+        runner_id = worker_capability.runner_id
+        supported_execution_devices = frozenset({"cpu"})
+
+        def launch(self, _descriptor):
+            raise AssertionError("must not be called")
+
+        def wait_ready(self, _child, _timeout):
+            raise AssertionError("must not be called")
+
+        def terminate(self, _child):
+            raise AssertionError("must not be called")
+
+        def kill(self, _child):
+            raise AssertionError("must not be called")
+
+        def reap(self, _child, _timeout):
+            raise AssertionError("must not be called")
+
+    class WorkerRunner(MissingWorkerBindings):
+        generation_worker_factory = Factory()
+        generation_worker_controller = Controller()
+
+    assert LocalModelRunnerCatalog((WorkerRunner(),))
+
+
+def test_cancellation_runner_cannot_bind_worker_components() -> None:
+    worker_capability = GenerationRunnerCapability(
+        runner_id="client-cancellable-v1",
+        max_effective_context_tokens=64,
+        memory_admission_method="runtime_allocation_limit",
+        pre_packing_containment_method="runtime_allocation_limit",
+        supported_execution_devices=frozenset({"cpu"}),
+        cancellation_phases=frozenset({"load", "generate"}),
+    )
+
+    class CancellableRunner:
+        runner_id = worker_capability.runner_id
+        generation_capability = worker_capability
+        generation_worker_factory = object()
+        generation_worker_controller = object()
+
+        def create_adapter(self, profile, resolve_prepared_set):
+            raise AssertionError("must not be called")
+
+    with pytest.raises(ModelExecutionError, match="unavailable"):
+        LocalModelRunnerCatalog((CancellableRunner(),))
+
+
+def test_worker_runner_binds_its_exact_factory_controller_and_capability() -> None:
+    profile = LocalModelProfile(
+        profile_id="profile",
+        model_id="nonstandard-model",
+        execution_model_id="nonstandard-model",
+        adapter_id="nonstandard-adapter-v1",
+        base_url=None,
+        profile_requirement="local-multimodal-model-v1",
+        capabilities=frozenset({"text_generation"}),
+        runner_id="client-worker-v1",
+        profile_digest="digest",
+    )
+    worker_capability = GenerationRunnerCapability(
+        runner_id=profile.runner_id,
+        max_effective_context_tokens=64,
+        memory_admission_method="process_hard_limit",
+        pre_packing_containment_method="process_hard_limit",
+        supported_execution_devices=frozenset({"cpu"}),
+        worker_protocol="generation-worker-v1",
+        bootstrap_hard_limit_method="process_hard_limit",
+        generation_hard_limit_method="process_hard_limit",
+    )
+
+    class Factory:
+        runner_id = profile.runner_id
+        capability = worker_capability
+
+        def create_launch_descriptor(self) -> object:
+            raise AssertionError("binding must not launch a worker")
+
+    class Controller:
+        runner_id = profile.runner_id
+        supported_execution_devices = frozenset({"cpu"})
+
+        def launch(self, _descriptor: object) -> object:
+            raise AssertionError("binding must not launch a worker")
+
+        def wait_ready(self, _child: object, _timeout: float) -> bool:
+            return True
+
+        def terminate(self, _child: object) -> None:
+            pass
+
+        def kill(self, _child: object) -> None:
+            pass
+
+        def reap(self, _child: object, _timeout: float) -> bool:
+            return True
+
+    bindings: list[object] = []
+
+    class Adapter:
+        def bind_generation_worker(self, **kwargs: object) -> None:
+            bindings.append(kwargs)
+
+    adapter = Adapter()
+
+    class WorkerRunner:
+        runner_id = profile.runner_id
+        generation_capability = worker_capability
+        generation_worker_factory = Factory()
+        generation_worker_controller = Controller()
+
+        def create_adapter(self, _profile: object, _resolve: object) -> object:
+            return adapter
+
+    catalog = LocalModelRunnerCatalog((WorkerRunner(),))
+
+    assert catalog.create_adapter(profile, lambda: object()) is adapter
+    assert bindings == [
+        {
+            "factory": WorkerRunner.generation_worker_factory,
+            "controller": WorkerRunner.generation_worker_controller,
+            "capability": worker_capability,
+        }
+    ]
+
+
+def test_worker_runner_rejects_an_adapter_that_cannot_accept_its_binding() -> None:
+    profile = LocalModelProfile(
+        profile_id="profile",
+        model_id="nonstandard-model",
+        execution_model_id="nonstandard-model",
+        adapter_id="nonstandard-adapter-v1",
+        base_url=None,
+        profile_requirement="local-multimodal-model-v1",
+        capabilities=frozenset({"text_generation"}),
+        runner_id="client-worker-v1",
+        profile_digest="digest",
+    )
+    worker_capability = GenerationRunnerCapability(
+        runner_id=profile.runner_id,
+        max_effective_context_tokens=64,
+        memory_admission_method="process_hard_limit",
+        pre_packing_containment_method="process_hard_limit",
+        supported_execution_devices=frozenset({"cpu"}),
+        worker_protocol="generation-worker-v1",
+        bootstrap_hard_limit_method="process_hard_limit",
+        generation_hard_limit_method="process_hard_limit",
+    )
+
+    class Factory:
+        runner_id = profile.runner_id
+        capability = worker_capability
+
+        def create_launch_descriptor(self) -> object:
+            raise AssertionError("must not launch")
+
+    class Controller:
+        runner_id = profile.runner_id
+        supported_execution_devices = frozenset({"cpu"})
+
+        def launch(self, _descriptor: object) -> object:
+            raise AssertionError("must not launch")
+
+        def wait_ready(self, _child: object, _timeout: float) -> bool:
+            return True
+
+        def terminate(self, _child: object) -> None:
+            pass
+
+        def kill(self, _child: object) -> None:
+            pass
+
+        def reap(self, _child: object, _timeout: float) -> bool:
+            return True
+
+    class WorkerRunner:
+        runner_id = profile.runner_id
+        generation_capability = worker_capability
+        generation_worker_factory = Factory()
+        generation_worker_controller = Controller()
+
+        def create_adapter(self, _profile: object, _resolve: object) -> object:
+            return object()
+
+    catalog = LocalModelRunnerCatalog((WorkerRunner(),))
+
+    with pytest.raises(ModelExecutionError, match="unavailable"):
+        catalog.create_adapter(profile, lambda: object())

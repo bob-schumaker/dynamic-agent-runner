@@ -46,6 +46,7 @@ class LocalModelRunnerCatalog:
                     GenerationRunnerCapability,
                 )
                 or runner.generation_capability.runner_id != runner.runner_id
+                or not _has_valid_worker_bindings(runner)
             ):
                 raise ModelExecutionError("local model runner is unavailable")
             resolved[runner.runner_id] = runner
@@ -62,4 +63,48 @@ class LocalModelRunnerCatalog:
             runner = self._runners[profile.runner_id]
         except KeyError as error:
             raise ModelExecutionError("local model runner is unavailable") from error
-        return runner.create_adapter(profile, resolve_prepared_set)
+        adapter = runner.create_adapter(profile, resolve_prepared_set)
+        if runner.generation_capability.worker_protocol != "generation-worker-v1":
+            return adapter
+        bind_worker = getattr(adapter, "bind_generation_worker", None)
+        if not callable(bind_worker):
+            raise ModelExecutionError("local model runner is unavailable")
+        try:
+            bind_worker(
+                factory=runner.generation_worker_factory,
+                controller=runner.generation_worker_controller,
+                capability=runner.generation_capability,
+            )
+        except Exception as error:  # noqa: BLE001 - client binding remains private.
+            raise ModelExecutionError("local model runner is unavailable") from error
+        return adapter
+
+
+def _has_valid_worker_bindings(runner: LocalModelRunner) -> bool:
+    """Require worker-only components to bind to the reviewed capability."""
+
+    capability = runner.generation_capability
+    factory = getattr(runner, "generation_worker_factory", None)
+    controller = getattr(runner, "generation_worker_controller", None)
+    worker_capability = capability.worker_protocol == "generation-worker-v1"
+    if not worker_capability:
+        return factory is None and controller is None
+    if (
+        factory is None
+        or controller is None
+        or getattr(factory, "runner_id", None) != runner.runner_id
+        or getattr(factory, "capability", None) is not capability
+        or not callable(getattr(factory, "create_launch_descriptor", None))
+        or getattr(controller, "runner_id", None) != runner.runner_id
+        or not isinstance(
+            getattr(controller, "supported_execution_devices", None), frozenset
+        )
+        or not capability.supported_execution_devices
+        <= controller.supported_execution_devices
+        or any(
+            not callable(getattr(controller, operation, None))
+            for operation in ("launch", "wait_ready", "terminate", "kill", "reap")
+        )
+    ):
+        return False
+    return True

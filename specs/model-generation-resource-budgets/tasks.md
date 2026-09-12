@@ -73,6 +73,15 @@ Runtime changes remain gated by the RED-first tasks.
   launch/packing. Prove only reviewed runner/device containment with bounded
   reap confirmation admits execution; unsupported combinations fail before
   sealed-input ingress with `generation_memory_budget_unavailable`.
+- [ ] T3.2a [tests, RED] Add CPU-controller vectors for the general-purpose
+  `multiprocessing` + POSIX `resource` path: CPU-only registration, address-space
+  cap installation before the fixed child entry point, redacted readiness, and
+  bounded terminate/kill/reap confirmation.
+- [ ] T3.2b [tests, RED] Add macOS-controller vectors for the Metal/MPS path:
+  Darwin-only registration, exact MPS runner/device binding, and a reviewed
+  Metal memory-envelope capability that must install before launch. Reject an
+  unavailable platform, device mismatch, or unenforceable MPS envelope before
+  sealed-input ingress with `generation_memory_budget_unavailable`.
 - [ ] T3.3 [tests, RED] Add a `generation-worker-v1` transcript suite. Cover
   every message identity and transition: missing/wrong invocation ID or fragment
   index, duplicate/out-of-order authorization, an unauthorized receipt result,
