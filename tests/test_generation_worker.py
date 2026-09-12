@@ -135,7 +135,7 @@ def test_fixed_entry_resolves_every_opaque_asset_handle_before_ready() -> None:
     assert resolved == ["asset-handle-1", "asset-handle-2"]
 
 
-def test_fixed_entry_loads_co_located_converter_after_descriptor_validation(
+def test_fixed_entry_defers_co_located_converter_loading_to_child_runtime(
     monkeypatch, tmp_path
 ) -> None:
     descriptor = GenerationWorkerLaunchDescriptor(
@@ -196,7 +196,7 @@ def test_fixed_entry_loads_co_located_converter_after_descriptor_validation(
         )
         == descriptor
     )
-    assert loaded == [(tmp_path, converter)]
+    assert loaded == []
 
 
 def test_launcher_revalidates_a_factory_descriptor_before_controller_launch() -> None:

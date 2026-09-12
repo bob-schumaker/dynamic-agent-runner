@@ -864,29 +864,9 @@ def fixed_generation_worker_entry_point(
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         try:
             for handle in descriptor.asset_handles:
-                resolved = resolve(handle=handle, descriptor=descriptor, now=now)
-                _load_co_located_converter_if_present(resolved)
+                resolve(handle=handle, descriptor=descriptor, now=now)
         except Exception as error:
             raise GenerationWorkerProtocolError(
                 "generation worker protocol invalid"
             ) from error
     return descriptor
-
-
-def _load_co_located_converter_if_present(resolved: object) -> None:
-    """Use the established converter loader only for typed child-private assets."""
-
-    from dynamic_agent_runner.workflow_host.generation_worker_assets import (
-        GenerationWorkerCoLocatedAssets,
-    )
-
-    if not isinstance(resolved, GenerationWorkerCoLocatedAssets):
-        return
-    from dynamic_agent_runner.workflow_host.input_converter_loader import (
-        load_input_converter,
-    )
-
-    load_input_converter(
-        package_root=resolved.package_root,
-        converter=resolved.converter,
-    )
