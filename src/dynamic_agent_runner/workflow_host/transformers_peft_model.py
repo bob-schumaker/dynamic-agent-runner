@@ -35,6 +35,7 @@ from dynamic_agent_runner.workflow_host.generation_worker import (
     GenerationWorkerExecutionFailed,
     GenerationWorkerLaunchDescriptor,
     GenerationWorkerLauncher,
+    GenerationWorkerOutputLimitExceeded,
     GenerationWorkerPackReceipt,
     GenerationWorkerProtocolError,
     GenerationWorkerSession,
@@ -58,6 +59,14 @@ TRANSFORMERS_GENERATE_CAPABILITY = GenerationRunnerCapability(
 _CONTINUATION_INSTRUCTION = (
     "Continue the exact response from where it stopped. Return only the remaining text."
 )
+
+
+def _shape_worker_protocol_error(
+    error: GenerationWorkerProtocolError,
+) -> ModelExecutionError:
+    if isinstance(error, GenerationWorkerOutputLimitExceeded):
+        return ModelExecutionError("model generation output limit exceeded")
+    return ModelExecutionError("generation worker protocol invalid")
 
 
 class TransformersPeftBackend(Protocol):
@@ -1510,7 +1519,7 @@ class DeferredTransformersPeftSingleImageAdapter:
         except GenerationWorkerExecutionFailed as error:
             raise ModelExecutionError("local model generation failed") from error
         except GenerationWorkerProtocolError as error:
-            raise ModelExecutionError("generation worker protocol invalid") from error
+            raise _shape_worker_protocol_error(error) from error
 
     def _run_worker_fragments(
         self,

@@ -34,6 +34,10 @@ class GenerationWorkerExecutionFailed(GenerationWorkerProtocolError):
     """Raised for a redacted terminal failure inside an otherwise valid worker."""
 
 
+class GenerationWorkerOutputLimitExceeded(GenerationWorkerProtocolError):
+    """Raised after a worker discards a candidate that cannot fit its output frame."""
+
+
 @dataclass(frozen=True)
 class GenerationWorkerLaunchDescriptor:
     """Bounded non-executable launch data for the fixed worker entry point."""

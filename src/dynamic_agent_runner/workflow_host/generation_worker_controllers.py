@@ -22,6 +22,7 @@ from dynamic_agent_runner.workflow_host.generation_worker import (
     GenerationWorkerDeadlineExceeded,
     GenerationWorkerExecutionFailed,
     GenerationWorkerLaunchDescriptor,
+    GenerationWorkerOutputLimitExceeded,
     GenerationWorkerPackReceipt,
     GenerationWorkerProtocolError,
     fixed_generation_worker_entry_point,
@@ -192,6 +193,12 @@ class _CpuWorkerChild:
             ) from error
         if isinstance(response, Mapping) and dict(response) == {"type": "failed"}:
             raise GenerationWorkerExecutionFailed("generation execution failed")
+        if isinstance(response, Mapping) and dict(response) == {
+            "type": "output_limit_exceeded"
+        }:
+            raise GenerationWorkerOutputLimitExceeded(
+                "generation output limit exceeded"
+            )
         if (
             not isinstance(response, Mapping)
             or response.get("type") != response_type
@@ -651,18 +658,21 @@ def _run_cpu_worker_protocol(
             response_connection.send(response)
             if response["type"] == "result":
                 return
-        except GenerationWorkerProtocolError:
-            try:
-                response_connection.send({"type": "protocol_invalid"})
-            except Exception:
-                pass
+        except Exception as error:
+            _send_cpu_worker_failure(response_connection, error)
             return
-        except Exception:
-            try:
-                response_connection.send({"type": "failed"})
-            except Exception:
-                pass
-            return
+
+
+def _send_cpu_worker_failure(response_connection: object, error: Exception) -> None:
+    response_type = "failed"
+    if isinstance(error, GenerationWorkerOutputLimitExceeded):
+        response_type = "output_limit_exceeded"
+    elif isinstance(error, GenerationWorkerProtocolError):
+        response_type = "protocol_invalid"
+    try:
+        response_connection.send({"type": response_type})
+    except Exception:
+        pass
 
 
 def _cpu_worker_response(
@@ -760,9 +770,10 @@ def _cpu_generate_response(
         or not isinstance(result[0], bytes)
         or not _nonnegative_int(result[1])
         or result[1] > authorized_remaining_generated_tokens
-        or len(result[0]) > descriptor.budget.max_total_output_bytes
     ):
         raise GenerationWorkerProtocolError("generation worker protocol invalid")
+    if len(result[0]) > descriptor.budget.max_total_output_bytes:
+        raise GenerationWorkerOutputLimitExceeded("generation output limit exceeded")
     response = {"type": "result", "candidate": result[0], "generated_tokens": result[1]}
     if len(result) in (2, 3):
         if len(result) == 3:

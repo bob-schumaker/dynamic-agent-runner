@@ -868,6 +868,43 @@ def test_deferred_worker_adapter_shapes_worker_deadline_as_a_deadline(
         )
 
 
+def test_deferred_worker_adapter_shapes_an_oversized_child_result_as_output_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.workflow_host.generation_worker import (
+        GenerationWorkerOutputLimitExceeded,
+    )
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+    )
+
+    budget = _generation_budget(max_continuations=0)
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id="model", adapter_id="adapter", resolve_prepared_set=lambda: object()
+    )
+    adapter._payload_bound = True
+    adapter._generation_worker_factory = object()
+    adapter._generation_budget = budget
+    adapter._generation_host_policy = _generation_host_policy(budget)
+    monkeypatch.setattr(
+        adapter, "_create_worker_invocation_factory", lambda *_args, **_kwargs: object()
+    )
+    monkeypatch.setattr(
+        adapter,
+        "_run_worker_fragment",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            GenerationWorkerOutputLimitExceeded("generation output limit exceeded")
+        ),
+    )
+
+    with pytest.raises(
+        ModelExecutionError, match="model generation output limit exceeded"
+    ):
+        adapter.create_response(
+            build_openai_request(model="model", messages=[OpenAIMessage("user", "go")])
+        )
+
+
 def test_deferred_worker_adapter_preserves_memory_admission_classification(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
