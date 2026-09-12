@@ -568,14 +568,15 @@ class GenerationWorkerLauncher:
                 self.abort(child=child)
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         self._packed_receipts.pop(id(child), None)
-        reservation = self.authorize(
-            session=session,
-            receipt=receipt,
-            remaining_generated_tokens=remaining_generated_tokens,
-            provider=provider,
-            request=request,
-        )
+        reservation: ReservedGenerationMemory | None = None
         try:
+            reservation = self.authorize(
+                session=session,
+                receipt=receipt,
+                remaining_generated_tokens=remaining_generated_tokens,
+                provider=provider,
+                request=request,
+            )
             deadline.require_remaining(now)
             return self._validated_generation_result(
                 generate=generate,
@@ -608,7 +609,8 @@ class GenerationWorkerLauncher:
                     "generation worker protocol invalid"
                 ) from error
             else:
-                reservation.release()
+                if reservation is not None:
+                    reservation.release()
 
     def _validated_generation_result(
         self,

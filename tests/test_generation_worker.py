@@ -1135,6 +1135,71 @@ def test_launcher_preserves_unavailable_memory_reservations() -> None:
         )
 
 
+def test_launcher_reaps_a_packed_child_when_reservation_admission_fails() -> None:
+    events: list[str] = []
+
+    class Provider:
+        def reserve(self, _request: object) -> None:
+            events.append("reserve")
+            return None
+
+    class Child:
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            events.append("limit")
+
+        def pack(self) -> int:
+            events.append("pack")
+            return 3
+
+        def generate(self) -> tuple[bytes, int]:
+            pytest.fail("generation must not start without reservation")
+
+        def reap(self) -> None:
+            events.append("reap")
+
+    session = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=2,
+    )
+    child = Child()
+    launcher = GenerationWorkerLauncher()
+    receipt = launcher.pack_receipt(
+        child=child,
+        session=session,
+        fragment_index=0,
+        max_memory_bytes=8,
+        execution_device="cpu",
+    )
+
+    with pytest.raises(GenerationResourceBudgetError, match="memory budget"):
+        launcher.generate(
+            child=child,
+            session=session,
+            receipt=receipt,
+            remaining_generated_tokens=1,
+            provider=Provider(),
+            request=GenerationMemoryReservationRequest(
+                material_lock_digest="c" * 64,
+                runner_identity="runner",
+                execution_device="cpu",
+                packed_context_tokens=3,
+                requested_new_tokens=1,
+                max_memory_bytes=8,
+                deadline_monotonic=1.0,
+            ),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000),
+            now=0.0,
+            clock=lambda: 0.0,
+        )
+
+    assert events == ["limit", "pack", "reserve", "reap"]
+
+
 def test_launcher_releases_reservation_after_authorized_generation() -> None:
     events: list[str] = []
 
