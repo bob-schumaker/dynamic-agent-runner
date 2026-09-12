@@ -1484,6 +1484,117 @@ def test_launcher_rejects_reservation_requests_not_bound_to_packed_receipt(
         )
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("runner_identity", "other-runner"),
+        ("max_memory_bytes", 9),
+        ("deadline_monotonic", 2.0),
+    ),
+)
+def test_launched_worker_rejects_reservation_requests_outside_its_descriptor(
+    field: str, value: str | int | float
+) -> None:
+    worker_capability = _worker_capability()
+    descriptor = GenerationWorkerLaunchDescriptor(
+        "generation-worker-v1",
+        "invocation-1",
+        "a" * 64,
+        0,
+        "runner-v1",
+        worker_capability.contract_digest,
+        "converter-v1",
+        "b" * 64,
+        "c" * 64,
+        "d" * 64,
+        "cpu",
+        replace(_budget(), max_memory_bytes=8),
+        ("asset-handle-1",),
+    )
+    events: list[str] = []
+
+    class Child:
+        def generate(self) -> tuple[bytes, int]:
+            pytest.fail("generation must not start without a bound reservation")
+
+        def reap(self) -> None:
+            pytest.fail("controller lifecycle must own reap")
+
+    class Factory:
+        runner_id = "runner-v1"
+        capability = worker_capability
+
+        def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
+            return descriptor
+
+    class Controller:
+        runner_id = "runner-v1"
+        supported_execution_devices = frozenset({"cpu"})
+
+        def launch(self, _entry_point: object) -> Child:
+            return Child()
+
+        def wait_ready(self, _child: object, _timeout: float) -> bool:
+            return True
+
+        def terminate(self, _child: object) -> None:
+            events.append("terminate")
+
+        def kill(self, _child: object) -> None:
+            events.append("kill")
+
+        def reap(self, _child: object, _timeout: float) -> bool:
+            events.append("reap")
+            return True
+
+    class Provider:
+        def reserve(self, _request: object) -> object:
+            events.append("reserve")
+            pytest.fail("unbound reservation requests must not reach the provider")
+
+    deadline = GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000)
+    launcher = GenerationWorkerLauncher()
+    child = launcher.launch(
+        factory=Factory(), controller=Controller(), deadline=deadline, clock=lambda: 0.0
+    )
+    session = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=2,
+    )
+    receipt = session.pack(fragment_index=0, packed_context_tokens=3)
+    launcher._packed_receipts[id(child)] = receipt  # type: ignore[attr-defined]
+    request = GenerationMemoryReservationRequest(
+        material_lock_digest="c" * 64,
+        runner_identity="runner-v1",
+        execution_device="cpu",
+        packed_context_tokens=3,
+        requested_new_tokens=2,
+        max_memory_bytes=8,
+        deadline_monotonic=deadline.expires_at,
+    )
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        launcher.generate(
+            child=child,
+            session=session,
+            receipt=receipt,
+            remaining_generated_tokens=2,
+            provider=Provider(),
+            request=replace(request, **{field: value}),
+            deadline=deadline,
+            now=0.0,
+            clock=lambda: 0.0,
+            controller=Controller(),
+        )
+
+    assert events == ["reap"]
+
+
 def test_launcher_preserves_unavailable_memory_reservations() -> None:
     class Provider:
         def reserve(self, _request: object) -> None:

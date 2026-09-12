@@ -315,8 +315,13 @@ class GenerationWorkerSession:
             or request.packed_context_tokens != receipt.packed_context_tokens
             or request.requested_new_tokens != remaining_generated_tokens
         ):
-            self._failed = True
-            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+            self.reject()
+
+    def reject(self) -> NoReturn:
+        """Close this transcript after a parent-side protocol violation."""
+
+        self._failed = True
+        raise GenerationWorkerProtocolError("generation worker protocol invalid")
 
     def result(
         self,
@@ -384,6 +389,7 @@ class GenerationWorkerLauncher:
 
     def __init__(self) -> None:
         self._packed_receipts: dict[int, GenerationWorkerPackReceipt] = {}
+        self._launched_descriptors: dict[int, GenerationWorkerLaunchDescriptor] = {}
 
     def launch(
         self,
@@ -441,6 +447,7 @@ class GenerationWorkerLauncher:
                     clock=clock,
                 )
                 raise
+            self._launched_descriptors[id(child)] = descriptor
             return child
         except GenerationWorkerProtocolError:
             raise
@@ -556,6 +563,7 @@ class GenerationWorkerLauncher:
         """Reap a packed child when admission cannot proceed."""
 
         self._packed_receipts.pop(id(child), None)
+        self._launched_descriptors.pop(id(child), None)
         if controller is not None and not isinstance(deadline, GenerationDeadline):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         try:
@@ -639,6 +647,7 @@ class GenerationWorkerLauncher:
         generate = getattr(child, "generate", None)
         reap = getattr(child, "reap", None)
         packed_receipt = self._packed_receipts.get(id(child))
+        descriptor = self._launched_descriptors.get(id(child))
         if (
             not callable(generate)
             or (not callable(reap) and controller is None)
@@ -655,6 +664,13 @@ class GenerationWorkerLauncher:
         self._packed_receipts.pop(id(child), None)
         reservation: ReservedGenerationMemory | None = None
         try:
+            self._validate_launched_reservation(
+                descriptor=descriptor,
+                session=session,
+                receipt=receipt,
+                request=request,
+                deadline=deadline,
+            )
             reservation = self.authorize(
                 session=session,
                 receipt=receipt,
@@ -681,6 +697,7 @@ class GenerationWorkerLauncher:
                 "generation worker protocol invalid"
             ) from error
         finally:
+            self._launched_descriptors.pop(id(child), None)
             try:
                 if controller is None:
                     reap()
@@ -698,6 +715,23 @@ class GenerationWorkerLauncher:
             else:
                 if reservation is not None:
                     reservation.release()
+
+    def _validate_launched_reservation(
+        self,
+        *,
+        descriptor: GenerationWorkerLaunchDescriptor | None,
+        session: GenerationWorkerSession,
+        receipt: GenerationWorkerPackReceipt,
+        request: GenerationMemoryReservationRequest,
+        deadline: GenerationDeadline,
+    ) -> None:
+        if descriptor is not None and not _reservation_matches_descriptor(
+            request=request,
+            receipt=receipt,
+            deadline=deadline,
+            descriptor=descriptor,
+        ):
+            session.reject()
 
     def _validated_generation_result(
         self,
@@ -812,6 +846,26 @@ def _authorize_child_if_supported(
     authorize = getattr(child, "authorize", None)
     if callable(authorize):
         authorize(receipt, remaining_generated_tokens)
+
+
+def _reservation_matches_descriptor(
+    *,
+    request: GenerationMemoryReservationRequest,
+    receipt: GenerationWorkerPackReceipt,
+    deadline: GenerationDeadline,
+    descriptor: GenerationWorkerLaunchDescriptor,
+) -> bool:
+    return (
+        request.runner_identity == descriptor.runner_id
+        and request.max_memory_bytes == descriptor.budget.max_memory_bytes
+        and request.deadline_monotonic == deadline.expires_at
+        and receipt.invocation_id == descriptor.invocation_id
+        and receipt.invocation_digest == descriptor.invocation_digest
+        and receipt.converter_digest == descriptor.converter_asset_digest
+        and receipt.material_lock_digest == descriptor.material_lock_digest
+        and receipt.execution_device == descriptor.execution_device
+        and receipt.fragment_index == descriptor.fragment_index
+    )
 
 
 def _configure_child_deadline(
