@@ -519,6 +519,26 @@ def test_launcher_keeps_its_reservation_when_reap_cannot_be_confirmed() -> None:
     assert events == ["terminate", "reap", "kill", "reap"]
 
 
+def test_launcher_rejects_a_non_boolean_reap_confirmation() -> None:
+    class Controller:
+        def terminate(self, _child: object) -> None:
+            pass
+
+        def kill(self, _child: object) -> None:
+            pass
+
+        def reap(self, _child: object, _timeout: float) -> object:
+            return "reaped"
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        GenerationWorkerLauncher()._close_with_controller(  # type: ignore[attr-defined]
+            child=object(),
+            controller=Controller(),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000),
+            clock=lambda: 0.0,
+        )
+
+
 def test_worker_requires_a_matching_pack_receipt_before_authorized_result() -> None:
     worker = GenerationWorkerSession(
         invocation_id="invocation-1",

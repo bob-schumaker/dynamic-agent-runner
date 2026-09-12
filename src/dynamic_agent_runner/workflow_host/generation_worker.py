@@ -660,14 +660,14 @@ class GenerationWorkerLauncher:
             terminate(child)
         try:
             confirmed = reap(child, max(deadline.remaining_seconds(clock()), 0.0))
-            if confirmed is False:
+            if confirmed is not True:
                 raise GenerationWorkerProtocolError(
                     "generation worker protocol invalid"
                 )
         except Exception as error:
             kill(child)
             confirmed = reap(child, 0.0)
-            if confirmed is False:
+            if confirmed is not True:
                 raise GenerationWorkerProtocolError(
                     "generation worker protocol invalid"
                 ) from error
