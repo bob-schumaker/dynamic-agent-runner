@@ -2,8 +2,9 @@
 
 ## Status
 
-Implementation has begun; only T4.1 currently meets its complete definition.
-Runtime changes remain gated by the RED-first tasks.
+Implementation has begun. T3.2a and T3.2b now cover the reviewed CPU and
+Darwin/MPS controller variants; the remaining runtime migration work stays
+gated by the RED-first tasks.
 
 ## S1 — Canonical Contract and Admission
 
@@ -73,11 +74,11 @@ Runtime changes remain gated by the RED-first tasks.
   launch/packing. Prove only reviewed runner/device containment with bounded
   reap confirmation admits execution; unsupported combinations fail before
   sealed-input ingress with `generation_memory_budget_unavailable`.
-- [ ] T3.2a [tests, RED] Add CPU-controller vectors for the general-purpose
+- [x] T3.2a [tests, RED] Add CPU-controller vectors for the general-purpose
   `multiprocessing` + POSIX `resource` path: CPU-only registration, address-space
   cap installation before the fixed child entry point, redacted readiness, and
   bounded terminate/kill/reap confirmation.
-- [ ] T3.2b [tests, RED] Add macOS-controller vectors for the Metal/MPS path:
+- [x] T3.2b [tests, RED] Add macOS-controller vectors for the Metal/MPS path:
   Darwin-only registration, exact MPS runner/device binding, and a reviewed
   Metal memory-envelope capability that must install before launch. Reject an
   unavailable platform, device mismatch, or unenforceable MPS envelope before
