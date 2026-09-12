@@ -1224,11 +1224,11 @@ def test_runner_retains_and_loads_debug_fragments_for_the_local_owner(
     assert diagnostic.diagnostic_id == "debug-run-1"
     assert diagnostic.run_id == "workflow-run-1"
     assert diagnostic.outcome == "failed"
-    assert diagnostic.fragments[0].content == '{"walls":['
+    assert not hasattr(diagnostic.fragments[0], "content")
+    assert diagnostic.fragments[0].fragment_index == 0
     assert diagnostic.fragments[0].exhausted is True
     assert diagnostic.fragments[0].generated_tokens == 3
-    assert diagnostic.fragments[0].runner_max_new_tokens == 65_536
-    assert diagnostic.fragments[0].backend_max_new_tokens == 65_536
+    assert diagnostic.fragments[0].output_bytes == len(b'{"walls":[')
     assert diagnostic.terminal is None
     assert diagnostic.retention_limited is False
 
@@ -1269,9 +1269,19 @@ def test_debug_run_retains_fragments_without_exposing_them_normally(
     assert debug.result is not None
     assert diagnostic.outcome == "completed"
     assert [
-        (fragment.content, fragment.exhausted, fragment.generated_tokens)
+        (
+            fragment.fragment_index,
+            fragment.exhausted,
+            fragment.generated_tokens,
+            fragment.output_bytes,
+        )
         for fragment in diagnostic.fragments
-    ] == [('{"message":"debug-only completion"}', False, 35)]
+    ] == [(0, False, 35, len(b'{"message":"debug-only completion"}'))]
+    assert "debug-only completion" not in repr(diagnostic)
+    records = runner._terminal_diagnostic_store.active_records(  # type: ignore[attr-defined]
+        kind="debug_workflow_diagnostic", owner="test-local-user", now=NOW
+    )
+    assert "debug-only completion" not in repr(records[0][1].payload)
     assert debug.diagnostic_id not in repr(debug.result)
     assert "debug-only completion" not in repr(runner.traces())
     assert "debug-only completion" not in repr(client.responses.calls)
@@ -1314,7 +1324,8 @@ def test_debug_run_retains_post_generation_failure_without_trace_leakage(
 
     diagnostic = runner.debug_diagnostic(debug.diagnostic_id, now=NOW)
     assert debug.status == diagnostic.outcome == "failed"
-    assert diagnostic.fragments[0].content == '{"malformed":'
+    assert not hasattr(diagnostic.fragments[0], "content")
+    assert diagnostic.fragments[0].output_bytes == len(b'{"malformed":')
     assert "malformed" not in repr(runner.traces())
     assert debug.diagnostic_id not in repr(runner.traces())
 
@@ -1356,7 +1367,8 @@ def test_debug_run_retains_post_generation_cancellation(tmp_path: Path) -> None:
     diagnostic_id = records[0][1].payload["diagnostic_id"]
     diagnostic = runner.debug_diagnostic(diagnostic_id, now=NOW)
     assert diagnostic.outcome == "cancelled"
-    assert diagnostic.fragments[0].content == '{"cancelled":true}'
+    assert not hasattr(diagnostic.fragments[0], "content")
+    assert diagnostic.fragments[0].output_bytes == len(b'{"cancelled":true}')
 
 
 def test_debug_diagnostic_is_revoked_for_its_local_owner(tmp_path: Path) -> None:
@@ -1411,8 +1423,8 @@ def test_debug_diagnostic_marks_aggregate_retention_limit(tmp_path: Path) -> Non
     )
 
     assert len(collector.fragments) == 1
-    assert collector.terminal is None
-    assert collector.retention_limited is True
+    assert collector.terminal is not None
+    assert collector.retention_limited is False
 
 
 def test_local_host_exposes_only_the_debug_diagnostic_surface() -> None:
