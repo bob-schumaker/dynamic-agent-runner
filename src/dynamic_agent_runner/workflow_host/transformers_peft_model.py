@@ -1552,6 +1552,15 @@ class DeferredTransformersPeftSingleImageAdapter:
                 or output_bytes > budget.max_total_output_bytes
             ):
                 raise ModelExecutionError("generation worker protocol invalid")
+            if self._debug_fragment_recorder is not None:
+                self._debug_fragment_recorder(
+                    GenerationDebugFragment(
+                        fragment_index=fragment_index,
+                        exhausted=result.exhausted,
+                        generated_tokens=result.generated_tokens,
+                        output_bytes=len(result.candidate),
+                    )
+                )
             fragments.append(fragment)
             content = "".join(fragments).strip()
             if not result.exhausted:

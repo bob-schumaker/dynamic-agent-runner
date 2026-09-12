@@ -813,6 +813,51 @@ def test_transformers_worker_runtime_keeps_converter_and_packed_input_in_child(
     assert events == ["runner", "pack", "generate"]
 
 
+def test_deferred_worker_adapter_records_only_verified_fragment_facts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.workflow_host.generation_worker import (
+        GenerationWorkerResult,
+    )
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+        GenerationDebugFragment,
+    )
+
+    budget = _generation_budget(max_continuations=0)
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id="model", adapter_id="adapter", resolve_prepared_set=lambda: object()
+    )
+    adapter._payload_bound = True
+    adapter._generation_worker_factory = object()
+    adapter._generation_budget = budget
+    adapter._generation_host_policy = _generation_host_policy(budget)
+    facts: list[GenerationDebugFragment] = []
+    adapter.set_debug_fragment_recorder(facts.append)
+    monkeypatch.setattr(
+        adapter, "_create_worker_invocation_factory", lambda *_args, **_kwargs: object()
+    )
+    monkeypatch.setattr(
+        adapter,
+        "_run_worker_fragment",
+        lambda **_kwargs: GenerationWorkerResult(b"ok", 1, 1, 2, False),
+    )
+
+    response = adapter.create_response(
+        build_openai_request(model="model", messages=[OpenAIMessage("user", "go")])
+    )
+
+    assert response.content == "ok"
+    assert facts == [
+        GenerationDebugFragment(
+            fragment_index=0,
+            exhausted=False,
+            generated_tokens=1,
+            output_bytes=2,
+        )
+    ]
+
+
 def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
     tmp_path: Path,
 ) -> None:
