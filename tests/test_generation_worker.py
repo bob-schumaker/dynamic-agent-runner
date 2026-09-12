@@ -221,3 +221,51 @@ def test_launcher_reserves_memory_before_authorizing_a_packed_receipt() -> None:
     assert events == ["reserve"]
     reservation.release()
     assert events == ["reserve", "release"]
+
+
+def test_launcher_releases_reservation_after_authorized_generation() -> None:
+    events: list[str] = []
+
+    class Reservation:
+        def release(self) -> None:
+            events.append("release")
+
+    class Provider:
+        def reserve(self, _request: object) -> Reservation:
+            events.append("reserve")
+            return Reservation()
+
+    class Child:
+        def generate(self) -> bytes:
+            events.append("generate")
+            return b"{}"
+
+    worker = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_output_bytes=2,
+    )
+    receipt = worker.pack(fragment_index=0, packed_context_tokens=3)
+    assert (
+        GenerationWorkerLauncher().generate(
+            child=Child(),
+            session=worker,
+            receipt=receipt,
+            remaining_generated_tokens=1,
+            provider=Provider(),
+            request=GenerationMemoryReservationRequest(
+                material_lock_digest="c" * 64,
+                runner_identity="runner",
+                execution_device="cpu",
+                packed_context_tokens=3,
+                requested_new_tokens=1,
+                max_memory_bytes=8,
+                deadline_monotonic=1.0,
+            ),
+        )
+        == b"{}"
+    )
+    assert events == ["reserve", "generate", "release"]

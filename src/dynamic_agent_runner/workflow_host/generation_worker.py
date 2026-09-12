@@ -179,6 +179,44 @@ class GenerationWorkerLauncher:
                     "generation worker protocol invalid"
                 ) from error
 
+    def generate(
+        self,
+        *,
+        child: object,
+        session: GenerationWorkerSession,
+        receipt: GenerationWorkerPackReceipt,
+        remaining_generated_tokens: int,
+        provider: MemoryReservationProvider,
+        request: GenerationMemoryReservationRequest,
+    ) -> bytes:
+        """Run one authorized child generation and release its reservation."""
+
+        generate = getattr(child, "generate", None)
+        if not callable(generate):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        reservation = self.authorize(
+            session=session,
+            receipt=receipt,
+            remaining_generated_tokens=remaining_generated_tokens,
+            provider=provider,
+            request=request,
+        )
+        try:
+            candidate = generate()
+            if not isinstance(candidate, bytes):
+                raise GenerationWorkerProtocolError(
+                    "generation worker protocol invalid"
+                )
+            return candidate
+        except GenerationWorkerProtocolError:
+            raise
+        except Exception as error:
+            raise GenerationWorkerProtocolError(
+                "generation worker protocol invalid"
+            ) from error
+        finally:
+            reservation.release()
+
     def authorize(
         self,
         *,
