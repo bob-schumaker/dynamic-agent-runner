@@ -81,6 +81,7 @@ from dynamic_agent_runner.workflow_host.local_model_runners import (
     LocalModelRunnerCatalog,
 )
 from dynamic_agent_runner.workflow_host.model_execution_binding import (
+    ModelRunnerProvider,
     ModelRunnerRegistry,
 )
 from dynamic_agent_runner.workflow_host.artifact_tools import (
@@ -117,11 +118,15 @@ from dynamic_agent_runner.workflow_host.package_export import (
 from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
 )
-from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
+from dynamic_agent_runner.workflow_host.capabilities import (
+    CapabilityCatalog,
+    CapabilityProvider,
+)
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
     ExecutionDescriptorValidatorRegistry,
 )
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    GenerationBudgetDescriptorValidator,
     GenerationExecutionHostPolicy,
 )
 from dynamic_agent_runner.workflow_host.embedding_execution import (
@@ -340,6 +345,57 @@ def _dar_owned_generation_worker_pair(
     except Exception as error:  # noqa: BLE001 - machine capabilities are optional.
         raise LocalWorkflowHostError("generation worker is unavailable") from error
     return factory, controller
+
+
+def _dar_owned_transformers_generation_bindings() -> tuple[
+    CapabilityCatalog, ExecutionDescriptorValidatorRegistry, ModelRunnerRegistry
+]:
+    """Return exact receiver registrations for DAR's Transformers worker ABI."""
+
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TRANSFORMERS_GENERATE_CONVERTER_CONTRACT,
+        TRANSFORMERS_GENERATE_MODEL_EXECUTION_CONTRACT,
+        TRANSFORMERS_PEFT_GENERATION_V1_ABI,
+    )
+
+    runner_contract = TRANSFORMERS_GENERATE_MODEL_EXECUTION_CONTRACT
+    converter_contract = TRANSFORMERS_GENERATE_CONVERTER_CONTRACT
+    return (
+        CapabilityCatalog(
+            (converter_contract, runner_contract),
+            (
+                CapabilityProvider(
+                    "dar-transformers-generate-converter-v1",
+                    converter_contract,
+                    conformance_passed=True,
+                ),
+                CapabilityProvider(
+                    "dar-transformers-generate-runner-v1",
+                    runner_contract,
+                    conformance_passed=True,
+                ),
+            ),
+        ),
+        ExecutionDescriptorValidatorRegistry(
+            (GenerationBudgetDescriptorValidator(TRANSFORMERS_PEFT_GENERATION_V1_ABI),)
+        ),
+        ModelRunnerRegistry(
+            (
+                ModelRunnerProvider(
+                    "dar-transformers-generate-runner-v1",
+                    runner_contract,
+                    (),
+                    (
+                        (
+                            TRANSFORMERS_PEFT_GENERATION_V1_ABI.abi_id,
+                            TRANSFORMERS_PEFT_GENERATION_V1_ABI.version,
+                            TRANSFORMERS_PEFT_GENERATION_V1_ABI.contract_digest,
+                        ),
+                    ),
+                ),
+            )
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -861,6 +917,14 @@ class LocalWorkflowHost:
         """Open a configured local host for the current OS user."""
 
         _validate_root(root)
+        (
+            default_capability_catalog,
+            default_descriptor_validators,
+            default_model_runner_registry,
+        ) = _dar_owned_transformers_generation_bindings()
+        capability_catalog = capability_catalog or default_capability_catalog
+        descriptor_validators = descriptor_validators or default_descriptor_validators
+        model_runner_registry = model_runner_registry or default_model_runner_registry
         if (embedding_execution is None) != (embedding_limit_projectors is None) or (
             embedding_execution is not None
             and (

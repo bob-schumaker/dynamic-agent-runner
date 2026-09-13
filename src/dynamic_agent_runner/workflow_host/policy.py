@@ -427,11 +427,9 @@ def _execution_bindings(
     """Derive sealed execution identities before any package-owned load."""
 
     if model_materials is None:
-        if any(
-            item.capability_id == "embedding.execute.v1"
-            for item in capability_requirements.required_capabilities
-        ):
-            raise PolicyCompilationError("embedding execution binding is unavailable")
+        _validate_missing_model_materials(
+            descriptor=descriptor, capability_requirements=capability_requirements
+        )
         return None, None
     if "runner" not in capability_requirements.bindings:
         raise PolicyCompilationError(
@@ -479,6 +477,21 @@ def _execution_bindings(
             "embedding execution binding is unavailable"
         ) from error
     return model_binding, embedding_binding
+
+
+def _validate_missing_model_materials(
+    *, descriptor: WorkflowDescriptor, capability_requirements: CapabilityRequirements
+) -> None:
+    if (
+        descriptor.input_converter is not None
+        and "converter" in capability_requirements.bindings
+    ):
+        raise PolicyCompilationError("model execution binding is unavailable")
+    if any(
+        item.capability_id == "embedding.execute.v1"
+        for item in capability_requirements.required_capabilities
+    ):
+        raise PolicyCompilationError("embedding execution binding is unavailable")
 
 
 def load_workflow_descriptor(descriptor_bytes: bytes) -> object:

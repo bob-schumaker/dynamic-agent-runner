@@ -1,0 +1,132 @@
+{
+  "execution_descriptor": {
+    "filename": "execution-descriptor.json",
+    "sha256": "0f70cce65601f7db992bf0712344e49b8ef8abea59d6be92d9cd260db89d31ac"
+  },
+  "format_version": 2,
+  "logical_model_id": "qwen25-vl-3b-floorplan-grpo",
+  "preparation": [],
+  "runner_contract": {
+    "id": "transformers-generate-v1",
+    "version": "1"
+  },
+  "sources": [
+    {
+      "filename": "adapter_config.json",
+      "group": "adapter",
+      "repository": "mudasir13cs/qwen25-vl-3b-floorplan-grpo",
+      "revision": "784b8bf4705939887122bcfba029a6fce13e9ff4",
+      "role": "adapter_config",
+      "sha256": "d4378af112087c3421851cb9ebde13fee0abc0ee1f001e0499d8febe62caf729",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "adapter_model.safetensors",
+      "group": "adapter",
+      "repository": "mudasir13cs/qwen25-vl-3b-floorplan-grpo",
+      "revision": "784b8bf4705939887122bcfba029a6fce13e9ff4",
+      "role": "adapter_weights",
+      "sha256": "089892a8815310bce15d6bf6d1fb082926f46a135b9550c6381ac192901d0132",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "chat_template.json",
+      "group": "base",
+      "repository": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+      "role": "base_chat_template",
+      "sha256": "ad60d90252ed0b0705ba14e2d0ad0fec0beac1ea955642b54059b36052d8bc96",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "config.json",
+      "group": "base",
+      "repository": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+      "role": "base_config",
+      "sha256": "7ed3eed5be6924cc800e8a5e53fc405c1aab1aaf36bad65c33403b36c56827f5",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "generation_config.json",
+      "group": "base",
+      "repository": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+      "role": "base_generation_config",
+      "sha256": "533f191cc257b7de37a4fccd0a7a1706d75e1aa660f93efaa54e5a2a9f9aace9",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "model-00001-of-00002.safetensors",
+      "group": "base",
+      "repository": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+      "role": "base_weight_1",
+      "sha256": "41a8895c164b4d32bae6b302f4603fcbc1797f32dafa45c7e9bcda23c6755df8",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "model-00002-of-00002.safetensors",
+      "group": "base",
+      "repository": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+      "role": "base_weight_2",
+      "sha256": "365531ff8752420e89dee707b79d021fb2d6e25abafe486f080555a4fe6972e4",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "model.safetensors.index.json",
+      "group": "base",
+      "repository": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+      "role": "base_weight_index",
+      "sha256": "c7dd78a4c6bea60b51332f1baf37b8f8124ecab2c35395a29a29825bf2619768",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "preprocessor_config.json",
+      "group": "base",
+      "repository": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+      "role": "processor_config",
+      "sha256": "f2058c716eef96ccaed1cc1e2d0c08306b62586d535b28d9d08e691b2fab7ca0",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "merges.txt",
+      "group": "base",
+      "repository": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+      "role": "processor_merges",
+      "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "tokenizer.json",
+      "group": "base",
+      "repository": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+      "role": "processor_tokenizer",
+      "sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "tokenizer_config.json",
+      "group": "base",
+      "repository": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+      "role": "processor_tokenizer_config",
+      "sha256": "4abd3520120e266da84c0864fee064d1fb10806f02225911a47253dd38dc5f56",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "vocab.json",
+      "group": "base",
+      "repository": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+      "role": "processor_vocab",
+      "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+      "source_type": "huggingface_file"
+    }
+  ]
+}

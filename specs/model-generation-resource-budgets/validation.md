@@ -23,6 +23,23 @@ and repaired the selected-controller child transport proxy; its spawned-child
 regression proves a `packed` response delayed beyond the default IPC wait
 reaches the parent under the configured lifecycle deadline.
 
+## T5.8 — Sealed production floorplan package material
+
+Date: 2026-09-13
+
+The floorplan package now carries a v2 `model-materials.json` lock containing
+the exact reviewed base and adapter artifact records, and a digest-bound
+`execution-descriptor.json` with the canonical seven-field generation budget.
+The package declares exact generic Transformers runner and converter
+capabilities. DAR registers the matching descriptor validator and model-runner
+provider by exact ABI, without a model-family-specific execution path.
+
+Focused package, generic runner, and host composition verification passed:
+`82 passed`. The missing-material regression proves a package with the
+canonical converter capability binding is rejected before converter asset
+validation. The legacy provider-unavailability ordering vector remains valid
+because it deliberately does not declare that canonical converter binding.
+
 ## S5 — Darwin MPS no-model worker fixture
 
 Date: 2026-09-13

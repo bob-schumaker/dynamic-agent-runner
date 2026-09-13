@@ -19,7 +19,11 @@ from dynamic_agent_runner.local_model_preparation import (
     _valid_loader_profile,
 )
 from dynamic_agent_runner.openai_client import ModelResponse, OpenAIModelRequest
+from dynamic_agent_runner.workflow_host.capabilities import CapabilityContract
 from dynamic_agent_runner.workflow_host.descriptor import DeclaredInputConverter
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorAbi,
+)
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
     GenerationRunnerCapability,
     GenerationResourceBudget,
@@ -47,6 +51,23 @@ from dynamic_agent_runner.workflow_host.generation_worker_assets import (
 
 
 TRANSFORMERS_GENERATE_V1 = "transformers-generate-v1"
+TRANSFORMERS_PEFT_GENERATION_V1_ABI = ExecutionDescriptorAbi(
+    "transformers-peft-generation-v1",
+    "1",
+    "572b21f33b158466c1fee84d34a12770b91b62d9f031551e0d212aec9b8491d6",
+)
+TRANSFORMERS_GENERATE_MODEL_EXECUTION_CONTRACT = CapabilityContract(
+    "model.execution.transformers-generate.v1",
+    "1",
+    "11f1e124898e8adb5f726b144235772def3ce41f23219d1e212b527834b9750b",
+    (),
+)
+TRANSFORMERS_GENERATE_CONVERTER_CONTRACT = CapabilityContract(
+    "model.converter.transformers-generate.v1",
+    "1",
+    "174e0315b88cd532806cac20f43f9c80cdea6ba99fbcc94dae6274613ecf5059",
+    (),
+)
 TRANSFORMERS_GENERATE_CAPABILITY = GenerationRunnerCapability(
     runner_id=TRANSFORMERS_GENERATE_V1,
     max_effective_context_tokens=1_000_000,

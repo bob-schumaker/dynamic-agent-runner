@@ -6,6 +6,23 @@ dar_runtime:
   required_version: 0.1.17
 model:
   profile_requirement: local-multimodal-model-v1
+capability_requirements:
+  format_version: 1
+  required_capabilities:
+    - capability_id: model.converter.transformers-generate.v1
+      contract_version: "1"
+      contract_digest: 174e0315b88cd532806cac20f43f9c80cdea6ba99fbcc94dae6274613ecf5059
+      required_features: []
+    - capability_id: model.execution.transformers-generate.v1
+      contract_version: "1"
+      contract_digest: 11f1e124898e8adb5f726b144235772def3ce41f23219d1e212b527834b9750b
+      required_features: []
+  capability_requirements_digest: 0444c8c292728e8112fa8ad3aece0dc89184d1d941a7bbbe5efaf6c945add060
+  bindings:
+    converter:
+      capability_id: model.converter.transformers-generate.v1
+    runner:
+      capability_id: model.execution.transformers-generate.v1
 skills: []
 tools: []
 workspace:

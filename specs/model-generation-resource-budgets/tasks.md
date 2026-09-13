@@ -240,7 +240,7 @@ admission.
 - [ ] T5.7 [manual gate] Create/register the prepared floorplan workflow through
   the supported host APIs, then execute T5.4 with the explicit Darwin MPS host
   policy and record only its redacted receipt and aggregate facts.
-- [ ] T5.8 [tests, RED/GREEN + implementation] Add the canonical sealed
+- [x] T5.8 [tests, RED/GREEN + implementation] Add the canonical sealed
   execution-descriptor material, generation-budget validator binding, and
   model-runner provider registration to the production floorplan package path.
   Reject registration before converter ingress when that material is absent;

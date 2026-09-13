@@ -8,7 +8,15 @@ import stat
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
+from dynamic_agent_runner.local_model_preparation import (
+    qwen25_vl_3b_floorplan_grpo_recipe,
+)
 from dynamic_agent_runner.workflow_host.catalog import PackageCatalog
+from dynamic_agent_runner.workflow_host.host import (
+    _dar_owned_transformers_generation_bindings,
+)
 from dynamic_agent_runner.workflow_host.local_tools import (
     LocalToolDefinition,
     LocalToolSandbox,
@@ -17,7 +25,11 @@ from dynamic_agent_runner.workflow_host.local_tools import (
 from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
 )
-from dynamic_agent_runner.workflow_host.policy import compile_workflow_policy
+from dynamic_agent_runner.workflow_host.policy import (
+    PolicyCompilationError,
+    compile_workflow_policy,
+)
+import dynamic_agent_runner.workflow_host.policy as policy_module
 from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 
@@ -45,7 +57,14 @@ def test_floorplan_fixture_stages_a_workflow_owned_svg_validator(
     )
     revision = PackageCatalog(tmp_path / "catalog").import_staged(staged)
 
-    policy = compile_workflow_policy(revision)
+    capability_catalog, descriptor_validators, _ = (
+        _dar_owned_transformers_generation_bindings()
+    )
+    policy = compile_workflow_policy(
+        revision,
+        capability_catalog=capability_catalog,
+        descriptor_validators=descriptor_validators,
+    )
 
     assert policy.model_profile_requirement == "local-multimodal-model-v1"
     runtime = (revision.package_root / "agent-runtime.yaml").read_text(encoding="utf-8")
@@ -138,3 +157,89 @@ def test_floorplan_fixture_stages_a_workflow_owned_svg_validator(
             b'"center":50,"width":20}]}],"rooms":[]}'
         ),
     ) == {"status": "rejected"}
+
+
+def test_floorplan_package_binds_a_sealed_generation_descriptor(tmp_path: Path) -> None:
+    source = tmp_path / "packages" / "floorplan-from-image"
+    shutil.copytree(FIXTURE, source)
+    store = PrivateStateStore(tmp_path / "state")
+    handle = PackageSourceSelectionPolicy(
+        allowed_root=source.parent, store=store
+    ).select_directory(source, now=NOW)
+    staged = PrivatePackageStager(store=store, private_root=tmp_path / "staging").stage(
+        handle, now=NOW
+    )
+    revision = PackageCatalog(tmp_path / "catalog").import_staged(staged)
+
+    capability_catalog, descriptor_validators, model_runner_registry = (
+        _dar_owned_transformers_generation_bindings()
+    )
+    policy = compile_workflow_policy(
+        revision,
+        capability_catalog=capability_catalog,
+        descriptor_validators=descriptor_validators,
+    )
+
+    assert policy.model_materials is not None
+    assert policy.execution_descriptor is not None
+    assert policy.model_execution_binding is not None
+    assert tuple(
+        (
+            source.role,
+            source.repository,
+            source.revision,
+            source.filename,
+            source.sha256,
+            source.group,
+        )
+        for source in policy.model_materials.sources
+    ) == tuple(
+        (
+            artifact.role,
+            artifact.repo_id,
+            artifact.revision,
+            artifact.filename,
+            artifact.sha256,
+            artifact.group,
+        )
+        for artifact in sorted(
+            qwen25_vl_3b_floorplan_grpo_recipe().artifacts,
+            key=lambda artifact: artifact.role,
+        )
+    )
+    assert (
+        model_runner_registry.resolve(policy.model_execution_binding).provider_id
+        == "dar-transformers-generate-runner-v1"
+    )
+
+
+def test_floorplan_package_without_materials_rejects_before_converter_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "packages" / "floorplan-from-image"
+    shutil.copytree(FIXTURE, source)
+    (source / "model-materials.json").unlink()
+    (source / "execution-descriptor.json").unlink()
+    store = PrivateStateStore(tmp_path / "state")
+    handle = PackageSourceSelectionPolicy(
+        allowed_root=source.parent, store=store
+    ).select_directory(source, now=NOW)
+    staged = PrivatePackageStager(store=store, private_root=tmp_path / "staging").stage(
+        handle, now=NOW
+    )
+    revision = PackageCatalog(tmp_path / "catalog").import_staged(staged)
+    capability_catalog, descriptor_validators, _ = (
+        _dar_owned_transformers_generation_bindings()
+    )
+    monkeypatch.setattr(
+        policy_module,
+        "_validate_input_converter_asset",
+        lambda **_kwargs: pytest.fail("converter validation must not run"),
+    )
+
+    with pytest.raises(PolicyCompilationError, match="model execution binding"):
+        compile_workflow_policy(
+            revision,
+            capability_catalog=capability_catalog,
+            descriptor_validators=descriptor_validators,
+        )
