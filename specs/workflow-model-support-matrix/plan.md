@@ -72,9 +72,9 @@ cannot be generalized to another model/material closure.
 WMS1 defines these pure types in one internal classifier module after existing
 capability-report types are inspected:
 
-- `WorkflowSupportProfile`: profile ID, workflow family, required capability
-  facts, material roles/identity, permitted mode, authorization class, and
-  canonical digest.
+- `WorkflowSupportProfile`: profile ID, workflow family, required adapter, ABI,
+  provider, and host facts, material roles/identity, permitted mode,
+  authorization class, and canonical digest.
 - `WorkflowSupportCell`: profile/adapter/environment identity, one status,
   ordered reason codes, and no execution side effects.
 - `WorkflowSupportReceipt`: redacted execution evidence bound to the profile and

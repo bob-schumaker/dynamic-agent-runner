@@ -33,6 +33,7 @@ def _profile(*, implemented: bool = True) -> WorkflowSupportProfile:
         profile_id="embedding-index-sealed-v1",
         workflow_family="embedding-index",
         required_adapter_capabilities=("embeddings",),
+        required_abi_capabilities=("bert-encoder-mlx-v3",),
         required_provider_capabilities=("embedding.execute.v1",),
         required_host_capabilities=("darwin-arm64",),
         material_identity=_material_identity(),
@@ -45,6 +46,7 @@ def _profile(*, implemented: bool = True) -> WorkflowSupportProfile:
 def _candidate(
     *,
     adapter_capabilities: frozenset[str] = frozenset({"embeddings"}),
+    available_abi_capabilities: frozenset[str] = frozenset({"bert-encoder-mlx-v3"}),
     provider_capabilities: frozenset[str] = frozenset({"embedding.execute.v1"}),
     host_capabilities: frozenset[str] = frozenset({"darwin-arm64"}),
     material_identity: MaterialIdentity | None = None,
@@ -52,6 +54,7 @@ def _candidate(
     return WorkflowSupportCandidate(
         adapter_id="mlx-local-embedding",
         adapter_capabilities=adapter_capabilities,
+        available_abi_capabilities=available_abi_capabilities,
         provider_capabilities=provider_capabilities,
         host_capabilities=host_capabilities,
         material_identity=material_identity or _material_identity(),
@@ -60,11 +63,12 @@ def _candidate(
 
 
 def test_profile_digest_is_canonical_across_unicode_and_mapping_order() -> None:
-    profile = _profile()
+    profile = replace(_profile(), workflow_family="caf\u00e9-embedding")
     reordered = WorkflowSupportProfile(
         profile_id="embedding-index-sealed-v1",
-        workflow_family="embedding-index",
+        workflow_family="cafe\u0301-embedding",
         required_adapter_capabilities=("embeddings",),
+        required_abi_capabilities=("bert-encoder-mlx-v3",),
         required_provider_capabilities=("embedding.execute.v1",),
         required_host_capabilities=("darwin-arm64",),
         material_identity=MaterialIdentity(
@@ -124,6 +128,36 @@ def test_blocked_reasons_are_complete_and_lexically_ordered() -> None:
     )
 
 
+def test_missing_required_abi_is_blocked_before_provider_execution() -> None:
+    cell = classify_workflow_support(
+        _profile(), _candidate(available_abi_capabilities=frozenset())
+    )
+
+    assert cell.status is WorkflowSupportStatus.BLOCKED
+    assert cell.reason_codes == ("required_abi_unavailable",)
+
+
+def test_missing_material_and_authorization_are_blocked_in_reason_order() -> None:
+    profile = replace(_profile(), authorization_required=True)
+    candidate = WorkflowSupportCandidate(
+        adapter_id="mlx-local-embedding",
+        adapter_capabilities=frozenset({"embeddings"}),
+        available_abi_capabilities=frozenset({"bert-encoder-mlx-v3"}),
+        provider_capabilities=frozenset({"embedding.execute.v1"}),
+        host_capabilities=frozenset({"darwin-arm64"}),
+        material_identity=None,
+        authorization_granted=False,
+    )
+
+    cell = classify_workflow_support(profile, candidate)
+
+    assert cell.status is WorkflowSupportStatus.BLOCKED
+    assert cell.reason_codes == (
+        "authorization_missing",
+        "required_material_missing",
+    )
+
+
 def test_matching_immutable_facts_are_supported_without_reasons() -> None:
     profile = _profile()
 
@@ -167,6 +201,12 @@ def test_receipt_cannot_transfer_to_a_different_profile_adapter_or_material() ->
     for changed_receipt in (
         replace(receipt, profile_digest="d" * 64),
         replace(receipt, adapter_id="other-adapter"),
+        replace(receipt, test_mode="live"),
+        replace(
+            receipt,
+            status=WorkflowSupportStatus.BLOCKED,
+            reason_codes=("required_provider_unavailable",),
+        ),
         replace(
             receipt,
             material_identity=_material_identity(package_id="other-package"),

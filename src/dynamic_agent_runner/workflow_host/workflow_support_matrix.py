@@ -59,7 +59,7 @@ class MaterialIdentity:
             _canonical_strings(self.material_roles, "material_roles"),
         )
         artifacts = dict(self.artifact_digests)
-        if not artifacts or any(not isinstance(key, str) for key in artifacts):
+        if any(not isinstance(key, str) for key in artifacts):
             raise WorkflowSupportMatrixError("artifact_digests are invalid")
         for key, digest in artifacts.items():
             _text(key, "artifact digest name")
@@ -84,6 +84,7 @@ class WorkflowSupportProfile:
     profile_id: str
     workflow_family: str
     required_adapter_capabilities: tuple[str, ...]
+    required_abi_capabilities: tuple[str, ...]
     required_provider_capabilities: tuple[str, ...]
     required_host_capabilities: tuple[str, ...]
     material_identity: MaterialIdentity | None
@@ -96,6 +97,7 @@ class WorkflowSupportProfile:
         _text(self.workflow_family, "workflow_family")
         for name in (
             "required_adapter_capabilities",
+            "required_abi_capabilities",
             "required_provider_capabilities",
             "required_host_capabilities",
         ):
@@ -120,6 +122,7 @@ class WorkflowSupportProfile:
             "profile_id": self.profile_id,
             "workflow_family": self.workflow_family,
             "required_adapter_capabilities": list(self.required_adapter_capabilities),
+            "required_abi_capabilities": list(self.required_abi_capabilities),
             "required_provider_capabilities": list(self.required_provider_capabilities),
             "required_host_capabilities": list(self.required_host_capabilities),
             "material_identity": (
@@ -145,6 +148,7 @@ class WorkflowSupportCandidate:
 
     adapter_id: str
     adapter_capabilities: frozenset[str]
+    available_abi_capabilities: frozenset[str]
     provider_capabilities: frozenset[str]
     host_capabilities: frozenset[str]
     material_identity: MaterialIdentity | None
@@ -154,6 +158,7 @@ class WorkflowSupportCandidate:
         _text(self.adapter_id, "adapter_id")
         for name in (
             "adapter_capabilities",
+            "available_abi_capabilities",
             "provider_capabilities",
             "host_capabilities",
         ):
@@ -176,12 +181,17 @@ class WorkflowSupportCell:
 
     profile_digest: str
     adapter_id: str
+    material_identity: MaterialIdentity | None
     status: WorkflowSupportStatus
     reason_codes: tuple[str, ...]
 
     def __post_init__(self) -> None:
         _digest(self.profile_digest, "profile_digest")
         _text(self.adapter_id, "adapter_id")
+        if self.material_identity is not None and not isinstance(
+            self.material_identity, MaterialIdentity
+        ):
+            raise WorkflowSupportMatrixError("material_identity is invalid")
         status = WorkflowSupportStatus(self.status)
         reasons = tuple(self.reason_codes)
         if reasons != tuple(sorted(reasons)) or not set(reasons).issubset(
@@ -192,6 +202,40 @@ class WorkflowSupportCell:
             raise WorkflowSupportMatrixError("support cell reasons are invalid")
         if status is not WorkflowSupportStatus.SUPPORTED and not reasons:
             raise WorkflowSupportMatrixError("support cell reasons are invalid")
+        object.__setattr__(self, "status", status)
+        object.__setattr__(self, "reason_codes", reasons)
+
+
+@dataclass(frozen=True)
+class WorkflowSupportReceipt:
+    """Pure receipt data bound to one exact support cell."""
+
+    profile_digest: str
+    adapter_id: str
+    material_identity: MaterialIdentity | None
+    test_mode: str
+    status: WorkflowSupportStatus
+    reason_codes: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _digest(self.profile_digest, "profile_digest")
+        _text(self.adapter_id, "adapter_id")
+        if self.material_identity is not None and not isinstance(
+            self.material_identity, MaterialIdentity
+        ):
+            raise WorkflowSupportMatrixError("material_identity is invalid")
+        if self.test_mode not in {"synthetic", "live"}:
+            raise WorkflowSupportMatrixError("test_mode is invalid")
+        status = WorkflowSupportStatus(self.status)
+        reasons = tuple(self.reason_codes)
+        if reasons != tuple(sorted(reasons)) or not set(reasons).issubset(
+            _REASONS_BY_STATUS[status]
+        ):
+            raise WorkflowSupportMatrixError("receipt reasons are invalid")
+        if (status is WorkflowSupportStatus.SUPPORTED) != (not reasons):
+            raise WorkflowSupportMatrixError("receipt reasons are invalid")
+        if status is not WorkflowSupportStatus.SUPPORTED and not reasons:
+            raise WorkflowSupportMatrixError("receipt reasons are invalid")
         object.__setattr__(self, "status", status)
         object.__setattr__(self, "reason_codes", reasons)
 
@@ -247,6 +291,10 @@ def _blocked_reasons(
             != profile.material_identity.to_mapping()
         ):
             reasons.append("material_identity_mismatch")
+    if not set(profile.required_abi_capabilities).issubset(
+        candidate.available_abi_capabilities
+    ):
+        reasons.append("required_abi_unavailable")
     if not set(profile.required_provider_capabilities).issubset(
         candidate.provider_capabilities
     ):
@@ -266,7 +314,44 @@ def _cell(
     status: WorkflowSupportStatus,
     reasons: tuple[str, ...],
 ) -> WorkflowSupportCell:
-    return WorkflowSupportCell(profile.digest, candidate.adapter_id, status, reasons)
+    return WorkflowSupportCell(
+        profile.digest,
+        candidate.adapter_id,
+        candidate.material_identity,
+        status,
+        reasons,
+    )
+
+
+def validate_workflow_support_receipt(
+    profile: WorkflowSupportProfile,
+    candidate: WorkflowSupportCandidate,
+    cell: WorkflowSupportCell,
+    receipt: WorkflowSupportReceipt,
+) -> None:
+    """Reject receipt data that is not bound to the exact evaluated cell."""
+
+    if not isinstance(cell, WorkflowSupportCell) or not isinstance(
+        receipt, WorkflowSupportReceipt
+    ):
+        raise WorkflowSupportMatrixError("support receipt is invalid")
+    expected = classify_workflow_support(profile, candidate)
+    if cell != expected or (
+        receipt.profile_digest,
+        receipt.adapter_id,
+        receipt.material_identity,
+        receipt.test_mode,
+        receipt.status,
+        receipt.reason_codes,
+    ) != (
+        expected.profile_digest,
+        expected.adapter_id,
+        expected.material_identity,
+        profile.execution_mode,
+        expected.status,
+        expected.reason_codes,
+    ):
+        raise WorkflowSupportMatrixError("receipt does not match support cell")
 
 
 def _canonical_strings(value: object, name: str) -> tuple[str, ...]:

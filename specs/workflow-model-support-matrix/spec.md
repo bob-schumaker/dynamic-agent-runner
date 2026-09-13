@@ -83,12 +83,13 @@ The existing `CapabilityStatusReport` remains a workflow-preflight input, not
 the support-matrix result type.
 
 A `WorkflowSupportProfile` has a stable profile ID, workflow family, sorted
-required capability facts, sorted required material roles, execution mode, and
-authorization class. A profile digest is the SHA-256 of its UTF-8 canonical JSON
-representation: recursively NFC-normalized strings, object keys sorted, and
-JSON encoded with `sort_keys=True`, `separators=(",", ":")`, and
+required adapter, ABI, provider, and host capability facts, sorted required
+material roles, execution mode, and authorization class. A profile digest is the
+SHA-256 of its UTF-8 canonical JSON
+representation: recursively NFC-normalized strings, object keys sorted, and JSON
+encoded with `sort_keys=True`, `separators=(",", ":")`, and
 `ensure_ascii=False`. A `WorkflowSupportCandidate` has an adapter identity,
-host capability facts, provider capability facts, and an optional material
+adapter, available-ABI, host, and provider capability facts, and an optional material
 identity. A material identity has a package ID, material-lock digest, and any
 descriptor/converter digest declared by the profile. A candidate cannot claim
 an identity by repository name, mutable revision label, path, or provider name.

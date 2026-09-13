@@ -1,6 +1,6 @@
 # Workflow Model Support Matrix Validation
 
-Status: WMS1 readiness review complete; generic classifier implementation and
+Status: WMS1 pure classifier implementation complete; WMS2 profile coverage and
 Fastmail/floorplan live receipts remain absent; one package-bound MLE6
 competency row is recorded
 
@@ -8,19 +8,22 @@ competency row is recorded
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| Artifact consistency review | pass | Requirements, plan, and WMS1--WMS4 task dependencies agree; no code was changed. |
+| Artifact consistency review | pass | Requirements, plan, WMS1 types, and WMS1--WMS4 task dependencies agree. |
 | WMS1 readiness review | pass | Closed classifier identity, reason-code, precedence, receipt-binding, and no-side-effect boundaries are specified; Council and Ponytail reviews require no further scope. |
+| `poetry run pytest tests/test_workflow_model_support_matrix.py -q` | pass: 9 | Canonical Unicode profile digest, all four terminal statuses, all closed blocked reasons, and non-transferable pure receipt binding. |
+| `poetry run pytest -q` | pass: 2,502; skipped: 1; deselected: 7 | Full regression after WMS1 implementation. |
+| `poetry run ruff check src tests` | pass | Full source and test lint after WMS1 implementation. |
 | MLE6 package-bound row | pass | `tests/test_mlx_gte_tiny_mle6_matrix.py` validates exact package/material/descriptor/capability/receipt binding and rejects changed package or material identity. |
 
 ## Traceability Matrix
 
 | AC | Requirement | Planned Check | Result |
 | --- | --- | --- | --- |
-| AC-001 | FR-001, FR-002 | WMS1.1--WMS1.2 classifier tests | not run |
+| AC-001 | FR-001, FR-002 | WMS1.1--WMS1.2 classifier tests | pass: missing adapter capability is `not_applicable` before other facts |
 | AC-002 | FR-001, FR-002 | WMS1.1--WMS1.2 and WMS2.3 | not run |
 | AC-003 | FR-003 | WMS2.1--WMS2.2 synthetic fixture | not run |
 | AC-004 | FR-004, FR-005 | WMS3.1--WMS3.2 fake authorization tests; later authorized receipt | not run |
-| AC-005 | FR-006 | WMS1.3 binding tests | not run |
+| AC-005 | FR-006 | WMS1.3 binding tests | pass: profile, adapter, material, test-mode, status, and reason changes reject |
 | AC-006 | FR-008, FR-009 | WMS2.4 and WMS3.3 floorplan profiles | not run |
 | AC-007 | FR-008, FR-010 | WMS2.5 structured-output profile | not run |
 | AC-008 | FR-008, FR-010 | WMS2.6 stateful-context profile | not run |
