@@ -6,6 +6,7 @@ import asyncio
 import platform
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from importlib import import_module
 from typing import Protocol
 
 from dynamic_agent_runner.errors import EmbeddingExecutionError
@@ -239,9 +240,12 @@ def _is_sha256(value: str) -> bool:
 
 
 def _load_mlx_version() -> str | None:
-    import mlx
+    mlx = import_module("mlx")
+    version = getattr(mlx, "__version__", None)
+    if isinstance(version, str):
+        return version
 
-    return getattr(mlx, "__version__", None)
+    return getattr(import_module("mlx.core"), "__version__", None)
 
 
 def _macos_version() -> tuple[int, int]:

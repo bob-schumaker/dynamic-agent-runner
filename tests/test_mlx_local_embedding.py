@@ -23,6 +23,7 @@ from dynamic_agent_runner.mlx_local_embedding import (
     create_mlx_local_embedding_adapter,
     create_mlx_local_embedding_async_adapter,
 )
+import dynamic_agent_runner.mlx_local_embedding as mlx_local_embedding
 
 
 @dataclass
@@ -95,6 +96,21 @@ def test_mlx_embedding_factories_are_lazy() -> None:
     assert sync_adapter is not None
     assert async_adapter is not None
     assert calls == []
+
+
+def test_mlx_dependency_probe_uses_core_version_when_top_level_lacks_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    top_level = object()
+    core = type("Core", (), {"__version__": "0.32.2"})()
+
+    monkeypatch.setattr(
+        mlx_local_embedding,
+        "import_module",
+        lambda name: top_level if name == "mlx" else core,
+    )
+
+    assert mlx_local_embedding._load_mlx_version() == "0.32.2"
 
 
 def _adapter(

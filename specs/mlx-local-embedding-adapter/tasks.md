@@ -198,13 +198,24 @@
     already composes sealed bindings; no MLX import occurs. A changed material
     digest rejects before the fake provider receives an execution call.
 
+- [x] MLE6.4a [bug, tests RED/GREEN] Repair the default MLX dependency probe
+      when `mlx.__version__` is absent but `mlx.core.__version__` carries the
+      installed version. Preserve lazy import and the exact `mlx==0.32.2` gate.
+  - Discovered: MLE6.5 preflight on 2026-09-13 found the installed 0.32.2
+    package exposes its version only from `mlx.core`, causing false dependency
+    rejection before material admission.
+  - Depends on: MLE6.4.
+  - Evidence: `test_mlx_dependency_probe_uses_core_version_when_top_level_lacks_one`
+    failed before the probe used `mlx.core.__version__`, then passed with the
+    existing lazy-admission regression suite.
+
 - [ ] MLE6.5 [manual competency gate] With explicit authorization, prepare the
       exact sealed package on Darwin arm64 with `mlx==0.32.2`, run the MLX
       embedding/index workflow, and compare against its locked reference
       fixture. Retain only package/material/descriptor digests, limits,
       duration, memory, vector count/dimension, opaque output IDs, and status.
   - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
-  - Depends on: MLE6.4.
+  - Depends on: MLE6.4a.
 
 - [ ] MLE6.6 [tests/docs] Add the exact successful package/material identity to
       the workflow model support matrix, update MLX embedding status/validation,
