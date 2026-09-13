@@ -105,7 +105,7 @@ remains unimplemented
     tests/test_dar_authoring_runner.py
     tests/test_fastmail_triage_report.py -q`.
 
-- [ ] WMS2.3 [tests, RED/GREEN] Define and execute the distinct synthetic
+- [x] WMS2.3 [tests, RED/GREEN] Define and execute the distinct synthetic
       `embedding-index-synthetic-mle6-v1` sealed-embedding profile against an
       injected provider; cover missing ABI, wrong material role, and an
       unonboarded embedding package as classified non-executing rows.
