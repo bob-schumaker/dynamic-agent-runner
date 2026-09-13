@@ -496,29 +496,17 @@ class TransformersPeftPackedInputAdapter:
                 supported=bool(getattr(self._runner, "supports_json_mode", False)),
             )
             budget = self._resolved_generation_budget(request)
-            deadline = (
-                GenerationDeadline.start(
-                    time.monotonic(),
-                    max_runtime_milliseconds=budget.max_runtime_milliseconds,
-                )
-                if budget is not None
-                else None
+            deadline = GenerationDeadline.start(
+                time.monotonic(),
+                max_runtime_milliseconds=budget.max_runtime_milliseconds,
             )
             generation_kwargs: dict[str, object] = {
-                "max_new_tokens": (
-                    budget.max_new_tokens_per_fragment
-                    if budget is not None
-                    else _max_new_tokens(request)
-                )
+                "max_new_tokens": budget.max_new_tokens_per_fragment
             }
             if json_mode:
                 generation_kwargs["json_mode"] = True
             messages = tuple(request.messages)
-            max_continuations = (
-                budget.max_continuations
-                if budget is not None
-                else _max_continuations(request)
-            )
+            max_continuations = budget.max_continuations
             if max_continuations:
                 completion = self._generate_with_continuations(
                     messages=messages,
@@ -537,35 +525,27 @@ class TransformersPeftPackedInputAdapter:
                 payload=payload,
                 context=self._runner.input_context,
             )
-            if (
-                budget is not None
-                or bool(getattr(self._runner, "uses_mps", False))
-                or (self._debug_fragment_recorder is not None)
-            ):
-                generated = self._generate_admitted_chunk(
-                    packed, budget=budget, deadline=deadline, **generation_kwargs
-                )
-                self._record_generated_fragment(generated)
-                content = generated.content.strip()
-                _validate_generated_completion(content, (generated,), budget)
-                if json_mode:
-                    content = _validated_json_object(content)
-                if bool(getattr(self._runner, "uses_mps", False)):
-                    return ModelResponse(
-                        content=content,
-                        metadata={
-                            "generation": {
-                                "device": "mps",
-                                "chunk_count": 1,
-                                "chunk_exhausted": [generated.exhausted],
-                                "generated_tokens": [generated.generated_tokens],
-                            }
-                        },
-                    )
-                return ModelResponse(content=content)
-            return ModelResponse(
-                content=self._runner.generate(packed, **generation_kwargs)
+            generated = self._generate_admitted_chunk(
+                packed, budget=budget, deadline=deadline, **generation_kwargs
             )
+            self._record_generated_fragment(generated)
+            content = generated.content.strip()
+            _validate_generated_completion(content, (generated,), budget)
+            if json_mode:
+                content = _validated_json_object(content)
+            if bool(getattr(self._runner, "uses_mps", False)):
+                return ModelResponse(
+                    content=content,
+                    metadata={
+                        "generation": {
+                            "device": "mps",
+                            "chunk_count": 1,
+                            "chunk_exhausted": [generated.exhausted],
+                            "generated_tokens": [generated.generated_tokens],
+                        }
+                    },
+                )
+            return ModelResponse(content=content)
         except ModelExecutionError:
             raise
         except Exception as error:  # noqa: BLE001 - converter errors vary.
@@ -641,9 +621,9 @@ class TransformersPeftPackedInputAdapter:
 
     def _resolved_generation_budget(
         self, request: OpenAIModelRequest
-    ) -> GenerationResourceBudget | None:
+    ) -> GenerationResourceBudget:
         if self._generation_budget is None:
-            return None
+            raise ModelExecutionError("model generation budget is unavailable")
         try:
             return resolve_generation_resource_budget(
                 declared=self._generation_budget,
@@ -863,13 +843,6 @@ def _user_prompt(request: OpenAIModelRequest) -> str:
 def _max_new_tokens(request: OpenAIModelRequest) -> int:
     value = request.extra.get("max_tokens", 1024)
     _validate_max_new_tokens(value)
-    return value
-
-
-def _max_continuations(request: OpenAIModelRequest) -> int:
-    value = request.extra.get("max_continuations", 0)
-    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-        raise ModelExecutionError("model continuation limit is invalid")
     return value
 
 

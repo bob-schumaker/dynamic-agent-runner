@@ -99,6 +99,37 @@ def _generation_host_policy(budget: object):
     )
 
 
+def _bound_packed_adapter(prepared_set, *, converter, runner, budget=None):
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        GeneratedText,
+        TransformersPeftPackedInputAdapter,
+    )
+
+    if not callable(getattr(runner, "generate_chunk", None)):
+        generate = runner.generate
+
+        def generate_chunk(packed, *, max_new_tokens, json_mode=False, **_kwargs):
+            kwargs = {"max_new_tokens": max_new_tokens}
+            if getattr(runner, "supports_json_mode", False):
+                kwargs["json_mode"] = json_mode
+            return GeneratedText(
+                generate(packed, **kwargs), exhausted=False, generated_tokens=1
+            )
+
+        runner.generate_chunk = generate_chunk
+    runner.supports_generation_resource_budgets = True
+    runner.supports_generation_deadline = True
+    budget = budget or _generation_budget(max_continuations=0)
+    return TransformersPeftPackedInputAdapter(
+        prepared_set,
+        converter=converter,
+        runner=runner,
+        generation_budget=budget,
+        generation_material_lock_digest="a" * 64,
+        generation_host_policy=_generation_host_policy(budget),
+    )
+
+
 QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE = _test_transformers_recipe()
 
 
@@ -1366,7 +1397,6 @@ def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
 ) -> None:
     from dynamic_agent_runner.workflow_host.transformers_peft_model import (
         PackedModelInput,
-        TransformersPeftPackedInputAdapter,
     )
 
     recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
@@ -1391,7 +1421,7 @@ def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
             calls["converter"] = (messages, payload, context)
             return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
 
-    adapter = TransformersPeftPackedInputAdapter(
+    adapter = _bound_packed_adapter(
         PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
     )
     adapter.bind_sealed_payload(content=b"sealed image")
@@ -1417,8 +1447,46 @@ def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
         b"sealed image",
         Runner.input_context,
     )
-    assert calls["max_new_tokens"] == 12
+    assert calls["max_new_tokens"] == 4
     assert adapter._sealed_payload is None
+
+
+def test_converter_adapter_rejects_unbound_generation_budget_before_packing(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        PackedModelInput,
+        TransformersPeftPackedInputAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+
+    class Runner:
+        input_context = object()
+
+        def generate(self, **_kwargs: object) -> str:
+            pytest.fail("unbound generation must not reach the runner")
+
+    class Converter:
+        def pack(self, **_kwargs: object) -> PackedModelInput:
+            pytest.fail("unbound generation must not pack sealed input")
+
+    adapter = TransformersPeftPackedInputAdapter(
+        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    )
+    adapter.bind_sealed_payload(content=b"sealed image")
+
+    with pytest.raises(ModelExecutionError, match="generation budget"):
+        adapter.create_response(
+            build_openai_request(
+                model=recipe.model_id,
+                messages=[OpenAIMessage("user", "vectorize")],
+            )
+        )
 
 
 def test_converter_adapter_passes_json_mode_to_a_capable_runner(
@@ -1426,7 +1494,6 @@ def test_converter_adapter_passes_json_mode_to_a_capable_runner(
 ) -> None:
     from dynamic_agent_runner.workflow_host.transformers_peft_model import (
         PackedModelInput,
-        TransformersPeftPackedInputAdapter,
     )
 
     recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
@@ -1456,7 +1523,7 @@ def test_converter_adapter_passes_json_mode_to_a_capable_runner(
         def pack(self, **_kwargs: object) -> PackedModelInput:
             return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
 
-    adapter = TransformersPeftPackedInputAdapter(
+    adapter = _bound_packed_adapter(
         PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
     )
     adapter.bind_sealed_payload(content=b"sealed image")
@@ -1472,7 +1539,7 @@ def test_converter_adapter_passes_json_mode_to_a_capable_runner(
 
     assert adapter.capabilities["json_mode"] is True
     assert response.content == "{}"
-    assert calls["max_new_tokens"] == 12
+    assert calls["max_new_tokens"] == 4
     assert calls["json_mode"] is True
     assert adapter._sealed_payload is None
 
@@ -1483,7 +1550,6 @@ def test_converter_adapter_assembles_bounded_json_continuations(
     from dynamic_agent_runner.workflow_host.transformers_peft_model import (
         GeneratedText,
         PackedModelInput,
-        TransformersPeftPackedInputAdapter,
     )
 
     recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
@@ -1495,8 +1561,8 @@ def test_converter_adapter_assembles_bounded_json_continuations(
     json_modes: list[bool] = []
     chunks = iter(
         (
-            GeneratedText('{"walls":', exhausted=True),
-            GeneratedText("[]}", exhausted=False),
+            GeneratedText('{"walls":', exhausted=True, generated_tokens=4),
+            GeneratedText("[]}", exhausted=False, generated_tokens=2),
         )
     )
 
@@ -1510,6 +1576,7 @@ def test_converter_adapter_assembles_bounded_json_continuations(
             *,
             max_new_tokens: int,
             json_mode: bool,
+            **_kwargs: object,
         ) -> GeneratedText:
             assert max_new_tokens == 4
             json_modes.append(json_mode)
@@ -1523,8 +1590,11 @@ def test_converter_adapter_assembles_bounded_json_continuations(
             calls.append((messages, payload))
             return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
 
-    adapter = TransformersPeftPackedInputAdapter(
-        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    adapter = _bound_packed_adapter(
+        PreparedArtifactSet(recipe, paths),
+        converter=Converter(),
+        runner=Runner(),
+        budget=_generation_budget(max_continuations=1),
     )
     adapter.bind_sealed_payload(content=b"sealed image")
 
@@ -1840,7 +1910,6 @@ def test_converter_adapter_emits_redacted_mps_metadata_for_direct_response(
     from dynamic_agent_runner.workflow_host.transformers_peft_model import (
         GeneratedText,
         PackedModelInput,
-        TransformersPeftPackedInputAdapter,
     )
 
     recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
@@ -1863,8 +1932,11 @@ def test_converter_adapter_emits_redacted_mps_metadata_for_direct_response(
         def pack(self, **_kwargs: object) -> PackedModelInput:
             return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
 
-    adapter = TransformersPeftPackedInputAdapter(
-        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    adapter = _bound_packed_adapter(
+        PreparedArtifactSet(recipe, paths),
+        converter=Converter(),
+        runner=Runner(),
+        budget=_generation_budget(max_continuations=1),
     )
     adapter.bind_sealed_payload(content=b"sealed image")
 
@@ -1894,7 +1966,6 @@ def test_converter_adapter_records_only_scalar_debug_fragment_facts(
     from dynamic_agent_runner.workflow_host.transformers_peft_model import (
         GeneratedText,
         PackedModelInput,
-        TransformersPeftPackedInputAdapter,
     )
 
     recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
@@ -1918,8 +1989,11 @@ def test_converter_adapter_records_only_scalar_debug_fragment_facts(
         def pack(self, **_kwargs: object) -> PackedModelInput:
             return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
 
-    adapter = TransformersPeftPackedInputAdapter(
-        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    adapter = _bound_packed_adapter(
+        PreparedArtifactSet(recipe, paths),
+        converter=Converter(),
+        runner=Runner(),
+        budget=_generation_budget(max_continuations=0),
     )
     adapter.set_debug_fragment_recorder(recorded.append)
     adapter.bind_sealed_payload(content=b"sealed image")
@@ -1948,7 +2022,6 @@ def test_converter_adapter_continues_an_incomplete_json_chunk(
     from dynamic_agent_runner.workflow_host.transformers_peft_model import (
         GeneratedText,
         PackedModelInput,
-        TransformersPeftPackedInputAdapter,
     )
 
     recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
@@ -1977,8 +2050,11 @@ def test_converter_adapter_continues_an_incomplete_json_chunk(
         def pack(self, **_kwargs: object) -> PackedModelInput:
             return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
 
-    adapter = TransformersPeftPackedInputAdapter(
-        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    adapter = _bound_packed_adapter(
+        PreparedArtifactSet(recipe, paths),
+        converter=Converter(),
+        runner=Runner(),
+        budget=_generation_budget(max_continuations=1),
     )
     adapter.bind_sealed_payload(content=b"sealed image")
 
@@ -2008,7 +2084,6 @@ def test_converter_adapter_rejects_an_exhausted_continuation_budget(
     from dynamic_agent_runner.workflow_host.transformers_peft_model import (
         GeneratedText,
         PackedModelInput,
-        TransformersPeftPackedInputAdapter,
     )
 
     recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
@@ -2026,14 +2101,17 @@ def test_converter_adapter_rejects_an_exhausted_continuation_budget(
         ) -> GeneratedText:
             nonlocal generated
             generated += 1
-            return GeneratedText('{"walls":', exhausted=True)
+            return GeneratedText('{"walls":', exhausted=True, generated_tokens=1)
 
     class Converter:
         def pack(self, **_kwargs: object) -> PackedModelInput:
             return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
 
-    adapter = TransformersPeftPackedInputAdapter(
-        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    adapter = _bound_packed_adapter(
+        PreparedArtifactSet(recipe, paths),
+        converter=Converter(),
+        runner=Runner(),
+        budget=_generation_budget(max_continuations=1),
     )
     adapter.bind_sealed_payload(content=b"sealed image")
 
@@ -2132,9 +2210,6 @@ def test_standard_runner_rejects_non_json_output_without_exposing_it(
 def test_converter_adapter_clears_payload_after_converter_failure(
     tmp_path: Path,
 ) -> None:
-    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
-        TransformersPeftPackedInputAdapter,
-    )
 
     recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
     paths = {
@@ -2145,11 +2220,14 @@ def test_converter_adapter_clears_payload_after_converter_failure(
     class Runner:
         input_context = object()
 
+        def generate_chunk(self, **_kwargs: object) -> object:
+            pytest.fail("converter failure must precede runner dispatch")
+
     class Converter:
         def pack(self, **_kwargs: object) -> object:
             raise ValueError("bad image")
 
-    adapter = TransformersPeftPackedInputAdapter(
+    adapter = _bound_packed_adapter(
         PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
     )
     adapter.bind_sealed_payload(content=b"sealed image")
@@ -2465,7 +2543,6 @@ def test_generic_runner_rejects_bad_decodes_and_generation_limits(
 
 def test_standard_runner_does_not_own_generation_ceiling_constants() -> None:
     from dynamic_agent_runner.workflow_host.transformers_peft_model import (
-        _max_continuations,
         _max_new_tokens,
     )
 
@@ -2473,11 +2550,9 @@ def test_standard_runner_does_not_own_generation_ceiling_constants() -> None:
         model="qwen25-vl-3b-floorplan-grpo",
         messages=[OpenAIMessage("user", "vectorize")],
         max_tokens=1_000_001,
-        max_continuations=33,
     )
 
     assert _max_new_tokens(request) == 1_000_001
-    assert _max_continuations(request) == 33
 
     with pytest.raises(ModelExecutionError, match="generation limit"):
         _max_new_tokens(
@@ -2485,14 +2560,6 @@ def test_standard_runner_does_not_own_generation_ceiling_constants() -> None:
                 model="qwen25-vl-3b-floorplan-grpo",
                 messages=[OpenAIMessage("user", "vectorize")],
                 max_tokens=0,
-            )
-        )
-    with pytest.raises(ModelExecutionError, match="continuation limit"):
-        _max_continuations(
-            build_openai_request(
-                model="qwen25-vl-3b-floorplan-grpo",
-                messages=[OpenAIMessage("user", "vectorize")],
-                max_continuations=-1,
             )
         )
 
