@@ -479,6 +479,21 @@ def configure_fastmail_triage_llama_cpp_host(
     return configuration
 
 
+def configure_floorplan_transformers_peft_host(
+    *, root: Path, package_root: Path
+) -> LocalWorkflowHostConfiguration:
+    """Configure the reviewed local floorplan Transformers/PEFT profile."""
+
+    _validate_root(root)
+    _validate_package_root(package_root)
+    profile = LocalModelProfileControlPlane(
+        store=PrivateStateStore(root)
+    ).create_floorplan_transformers_peft()
+    configuration = LocalWorkflowHostConfiguration(package_root, profile.profile_id)
+    _write_configuration(root, configuration)
+    return configuration
+
+
 def configure_hosted_openai_host(
     *,
     root: Path,
