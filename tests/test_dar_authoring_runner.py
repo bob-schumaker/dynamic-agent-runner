@@ -547,7 +547,7 @@ def _runner(
     reviewed_artifact_tool_executors: object | None = None,
     capability_catalog: CapabilityCatalog | None = None,
     with_capability_requirements: bool = False,
-    v2_converter_budget: bool = False,
+    v2_converter_budget: bool = True,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -605,7 +605,9 @@ def _runner(
                 "bindings": {},
             }
         descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
-    v2_fixture = _v2_converter_budget_fixture(source, enabled=v2_converter_budget)
+    v2_fixture = _v2_converter_budget_fixture(
+        source, enabled=input_converter and v2_converter_budget
+    )
     if terminal_validator:
         descriptor_path = source / "workflow-descriptor.yaml"
         descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
@@ -1243,6 +1245,7 @@ def test_runner_rejects_provider_becoming_unavailable_before_converter_load(
         input_converter=True,
         package_model="qwen25-vl-3b-floorplan-grpo",
         artifact_verifier=ConverterArtifactVerifier(),
+        v2_converter_budget=False,
         capability_catalog=catalog,
         with_capability_requirements=True,
     )
