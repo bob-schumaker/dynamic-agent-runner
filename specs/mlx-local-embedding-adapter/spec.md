@@ -3,8 +3,8 @@
 ## Metadata
 
 - Feature slug: `mlx-local-embedding-adapter`
-- Status: generic ABI/provider and one BERT/WordPiece package implemented;
-  MLE7 SentencePiece-Unigram and MLE8 RoBERTa expansions planned
+- Status: generic ABI/provider, one BERT/WordPiece package, and one
+  SentencePiece-Unigram package implemented; MLE8 RoBERTa expansion planned
 - Owner: dynamic-agent-runner local-model and embedding-capability boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`
@@ -200,7 +200,7 @@ equals `unk_token`. `normalizer` has `type: "BertNormalizer"` and a Boolean
 three required objects may not alter these semantics; no tokenizer asset may
 provide an import, executable callback, model path, or remote reference.
 
-### Planned closed SentencePiece-Unigram extension: `bert-encoder-mlx-v4`
+### Closed SentencePiece-Unigram extension: `bert-encoder-mlx-v4`
 
 `bert-encoder-mlx-v4@5` has contract digest
 `1db6568e50f14b1fd7752772573024e2da87518674cd78ba4f9c57cb84febb4f`.
@@ -239,8 +239,8 @@ them; it neither injects, removes, nor chooses a prefix. The descriptor's
 existing pooling and normalization fields remain the sole receiver-side
 selection for the sealed package.
 
-`intfloat/multilingual-e5-small` is the first intended package-level
-conformance target for this ABI. Its upstream configuration identifies a
+`intfloat/multilingual-e5-small` is the package-level conformance target for
+this ABI. Its upstream configuration identifies a
 standard BERT encoder with absolute positions, GELU, 12 layers, 384 hidden
 dimensions, LayerNorm epsilon `1e-12`, and an `XLMRobertaTokenizer` backed by
 `sentencepiece.bpe.model`. The model name is planning evidence only: DAR
