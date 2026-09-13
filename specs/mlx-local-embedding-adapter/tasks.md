@@ -501,11 +501,19 @@
     material lock; no MLX import, model download, user content, or raw local
     material is retained in the test suite.
 
-- [ ] MLE7.6 [tests, RED/GREEN] Exercise the MLE7 package through
+- [x] MLE7.6 [tests, RED/GREEN] Exercise the MLE7 package through
       `embedding.execute.v1` and the sealed index path with injected facts;
       prove opaque output and non-transferability before provider execution.
   - Spec: FR-6, Operational Completion Gate 3.
   - Depends on: MLE7.4 and MLE7.5.
+  - Evidence: `tests/test_mlx_multilingual_e5_small_mle7_execution.py` derives
+    all facts from the sealed MLE7 lock, descriptor, and requirements, then
+    executes exactly one synthetic item through the existing injected generic
+    embedding provider and opaque index path. The new composition vectors were
+    immediately GREEN because the receiver-owned generic bridge already admits
+    the exact v4 ABI. A changed material-lock binding rejects before provider
+    dispatch; no MLX import, source material I/O, network, or provider registry
+    change was needed.
 
 - [ ] MLE7.7 [manual] With explicit authorization, run the locked MLE7 package
       on Darwin arm64, compare its vectors to the fixture, and retain only the
