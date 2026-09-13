@@ -42,6 +42,12 @@ BERT_ENCODER_MLX_V3_ABI = ExecutionDescriptorAbi(
     "18f1131a9ab9e42ab07163914552f2099a891e0d8fec696290804480f47538a6",
 )
 
+BERT_ENCODER_MLX_V4_ABI = ExecutionDescriptorAbi(
+    "bert-encoder-mlx-v4",
+    "4",
+    "319a33d6fa584b5dc1a12e4f5cf21714a9475e15f014c34035233faa5ec44242",
+)
+
 
 class BertEncoderMlxV1DescriptorValidator:
     """Validate the finite, model-neutral BERT encoder descriptor grammar."""
@@ -108,9 +114,9 @@ class BertEncoderMlxV1DescriptorValidator:
             {"fixture_filename", "fixture_sha256", "precision", "metric", "max_error"},
         )
         _one_of(tokenizer["role"], {"tokenizer"})
-        _one_of(tokenizer["format"], {"wordpiece-json-v1"})
+        self._validate_tokenizer_format(tokenizer["format"])
         self._validate_tokenizer_normalization(tokenizer["normalization"])
-        _one_of(tokenizer["pre_tokenizer"], {"bert-basic-v1"})
+        self._validate_pre_tokenizer(tokenizer["pre_tokenizer"])
         _one_of(tokenizer["truncation"], {"longest-first"})
         token_ids = _mapping(
             tokenizer["special_token_ids"], {"cls", "sep", "pad", "unk"}
@@ -174,6 +180,12 @@ class BertEncoderMlxV1DescriptorValidator:
     def _validate_tokenizer_normalization(self, normalization: object) -> None:
         _one_of(normalization, {"nfc", "nfc-lowercase"})
 
+    def _validate_tokenizer_format(self, format_name: object) -> None:
+        _one_of(format_name, {"wordpiece-json-v1"})
+
+    def _validate_pre_tokenizer(self, pre_tokenizer: object) -> None:
+        _one_of(pre_tokenizer, {"bert-basic-v1"})
+
 
 class BertEncoderMlxV2DescriptorValidator(BertEncoderMlxV1DescriptorValidator):
     """Validate the closed mixed-precision BERT descriptor grammar."""
@@ -195,6 +207,21 @@ class BertEncoderMlxV3DescriptorValidator(BertEncoderMlxV2DescriptorValidator):
 
     def _validate_tokenizer_normalization(self, normalization: object) -> None:
         _one_of(normalization, {"nfc-lowercase-strip-accents"})
+
+
+class BertEncoderMlxV4DescriptorValidator(BertEncoderMlxV2DescriptorValidator):
+    """Validate the closed SentencePiece-BPE BERT descriptor grammar."""
+
+    identity = BERT_ENCODER_MLX_V4_ABI
+
+    def _validate_tokenizer_format(self, format_name: object) -> None:
+        _one_of(format_name, {"sentencepiece-bpe-model-v1"})
+
+    def _validate_pre_tokenizer(self, pre_tokenizer: object) -> None:
+        _one_of(pre_tokenizer, {"sentencepiece-bpe-v1"})
+
+    def _validate_tokenizer_normalization(self, normalization: object) -> None:
+        _one_of(normalization, {"nmt-nfkc"})
 
 
 def bert_encoder_mlx_v1_embedding_batch_limits(
@@ -304,6 +331,7 @@ def _validate_supported_bert_descriptor(descriptor: ExecutionDescriptor) -> None
         BERT_ENCODER_MLX_V1_ABI: BertEncoderMlxV1DescriptorValidator(),
         BERT_ENCODER_MLX_V2_ABI: BertEncoderMlxV2DescriptorValidator(),
         BERT_ENCODER_MLX_V3_ABI: BertEncoderMlxV3DescriptorValidator(),
+        BERT_ENCODER_MLX_V4_ABI: BertEncoderMlxV4DescriptorValidator(),
     }
     validator = validators.get(descriptor.architecture_abi)
     if validator is None:
@@ -799,7 +827,7 @@ def _bert_dtype_details(
     dtype = encoder["dtype"]
     if (
         descriptor.architecture_abi
-        in (BERT_ENCODER_MLX_V2_ABI, BERT_ENCODER_MLX_V3_ABI)
+        in (BERT_ENCODER_MLX_V2_ABI, BERT_ENCODER_MLX_V3_ABI, BERT_ENCODER_MLX_V4_ABI)
         and ".LayerNorm." in tensor_name
     ):
         dtype = encoder["layer_norm_dtype"]

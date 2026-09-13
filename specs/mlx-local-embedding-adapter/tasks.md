@@ -336,7 +336,7 @@
   - Evidence: spec, plan, and task amendments below; reduced-independence
     execution is advisory rather than independent parallel deliberation.
 
-- [ ] MLE7.1 [spec/design] Register a new closed BERT successor ABI for the
+- [x] MLE7.1 [spec/design] Register a new closed BERT successor ABI for the
       exact SentencePiece-BPE tokenizer grammar required by
       `intfloat/multilingual-e5-small`; record its canonical identity/digest,
       roles, tokenizer-byte and resource ceilings, special IDs, normalization,
@@ -354,6 +354,10 @@
     score/tie behavior, special-token sequence construction, and UTF-8 failure
     handling. Its contract does not add, remove, or select E5 `query:` or
     `passage:` prefixes; those are literal workflow input.
+  - Evidence: `bert-encoder-mlx-v4@4`, contract digest
+    `319a33d6fa584b5dc1a12e4f5cf21714a9475e15f014c34035233faa5ec44242`,
+    and v4-only descriptor admission/rejection tests in
+    `tests/test_mlx_embedding_abi.py` (2026-09-13).
 
 - [ ] MLE7.2 [tests, RED/GREEN] Add fake-only tokenizer admission and execution
       vectors for valid SentencePiece-BPE bytes plus malformed/truncated assets,

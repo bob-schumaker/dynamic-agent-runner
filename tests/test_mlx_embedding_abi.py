@@ -12,9 +12,11 @@ from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
     BERT_ENCODER_MLX_V1_ABI,
     BERT_ENCODER_MLX_V2_ABI,
     BERT_ENCODER_MLX_V3_ABI,
+    BERT_ENCODER_MLX_V4_ABI,
     BertEncoderMlxV1DescriptorValidator,
     BertEncoderMlxV2DescriptorValidator,
     BertEncoderMlxV3DescriptorValidator,
+    BertEncoderMlxV4DescriptorValidator,
     _bert_dtype_details,
 )
 
@@ -32,11 +34,17 @@ def _descriptor(*, abi=BERT_ENCODER_MLX_V1_ABI):
         "max_positions": 512,
         "type_vocab_size": 2,
     }
-    if abi in (BERT_ENCODER_MLX_V2_ABI, BERT_ENCODER_MLX_V3_ABI):
+    if abi in (
+        BERT_ENCODER_MLX_V2_ABI,
+        BERT_ENCODER_MLX_V3_ABI,
+        BERT_ENCODER_MLX_V4_ABI,
+    ):
         encoder.update(dtype="float16", layer_norm_dtype="float32")
     normalization = "nfc"
     if abi == BERT_ENCODER_MLX_V3_ABI:
         normalization = "nfc-lowercase-strip-accents"
+    if abi == BERT_ENCODER_MLX_V4_ABI:
+        normalization = "nmt-nfkc"
     return parse_execution_descriptor(
         {
             "format_version": 1,
@@ -45,9 +53,17 @@ def _descriptor(*, abi=BERT_ENCODER_MLX_V1_ABI):
             "abi_fields": {
                 "tokenizer": {
                     "role": "tokenizer",
-                    "format": "wordpiece-json-v1",
+                    "format": (
+                        "sentencepiece-bpe-model-v1"
+                        if abi == BERT_ENCODER_MLX_V4_ABI
+                        else "wordpiece-json-v1"
+                    ),
                     "normalization": normalization,
-                    "pre_tokenizer": "bert-basic-v1",
+                    "pre_tokenizer": (
+                        "sentencepiece-bpe-v1"
+                        if abi == BERT_ENCODER_MLX_V4_ABI
+                        else "bert-basic-v1"
+                    ),
                     "special_token_ids": {
                         "cls": 101,
                         "sep": 102,
@@ -121,6 +137,30 @@ def test_v3_retains_the_v2_float32_layer_norm_tensor_rule() -> None:
         "F32",
         4,
     )
+
+
+def test_v4_accepts_only_the_closed_sentencepiece_bpe_bert_descriptor() -> None:
+    descriptor = _descriptor(abi=BERT_ENCODER_MLX_V4_ABI)
+
+    BertEncoderMlxV4DescriptorValidator().validate(descriptor)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("format", "wordpiece-json-v1"),
+        ("normalization", "nfc-lowercase-strip-accents"),
+        ("pre_tokenizer", "bert-basic-v1"),
+    ),
+)
+def test_v4_rejects_any_non_sentencepiece_tokenizer_contract(
+    field: str, value: str
+) -> None:
+    descriptor = _descriptor(abi=BERT_ENCODER_MLX_V4_ABI)
+    descriptor.abi_fields["tokenizer"][field] = value
+
+    with pytest.raises(ExecutionDescriptorError, match="ABI fields"):
+        BertEncoderMlxV4DescriptorValidator().validate(descriptor)
 
 
 @pytest.mark.parametrize(

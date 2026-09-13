@@ -202,11 +202,14 @@ provide an import, executable callback, model path, or remote reference.
 
 ### Planned closed SentencePiece-BPE extension: `bert-encoder-mlx-v4`
 
-`bert-encoder-mlx-v4` is a planned successor ABI, not an installed fallback
-for v1--v3. It will retain the v2 mixed-precision BERT tensor and arithmetic
-contract, while replacing only the tokenizer grammar with one reviewed,
-closed SentencePiece BPE grammar. Its exact ABI version and contract digest
-must be registered before any descriptor can name it.
+`bert-encoder-mlx-v4@4` has contract digest
+`319a33d6fa584b5dc1a12e4f5cf21714a9475e15f014c34035233faa5ec44242`.
+It retains the v2 mixed-precision BERT tensor and arithmetic contract, while
+replacing only the tokenizer grammar with one reviewed, closed SentencePiece
+BPE grammar. Its descriptor has exactly the inherited v2 fields, but requires
+`"format": "sentencepiece-bpe-model-v1"`,
+`"normalization": "nmt-nfkc"`, and
+`"pre_tokenizer": "sentencepiece-bpe-v1"`; v1--v3 do not admit those values.
 
 The grammar must interpret only package-sealed tokenizer bytes. It must fix the
 SentencePiece normalizer, BPE vocabulary/merge behavior, special-token IDs,
