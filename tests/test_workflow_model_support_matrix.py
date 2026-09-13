@@ -538,3 +538,48 @@ def test_structured_output_profile_runs_one_tool_then_fixed_json() -> None:
     assert tool_calls == [{"key": "seed"}]
     assert terminal_json == {"status": "ok", "value": "DAR_STRUCTURED_PARITY_OK"}
     validate_workflow_support_receipt(profile, candidate, cell, receipt)
+
+
+def test_stateful_context_profile_records_only_bounded_execution_facts() -> None:
+    profile = WorkflowSupportProfile(
+        profile_id="stateful-context-synthetic-v1",
+        workflow_family="stateful-context",
+        required_adapter_capabilities=("overflow_retry", "session_restoration"),
+        required_abi_capabilities=(),
+        required_provider_capabilities=(),
+        required_host_capabilities=(),
+        material_identity=None,
+        execution_mode="synthetic",
+        authorization_required=False,
+        implemented=True,
+    )
+    candidate = WorkflowSupportCandidate(
+        adapter_id="fake-session-compaction-adapter",
+        adapter_capabilities=frozenset({"session_restoration", "overflow_retry"}),
+        available_abi_capabilities=frozenset(),
+        provider_capabilities=frozenset(),
+        host_capabilities=frozenset(),
+        material_identity=None,
+        authorization_granted=False,
+    )
+    cell = classify_workflow_support(profile, candidate)
+    restored_turn_count = 2
+    selected_context_count = 2
+    overflow_attempts = ["overflow", "compacted-success"]
+    receipt = WorkflowSupportReceipt(
+        profile_digest=cell.profile_digest,
+        adapter_id=cell.adapter_id,
+        material_identity=cell.material_identity,
+        test_mode="synthetic",
+        status=cell.status,
+        reason_codes=cell.reason_codes,
+        dispatch_count=len(overflow_attempts),
+    )
+
+    assert restored_turn_count == selected_context_count == 2
+    assert overflow_attempts == ["overflow", "compacted-success"]
+    assert cell.status is WorkflowSupportStatus.SUPPORTED
+    assert "secret old prompt" not in repr(receipt)
+    assert "provider-window-identifier" not in repr(receipt)
+    assert "compacted summary" not in repr(receipt)
+    validate_workflow_support_receipt(profile, candidate, cell, receipt)

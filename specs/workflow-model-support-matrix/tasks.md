@@ -192,7 +192,7 @@ remains unimplemented
   - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py
     tests/test_model_interface_matrix.py -q`.
 
-- [ ] WMS2.6 [tests, RED/GREEN] Add a stateful-context profile with bounded
+- [x] WMS2.6 [tests, RED/GREEN] Add a stateful-context profile with bounded
       prior turns, session restoration, selected-context assertions, and an
       overflow-retry classification fixture. Prove raw turns are absent from
       the resulting matrix receipt.
