@@ -1,7 +1,7 @@
 # macOS Generalized MLX Embedding Execution Validation
 
-Status: generic ABI/provider and one sealed workflow package validated; exact
-matrix admission recorded; MLE7 and MLE8 expansions planned
+Status: generic ABI/provider and two sealed workflow packages validated; exact
+matrix admissions recorded; MLE8 expansion planned
 
 ## Completed Generic Evidence
 
@@ -21,6 +21,16 @@ matrix admission recorded; MLE7 and MLE8 expansions planned
 | Darwin competency | authorized redacted package-bound MLX receipt | complete; v3 package `mle6.5-receipt.json`, 3×384 vectors, `max_abs_error` `0.00022599101066589355` |
 | Matrix admission | exact package/material support row | complete; package-local `support-matrix-row.json` and non-transferability tests |
 
+## MLE7 Traceability
+
+| Gate | Required evidence | Status |
+| --- | --- | --- |
+| Material decision | approved package-local lock and v4 SentencePiece-Unigram descriptor | complete; MLE7 package for `intfloat/multilingual-e5-small` |
+| Fixture conformance | trusted local normalized reference vectors bound to that lock | complete; MLE7.5 local-only reference fixture |
+| Offline admission | fake-only package/provider/index regressions | complete; MLE7.6 fake provider/index coverage |
+| Darwin competency | authorized redacted package-bound MLX receipt | complete; v4 package `mle7.7-receipt.json`, 3×384 vectors, `max_abs_error` `0.000021585263311862946` |
+| Matrix admission | exact package/material support row | complete; package-local `support-matrix-row.json` and non-transferability tests |
+
 ## Boundaries
 
 - The approval record at `tests/fixtures/mlx-gte-tiny/mle6-approval.md` selects
@@ -31,6 +41,6 @@ matrix admission recorded; MLE7 and MLE8 expansions planned
   local-only reference-vector generation, and the Darwin competency run. The
   committed receipt retains only redacted package identity, limits, resource,
   dimension, opaque-output, and pass/fail evidence.
-- MLE7 and MLE8 have no package, material, fixture, or Darwin evidence yet.
-  Their planned model names do not establish support, authorize a download or
-  material use, or transfer the MLE6 receipt to either tokenizer/executor ABI.
+- MLE8 has no package, material, fixture, or Darwin evidence yet. Its planned
+  model name does not establish support, authorize a download or material use,
+  or transfer an MLE6 or MLE7 receipt to its proposed tokenizer/executor ABI.

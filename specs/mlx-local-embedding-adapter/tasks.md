@@ -562,10 +562,16 @@
     IDs, and pass status; it retains no model input, weights, vectors, host name,
     or absolute local path.
 
-- [ ] MLE7.8 [tests/docs] Add the successful MLE7 package/material receipt as
+- [x] MLE7.8 [tests/docs] Add the successful MLE7 package/material receipt as
       a non-transferable embedding support row and update validation status.
   - Spec: Operational Completion Gate 5.
   - Depends on: MLE7.7.
+  - Evidence: the package-local support row binds only the exact MLE7 package,
+    material lock, v4 descriptor/ABI, embedding capability, required execution
+    roles, and redacted MLE7.7 receipt digest. Focused RED/GREEN tests reject a
+    changed package or material identity, and both MLX and workflow support
+    matrix validation records distinguish this v4 row from MLE6 and all
+    unonboarded packages.
 
 ## MLE8 — RoBERTa byte-level-BPE execution ABI
 

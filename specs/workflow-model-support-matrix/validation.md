@@ -1,8 +1,8 @@
 # Workflow Model Support Matrix Validation
 
 Status: WMS1 pure classifier implementation complete; WMS2 profile coverage and
-Fastmail/floorplan live receipts remain absent; one package-bound MLE6
-competency row is recorded
+Fastmail/floorplan live receipts remain absent; two package-bound MLX embedding
+competency rows are recorded
 
 ## Commands Run
 
@@ -17,6 +17,7 @@ competency row is recorded
 | `poetry run pytest -q` | pass: 2,502; skipped: 1; deselected: 7 | Full regression after WMS1 implementation. |
 | `poetry run ruff check src tests` | pass | Full source and test lint after WMS1 implementation. |
 | MLE6 package-bound row | pass | `tests/test_mlx_gte_tiny_mle6_matrix.py` validates exact package/material/descriptor/capability/receipt binding and rejects changed package or material identity. |
+| MLE7 package-bound row | pass | `tests/test_mlx_multilingual_e5_small_mle7_matrix.py` validates exact package/material/descriptor/capability/receipt binding and rejects changed package or material identity. |
 
 ## Traceability Matrix
 
@@ -35,11 +36,11 @@ competency row is recorded
 ## Manual Receipt Register
 
 No live Fastmail or floorplan run is authorized or recorded by this artifact
-creation. The separate local-only MLE6 Darwin competency receipt is recorded
-at `tests/fixtures/mlx-gte-tiny/mle6-package/mle6.5-receipt.json`, and its
-static matrix row is package-local at
-`tests/fixtures/mlx-gte-tiny/mle6-package/support-matrix-row.json`.
-Future receipts must contain only the fields specified by FR-005.
+creation. The separate local-only MLE6 and MLE7 Darwin competency receipts are
+recorded respectively at `tests/fixtures/mlx-gte-tiny/mle6-package/mle6.5-receipt.json`
+and `tests/fixtures/mlx-multilingual-e5-small/mle7-package/mle7.7-receipt.json`.
+Their static matrix rows are package-local beside each receipt. Future receipts
+must contain only the fields specified by FR-005.
 
 ## Residual Risks
 
