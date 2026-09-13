@@ -10,6 +10,7 @@ competency row is recorded
 | --- | --- | --- |
 | Artifact consistency review | pass | Requirements, plan, WMS1 types, and WMS1--WMS4 task dependencies agree. |
 | WMS1 readiness review | pass | Closed classifier identity, reason-code, precedence, receipt-binding, and no-side-effect boundaries are specified; Council and Ponytail reviews require no further scope. |
+| WMS2.3 readiness review | pass | The synthetic profile is distinct from MLE6 Darwin evidence, derives its identity from the sealed package fixture, records dispatch counts, and reuses the existing injected-provider seam. |
 | `poetry run pytest tests/test_workflow_model_support_matrix.py -q` | pass: 9 | Canonical Unicode profile digest, all four terminal statuses, all closed blocked reasons, and non-transferable pure receipt binding. |
 | `poetry run pytest -q` | pass: 2,502; skipped: 1; deselected: 7 | Full regression after WMS1 implementation. |
 | `poetry run ruff check src tests` | pass | Full source and test lint after WMS1 implementation. |
@@ -20,7 +21,7 @@ competency row is recorded
 | AC | Requirement | Planned Check | Result |
 | --- | --- | --- | --- |
 | AC-001 | FR-001, FR-002 | WMS1.1--WMS1.2 classifier tests | pass: missing adapter capability is `not_applicable` before other facts |
-| AC-002 | FR-001, FR-002 | WMS1.1--WMS1.2 and WMS2.3 | not run |
+| AC-002 | FR-001, FR-002 | WMS1.1--WMS1.2 and WMS2.3 fixture-derived classifier plus injected-provider execution | not run |
 | AC-003 | FR-003 | WMS2.1--WMS2.2 synthetic fixture | not run |
 | AC-004 | FR-004, FR-005 | WMS3.1--WMS3.2 fake authorization tests; later authorized receipt | not run |
 | AC-005 | FR-006 | WMS1.3 binding tests | pass: profile, adapter, material, test-mode, status, and reason changes reject |

@@ -1,6 +1,7 @@
 # Workflow Model Support Matrix Tasks
 
-Status: WMS1 ready for implementation approval; implementation not approved
+Status: WMS1 pure classifier implementation complete; WMS2 profile coverage
+remains unimplemented
 
 ## Prerequisites
 
@@ -66,16 +67,47 @@ Status: WMS1 ready for implementation approval; implementation not approved
     tests/test_workflow_model_support_matrix.py
     tests/test_fastmail_triage_report.py -q`.
 
-- [ ] WMS2.3 [tests, RED/GREEN] Define and execute a synthetic sealed embedding
-      profile against an injected provider; cover missing ABI, wrong material
-      role, and an unonboarded embedding package as classified non-executing
-      rows.
+- [ ] WMS2.3 [tests, RED/GREEN] Define and execute the distinct synthetic
+      `embedding-index-synthetic-mle6-v1` sealed-embedding profile against an
+      injected provider; cover missing ABI, wrong material role, and an
+      unonboarded embedding package as classified non-executing rows.
   - Spec: FR-002, FR-003, AC-002.
-  - Files/components: existing embedding test seams,
-    `tests/test_workflow_model_support_matrix.py`.
+  - Files/components: existing MLE6 package and fake embedding/index test
+    seam, `tests/test_workflow_model_support_matrix.py`,
+    `tests/test_mlx_gte_tiny_mle6_execution.py`, and the pure receipt boundary.
   - Depends on: WMS1.3.
+  - RED: parse the existing sealed MLE6 package lock, execution descriptor,
+    and capability requirements from test fixtures; derive the profile's exact
+    package ID, material-lock digest, `tokenizer`/`weights` roles,
+    execution-descriptor digest, `embedding.execute.v1` capability identity,
+    and ABI identity. Do not duplicate those identities as literals. The
+    synthetic profile has no host/MPS requirement and is distinct from the
+    package's `embedding-index-sealed-v1` Darwin competency row.
+  - RED: extend the pure `WorkflowSupportReceipt` contract with a non-negative
+    `dispatch_count`; retain only its existing stable classification reasons as
+    bounded diagnostics. Cover a supported synthetic receipt with one dispatch
+    and each non-executing row with zero dispatches.
+  - GREEN: run exactly one bounded synthetic input through the existing
+    `EmbeddingExecutionService` using its injected deterministic fake provider
+    and the binding derived from that same lock, descriptor, and capability
+    requirement. Assert the supported profile/candidate cell, one provider
+    dispatch, and no model import, model download, network, mailbox, OAuth,
+    or MPS access.
+  - GREEN: use the same profile for three zero-dispatch rows: an absent exact
+    ABI capability is `blocked/required_abi_unavailable`; an otherwise matching
+    identity missing `tokenizer` is `blocked/required_material_missing`; and a
+    different package identity is `blocked/material_identity_mismatch`. These
+    rows must not call the injected provider and cannot inherit the package's
+    Darwin competency receipt or supported row.
+  - Review disposition (2026-09-13): Council required the distinct synthetic
+    profile identity, fixture-derived facts, explicit dispatch receipts, and
+    the sealed MLE6 execution test in the validation command. Ponytail accepted
+    reuse of the existing fake provider and package fixture; no new runtime
+    registry, provider adapter, model fixture, or dependency is warranted.
   - Validation: `poetry run pytest
-    tests/test_workflow_model_support_matrix.py tests/test_embedding_execution.py
+    tests/test_workflow_model_support_matrix.py
+    tests/test_mlx_gte_tiny_mle6_execution.py
+    tests/test_embedding_execution.py
     -q`.
 
 - [ ] WMS2.4 [tests, RED/GREEN] Define the floorplan SVG profile from the exact

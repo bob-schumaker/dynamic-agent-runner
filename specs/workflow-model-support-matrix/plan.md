@@ -95,7 +95,7 @@ Status meaning:
 | Requirement | Test/Check | Command |
 | --- | --- | --- |
 | FR-001/FR-002 | profile validation and pure classification tests | `poetry run pytest tests/test_workflow_model_support_matrix.py -q` |
-| FR-003 | fake-only Fastmail and embedding fixture tests | `poetry run pytest tests/test_workflow_model_support_matrix.py tests/test_fastmail_triage_report.py tests/test_embedding_execution.py -q` |
+| FR-003 | fake-only Fastmail and embedding fixture tests | `poetry run pytest tests/test_workflow_model_support_matrix.py tests/test_fastmail_triage_report.py tests/test_mlx_gte_tiny_mle6_execution.py tests/test_embedding_execution.py -q` |
 | FR-004/FR-005 | authorization and redacted-receipt tests with fakes | `poetry run pytest tests/test_workflow_model_support_matrix.py -q` |
 | FR-006/FR-007 | binding/non-transferability and regression tests | `poetry run pytest tests/test_workflow_model_support_matrix.py tests/test_model_interface_matrix.py -q` |
 | FR-008--FR-010 | profile fixture and no-external-I/O tests | `poetry run pytest tests/test_workflow_model_support_matrix.py -q` |
@@ -123,6 +123,7 @@ Status meaning:
 
 ## Plan Approval
 
-- Status: WMS1 readiness review complete.
-- Notes: implementation remains separately unapproved; WMS1 is ready for that
-  approval and must remain a pure classifier plus fake-test slice.
+- Status: WMS1 implementation complete; WMS2.3 readiness review complete.
+- Notes: WMS2.3 is a fake-only, package-bound embedding slice. It must reuse
+  the sealed MLE6 fixture and injected-provider execution seam without turning
+  its synthetic result into Darwin/MLX competency evidence.
