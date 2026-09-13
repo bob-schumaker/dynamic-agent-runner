@@ -4,7 +4,7 @@
 
 - Feature slug: `mlx-local-embedding-adapter`
 - Status: generic ABI/provider and one BERT/WordPiece package implemented;
-  MLE7 SentencePiece-BPE and MLE8 RoBERTa expansions planned
+  MLE7 SentencePiece-Unigram and MLE8 RoBERTa expansions planned
 - Owner: dynamic-agent-runner local-model and embedding-capability boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`
@@ -200,22 +200,23 @@ equals `unk_token`. `normalizer` has `type: "BertNormalizer"` and a Boolean
 three required objects may not alter these semantics; no tokenizer asset may
 provide an import, executable callback, model path, or remote reference.
 
-### Planned closed SentencePiece-BPE extension: `bert-encoder-mlx-v4`
+### Planned closed SentencePiece-Unigram extension: `bert-encoder-mlx-v4`
 
-`bert-encoder-mlx-v4@4` has contract digest
-`319a33d6fa584b5dc1a12e4f5cf21714a9475e15f014c34035233faa5ec44242`.
+`bert-encoder-mlx-v4@5` has contract digest
+`1db6568e50f14b1fd7752772573024e2da87518674cd78ba4f9c57cb84febb4f`.
 It retains the v2 mixed-precision BERT tensor and arithmetic contract, while
 replacing only the tokenizer grammar with one reviewed, closed SentencePiece
-BPE grammar. Its descriptor has exactly the inherited v2 fields, but requires
-`"format": "sentencepiece-bpe-model-v1"`,
+Unigram grammar. Its descriptor has exactly the inherited v2 fields, but requires
+`"format": "sentencepiece-unigram-model-v1"`,
 `"normalization": "nmt-nfkc"`, and
-`"pre_tokenizer": "sentencepiece-bpe-v1"`. It also fixes the target's
+`"pre_tokenizer": "sentencepiece-unigram-v1"`. It also fixes the target's
 Hugging Face SentencePiece ID translation: `"id_offset": 1` and
 `{"cls": 0, "sep": 2, "pad": 1, "unk": 3}`. v1--v3 do not admit those
 values.
 
 The grammar must interpret only package-sealed tokenizer bytes. It must fix the
-SentencePiece normalizer, BPE vocabulary/merge behavior, special-token IDs,
+SentencePiece normalizer, Unigram lattice scoring and deterministic Viterbi
+selection, special-token IDs,
 unknown-token behavior, whitespace/word-boundary handling, truncation, and
 exact-width padding. It must reject model-supplied code, protobuf extensions,
 normalizer plugins, byte fallbacks, arbitrary model files, and any grammar not
@@ -228,7 +229,7 @@ tokenizer implementation, or tokenizer configuration file may be locked as
 package provenance, but none is an alternate execution input or source of
 runtime semantics. Before registration, the ABI must state the accepted
 ModelProto field set and wire/resource limits, the normalizer operations and
-their order, BPE score/tie resolution, and the mapping from the declared
+their order, Unigram score/tie resolution, and the mapping from the declared
 special IDs to emitted sequences. Unknown or out-of-profile fields are a
 rejection, not a forward-compatibility mechanism.
 
@@ -454,7 +455,7 @@ authoritative for snapshots and index-bundle behavior.
 - Static and receiver-resolved metadata distinguish embedding from generation
   and llama.cpp without breaking lazy admission.
 - A sealed `intfloat/multilingual-e5-small` package can be admitted only by the
-  registered SentencePiece-BPE BERT ABI, and rejects a changed tokenizer,
+  registered SentencePiece-Unigram BERT ABI, and rejects a changed tokenizer,
   material closure, tokenizer grammar, or conformance fixture before MLX load.
 - A sealed `sentence-transformers/all-distilroberta-v1` package can be admitted
   only by the registered RoBERTa ABI, and fake vectors prove byte-level BPE and

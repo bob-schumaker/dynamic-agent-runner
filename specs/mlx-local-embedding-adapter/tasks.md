@@ -314,9 +314,9 @@
     material lock, descriptor/ABI, capability, and receipt SHA. Focused tests
     reject a different package ID or changed material lock from inheriting it.
 
-## MLE7 — SentencePiece-BPE BERT package expansion
+## MLE7 — SentencePiece-Unigram BERT package expansion
 
-- [x] MLE7.0 [review] Reconcile the ABI, package, and workflow boundaries before
+- [ ] MLE7.0 [review] Reconcile the ABI, package, and workflow boundaries before
       implementation.
   - Council: Aristotle, Ada, and Feynman performed a reduced-independence
     sequential architecture review on 2026-09-13. They required the plan to
@@ -330,14 +330,22 @@
     arithmetic. Rejected a generic SentencePiece dependency, parser/plugin
     registry, model-name dispatch, tokenizer.json fallback, and DAR-owned E5
     prompt policy.
-  - Verdict: MLE7.1--MLE7.8 are implementation-ready in order. MLE7.4--MLE7.7
+  - Superseded: local examination of the target's sealed tokenizer on
+    2026-09-13 found `trainer_spec.model_type == 1` (Unigram), not BPE (`2`).
+    The previous BPE review, descriptor, and decoder are invalid for the target
+    and must not be used as MLE7 completion evidence.
+  - Required refreshed verdict: the closed Unigram grammar must retain the same
+    no-runtime, no-plugin, sealed-byte boundary and state its finite lattice,
+    score, tie, and UTF-8 rules before implementation resumes.
+  - Verdict: MLE7.1--MLE7.8 are implementation-ready in order only after that
+    correction. MLE7.4--MLE7.7
     remain separately authorization-gated; this review authorizes neither
     model retrieval nor local material use.
   - Evidence: spec, plan, and task amendments below; reduced-independence
     execution is advisory rather than independent parallel deliberation.
 
-- [x] MLE7.1 [spec/design] Register a new closed BERT successor ABI for the
-      exact SentencePiece-BPE tokenizer grammar required by
+- [ ] MLE7.1 [spec/design] Register a new closed BERT successor ABI for the
+      exact SentencePiece-Unigram tokenizer grammar required by
       `intfloat/multilingual-e5-small`; record its canonical identity/digest,
       roles, tokenizer-byte and resource ceilings, special IDs, normalization,
       boundary behavior, truncation, and padding semantics.
@@ -350,17 +358,16 @@
     `tokenizer.json`, a fast tokenizer, and tokenizer metadata cannot supply an
     alternate grammar. The registered grammar names every accepted ModelProto
     wire field, rejects unknown/out-of-profile fields, bounds field count,
-    nesting, strings, and serialized bytes, and fixes normalizer ordering, BPE
-    score/tie behavior, special-token sequence construction, and UTF-8 failure
+    nesting, strings, and serialized bytes, and fixes normalizer ordering,
+    Unigram score/tie behavior, special-token sequence construction, and UTF-8 failure
     handling. Its contract does not add, remove, or select E5 `query:` or
     `passage:` prefixes; those are literal workflow input.
-  - Evidence: `bert-encoder-mlx-v4@4`, contract digest
-    `319a33d6fa584b5dc1a12e4f5cf21714a9475e15f014c34035233faa5ec44242`,
-    and v4-only descriptor admission/rejection tests in
-    `tests/test_mlx_embedding_abi.py` (2026-09-13).
+  - Target fact: the immutable `sentencepiece.bpe.model` filename is retained
+    as a sealed role name, but its ModelProto declares `model_type == 1`
+    (Unigram). File naming must not select grammar semantics.
 
 - [ ] MLE7.2 [tests, RED/GREEN] Add fake-only tokenizer admission and execution
-      vectors for valid SentencePiece-BPE bytes plus malformed/truncated assets,
+      vectors for valid SentencePiece-Unigram bytes plus malformed/truncated assets,
       changed normalizer, unknown pieces, special IDs, leading/adjacent
       whitespace, Unicode boundaries, truncation, and exact-width padding.
   - Spec: FR-2, FR-3, FR-5.
@@ -375,7 +382,7 @@
 - [ ] MLE7.3 [implementation] Implement only the registered tokenizer grammar
       and bind it to the existing BERT arithmetic path; preserve v1--v3
       WordPiece behavior and reject all unregistered tokenizer formats.
-  - Spec: planned BERT SentencePiece-BPE ABI.
+  - Spec: planned BERT SentencePiece-Unigram ABI.
   - Depends on: MLE7.2.
   - Acceptance: use one v4-specific sealed-byte decoder/tokenizer path; do not
     add a generic SentencePiece runtime, a tokenizer plugin registry, or a

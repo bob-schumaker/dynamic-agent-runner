@@ -112,7 +112,7 @@ model or architecture without its own material and conformance evidence.
 Two sealed expansion tracks follow the same package admission, fixture,
 workflow, Darwin, and matrix sequence, but they do not share an ABI.
 
-1. MLE7 adds a closed SentencePiece-BPE tokenizer grammar to a new BERT ABI
+1. MLE7 adds a closed SentencePiece-Unigram tokenizer grammar to a new BERT ABI
    successor. Its only tokenizer execution input is the locked
    `sentencepiece.bpe.model` role; companion tokenizer metadata is provenance,
    never a fallback parser. It preserves the existing BERT executor only after
