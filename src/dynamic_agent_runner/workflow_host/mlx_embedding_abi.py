@@ -36,6 +36,12 @@ BERT_ENCODER_MLX_V2_ABI = ExecutionDescriptorAbi(
     "646e958aae4752c3fdb2503d257929b95ad037c5462a35a7fa9e5d23aa14d35d",
 )
 
+BERT_ENCODER_MLX_V3_ABI = ExecutionDescriptorAbi(
+    "bert-encoder-mlx-v3",
+    "3",
+    "18f1131a9ab9e42ab07163914552f2099a891e0d8fec696290804480f47538a6",
+)
+
 
 class BertEncoderMlxV1DescriptorValidator:
     """Validate the finite, model-neutral BERT encoder descriptor grammar."""
@@ -103,7 +109,7 @@ class BertEncoderMlxV1DescriptorValidator:
         )
         _one_of(tokenizer["role"], {"tokenizer"})
         _one_of(tokenizer["format"], {"wordpiece-json-v1"})
-        _one_of(tokenizer["normalization"], {"nfc", "nfc-lowercase"})
+        self._validate_tokenizer_normalization(tokenizer["normalization"])
         _one_of(tokenizer["pre_tokenizer"], {"bert-basic-v1"})
         _one_of(tokenizer["truncation"], {"longest-first"})
         token_ids = _mapping(
@@ -165,6 +171,9 @@ class BertEncoderMlxV1DescriptorValidator:
     def _validate_dtypes(self, encoder: Mapping[str, object]) -> None:
         _one_of(encoder["dtype"], {"float16", "bfloat16", "float32"})
 
+    def _validate_tokenizer_normalization(self, normalization: object) -> None:
+        _one_of(normalization, {"nfc", "nfc-lowercase"})
+
 
 class BertEncoderMlxV2DescriptorValidator(BertEncoderMlxV1DescriptorValidator):
     """Validate the closed mixed-precision BERT descriptor grammar."""
@@ -177,6 +186,15 @@ class BertEncoderMlxV2DescriptorValidator(BertEncoderMlxV1DescriptorValidator):
     def _validate_dtypes(self, encoder: Mapping[str, object]) -> None:
         _one_of(encoder["dtype"], {"float16"})
         _one_of(encoder["layer_norm_dtype"], {"float32"})
+
+
+class BertEncoderMlxV3DescriptorValidator(BertEncoderMlxV2DescriptorValidator):
+    """Validate the closed accent-stripping BERT descriptor grammar."""
+
+    identity = BERT_ENCODER_MLX_V3_ABI
+
+    def _validate_tokenizer_normalization(self, normalization: object) -> None:
+        _one_of(normalization, {"nfc-lowercase-strip-accents"})
 
 
 def bert_encoder_mlx_v1_embedding_batch_limits(
@@ -285,6 +303,7 @@ def _validate_supported_bert_descriptor(descriptor: ExecutionDescriptor) -> None
     validators = {
         BERT_ENCODER_MLX_V1_ABI: BertEncoderMlxV1DescriptorValidator(),
         BERT_ENCODER_MLX_V2_ABI: BertEncoderMlxV2DescriptorValidator(),
+        BERT_ENCODER_MLX_V3_ABI: BertEncoderMlxV3DescriptorValidator(),
     }
     validator = validators.get(descriptor.architecture_abi)
     if validator is None:
@@ -557,7 +576,8 @@ def _tokenize_wordpiece_items(
     assert isinstance(limits, Mapping)
     special_ids = fields["special_token_ids"]
     assert isinstance(special_ids, Mapping)
-    lowercase = fields["normalization"] == "nfc-lowercase"
+    normalization = fields["normalization"]
+    assert isinstance(normalization, str)
     max_tokens = limits["max_tokens"]
     assert isinstance(max_tokens, int)
     if max_tokens < 2:
@@ -565,7 +585,7 @@ def _tokenize_wordpiece_items(
     encoded = [
         [
             special_ids["cls"],
-            *_wordpiece_ids(item.text, vocab, lowercase, special_ids["unk"])[
+            *_wordpiece_ids(item.text, vocab, normalization, special_ids["unk"])[
                 : max_tokens - 2
             ],
             special_ids["sep"],
@@ -584,11 +604,18 @@ def _tokenize_wordpiece_items(
 
 
 def _wordpiece_ids(
-    text: str, vocab: Mapping[str, object], lowercase: bool, unk_id: object
+    text: str, vocab: Mapping[str, object], normalization: str, unk_id: object
 ) -> list[int]:
     normalized = unicodedata.normalize("NFC", text)
-    if lowercase:
+    if normalization != "nfc":
         normalized = normalized.lower()
+    if normalization == "nfc-lowercase-strip-accents":
+        normalized = "".join(
+            character
+            for character in unicodedata.normalize("NFD", normalized)
+            if unicodedata.category(character) != "Mn"
+        )
+        normalized = unicodedata.normalize("NFC", normalized)
     ids: list[int] = []
     for token in _bert_basic_tokens(normalized):
         index = 0
@@ -825,10 +852,14 @@ def _validate_wordpiece_tokenizer(
     if vocab.get(unk_token) != special_ids["unk"]:
         raise ValueError
     normalization = descriptor_tokenizer["normalization"]
-    expected_lowercase = normalization == "nfc-lowercase"
+    expected_lowercase = normalization != "nfc"
+    expected_strip_accents = (
+        None if normalization == "nfc-lowercase-strip-accents" else False
+    )
     if (
         normalizer.get("type") != "BertNormalizer"
         or normalizer.get("lowercase") is not expected_lowercase
+        or normalizer.get("strip_accents") is not expected_strip_accents
         or pre_tokenizer.get("type") != "BertPreTokenizer"
     ):
         raise ValueError

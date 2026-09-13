@@ -87,7 +87,7 @@ an installed MLX ABI; other providers and platforms remain unchanged.
 
 1. Obtain explicit human approval for one BERT-compatible material closure and
    its license decision. Construct a package-local v2 material lock, a matching
-   `bert-encoder-mlx-v2` descriptor, and a bounded synthetic document fixture.
+   `bert-encoder-mlx-v3` descriptor, and a bounded synthetic document fixture.
    Do not add the selected model identity to DAR source or configuration.
 2. Use a trusted, local-only, `trust_remote_code=False` reference runtime to
    generate and lock synthetic vector evidence. Test the canonical package,

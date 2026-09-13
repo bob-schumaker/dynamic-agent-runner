@@ -11,8 +11,8 @@ Decision date: 2026-09-13
   `model-material-lock.json`; a receiver may use its cached copy only when every
   value matches.
 - Expected descriptor ABI:
-  `bert-encoder-mlx-v2@2` with contract digest
-  `646e958aae4752c3fdb2503d257929b95ad037c5462a35a7fa9e5d23aa14d35d`.
+  `bert-encoder-mlx-v3@3` with contract digest
+  `18f1131a9ab9e42ab07163914552f2099a891e0d8fec696290804480f47538a6`.
 
 ## License decision
 

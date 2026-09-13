@@ -42,6 +42,7 @@ from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
     BERT_ENCODER_MLX_V1_ABI,
     BertEncoderMlxV1EmbeddingBackend,
     BertEncoderMlxV1DescriptorValidator,
+    _wordpiece_ids,
     _bert_tensor_shapes,
     bert_encoder_mlx_v1_embedding_batch_limits,
 )
@@ -156,7 +157,11 @@ def _tokenizer_bytes(*, mutate: TokenizerMutation | None = None) -> bytes:
     }
     asset: TokenizerAsset = {
         "model": {"type": "WordPiece", "unk_token": "[UNK]", "vocab": vocab},
-        "normalizer": {"type": "BertNormalizer", "lowercase": False},
+        "normalizer": {
+            "type": "BertNormalizer",
+            "lowercase": False,
+            "strip_accents": False,
+        },
         "pre_tokenizer": {"type": "BertPreTokenizer"},
     }
     if mutate is not None:
@@ -542,6 +547,15 @@ def test_backend_truncation_retains_required_sep_token() -> None:
     backend.embed((EmbeddingInputItem("entry", "one two"),), _materials())
 
     assert mlx.arrays[0].tolist() == [[101, 100, 102]]
+
+
+def test_wordpiece_tokenization_strips_accents_for_the_closed_unicode_profile() -> None:
+    assert _wordpiece_ids(
+        "Café naïve",
+        {"cafe": 1, "naive": 2},
+        "nfc-lowercase-strip-accents",
+        99,
+    ) == [1, 2]
 
 
 def test_backend_pads_token_batches_to_the_descriptor_width_and_preserves_order() -> (

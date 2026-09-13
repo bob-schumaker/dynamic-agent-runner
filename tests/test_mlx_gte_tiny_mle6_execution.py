@@ -31,7 +31,7 @@ from dynamic_agent_runner.workflow_host.execution_descriptors import (
     parse_execution_descriptor,
 )
 from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
-    BertEncoderMlxV2DescriptorValidator,
+    BertEncoderMlxV3DescriptorValidator,
     bert_encoder_mlx_v1_embedding_batch_limits,
 )
 from dynamic_agent_runner.workflow_host.model_execution_binding import (
@@ -64,7 +64,7 @@ def _package():
         requirements=requirements,
         execution_descriptor=descriptor,
         descriptor_validators=ExecutionDescriptorValidatorRegistry(
-            (BertEncoderMlxV2DescriptorValidator(),)
+            (BertEncoderMlxV3DescriptorValidator(),)
         ),
     )
     return (

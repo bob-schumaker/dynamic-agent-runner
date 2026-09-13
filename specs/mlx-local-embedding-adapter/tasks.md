@@ -156,7 +156,7 @@
     it does not authorize redistribution or live material use.
 
 - [x] MLE6.2 [tests, RED/GREEN] Add package-admission tests for the selected
-      v2 `model-materials.json`, `bert-encoder-mlx-v2` descriptor, required
+      v2 `model-materials.json`, `bert-encoder-mlx-v3` descriptor, required
       `embedding.execute.v1` capability, and synthetic document fixture.
   - Spec: FR-2, FR-4, Operational Completion Gates 1 and 3.
   - Depends on: MLE6.1.
@@ -251,13 +251,24 @@
     the repair and green after; focused backend, descriptor, package, and
     execution-binding suites pass.
 
+- [x] MLE6.4f [bug, tests RED/GREEN] Add a versioned closed tokenizer grammar
+      for lowercase accent-stripping BERT normalization and execute that exact
+      Unicode transform before WordPiece segmentation.
+  - Discovered: MLE6.5 real execution on 2026-09-13 proved empty and ASCII
+    token IDs match the reference, while `Café naïve` became unknown tokens
+    instead of the reference's accent-stripped WordPiece IDs.
+  - Depends on: MLE6.4e.
+  - Evidence: the closed v3 descriptor and Unicode WordPiece test were red
+    before implementation and green after; all three selected document token
+    IDs and attention masks exactly match their locked reference digests.
+
 - [ ] MLE6.5 [manual competency gate] With explicit authorization, prepare the
       exact sealed package on Darwin arm64 with `mlx==0.32.2`, run the MLX
       embedding/index workflow, and compare against its locked reference
       fixture. Retain only package/material/descriptor digests, limits,
       duration, memory, vector count/dimension, opaque output IDs, and status.
   - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
-  - Depends on: MLE6.4e.
+  - Depends on: MLE6.4f.
 
 - [ ] MLE6.6 [tests/docs] Add the exact successful package/material identity to
       the workflow model support matrix, update MLX embedding status/validation,

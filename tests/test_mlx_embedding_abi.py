@@ -11,8 +11,10 @@ from dynamic_agent_runner.workflow_host.execution_descriptors import (
 from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
     BERT_ENCODER_MLX_V1_ABI,
     BERT_ENCODER_MLX_V2_ABI,
+    BERT_ENCODER_MLX_V3_ABI,
     BertEncoderMlxV1DescriptorValidator,
     BertEncoderMlxV2DescriptorValidator,
+    BertEncoderMlxV3DescriptorValidator,
 )
 
 
@@ -29,8 +31,11 @@ def _descriptor(*, abi=BERT_ENCODER_MLX_V1_ABI):
         "max_positions": 512,
         "type_vocab_size": 2,
     }
-    if abi == BERT_ENCODER_MLX_V2_ABI:
+    if abi in (BERT_ENCODER_MLX_V2_ABI, BERT_ENCODER_MLX_V3_ABI):
         encoder.update(dtype="float16", layer_norm_dtype="float32")
+    normalization = "nfc"
+    if abi == BERT_ENCODER_MLX_V3_ABI:
+        normalization = "nfc-lowercase-strip-accents"
     return parse_execution_descriptor(
         {
             "format_version": 1,
@@ -40,7 +45,7 @@ def _descriptor(*, abi=BERT_ENCODER_MLX_V1_ABI):
                 "tokenizer": {
                     "role": "tokenizer",
                     "format": "wordpiece-json-v1",
-                    "normalization": "nfc",
+                    "normalization": normalization,
                     "pre_tokenizer": "bert-basic-v1",
                     "special_token_ids": {
                         "cls": 101,
@@ -100,6 +105,12 @@ def test_v2_accepts_only_the_declared_float32_layer_norm_override() -> None:
     descriptor = _descriptor(abi=BERT_ENCODER_MLX_V2_ABI)
 
     BertEncoderMlxV2DescriptorValidator().validate(descriptor)
+
+
+def test_v3_accepts_only_lowercase_accent_stripping_normalization() -> None:
+    descriptor = _descriptor(abi=BERT_ENCODER_MLX_V3_ABI)
+
+    BertEncoderMlxV3DescriptorValidator().validate(descriptor)
 
 
 @pytest.mark.parametrize(

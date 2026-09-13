@@ -178,6 +178,17 @@ Only the affine tensors named `*.LayerNorm.{weight,bias}` use
 `pooler.dense.{weight,bias}` pair use `dtype`. v1 remains a uniform-dtype
 grammar and does not accept this field.
 
+### Closed Unicode-normalization extension: `bert-encoder-mlx-v3`
+
+`bert-encoder-mlx-v3@3` has contract digest
+`18f1131a9ab9e42ab07163914552f2099a891e0d8fec696290804480f47538a6`.
+It retains the exact v2 mixed-precision encoder grammar and requires tokenizer
+normalization `"nfc-lowercase-strip-accents"`. The receiver NFC-normalizes,
+lowercases, decomposes, removes only Unicode nonspacing marks, re-composes NFC,
+then applies the fixed BERT basic and WordPiece steps. The source tokenizer
+must declare `BertNormalizer.lowercase: true` and `strip_accents: null`. v1 and
+v2 do not admit this normalization identifier.
+
 `wordpiece-json-v1` is a closed tokenizer-asset grammar, not a request to
 execute a tokenizer package. Its UTF-8 JSON root has `model`, `normalizer`,
 and `pre_tokenizer` objects. `model` has `type: "WordPiece"`, a string

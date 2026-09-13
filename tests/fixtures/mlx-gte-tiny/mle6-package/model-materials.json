@@ -1,7 +1,7 @@
 {
   "execution_descriptor": {
     "filename": "execution-descriptor.json",
-    "sha256": "15feb00eed696f62a7886b0a37e833ea5558264654d82ed7f69654ea2bbd3ba9"
+    "sha256": "52d897280404456873448f1cf794396f32c7bbb3994c9c6c759072c72290fedc"
   },
   "format_version": 2,
   "logical_model_id": "mlx-gte-tiny-embedding-v1",
