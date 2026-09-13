@@ -33,6 +33,10 @@ from dynamic_agent_runner.workflow_host.fastmail_triage_model import (
     FASTMAIL_TRIAGE_MODEL_ALIAS,
     create_fastmail_triage_llama_cpp_adapter as _create_fastmail_triage_llama_cpp_adapter,
 )
+from dynamic_agent_runner.local_model_preparation import (
+    QWEN25_VL_3B_FLOORPLAN_GRPO_ADAPTER_ID,
+    QWEN25_VL_3B_FLOORPLAN_GRPO_MODEL_ID,
+)
 
 
 FASTMAIL_TRIAGE_MODEL_ID = "Qwen/Qwen2.5-3B-Instruct-GGUF"
@@ -246,6 +250,19 @@ class LocalModelProfileControlPlane:
             capabilities={"text_generation"},
         )
 
+    def create_floorplan_transformers_peft(self) -> LocalModelProfile:
+        """Persist the reviewed local floorplan Transformers/PEFT profile."""
+
+        return self._issue(
+            model_id=QWEN25_VL_3B_FLOORPLAN_GRPO_MODEL_ID,
+            execution_model_id=QWEN25_VL_3B_FLOORPLAN_GRPO_MODEL_ID,
+            adapter_id=QWEN25_VL_3B_FLOORPLAN_GRPO_ADAPTER_ID,
+            base_url=None,
+            profile_requirement="local-multimodal-model-v1",
+            capabilities={"text_generation", "multimodal_input"},
+            runner_id="transformers-peft-v1",
+        )
+
     def _issue(
         self,
         *,
@@ -457,6 +474,7 @@ def _validate_profile_contract(
         "strict-local-adapter-v1",
         "apple-foundation-models-adapter-v1",
         FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+        QWEN25_VL_3B_FLOORPLAN_GRPO_ADAPTER_ID,
     }:
         if profile_requirement not in {
             "local-general-model",

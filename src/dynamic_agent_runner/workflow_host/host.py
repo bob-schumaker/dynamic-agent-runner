@@ -22,6 +22,7 @@ from dynamic_agent_runner.local_model_preparation import (
     LocalModelPreparationResult,
     LocalModelPreparationService,
     PinnedLlamaCppLoraConverter,
+    qwen25_vl_3b_floorplan_grpo_recipe,
 )
 from dynamic_agent_runner.workflow_host.catalog import (
     PackageCatalog,
@@ -919,7 +920,9 @@ class LocalWorkflowHost:
             mcp_client = mcp_client_factory(configuration.mcp_client_configuration)
         catalog = PackageCatalog(root / "catalog")
         model_preparation = LocalModelPreparationService(
-            catalog=LocalModelPreparationCatalog(()),
+            catalog=LocalModelPreparationCatalog(
+                (qwen25_vl_3b_floorplan_grpo_recipe(),)
+            ),
             cache_root=root / "model-preparation",
             approved_cache_roots=(Path.home() / ".cache" / "huggingface" / "hub",),
             converter=PinnedLlamaCppLoraConverter(
