@@ -9,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+import platform
 from typing import Any, Sequence
 from typing import Mapping
 
@@ -302,6 +303,7 @@ def _dar_owned_generation_worker_pair(
             GenerationWorkerCoLocatedRuntimeFactory,
         )
         from dynamic_agent_runner.workflow_host.generation_worker_controllers import (
+            TorchMpsGenerationWorkerRuntime,
             machine_generation_worker_controllers,
         )
         from dynamic_agent_runner.workflow_host.generation_worker_factory import (
@@ -317,13 +319,22 @@ def _dar_owned_generation_worker_pair(
             capability=TRANSFORMERS_GENERATE_CAPABILITY,
             asset_handles=asset_handles,
         )
+        worker_runtime = GenerationWorkerCoLocatedRuntimeFactory(
+            asset_handles=asset_handles,
+            runner_runtime_factory=TransformersPeftGenerationWorkerRuntimeFactory(),
+        )
+        metal_runtime = (
+            TorchMpsGenerationWorkerRuntime(
+                asset_handles=asset_handles, worker_runtime=worker_runtime
+            )
+            if platform.system() == "Darwin"
+            else None
+        )
         controller = machine_generation_worker_controllers(
             runner_id=TRANSFORMERS_GENERATE_CAPABILITY.runner_id,
             asset_handles=asset_handles,
-            worker_runtime=GenerationWorkerCoLocatedRuntimeFactory(
-                asset_handles=asset_handles,
-                runner_runtime_factory=TransformersPeftGenerationWorkerRuntimeFactory(),
-            ),
+            worker_runtime=worker_runtime,
+            metal_runtime=metal_runtime,
         )
     except Exception as error:  # noqa: BLE001 - machine capabilities are optional.
         raise LocalWorkflowHostError("generation worker is unavailable") from error

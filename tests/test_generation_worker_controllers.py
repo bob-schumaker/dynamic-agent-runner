@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
+import platform
 import time
 
 import pytest
@@ -66,6 +67,16 @@ class _CpuIpcRuntime:
 
     def generate(self) -> tuple[bytes, int]:
         return b"{}", 2
+
+
+class _MpsIpcRuntime(_CpuIpcRuntime):
+    """Pickle-safe no-model MPS fixture for the separate Darwin controller."""
+
+    def install_bootstrap_limit(
+        self, max_memory_bytes: int, execution_device: str
+    ) -> None:
+        if max_memory_bytes <= 0 or execution_device != "mps":
+            raise ValueError("invalid test runtime request")
 
 
 class _CpuOverAuthorizedRuntime(_CpuIpcRuntime):
@@ -238,6 +249,116 @@ def test_cpu_entry_installs_the_cap_before_resolving_child_assets(monkeypatch) -
     )
 
     assert events == ["limit", "entry"]
+
+
+def test_mps_entry_installs_the_allocator_envelope_before_child_resolution(
+    monkeypatch,
+) -> None:
+    from dynamic_agent_runner.workflow_host import generation_worker_controllers
+
+    descriptor = _descriptor(execution_device="mps")
+    events: list[object] = []
+
+    class Mps:
+        def is_available(self) -> bool:
+            return True
+
+        def recommended_max_memory(self) -> int:
+            return 8_192
+
+        def set_per_process_memory_fraction(self, fraction: float) -> None:
+            events.append(("envelope", fraction))
+
+    class Connection:
+        def send(self, _value: object) -> None:
+            pass
+
+        def recv(self) -> str:
+            return "close"
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(generation_worker_controllers, "_torch_mps_api", lambda: Mps())
+    monkeypatch.setattr(
+        generation_worker_controllers,
+        "fixed_generation_worker_entry_point",
+        lambda _wire, **_kwargs: events.append("entry") or descriptor,
+    )
+
+    generation_worker_controllers._mps_worker_entry(
+        Connection(),
+        Connection(),
+        Connection(),
+        descriptor.to_wire(),
+        object(),
+        None,
+        generation_worker_controllers._MpsMemoryEnvelope(0.5),
+    )
+
+    assert events == [("envelope", 0.5), "entry"]
+
+
+def test_mps_runtime_rejects_an_unavailable_or_insufficient_allocator() -> None:
+    from dynamic_agent_runner.workflow_host.generation_worker_controllers import (
+        TorchMpsGenerationWorkerRuntime,
+    )
+
+    class Mps:
+        def is_available(self) -> bool:
+            return True
+
+        def recommended_max_memory(self) -> int:
+            return 4_095
+
+        def set_per_process_memory_fraction(self, _fraction: float) -> None:
+            pass
+
+    runtime = TorchMpsGenerationWorkerRuntime(
+        asset_handles=None,
+        worker_runtime=None,
+        mps_api=Mps(),
+        platform_system=lambda: "Darwin",
+    )
+
+    assert (
+        runtime.install_memory_envelope(_descriptor(execution_device="mps").budget)
+        is False
+    )
+
+
+@pytest.mark.skipif(platform.system() != "Darwin", reason="requires Darwin MPS")
+def test_darwin_mps_fixture_runs_the_fixed_no_model_worker_lifecycle() -> None:
+    from dynamic_agent_runner.workflow_host.generation_worker_controllers import (
+        MacMpsGenerationWorkerController,
+        TorchMpsGenerationWorkerRuntime,
+    )
+
+    descriptor = _descriptor(execution_device="mps")
+    runtime = TorchMpsGenerationWorkerRuntime(
+        asset_handles=None, worker_runtime=_MpsIpcRuntime()
+    )
+    controller = MacMpsGenerationWorkerController(
+        runner_id="runner-v1", metal_runtime=runtime
+    )
+    child = controller.launch(descriptor)
+
+    try:
+        assert controller.wait_ready(child, 5.0) is True
+        child.install_bootstrap_limit(descriptor.budget.max_memory_bytes, "mps")
+        receipt = GenerationWorkerPackReceipt(
+            invocation_id=descriptor.invocation_id,
+            invocation_digest=descriptor.invocation_digest,
+            converter_digest=descriptor.converter_asset_digest,
+            material_lock_digest=descriptor.material_lock_digest,
+            execution_device="mps",
+            fragment_index=descriptor.fragment_index,
+            packed_context_tokens=3,
+        )
+        child.authorize(receipt, 2)
+        assert child.generate() == (b"{}", 2)
+    finally:
+        assert controller.reap(child, 1.0) is True
 
 
 def test_cpu_controller_rejects_non_cpu_work_before_creating_a_process() -> None:

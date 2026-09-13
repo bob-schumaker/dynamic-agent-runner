@@ -1,5 +1,20 @@
 # Model Generation Resource Budgets Validation
 
+## S5 — Darwin MPS no-model worker fixture
+
+Date: 2026-09-13
+
+The locally elevated arm64 macOS environment reported PyTorch MPS built and
+available. The Darwin-only no-model fixture completed the fixed worker
+lifecycle using the MPS allocator envelope before child resolution, followed by
+pack, authorization, generation, and reap. Focused verification passed:
+`43 passed in 6.25s` for `tests/test_generation_worker_controllers.py` and
+`tests/test_local_model_runners.py`; Ruff and `git diff --check` also passed.
+
+This is lifecycle evidence only. It does not replace T5.4/T4.6, which still
+require an explicitly authorized locally prepared MPS model and redacted
+aggregate result evidence.
+
 ## T4.6 — Fixture-only Darwin pre-dispatch evidence
 
 Date: 2026-09-12

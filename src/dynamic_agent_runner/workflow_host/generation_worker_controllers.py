@@ -54,6 +54,137 @@ class MetalMpsWorkerRuntime(Protocol):
         """Confirm that a terminated child has been reaped."""
 
 
+@dataclass(frozen=True)
+class _MpsMemoryEnvelope:
+    """Pickle-safe allocator limit installed by the fixed MPS child entry point."""
+
+    fraction: float
+
+
+class TorchMpsGenerationWorkerRuntime:
+    """Darwin MPS containment over the fixed process worker transport."""
+
+    def __init__(
+        self,
+        *,
+        asset_handles: object | None,
+        worker_runtime: CpuGenerationWorkerRuntime | None,
+        process_context: object | None = None,
+        mps_api: object | None = None,
+        platform_system: Callable[[], str] = platform.system,
+    ) -> None:
+        self._asset_handles = asset_handles
+        self._worker_runtime = worker_runtime
+        self._process_context = (
+            process_context
+            if process_context is not None
+            else multiprocessing.get_context("spawn")
+        )
+        self._mps_api = _torch_mps_api() if mps_api is None else mps_api
+        if platform_system() != "Darwin" or not _mps_api_available(self._mps_api):
+            raise GenerationResourceBudgetError(
+                "generation memory budget is unavailable"
+            )
+
+    def install_memory_envelope(self, budget: GenerationResourceBudget) -> bool:
+        """Validate that a bounded MPS allocator fraction can be installed."""
+
+        fraction = _mps_memory_fraction(budget, self._mps_api)
+        return fraction is not None
+
+    def launch(self, descriptor: GenerationWorkerLaunchDescriptor) -> _CpuWorkerChild:
+        """Launch one child that installs its MPS envelope before readiness."""
+
+        _require_descriptor(descriptor, runner_id=descriptor.runner_id, device="mps")
+        fraction = _mps_memory_fraction(descriptor.budget, self._mps_api)
+        if fraction is None:
+            raise GenerationResourceBudgetError(
+                "generation memory budget is unavailable"
+            )
+        try:
+            ready_receiver, ready_sender = self._process_context.Pipe(duplex=False)
+            child_command, parent_command = self._process_context.Pipe(duplex=False)
+            response_receiver, response_sender = self._process_context.Pipe(
+                duplex=False
+            )
+            process = self._process_context.Process(
+                target=_mps_worker_entry,
+                args=(
+                    ready_sender,
+                    child_command,
+                    response_sender,
+                    descriptor.to_wire(),
+                    self._asset_handles,
+                    self._worker_runtime,
+                    _MpsMemoryEnvelope(fraction),
+                ),
+            )
+            process.start()
+            ready_sender.close()
+            child_command.close()
+            response_sender.close()
+            return _CpuWorkerChild(
+                process=process,
+                command_connection=parent_command,
+                response_connection=response_receiver,
+                ready_connection=ready_receiver,
+                invocation_id=descriptor.invocation_id,
+                invocation_digest=descriptor.invocation_digest,
+                fragment_index=descriptor.fragment_index,
+            )
+        except Exception as error:
+            raise GenerationResourceBudgetError(
+                "generation memory budget is unavailable"
+            ) from error
+
+    def wait_ready(self, child: object, timeout: float) -> bool:
+        worker = _cpu_child(child)
+        if not _positive_timeout(timeout):
+            return False
+        try:
+            if not worker.ready_connection.poll(timeout):
+                return False
+            return worker.ready_connection.recv() == ("ready",)
+        except Exception:
+            return False
+        finally:
+            _close(worker.ready_connection)
+
+    def terminate(self, child: object) -> None:
+        worker = _cpu_child(child)
+        if worker.process.is_alive():
+            worker.process.terminate()
+
+    def kill(self, child: object) -> None:
+        worker = _cpu_child(child)
+        if not worker.process.is_alive():
+            return
+        kill = getattr(worker.process, "kill", None)
+        if callable(kill):
+            kill()
+        else:
+            worker.process.terminate()
+
+    def reap(self, child: object, timeout: float) -> bool:
+        worker = _cpu_child(child)
+        if not _nonnegative_timeout(timeout):
+            return False
+        try:
+            if worker.process.is_alive():
+                try:
+                    worker.command_connection.send("close")
+                except Exception:
+                    pass
+            worker.process.join(timeout if timeout > 0 else 0.05)
+            return not worker.process.is_alive()
+        except Exception:
+            return False
+        finally:
+            _close(worker.command_connection)
+            _close(worker.response_connection)
+            _close(worker.ready_connection)
+
+
 class CpuGenerationWorkerRuntime(Protocol):
     """Receiver-installed child behavior exposed through fixed scalar frames."""
 
@@ -599,6 +730,52 @@ def _cpu_worker_entry(
         _close(response_connection)
 
 
+def _mps_worker_entry(
+    ready_connection: object,
+    command_connection: object,
+    response_connection: object,
+    wire_descriptor: object,
+    asset_handles: object | None,
+    worker_runtime: CpuGenerationWorkerRuntime | None,
+    envelope: _MpsMemoryEnvelope,
+) -> None:
+    """Fixed MPS bootstrap: install allocator limit before child construction."""
+
+    try:
+        if not isinstance(envelope, _MpsMemoryEnvelope):
+            raise GenerationResourceBudgetError(
+                "generation memory budget is unavailable"
+            )
+        _install_mps_memory_fraction(envelope.fraction, _torch_mps_api())
+        descriptor = GenerationWorkerLaunchDescriptor.from_wire(wire_descriptor)
+        if descriptor.execution_device != "mps":
+            raise GenerationResourceBudgetError(
+                "generation memory budget is unavailable"
+            )
+        validated = fixed_generation_worker_entry_point(
+            wire_descriptor,
+            asset_handles=asset_handles,
+            now=datetime.now(UTC) if asset_handles is not None else None,
+        )
+        active_worker_runtime = _materialize_child_runtime(worker_runtime, validated)
+        ready_connection.send(("ready",))
+        _run_cpu_worker_protocol(
+            command_connection=command_connection,
+            response_connection=response_connection,
+            descriptor=validated,
+            worker_runtime=active_worker_runtime,
+        )
+    except Exception:
+        try:
+            ready_connection.send(("failed",))
+        except Exception:
+            pass
+    finally:
+        _close(ready_connection)
+        _close(command_connection)
+        _close(response_connection)
+
+
 def _materialize_child_runtime(
     worker_runtime: CpuGenerationWorkerRuntime | None,
     descriptor: GenerationWorkerLaunchDescriptor,
@@ -969,6 +1146,59 @@ def _cpu_limit_available() -> bool:
     return resource is not None and all(
         hasattr(resource, attribute) for attribute in ("RLIMIT_AS", "RLIM_INFINITY")
     )
+
+
+def _torch_mps_api() -> object:
+    try:
+        import torch
+
+        return torch.mps
+    except Exception as error:
+        raise GenerationResourceBudgetError(
+            "generation memory budget is unavailable"
+        ) from error
+
+
+def _mps_api_available(mps_api: object) -> bool:
+    available = getattr(mps_api, "is_available", None)
+    return (
+        callable(available)
+        and available() is True
+        and callable(getattr(mps_api, "recommended_max_memory", None))
+        and callable(getattr(mps_api, "set_per_process_memory_fraction", None))
+    )
+
+
+def _mps_memory_fraction(
+    budget: GenerationResourceBudget, mps_api: object
+) -> float | None:
+    if not isinstance(budget, GenerationResourceBudget) or not _mps_api_available(
+        mps_api
+    ):
+        return None
+    try:
+        capacity = mps_api.recommended_max_memory()
+        if not _positive_int(capacity) or budget.max_memory_bytes > capacity:
+            return None
+        fraction = budget.max_memory_bytes / capacity
+        return fraction if 0 < fraction <= 1 else None
+    except Exception:
+        return None
+
+
+def _install_mps_memory_fraction(fraction: object, mps_api: object) -> None:
+    if (
+        not isinstance(fraction, float)
+        or not 0 < fraction <= 1
+        or not _mps_api_available(mps_api)
+    ):
+        raise GenerationResourceBudgetError("generation memory budget is unavailable")
+    try:
+        mps_api.set_per_process_memory_fraction(fraction)
+    except Exception as error:
+        raise GenerationResourceBudgetError(
+            "generation memory budget is unavailable"
+        ) from error
 
 
 def _cpu_child(value: object) -> _CpuWorkerChild:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import platform
+
 import pytest
 
 from dynamic_agent_runner.errors import ModelExecutionError
@@ -204,6 +206,16 @@ def test_host_builds_a_cpu_gated_dar_owned_worker_pair(tmp_path, monkeypatch) ->
     assert factory.runner_id == TRANSFORMERS_GENERATE_CAPABILITY.runner_id
     assert controller.runner_id == TRANSFORMERS_GENERATE_CAPABILITY.runner_id
     assert "cpu" in controller.supported_execution_devices
+
+
+@pytest.mark.skipif(platform.system() != "Darwin", reason="requires Darwin MPS")
+def test_host_builds_the_separate_dar_owned_mps_worker_pair(tmp_path) -> None:
+    factory, controller = _dar_owned_generation_worker_pair(
+        store=PrivateStateStore(tmp_path), owner="test-owner"
+    )
+
+    assert factory.runner_id == "transformers-generate-v1"
+    assert controller.supported_execution_devices == frozenset({"mps"})
 
 
 def test_client_cannot_register_a_dar_owned_runner_id() -> None:
