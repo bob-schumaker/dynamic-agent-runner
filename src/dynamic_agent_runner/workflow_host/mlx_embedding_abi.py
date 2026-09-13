@@ -815,7 +815,7 @@ def _parse_sentencepiece_piece(value: object) -> tuple[str, float, int]:
     fields = _protobuf_fields(value, {1: 2, 2: 5, 3: 0})
     piece_bytes = _single_bytes(fields.get(1))
     score_bytes = _single_bytes(fields.get(2))
-    kind = _single_int(fields.get(3))
+    kind = 1 if fields.get(3) is None else _single_int(fields.get(3))
     if len(piece_bytes) > 1_024 or len(score_bytes) != 4 or kind not in {1, 2, 3}:
         raise ValueError
     piece = piece_bytes.decode("utf-8")
@@ -832,7 +832,7 @@ def _validate_sentencepiece_normalizer(value: bytes) -> None:
         or _single_int(fields.get(3)) != 1
         or _single_int(fields.get(4)) != 1
         or (fields.get(5) and _single_int(fields.get(5)) != 1)
-        or fields.get(6)
+        or fields.get(6) not in (None, [b""])
     ):
         raise ValueError
 

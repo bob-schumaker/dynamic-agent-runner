@@ -209,7 +209,10 @@ replacing only the tokenizer grammar with one reviewed, closed SentencePiece
 BPE grammar. Its descriptor has exactly the inherited v2 fields, but requires
 `"format": "sentencepiece-bpe-model-v1"`,
 `"normalization": "nmt-nfkc"`, and
-`"pre_tokenizer": "sentencepiece-bpe-v1"`; v1--v3 do not admit those values.
+`"pre_tokenizer": "sentencepiece-bpe-v1"`. It also fixes the target's
+Hugging Face SentencePiece ID translation: `"id_offset": 1` and
+`{"cls": 0, "sep": 2, "pad": 1, "unk": 3}`. v1--v3 do not admit those
+values.
 
 The grammar must interpret only package-sealed tokenizer bytes. It must fix the
 SentencePiece normalizer, BPE vocabulary/merge behavior, special-token IDs,
