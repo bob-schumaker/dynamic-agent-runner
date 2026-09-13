@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import replace
+from dataclasses import asdict, dataclass, replace
 from hashlib import sha256
 import json
 import shutil
@@ -30,6 +30,7 @@ from dynamic_agent_runner.workflow_host.catalog import PackageCatalog  # noqa: E
 from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
     BUILTIN_CAPABILITY_CONTRACTS,
     CapabilityCatalog,
+    CapabilityContract,
     CapabilityProvider,
     CapabilityRequirement,
     CapabilityRequirements,
@@ -65,6 +66,8 @@ from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
 )
 from dynamic_agent_runner.workflow_host.model_execution_binding import (  # noqa: E402
     ModelExecutionBinding,
+    ModelRunnerProvider,
+    ModelRunnerRegistry,
 )
 from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
     DeclaredArtifactTool,
@@ -75,8 +78,10 @@ from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.execution_descriptors import (  # noqa: E402
     ExecutionDescriptor,
     ExecutionDescriptorAbi,
+    ExecutionDescriptorValidatorRegistry,
 )
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (  # noqa: E402
+    GenerationBudgetDescriptorValidator,
     GenerationExecutionHostPolicy,
     GenerationResourceBudget,
 )
@@ -542,6 +547,7 @@ def _runner(
     reviewed_artifact_tool_executors: object | None = None,
     capability_catalog: CapabilityCatalog | None = None,
     with_capability_requirements: bool = False,
+    v2_converter_budget: bool = False,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -599,6 +605,7 @@ def _runner(
                 "bindings": {},
             }
         descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
+    v2_fixture = _v2_converter_budget_fixture(source, enabled=v2_converter_budget)
     if terminal_validator:
         descriptor_path = source / "workflow-descriptor.yaml"
         descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
@@ -618,7 +625,19 @@ def _runner(
             source_handle, now=NOW
         )
     )
-    policy = compile_workflow_policy(revision, capability_catalog=capability_catalog)
+    (
+        effective_capability_catalog,
+        descriptor_validators,
+        model_runner_registry,
+        generation_execution_host_policy,
+    ) = _v2_runtime_dependencies(
+        v2_fixture, fallback_capability_catalog=capability_catalog
+    )
+    policy = compile_workflow_policy(
+        revision,
+        capability_catalog=effective_capability_catalog,
+        descriptor_validators=descriptor_validators,
+    )
     profiles = LocalModelProfileControlPlane(store=store)
     profile = (
         profiles.create_hosted_openai(
@@ -662,7 +681,8 @@ def _runner(
         catalog=catalog,
         store=store,
         artifact_verifier=artifact_verifier,  # type: ignore[arg-type]
-        capability_catalog=capability_catalog,
+        capability_catalog=effective_capability_catalog,
+        descriptor_validators=descriptor_validators,
     )
     client = (
         AsyncFakeClient(response_content)
@@ -729,9 +749,12 @@ def _runner(
         reviewed_artifact_tool_executors=reviewed_artifact_tool_executors,  # type: ignore[arg-type]
         terminal_diagnostic_store=store,
         terminal_diagnostic_owner="test-local-user",
-        capability_catalog=capability_catalog,
+        capability_catalog=effective_capability_catalog,
+        model_runner_registry=model_runner_registry,
+        descriptor_validators=descriptor_validators,
+        generation_execution_host_policy=generation_execution_host_policy,
     )
-    _configure_generation_budget_fixture(runner)
+    _configure_legacy_generation_budget_fixture(runner, v2_fixture)
     return (
         runner,
         preparation,
@@ -739,6 +762,171 @@ def _runner(
         revision,
         client,
     )
+
+
+@dataclass(frozen=True)
+class _V2ConverterBudgetFixture:
+    capability_catalog: CapabilityCatalog
+    descriptor_validators: ExecutionDescriptorValidatorRegistry
+    model_runner_registry: ModelRunnerRegistry
+    host_policy: GenerationExecutionHostPolicy
+
+
+def _v2_runtime_dependencies(
+    fixture: _V2ConverterBudgetFixture | None,
+    *,
+    fallback_capability_catalog: CapabilityCatalog | None,
+) -> tuple[
+    CapabilityCatalog | None,
+    ExecutionDescriptorValidatorRegistry | None,
+    ModelRunnerRegistry | None,
+    GenerationExecutionHostPolicy | None,
+]:
+    if fixture is None:
+        return fallback_capability_catalog, None, None, None
+    return (
+        fixture.capability_catalog,
+        fixture.descriptor_validators,
+        fixture.model_runner_registry,
+        fixture.host_policy,
+    )
+
+
+def _v2_converter_budget_fixture(
+    source: Path, *, enabled: bool
+) -> _V2ConverterBudgetFixture | None:
+    if not enabled:
+        return None
+    return _install_v2_converter_budget_fixture(source)
+
+
+def _install_v2_converter_budget_fixture(source: Path) -> _V2ConverterBudgetFixture:
+    budget = GenerationResourceBudget(
+        max_new_tokens_per_fragment=4,
+        max_continuations=1,
+        max_total_generated_tokens=8,
+        max_total_output_bytes=64,
+        max_effective_context_tokens=8,
+        max_runtime_milliseconds=1_000,
+        max_memory_bytes=1_024,
+    )
+    abi = ExecutionDescriptorAbi("test-generation-v1", "1", "a" * 64)
+    execution_descriptor = ExecutionDescriptor(
+        abi,
+        ("weights",),
+        {"generation_budget": asdict(budget)},
+    )
+    runner_contract = CapabilityContract("model.execution.test.v1", "1", "b" * 64, ())
+    converter_contract = CapabilityContract(
+        "model.converter.test.v1", "1", "c" * 64, ()
+    )
+    requirements = CapabilityRequirements(
+        (
+            CapabilityRequirement(
+                converter_contract.capability_id,
+                converter_contract.contract_version,
+                converter_contract.contract_digest,
+                (),
+            ),
+            CapabilityRequirement(
+                runner_contract.capability_id,
+                runner_contract.contract_version,
+                runner_contract.contract_digest,
+                (),
+            ),
+        ),
+        {
+            "converter": converter_contract.capability_id,
+            "runner": runner_contract.capability_id,
+        },
+    )
+    descriptor_path = source / "workflow-descriptor.yaml"
+    descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+    descriptor["dar_runtime"]["required_version"] = "0.1.17"
+    descriptor["capability_requirements"] = {
+        "format_version": 1,
+        "required_capabilities": [
+            requirement.to_mapping()
+            for requirement in requirements.required_capabilities
+        ],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {
+            name: {"capability_id": capability_id}
+            for name, capability_id in requirements.bindings.items()
+        },
+    }
+    descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
+    (source / "execution-descriptor.json").write_bytes(
+        execution_descriptor.canonical_bytes
+    )
+    (source / "model-materials.json").write_text(
+        json.dumps(
+            {
+                "format_version": 2,
+                "logical_model_id": "qwen25-vl-3b-floorplan-grpo",
+                "runner_contract": {"id": "transformers-generate-v1", "version": "1"},
+                "execution_descriptor": {
+                    "filename": "execution-descriptor.json",
+                    "sha256": execution_descriptor.digest,
+                },
+                "sources": [
+                    {
+                        "role": "weights",
+                        "group": "base",
+                        "source_type": "huggingface_file",
+                        "repository": "example/qwen",
+                        "revision": "a" * 40,
+                        "filename": "weights.safetensors",
+                        "sha256": "d" * 64,
+                    }
+                ],
+                "preparation": [],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+    capability_catalog = CapabilityCatalog(
+        (converter_contract, runner_contract),
+        (
+            CapabilityProvider(
+                "test-converter-provider", converter_contract, conformance_passed=True
+            ),
+            CapabilityProvider(
+                "test-runner-provider", runner_contract, conformance_passed=True
+            ),
+        ),
+    )
+
+    class ReservationProvider:
+        def reserve(self, _request: object) -> object:
+            return object()
+
+    return _V2ConverterBudgetFixture(
+        capability_catalog,
+        ExecutionDescriptorValidatorRegistry(
+            (GenerationBudgetDescriptorValidator(abi),)
+        ),
+        ModelRunnerRegistry(
+            (
+                ModelRunnerProvider(
+                    "test-runner-provider",
+                    runner_contract,
+                    (),
+                    ((abi.abi_id, abi.version, abi.contract_digest),),
+                ),
+            )
+        ),
+        GenerationExecutionHostPolicy(budget, "cpu", ReservationProvider()),
+    )
+
+
+def _configure_legacy_generation_budget_fixture(
+    runner: WorkflowRunner, v2_fixture: _V2ConverterBudgetFixture | None
+) -> None:
+    if v2_fixture is None:
+        _configure_generation_budget_fixture(runner)
 
 
 def _configure_generation_budget_fixture(runner: WorkflowRunner) -> None:
@@ -2489,6 +2677,7 @@ def test_runner_delivers_converter_payload_without_media_type_routing(
         input_converter=True,
         package_model="qwen25-vl-3b-floorplan-grpo",
         artifact_verifier=ConverterArtifactVerifier(),
+        v2_converter_budget=True,
     )
     prepared = preparation.prepare(
         workflow_id=registration.workflow_id,
@@ -2530,6 +2719,7 @@ def test_runner_rejects_converter_without_budget_before_sealed_input_loading(
         input_converter=True,
         package_model="qwen25-vl-3b-floorplan-grpo",
         artifact_verifier=ConverterArtifactVerifier(),
+        v2_converter_budget=True,
     )
     preflight = runner._preflight
 
