@@ -216,6 +216,22 @@ normalizer plugins, byte fallbacks, arbitrary model files, and any grammar not
 explicitly represented by the ABI. It may not invoke a SentencePiece Python
 package or load an upstream tokenizer dynamically.
 
+The MLE7 tokenizer execution role is exactly one sealed
+`sentencepiece.bpe.model` byte stream. A companion `tokenizer.json`, fast
+tokenizer implementation, or tokenizer configuration file may be locked as
+package provenance, but none is an alternate execution input or source of
+runtime semantics. Before registration, the ABI must state the accepted
+ModelProto field set and wire/resource limits, the normalizer operations and
+their order, BPE score/tie resolution, and the mapping from the declared
+special IDs to emitted sequences. Unknown or out-of-profile fields are a
+rejection, not a forward-compatibility mechanism.
+
+E5 instruction prefixes such as `query:` and `passage:` are workflow-local
+input policy. The ABI preserves those literal bytes when a workflow supplies
+them; it neither injects, removes, nor chooses a prefix. The descriptor's
+existing pooling and normalization fields remain the sole receiver-side
+selection for the sealed package.
+
 `intfloat/multilingual-e5-small` is the first intended package-level
 conformance target for this ABI. Its upstream configuration identifies a
 standard BERT encoder with absolute positions, GELU, 12 layers, 384 hidden

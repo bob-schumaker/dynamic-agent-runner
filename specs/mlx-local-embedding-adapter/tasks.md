@@ -316,6 +316,26 @@
 
 ## MLE7 — SentencePiece-BPE BERT package expansion
 
+- [x] MLE7.0 [review] Reconcile the ABI, package, and workflow boundaries before
+      implementation.
+  - Council: Aristotle, Ada, and Feynman performed a reduced-independence
+    sequential architecture review on 2026-09-13. They required the plan to
+    distinguish the BERT arithmetic family from the tokenizer asset family;
+    make one sealed `sentencepiece.bpe.model` stream the only execution input;
+    specify finite binary-profile and resource rejection rather than admitting a
+    generic SentencePiece runtime; and preserve E5 prefixes as literal
+    workflow input. The published target configuration supports BERT arithmetic
+    reuse, but it does not establish tokenizer or package admission.
+  - Ponytail: accepted one v4-specific sealed-byte path sharing existing BERT
+    arithmetic. Rejected a generic SentencePiece dependency, parser/plugin
+    registry, model-name dispatch, tokenizer.json fallback, and DAR-owned E5
+    prompt policy.
+  - Verdict: MLE7.1--MLE7.8 are implementation-ready in order. MLE7.4--MLE7.7
+    remain separately authorization-gated; this review authorizes neither
+    model retrieval nor local material use.
+  - Evidence: spec, plan, and task amendments below; reduced-independence
+    execution is advisory rather than independent parallel deliberation.
+
 - [ ] MLE7.1 [spec/design] Register a new closed BERT successor ABI for the
       exact SentencePiece-BPE tokenizer grammar required by
       `intfloat/multilingual-e5-small`; record its canonical identity/digest,
@@ -326,6 +346,14 @@
   - Acceptance: it reuses BERT execution only after declaring a finite
     tokenizer grammar; it accepts neither arbitrary SentencePiece models,
     tokenizer packages/plugins, callbacks, remote code, nor an invocation path.
+    The only tokenizer execution role is a locked `sentencepiece.bpe.model`;
+    `tokenizer.json`, a fast tokenizer, and tokenizer metadata cannot supply an
+    alternate grammar. The registered grammar names every accepted ModelProto
+    wire field, rejects unknown/out-of-profile fields, bounds field count,
+    nesting, strings, and serialized bytes, and fixes normalizer ordering, BPE
+    score/tie behavior, special-token sequence construction, and UTF-8 failure
+    handling. Its contract does not add, remove, or select E5 `query:` or
+    `passage:` prefixes; those are literal workflow input.
 
 - [ ] MLE7.2 [tests, RED/GREEN] Add fake-only tokenizer admission and execution
       vectors for valid SentencePiece-BPE bytes plus malformed/truncated assets,
@@ -336,13 +364,19 @@
   - Files/components: `mlx_embedding_abi.py`, MLX embedding backend tests, and
     sealed synthetic tokenizer fixtures.
   - Validation: focused pytest remains offline and never imports MLX or a
-    SentencePiece runtime.
+    SentencePiece runtime. Vectors also prove unknown ModelProto fields and
+    resource ceilings reject before weights/MLX work, and that literal E5
+    prefix bytes are not receiver-injected or rewritten.
 
 - [ ] MLE7.3 [implementation] Implement only the registered tokenizer grammar
       and bind it to the existing BERT arithmetic path; preserve v1--v3
       WordPiece behavior and reject all unregistered tokenizer formats.
   - Spec: planned BERT SentencePiece-BPE ABI.
   - Depends on: MLE7.2.
+  - Acceptance: use one v4-specific sealed-byte decoder/tokenizer path; do not
+    add a generic SentencePiece runtime, a tokenizer plugin registry, or a
+    model-name branch. Existing BERT tensor/arithmetic code remains shared only
+    after the v4 descriptor and tokenizer admission succeed.
 
 - [ ] MLE7.4 [approval/package, tests RED/GREEN] With a recorded license and
       material decision, create a package-local lock and exact descriptor for
@@ -350,6 +384,10 @@
       descriptor, or capability facts reject before MLX import or egress.
   - Spec: Operational Completion Gates 1 and 3.
   - Depends on: MLE7.3 and explicit material-use authorization.
+  - Acceptance: execution maps only the sealed `sentencepiece.bpe.model` role
+    and weights role. The package lock also records the model, tokenizer, and
+    pooling metadata needed to establish provenance, but the descriptor fixes
+    pooling and normalization directly and has no model-name or prefix field.
 
 - [ ] MLE7.5 [manual fixture, RED/GREEN] Generate a synthetic reference fixture
       from the exact locked MLE7 closure using a local trusted
@@ -357,6 +395,8 @@
       tolerance without retaining user content or arbitrary model output.
   - Spec: FR-5, Operational Completion Gate 2.
   - Depends on: MLE7.4 and separate authorization.
+  - Acceptance: synthetic literal `query:` and `passage:` inputs, if used,
+    demonstrate workflow-supplied bytes rather than DAR prefix behavior.
 
 - [ ] MLE7.6 [tests, RED/GREEN] Exercise the MLE7 package through
       `embedding.execute.v1` and the sealed index path with injected facts;

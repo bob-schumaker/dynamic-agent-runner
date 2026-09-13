@@ -113,9 +113,13 @@ Two sealed expansion tracks follow the same package admission, fixture,
 workflow, Darwin, and matrix sequence, but they do not share an ABI.
 
 1. MLE7 adds a closed SentencePiece-BPE tokenizer grammar to a new BERT ABI
-   successor. It preserves the existing BERT executor only after fake tokenizer
-   vectors prove the exact package-declared tokenizer semantics. The first
-   intended material closure is `intfloat/multilingual-e5-small`.
+   successor. Its only tokenizer execution input is the locked
+   `sentencepiece.bpe.model` role; companion tokenizer metadata is provenance,
+   never a fallback parser. It preserves the existing BERT executor only after
+   fake tokenizer vectors prove the exact package-declared tokenizer semantics.
+   Workflow-local E5 prefixes remain literal caller input, while package pooling
+   and normalization are declared in the descriptor. The first intended
+   material closure is `intfloat/multilingual-e5-small`.
 2. MLE8 adds a new closed RoBERTa executor ABI with byte-level BPE. It owns
    tensor names, padding-index position IDs, LayerNorm epsilon, and execution
    math rather than treating RoBERTa as a BERT descriptor variant. The first
