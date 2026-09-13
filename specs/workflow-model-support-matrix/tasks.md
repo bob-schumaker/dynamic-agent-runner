@@ -49,22 +49,60 @@ remains unimplemented
     contract and pure evaluator existed, then GREEN with exact profile, adapter,
     material, test-mode, status, and reason binding checks.
 
+- [ ] WMS2.0 [tests, RED/GREEN] Extend the pure receipt contract for every
+      deterministic WMS2 result before adding profile-specific execution.
+  - Spec: FR-005, NFR-001, NFR-003.
+  - Files/components: `workflow_support_matrix.py`,
+    `tests/test_workflow_model_support_matrix.py`.
+  - Depends on: WMS1.3.
+  - RED: require a non-negative `dispatch_count` and retain only stable
+    classification reasons as bounded diagnostics. A non-supported classified
+    cell cannot record a nonzero dispatch count; profile tests must be able to
+    prove one exact synthetic dispatch or zero dispatch before execution.
+  - GREEN: retain no model input/output, tool result, mailbox content, prompt,
+    credential, path, or host detail in the receipt representation. Update the
+    existing pure receipt-binding vectors rather than adding a renderer or a
+    second receipt type.
+  - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py -q`.
+
 - [ ] WMS2.1 [tests, RED] Define a synthetic Fastmail support profile using
       only de-identified fixture messages and a controlled read-only
       `search_email` handler; demonstrate that the profile cannot touch MCP,
       OAuth, network, or mailbox state.
   - Spec: FR-003, AC-003.
-  - Files/components: existing Fastmail test fixtures,
+  - Files/components: de-identified Fastmail shape fixture and current
+    Fastmail binding/terminal-report seams,
+    `tests/test_dar_authoring_mcp_tools.py`,
+    `tests/test_dar_authoring_runner.py`, and
     `tests/test_workflow_model_support_matrix.py`.
-  - Depends on: WMS1.2.
+  - Depends on: WMS2.0.
+  - RED: add one test-owned, de-secreted identity fixture for the registered
+    v4 package digest, pinned Qwen artifact hash/configuration fingerprint, and
+    reviewed read-only surface digest. Derive the profile material identity
+    from that fixture; do not treat prose-only historical acceptance evidence
+    as a reusable material lock.
+  - RED: define `fastmail-triage-synthetic-v1` as synthetic-only, requiring
+    tool use plus the exact read-only `search_email` surface. A missing tool
+    path is `not_applicable`; stale or mismatched package/surface identity is a
+    zero-dispatch blocked row.
+  - Boundary: install fail-on-call MCP/OAuth/network sentries. The fixture
+    handler accepts only `{}`, returns de-identified bounded data, and the
+    classifier runs before any fake model or tool construction.
 
 - [ ] WMS2.2 [implementation, GREEN] Integrate the synthetic Fastmail fixture
       with eligible adapters through the existing coordinator/host test seams,
       retaining exact dispatch-count and contract-valid report assertions.
   - Spec: FR-003, FR-007.
   - Depends on: WMS2.1.
+  - GREEN: reuse the existing fake Fastmail binding and deterministic adapter
+    path to require exactly one `search_email({})` dispatch, zero mutation,
+    and a terminal `FastmailTriageReport`-valid result. Record a synthetic
+    receipt with `dispatch_count == 1`; stale, unsupported, and denied rows
+    remain zero-dispatch.
   - Validation: `poetry run pytest
     tests/test_workflow_model_support_matrix.py
+    tests/test_dar_authoring_mcp_tools.py
+    tests/test_dar_authoring_runner.py
     tests/test_fastmail_triage_report.py -q`.
 
 - [ ] WMS2.3 [tests, RED/GREEN] Define and execute the distinct synthetic
@@ -75,7 +113,7 @@ remains unimplemented
   - Files/components: existing MLE6 package and fake embedding/index test
     seam, `tests/test_workflow_model_support_matrix.py`,
     `tests/test_mlx_gte_tiny_mle6_execution.py`, and the pure receipt boundary.
-  - Depends on: WMS1.3.
+  - Depends on: WMS2.0.
   - RED: parse the existing sealed MLE6 package lock, execution descriptor,
     and capability requirements from test fixtures; derive the profile's exact
     package ID, material-lock digest, `tokenizer`/`weights` roles,
@@ -83,10 +121,8 @@ remains unimplemented
     and ABI identity. Do not duplicate those identities as literals. The
     synthetic profile has no host/MPS requirement and is distinct from the
     package's `embedding-index-sealed-v1` Darwin competency row.
-  - RED: extend the pure `WorkflowSupportReceipt` contract with a non-negative
-    `dispatch_count`; retain only its existing stable classification reasons as
-    bounded diagnostics. Cover a supported synthetic receipt with one dispatch
-    and each non-executing row with zero dispatches.
+  - RED: use the WMS2.0 pure receipt contract for a supported synthetic result
+    with one dispatch and each non-executing row with zero dispatches.
   - GREEN: run exactly one bounded synthetic input through the existing
     `EmbeddingExecutionService` using its injected deterministic fake provider
     and the binding derived from that same lock, descriptor, and capability
@@ -117,7 +153,23 @@ remains unimplemented
   - Spec: FR-008, FR-009, AC-006.
   - Files/components: floorplan fixture/material tests and
     `tests/test_workflow_model_support_matrix.py`.
-  - Depends on: WMS1.3.
+  - Depends on: WMS2.0.
+  - RED: derive a synthetic fixture profile and a separate
+    `floorplan-svg-mps-completion-v1` live profile from the sealed floorplan
+    package. Bind package/material lock, execution descriptor, converter asset,
+    generation budget (through the descriptor), and terminal SVG validator
+    digests. The synthetic profile has no MPS requirement; the live profile
+    requires the declared MPS host policy and authorization, but does not run
+    MPS in pytest.
+  - GREEN: run the existing admitted JSON-to-SVG converter/validator fixture
+    only after the synthetic cell is supported. Cover zero-execution rows for
+    absent/mismatched material, converter, descriptor/budget, validator,
+    runner, MPS policy, and authorization facts. The MPS completion row and its
+    receipt remain WMS3.3 work.
+  - Execution note: the existing fixture invokes macOS `sandbox-exec`; when
+    nested sandbox policy rejects it, run this focused deterministic test
+    outside the Codex sandbox. That is neither an MPS probe nor authorization
+    for a model run.
   - Validation: `poetry run pytest tests/test_floorplan_svg_fixture.py
     tests/test_workflow_model_support_matrix.py -q`.
 
@@ -127,7 +179,16 @@ remains unimplemented
   - Spec: FR-008, FR-010, AC-007.
   - Files/components: `tests/test_workflow_model_support_matrix.py`, existing
     model-interface matrix fixtures.
-  - Depends on: WMS1.2.
+  - Depends on: WMS2.0.
+  - RED: build one controlled two-turn fixture—not a pairing of unrelated S3
+    and S5 tests—in which the adapter performs the declared harmless tool call
+    and then returns a locally validated fixed JSON result schema. A missing
+    `structured_output` adapter capability is `not_applicable` before adapter
+    construction or tool dispatch.
+  - GREEN: assert the exact tool dispatch sequence, schema-valid terminal JSON,
+    one dispatch receipt, and no remote model/client access. Reuse the existing
+    in-memory registry and deterministic adapter recorder; do not add a schema
+    subsystem or provider special case.
   - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py
     tests/test_model_interface_matrix.py -q`.
 
@@ -138,9 +199,16 @@ remains unimplemented
   - Spec: FR-008, FR-010, AC-008.
   - Files/components: `tests/test_workflow_model_support_matrix.py`, session
     and context-management test seams.
-  - Depends on: WMS1.2.
+  - Depends on: WMS2.0.
+  - RED: bind one profile to the existing fake session restoration and one-shot
+    overflow-retry/compaction seam. Require the selected-context counts and
+    retry terminal classification, rather than raw turns or provider payloads.
+  - GREEN: prove the receipt stores only profile/cell facts, stable reason
+    codes, and dispatch count; sentinel turns, summaries, and provider-window
+    identifiers must be absent from its representation. No external model or
+    compactor is allowed.
   - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py
-    -q`.
+    tests/test_agent_sessions.py tests/test_executor.py -q`.
 
 - [ ] WMS2.7 [tests, RED/GREEN] Add a tool-pack-composition profile using
       injected web, workspace, and subagent collaborators. Prove descriptor
@@ -148,10 +216,36 @@ remains unimplemented
       blocking without starting a child or external client.
   - Spec: FR-008, FR-010, AC-009.
   - Files/components: `tests/test_workflow_model_support_matrix.py` and
-    existing tool-pack tests.
-  - Depends on: WMS1.2.
+    existing web, workspace, subagent, and authorization test seams.
+  - Depends on: WMS2.0.
+  - RED: make one integrated controlled profile with injected fake web clients,
+    workspace store, and subagent runner. It must exercise descriptor selection
+    and approval before dispatch; existing isolated tool-pack unit tests alone
+    are not matrix evidence.
+  - GREEN: assert the exact selected descriptors, approval decision, bounded
+    result shaping/redaction, and one dispatch count for each admitted
+    collaborator. Install fail-on-call external-client and child-process
+    sentries; the fake subagent runner is the only permitted collaborator.
   - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py
-    -q`.
+    tests/test_registry.py tests/test_subagents.py
+    tests/test_dar_authoring_authorized_tools.py -q`.
+
+## WMS2 Readiness Review (2026-09-13)
+
+- Council: the architecture triad (Aristotle, Ada, Feynman), run as a
+  reduced-independence sequential review, required a shared execution-receipt
+  prerequisite; fixture-derived identities; separate synthetic, live, and
+  Darwin/MPS evidence; and integrated tests where the workflow contract crosses
+  existing unit-test seams.
+
+- Ponytail: reuse the existing fake Fastmail binding, MLE6 package execution,
+  floorplan fixture, in-memory tool registry, fake session/compaction adapter,
+  and fake web/workspace/subagent collaborators. Do not add a profile registry,
+  model fixture, adapter, provider, schema framework, or new dependency.
+
+- Verdict: WMS2.0--WMS2.7 are implementation-ready in dependency order. The
+  only host-specific test condition is the existing floorplan fixture's nested
+  `sandbox-exec` limitation recorded above.
 
 - [ ] WMS3.1 [tests, RED] Add a fake-only authorization and redaction contract
       for a Fastmail live candidate: no authorization, non-supported cell, or

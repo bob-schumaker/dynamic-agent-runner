@@ -10,7 +10,9 @@ competency row is recorded
 | --- | --- | --- |
 | Artifact consistency review | pass | Requirements, plan, WMS1 types, and WMS1--WMS4 task dependencies agree. |
 | WMS1 readiness review | pass | Closed classifier identity, reason-code, precedence, receipt-binding, and no-side-effect boundaries are specified; Council and Ponytail reviews require no further scope. |
-| WMS2.3 readiness review | pass | The synthetic profile is distinct from MLE6 Darwin evidence, derives its identity from the sealed package fixture, records dispatch counts, and reuses the existing injected-provider seam. |
+| WMS2 readiness review | pass | WMS2.0 establishes the shared receipt boundary. Every profile has an offline fixture/seam, non-execution proof, and focused validation route; synthetic Fastmail and MLE6 evidence remain distinct from live/mailbox and Darwin competency receipts. |
+| WMS2 readiness baseline | pass: 454 | Focused Fastmail, embedding, model-interface, session/overflow, web/workspace/subagent, authorization, and matrix suites passed. |
+| WMS2 floorplan fixture baseline | pass: 4 | Passed outside the nested Codex sandbox because the existing deterministic fixture invokes macOS `sandbox-exec`; no MPS or model run occurred. |
 | `poetry run pytest tests/test_workflow_model_support_matrix.py -q` | pass: 9 | Canonical Unicode profile digest, all four terminal statuses, all closed blocked reasons, and non-transferable pure receipt binding. |
 | `poetry run pytest -q` | pass: 2,502; skipped: 1; deselected: 7 | Full regression after WMS1 implementation. |
 | `poetry run ruff check src tests` | pass | Full source and test lint after WMS1 implementation. |
