@@ -240,13 +240,24 @@
     red before the closed v2 validator was added, then green with package
     identity and generic execution-binding tests.
 
+- [x] MLE6.4e [bug, tests RED/GREEN] Pad every admitted BERT input to the
+      descriptor's exact `max_tokens` width, matching the sealed reference
+      tokenizer contract rather than the longest item in the invocation.
+  - Discovered: MLE6.5 real execution on 2026-09-13 reached conformance but
+    differed by up to `0.6290122419595718`; DAR emitted variable-width token
+    arrays while the locked CPU reference used `padding="max_length"` at 512.
+  - Depends on: MLE6.4d.
+  - Evidence: a descriptor width greater than the longest item was red before
+    the repair and green after; focused backend, descriptor, package, and
+    execution-binding suites pass.
+
 - [ ] MLE6.5 [manual competency gate] With explicit authorization, prepare the
       exact sealed package on Darwin arm64 with `mlx==0.32.2`, run the MLX
       embedding/index workflow, and compare against its locked reference
       fixture. Retain only package/material/descriptor digests, limits,
       duration, memory, vector count/dimension, opaque output IDs, and status.
   - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
-  - Depends on: MLE6.4d.
+  - Depends on: MLE6.4e.
 
 - [ ] MLE6.6 [tests/docs] Add the exact successful package/material identity to
       the workflow model support matrix, update MLX embedding status/validation,

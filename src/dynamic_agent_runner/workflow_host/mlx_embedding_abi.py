@@ -572,7 +572,7 @@ def _tokenize_wordpiece_items(
         ]
         for item in items
     ]
-    width = max(len(token_ids) for token_ids in encoded)
+    width = max_tokens
     padded = [
         token_ids + [special_ids["pad"]] * (width - len(token_ids))
         for token_ids in encoded

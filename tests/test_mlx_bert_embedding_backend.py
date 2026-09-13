@@ -544,7 +544,9 @@ def test_backend_truncation_retains_required_sep_token() -> None:
     assert mlx.arrays[0].tolist() == [[101, 100, 102]]
 
 
-def test_backend_pads_token_batches_and_preserves_input_order() -> None:
+def test_backend_pads_token_batches_to_the_descriptor_width_and_preserves_order() -> (
+    None
+):
     weights = _weights_blob()
     mlx = _RecordingNumpyMlx()
     backend = BertEncoderMlxV1EmbeddingBackend(
@@ -557,11 +559,11 @@ def test_backend_pads_token_batches_and_preserves_input_order() -> None:
 
     result = backend.embed(
         items,
-        _materials(max_items=2, max_vectors=2),
+        _materials(max_items=2, max_tokens=4, max_vectors=2),
     )
 
-    assert mlx.arrays[0].tolist() == [[101, 102, 0], [101, 100, 102]]
-    assert mlx.arrays[1].tolist() == [[1, 1, 0], [1, 1, 1]]
+    assert mlx.arrays[0].tolist() == [[101, 102, 0, 0], [101, 100, 102, 0]]
+    assert mlx.arrays[1].tolist() == [[1, 1, 0, 0], [1, 1, 1, 0]]
     assert [item.id for item in result.items] == ["first", "second"]
 
 
