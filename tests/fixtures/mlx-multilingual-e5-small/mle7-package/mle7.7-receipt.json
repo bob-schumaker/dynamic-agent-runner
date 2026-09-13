@@ -1,0 +1,30 @@
+{
+  "descriptor_digest": "7e8268cd213a3c7154a73231ead664824c41217a05b3f1dfbf231864ab8e180a",
+  "duration_ms": 2267.631,
+  "fixture_digest": "6ea8d4d96215527c188de3e5938b1e96ef6ddd9f873624f575530fe40633d230",
+  "format_version": 1,
+  "limits": {
+    "max_aggregate_bytes": 1048576,
+    "max_conformance_fixture_bytes": 1048576,
+    "max_item_bytes": 65536,
+    "max_items": 16,
+    "max_memory_bytes": 536870912,
+    "max_safetensors_header_bytes": 16777216,
+    "max_tokenizer_bytes": 16777216,
+    "max_tokens": 512,
+    "max_vectors": 16,
+    "max_weights_bytes": 536870912
+  },
+  "material_lock_digest": "50fbb75b47b179862f32e64a32235b8127d3846ccabe4471ea5555e4016990b0",
+  "max_abs_error": 2.1585263311862946e-05,
+  "max_rss_bytes": 1011089408,
+  "mlx_version": "0.32.2",
+  "opaque_output_ids": [
+    "index-bundle-1",
+    "coverage-report-1"
+  ],
+  "package_id": "mlx-multilingual-e5-small-embedding-v1",
+  "status": "passed",
+  "vector_count": 3,
+  "vector_dimension": 384
+}

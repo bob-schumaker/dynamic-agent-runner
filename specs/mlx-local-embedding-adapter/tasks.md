@@ -548,11 +548,19 @@
     dispatch; no MLX import, source material I/O, network, or provider registry
     change was needed.
 
-- [ ] MLE7.7 [manual] With explicit authorization, run the locked MLE7 package
+- [x] MLE7.7 [manual] With explicit authorization, run the locked MLE7 package
       on Darwin arm64, compare its vectors to the fixture, and retain only the
       redacted receipt fields required by the operational gate.
   - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
   - Depends on: MLE7.6.
+  - Evidence: the authorized local Darwin arm64 Metal run admitted the exact
+    sealed source closure and prepared-weights digest, ran all three synthetic
+    items, and passed the refreshed fixture with max absolute error
+    `0.000021585263311862946` (limit `0.005`) on MLX `0.32.2`. The committed
+    receipt retains only package/lock/descriptor/fixture identities, declared
+    limits, coarse resource/runtime facts, vector shape/count, opaque artifact
+    IDs, and pass status; it retains no model input, weights, vectors, host name,
+    or absolute local path.
 
 - [ ] MLE7.8 [tests/docs] Add the successful MLE7 package/material receipt as
       a non-transferable embedding support row and update validation status.
