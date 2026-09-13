@@ -65,7 +65,7 @@ remains unimplemented
     second receipt type.
   - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py -q`.
 
-- [ ] WMS2.1 [tests, RED] Define a synthetic Fastmail support profile using
+- [x] WMS2.1 [tests, RED] Define a synthetic Fastmail support profile using
       only de-identified fixture messages and a controlled read-only
       `search_email` handler; demonstrate that the profile cannot touch MCP,
       OAuth, network, or mailbox state.

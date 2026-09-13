@@ -74,7 +74,27 @@ def _candidate(
 
 
 def _fastmail_fixture() -> dict[str, object]:
-    return json.loads(_FASTMAIL_FIXTURE_PATH.read_text(encoding="utf-8"))
+    fixture = json.loads(_FASTMAIL_FIXTURE_PATH.read_text(encoding="utf-8"))
+    surface = fixture["reviewed_search_email_surface"]
+    assert isinstance(surface, dict)
+    canonical_surface = [
+        {
+            "name": surface["name"],
+            "input_schema": surface["input_schema"],
+        }
+    ]
+    surface_digest = hashlib.sha256(
+        json.dumps(canonical_surface, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+    assert surface["digest"] == surface_digest
+    material = fixture["material"]
+    assert isinstance(material, dict)
+    artifact_digests = material["artifact_digests"]
+    assert isinstance(artifact_digests, dict)
+    assert artifact_digests["reviewed_search_email_surface"] == surface_digest
+    return fixture
 
 
 def _fastmail_material_identity(fixture: dict[str, object]) -> MaterialIdentity:

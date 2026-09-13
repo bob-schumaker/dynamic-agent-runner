@@ -1,0 +1,30 @@
+{
+  "material": {
+    "artifact_digests": {
+      "package": "ce7f3d349745ee113ed6d11584cb58e87bdc896a2b1625babcbc9f7ed46a54ec",
+      "qwen_artifact": "626b4a6678b86442240e33df819e00132d3ba7dddfe1cdc4fbb18e0a9615c62d",
+      "qwen_configuration": "8f5619a7dd6215ced444ecc4966b849f453e7ba89376e046c4a08c4f0de34bcb",
+      "reviewed_search_email_surface": "111caef545258d7e80fb7646a2b24d88669bbf7818b1edbf89d13faafaccd0fd"
+    },
+    "material_roles": [
+      "package",
+      "qwen_artifact",
+      "qwen_configuration",
+      "reviewed_search_email_surface"
+    ]
+  },
+  "package_digest": "ce7f3d349745ee113ed6d11584cb58e87bdc896a2b1625babcbc9f7ed46a54ec",
+  "package_id": "fastmail-inbox-triage-qwen-v4",
+  "reviewed_search_email_surface": {
+    "digest": "111caef545258d7e80fb7646a2b24d88669bbf7818b1edbf89d13faafaccd0fd",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "name": "search_email"
+  },
+  "synthetic_search_email_result": {
+    "items": []
+  }
+}
