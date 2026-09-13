@@ -64,12 +64,12 @@ def _descriptor(*, abi=BERT_ENCODER_MLX_V1_ABI):
                         if abi == BERT_ENCODER_MLX_V4_ABI
                         else "bert-basic-v1"
                     ),
-                    "special_token_ids": {
-                        "cls": 101,
-                        "sep": 102,
-                        "pad": 0,
-                        "unk": 100,
-                    },
+                    **({"id_offset": 1} if abi == BERT_ENCODER_MLX_V4_ABI else {}),
+                    "special_token_ids": (
+                        {"cls": 0, "sep": 2, "pad": 1, "unk": 3}
+                        if abi == BERT_ENCODER_MLX_V4_ABI
+                        else {"cls": 101, "sep": 102, "pad": 0, "unk": 100}
+                    ),
                     "truncation": "longest-first",
                 },
                 "encoder": encoder,

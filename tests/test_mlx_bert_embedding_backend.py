@@ -40,7 +40,11 @@ from dynamic_agent_runner.workflow_host.model_execution_binding import (
 )
 from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
     BERT_ENCODER_MLX_V1_ABI,
+    BERT_ENCODER_MLX_V4_ABI,
     BertEncoderMlxV1EmbeddingBackend,
+    BertEncoderMlxV4DescriptorValidator,
+    _parse_sentencepiece_bpe_model,
+    _tokenize_sentencepiece_bpe_items,
     BertEncoderMlxV1DescriptorValidator,
     _wordpiece_ids,
     _bert_tensor_shapes,
@@ -120,6 +124,198 @@ def _materials(
             }
         )
     )
+
+
+def _varint(value: int) -> bytes:
+    encoded = bytearray()
+    while value > 0x7F:
+        encoded.append((value & 0x7F) | 0x80)
+        value >>= 7
+    encoded.append(value)
+    return bytes(encoded)
+
+
+def _field(field: int, value: bytes) -> bytes:
+    return _varint(field << 3 | 2) + _varint(len(value)) + value
+
+
+def _sentencepiece_model(
+    *, unknown_field: bool = False, byte_fallback: bool = False
+) -> bytes:
+    pieces = (
+        ("<unk>", 0.0, 2),
+        ("<s>", 0.0, 3),
+        ("</s>", 0.0, 3),
+        ("▁", 1.0, 1),
+        ("q", 1.0, 1),
+        ("u", 1.0, 1),
+        ("e", 1.0, 1),
+        ("r", 1.0, 1),
+        ("y", 1.0, 1),
+        (":", 1.0, 1),
+        ("▁q", 2.0, 1),
+        ("qu", 5.0, 1),
+        ("er", 5.0, 1),
+        ("quer", 6.0, 1),
+        ("▁qu", 7.0, 1),
+        ("▁quer", 8.0, 1),
+        ("▁query", 9.0, 1),
+    )
+    encoded_pieces = []
+    for piece, score, kind in pieces:
+        body = (
+            _field(1, piece.encode())
+            + _varint(2 << 3 | 5)
+            + struct.pack("<f", score)
+            + _varint(3 << 3)
+            + _varint(kind)
+        )
+        encoded_pieces.append(_field(1, body))
+    trainer = (
+        _varint(3 << 3)
+        + _varint(1)
+        + _varint(4 << 3)
+        + _varint(len(pieces))
+        + (_varint(35 << 3) + _varint(1) if byte_fallback else b"")
+    )
+    normalizer = (
+        _field(1, b"nmt_nfkc")
+        + _varint(3 << 3)
+        + _varint(1)
+        + _varint(4 << 3)
+        + _varint(1)
+        + _varint(5 << 3)
+        + _varint(1)
+    )
+    model = b"".join((*encoded_pieces, _field(2, trainer), _field(3, normalizer)))
+    return model + (_varint(9 << 3) + _varint(1) if unknown_field else b"")
+
+
+def _v4_materials(*, max_tokens: int = 5, **limit_overrides: int) -> SimpleNamespace:
+    v1_descriptor = _materials().execution_descriptor
+    fields = v1_descriptor.abi_fields
+    fields["tokenizer"].update(
+        format="sentencepiece-bpe-model-v1",
+        normalization="nmt-nfkc",
+        pre_tokenizer="sentencepiece-bpe-v1",
+        special_token_ids={"cls": 0, "sep": 2, "pad": 1, "unk": 3},
+        id_offset=1,
+    )
+    fields["encoder"].update(
+        vocab_size=18,
+        dtype="float16",
+        layer_norm_dtype="float32",
+        max_positions=5,
+    )
+    fields["limits"].update(max_tokens=max_tokens, **limit_overrides)
+    descriptor = parse_execution_descriptor(
+        {
+            "format_version": 1,
+            "architecture_abi": BERT_ENCODER_MLX_V4_ABI.to_mapping(),
+            "material_roles": ["tokenizer", "weights"],
+            "abi_fields": fields,
+        }
+    )
+    BertEncoderMlxV4DescriptorValidator().validate(descriptor)
+    return SimpleNamespace(execution_descriptor=descriptor)
+
+
+def test_sentencepiece_bpe_model_decodes_and_preserves_literal_e5_prefix() -> None:
+    descriptor = _v4_materials().execution_descriptor
+
+    tokenizer = _parse_sentencepiece_bpe_model(_sentencepiece_model(), descriptor)
+    token_ids, masks = _tokenize_sentencepiece_bpe_items(
+        tokenizer,
+        (EmbeddingInputItem("item", "query:"),),
+        descriptor,
+    )
+
+    assert token_ids == [[0, 17, 10, 2, 1]]
+    assert masks == [[1, 1, 1, 1, 0]]
+
+
+def test_sentencepiece_bpe_model_rejects_unknown_wire_field_before_weights_read() -> (
+    None
+):
+    descriptor = _v4_materials().execution_descriptor
+
+    with pytest.raises(ValueError):
+        _parse_sentencepiece_bpe_model(
+            _sentencepiece_model(unknown_field=True), descriptor
+        )
+
+
+def test_sentencepiece_bpe_model_rejects_byte_fallback() -> None:
+    descriptor = _v4_materials().execution_descriptor
+
+    with pytest.raises(ValueError):
+        _parse_sentencepiece_bpe_model(
+            _sentencepiece_model(byte_fallback=True), descriptor
+        )
+
+
+@pytest.mark.parametrize(
+    "asset",
+    (
+        b"\x80",
+        _sentencepiece_model()[:-1],
+        _sentencepiece_model().replace(b"nmt_nfkc", b"nmt_Xfkc"),
+    ),
+)
+def test_sentencepiece_bpe_model_rejects_malformed_or_changed_profile(
+    asset: bytes,
+) -> None:
+    descriptor = _v4_materials().execution_descriptor
+
+    with pytest.raises(ValueError):
+        _parse_sentencepiece_bpe_model(asset, descriptor)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    (
+        ("  query: ", [0, 17, 10, 2, 1]),
+        ("ｑuery:", [0, 17, 10, 2, 1]),
+        ("?", [0, 4, 3, 2, 1]),
+    ),
+)
+def test_sentencepiece_bpe_normalizes_boundaries_and_emits_unknown_piece(
+    text: str, expected: list[int]
+) -> None:
+    descriptor = _v4_materials().execution_descriptor
+    tokenizer = _parse_sentencepiece_bpe_model(_sentencepiece_model(), descriptor)
+
+    token_ids, _masks = _tokenize_sentencepiece_bpe_items(
+        tokenizer, (EmbeddingInputItem("item", text),), descriptor
+    )
+
+    assert token_ids == [expected]
+
+
+def test_sentencepiece_bpe_truncates_before_exact_width_padding() -> None:
+    descriptor = _v4_materials(max_tokens=4).execution_descriptor
+    tokenizer = _parse_sentencepiece_bpe_model(_sentencepiece_model(), descriptor)
+
+    token_ids, masks = _tokenize_sentencepiece_bpe_items(
+        tokenizer, (EmbeddingInputItem("item", "query:?"),), descriptor
+    )
+
+    assert token_ids == [[0, 17, 10, 2]]
+    assert masks == [[1, 1, 1, 1]]
+
+
+def test_sentencepiece_bpe_tokenizer_limit_rejects_before_weights_or_mlx() -> None:
+    materials = _v4_materials(max_tokenizer_bytes=1)
+    calls: list[str] = []
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda role: calls.append(role) or _sentencepiece_model(),
+        mlx_loader=lambda: pytest.fail("MLX must not load"),
+    )
+
+    with pytest.raises(EmbeddingExecutionError, match="material is unavailable"):
+        backend.embed((EmbeddingInputItem("item", "query:"),), materials)
+
+    assert calls == ["tokenizer"]
 
 
 def test_bert_abi_projects_descriptor_limits_without_material_read() -> None:

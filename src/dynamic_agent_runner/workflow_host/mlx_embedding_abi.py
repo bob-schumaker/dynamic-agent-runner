@@ -5,8 +5,11 @@ from __future__ import annotations
 import math
 import json
 import tempfile
+import heapq
+import struct
 from collections.abc import Mapping
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import Protocol
 import unicodedata
 
@@ -65,6 +68,14 @@ class BertEncoderMlxV1DescriptorValidator:
         "max_positions",
         "type_vocab_size",
     }
+    tokenizer_keys = {
+        "role",
+        "format",
+        "normalization",
+        "pre_tokenizer",
+        "special_token_ids",
+        "truncation",
+    }
 
     def validate(self, descriptor: ExecutionDescriptor) -> None:
         if descriptor.architecture_abi != self.identity:
@@ -82,17 +93,7 @@ class BertEncoderMlxV1DescriptorValidator:
                 "conformance",
             },
         )
-        tokenizer = _mapping(
-            fields["tokenizer"],
-            {
-                "role",
-                "format",
-                "normalization",
-                "pre_tokenizer",
-                "special_token_ids",
-                "truncation",
-            },
-        )
+        tokenizer = _mapping(fields["tokenizer"], self.tokenizer_keys)
         encoder = _mapping(fields["encoder"], self.encoder_keys)
         limits = _mapping(
             fields["limits"],
@@ -213,12 +214,25 @@ class BertEncoderMlxV4DescriptorValidator(BertEncoderMlxV2DescriptorValidator):
     """Validate the closed SentencePiece-BPE BERT descriptor grammar."""
 
     identity = BERT_ENCODER_MLX_V4_ABI
+    tokenizer_keys = BertEncoderMlxV1DescriptorValidator.tokenizer_keys | {"id_offset"}
 
     def _validate_tokenizer_format(self, format_name: object) -> None:
         _one_of(format_name, {"sentencepiece-bpe-model-v1"})
 
     def _validate_pre_tokenizer(self, pre_tokenizer: object) -> None:
         _one_of(pre_tokenizer, {"sentencepiece-bpe-v1"})
+
+    def validate(self, descriptor: ExecutionDescriptor) -> None:
+        super().validate(descriptor)
+        tokenizer = descriptor.abi_fields["tokenizer"]
+        assert isinstance(tokenizer, Mapping)
+        if tokenizer["id_offset"] != 1 or tokenizer["special_token_ids"] != {
+            "cls": 0,
+            "sep": 2,
+            "pad": 1,
+            "unk": 3,
+        }:
+            _invalid()
 
     def _validate_tokenizer_normalization(self, normalization: object) -> None:
         _one_of(normalization, {"nmt-nfkc"})
@@ -343,7 +357,7 @@ def _read_bert_artifacts(
     artifact_reader: Callable[[str], bytes],
     descriptor: ExecutionDescriptor,
     limits: Mapping[str, object],
-) -> tuple[Mapping[str, object], bytes, Mapping[str, object]]:
+) -> tuple[object, bytes, Mapping[str, object]]:
     try:
         tokenizer_bytes = artifact_reader("tokenizer")
         if (
@@ -351,10 +365,15 @@ def _read_bert_artifacts(
             or len(tokenizer_bytes) > limits["max_tokenizer_bytes"]
         ):
             raise ValueError
-        tokenizer = json.loads(tokenizer_bytes.decode("utf-8"))
-        if not isinstance(tokenizer, Mapping):
-            raise ValueError
-        _validate_wordpiece_tokenizer(tokenizer, descriptor)
+        tokenizer_fields = descriptor.abi_fields["tokenizer"]
+        assert isinstance(tokenizer_fields, Mapping)
+        if tokenizer_fields["format"] == "sentencepiece-bpe-model-v1":
+            tokenizer = _parse_sentencepiece_bpe_model(tokenizer_bytes, descriptor)
+        else:
+            tokenizer = json.loads(tokenizer_bytes.decode("utf-8"))
+            if not isinstance(tokenizer, Mapping):
+                raise ValueError
+            _validate_wordpiece_tokenizer(tokenizer, descriptor)
         weights = artifact_reader("weights")
         if (
             not isinstance(weights, bytes)
@@ -455,11 +474,20 @@ def _load_mlx_core() -> object:
 def _execute_bert_encoder(
     mlx: object,
     tensors: Mapping[str, object],
-    tokenizer: Mapping[str, object],
+    tokenizer: object,
     items: tuple[EmbeddingInputItem, ...],
     descriptor: ExecutionDescriptor,
 ) -> EmbeddingBatchResult:
-    token_ids, attention_mask = _tokenize_wordpiece_items(tokenizer, items, descriptor)
+    if isinstance(tokenizer, _SentencePieceBpeTokenizer):
+        token_ids, attention_mask = _tokenize_sentencepiece_bpe_items(
+            tokenizer, items, descriptor
+        )
+    elif isinstance(tokenizer, Mapping):
+        token_ids, attention_mask = _tokenize_wordpiece_items(
+            tokenizer, items, descriptor
+        )
+    else:
+        raise EmbeddingExecutionError("MLX embedding material is unavailable")
     token_array = mlx.array(token_ids, dtype=mlx.int32)
     mask_array = mlx.array(attention_mask, dtype=mlx.int32)
     batch_size, token_count = token_array.shape
@@ -667,6 +695,309 @@ def _wordpiece_ids(
             index = next_index
         ids.extend(pieces)
     return ids
+
+
+@dataclass(frozen=True)
+class _SentencePieceBpeTokenizer:
+    pieces: tuple[tuple[str, float, int], ...]
+    normal_piece_ids: Mapping[str, tuple[int, float]]
+
+
+def _parse_sentencepiece_bpe_model(  # noqa: C901 - the closed profile is one boundary.
+    model_bytes: bytes, descriptor: ExecutionDescriptor
+) -> _SentencePieceBpeTokenizer:
+    """Decode the finite SentencePiece BPE ModelProto profile used by v4."""
+
+    fields = _protobuf_fields(model_bytes, {1: 2, 2: 2, 3: 2})
+    piece_messages = fields.get(1)
+    trainer_messages = fields.get(2)
+    normalizer_messages = fields.get(3)
+    if (
+        not piece_messages
+        or len(piece_messages) > 500_000
+        or not _single_bytes(trainer_messages)
+        or not _single_bytes(normalizer_messages)
+    ):
+        raise ValueError
+    trainer = _protobuf_fields(
+        _single_bytes(trainer_messages),
+        {
+            1: 2,
+            2: 2,
+            3: 0,
+            4: 0,
+            5: 2,
+            6: 0,
+            7: 2,
+            10: 5,
+            11: 0,
+            12: 0,
+            13: 0,
+            14: 0,
+            15: 5,
+            16: 0,
+            17: 0,
+            18: 0,
+            19: 0,
+            20: 0,
+            21: 0,
+            22: 0,
+            23: 0,
+            24: 0,
+            25: 0,
+            26: 0,
+            30: 2,
+            31: 2,
+            32: 0,
+            33: 0,
+            34: 0,
+            35: 0,
+            36: 2,
+            40: 0,
+            41: 0,
+            42: 0,
+            43: 0,
+            44: 2,
+            45: 2,
+            46: 2,
+            47: 2,
+            48: 2,
+            49: 0,
+            50: 0,
+            51: 1,
+            52: 0,
+            53: 2,
+        },
+    )
+    if _single_int(trainer.get(3)) != 1:
+        raise ValueError
+    if trainer.get(35) and _single_int(trainer.get(35)) != 0:
+        raise ValueError
+    pieces = tuple(_parse_sentencepiece_piece(value) for value in piece_messages)
+    if _single_int(trainer.get(4)) != len(pieces):
+        raise ValueError
+    _validate_sentencepiece_normalizer(_single_bytes(normalizer_messages))
+    tokenizer_fields = descriptor.abi_fields["tokenizer"]
+    encoder = descriptor.abi_fields["encoder"]
+    assert isinstance(tokenizer_fields, Mapping)
+    assert isinstance(encoder, Mapping)
+    special_ids = tokenizer_fields["special_token_ids"]
+    assert isinstance(special_ids, Mapping)
+    id_offset = tokenizer_fields["id_offset"]
+    if (
+        id_offset != 1
+        or len(pieces) + id_offset > encoder["vocab_size"]
+        or len(pieces) < 3
+    ):
+        raise ValueError
+    if (
+        special_ids != {"cls": 0, "sep": 2, "pad": 1, "unk": 3}
+        or pieces[0][0] != "<unk>"
+        or pieces[0][2] != 2
+        or pieces[1][0] != "<s>"
+        or pieces[1][2] != 3
+        or pieces[2][0] != "</s>"
+        or pieces[2][2] != 3
+    ):
+        raise ValueError
+    normal_piece_ids: dict[str, tuple[int, float]] = {}
+    for index, (piece, score, kind) in enumerate(pieces):
+        if kind == 1:
+            if piece in normal_piece_ids:
+                raise ValueError
+            normal_piece_ids[piece] = (index + id_offset, score)
+    return _SentencePieceBpeTokenizer(pieces, normal_piece_ids)
+
+
+def _parse_sentencepiece_piece(value: object) -> tuple[str, float, int]:
+    if not isinstance(value, bytes):
+        raise ValueError
+    fields = _protobuf_fields(value, {1: 2, 2: 5, 3: 0})
+    piece_bytes = _single_bytes(fields.get(1))
+    score_bytes = _single_bytes(fields.get(2))
+    kind = _single_int(fields.get(3))
+    if len(piece_bytes) > 1_024 or len(score_bytes) != 4 or kind not in {1, 2, 3}:
+        raise ValueError
+    piece = piece_bytes.decode("utf-8")
+    score = struct.unpack("<f", score_bytes)[0]
+    if not piece or not math.isfinite(score):
+        raise ValueError
+    return piece, score, kind
+
+
+def _validate_sentencepiece_normalizer(value: bytes) -> None:
+    fields = _protobuf_fields(value, {1: 2, 2: 2, 3: 0, 4: 0, 5: 0, 6: 2})
+    if (
+        _single_bytes(fields.get(1)) != b"nmt_nfkc"
+        or _single_int(fields.get(3)) != 1
+        or _single_int(fields.get(4)) != 1
+        or (fields.get(5) and _single_int(fields.get(5)) != 1)
+        or fields.get(6)
+    ):
+        raise ValueError
+
+
+def _protobuf_fields(
+    data: bytes, allowed: Mapping[int, int]
+) -> dict[int, list[object]]:
+    fields: dict[int, list[object]] = {}
+    offset = 0
+    while offset < len(data):
+        key, offset = _protobuf_varint(data, offset)
+        field = key >> 3
+        wire = key & 7
+        if field == 0 or allowed.get(field) != wire:
+            raise ValueError
+        if wire == 0:
+            value, offset = _protobuf_varint(data, offset)
+        elif wire == 2:
+            size, offset = _protobuf_varint(data, offset)
+            if size > len(data) - offset:
+                raise ValueError
+            value = data[offset : offset + size]
+            offset += size
+        elif wire == 1:
+            if len(data) - offset < 8:
+                raise ValueError
+            value = data[offset : offset + 8]
+            offset += 8
+        elif wire == 5:
+            if len(data) - offset < 4:
+                raise ValueError
+            value = data[offset : offset + 4]
+            offset += 4
+        else:
+            raise ValueError
+        fields.setdefault(field, []).append(value)
+    return fields
+
+
+def _protobuf_varint(data: bytes, offset: int) -> tuple[int, int]:
+    value = 0
+    for shift in range(0, 70, 7):
+        if offset >= len(data):
+            raise ValueError
+        byte = data[offset]
+        offset += 1
+        value |= (byte & 0x7F) << shift
+        if not byte & 0x80:
+            if shift and byte == 0:
+                raise ValueError
+            return value, offset
+    raise ValueError
+
+
+def _single_bytes(values: object) -> bytes:
+    if (
+        not isinstance(values, list)
+        or len(values) != 1
+        or not isinstance(values[0], bytes)
+    ):
+        raise ValueError
+    return values[0]
+
+
+def _single_int(values: object) -> int:
+    if (
+        not isinstance(values, list)
+        or len(values) != 1
+        or not isinstance(values[0], int)
+    ):
+        raise ValueError
+    return values[0]
+
+
+def _tokenize_sentencepiece_bpe_items(
+    tokenizer: _SentencePieceBpeTokenizer,
+    items: tuple[EmbeddingInputItem, ...],
+    descriptor: ExecutionDescriptor,
+) -> tuple[list[list[int]], list[list[int]]]:
+    fields = descriptor.abi_fields["tokenizer"]
+    limits = descriptor.abi_fields["limits"]
+    assert isinstance(fields, Mapping)
+    assert isinstance(limits, Mapping)
+    special_ids = fields["special_token_ids"]
+    assert isinstance(special_ids, Mapping)
+    max_tokens = limits["max_tokens"]
+    assert isinstance(max_tokens, int)
+    if max_tokens < 2:
+        raise EmbeddingExecutionError("MLX embedding input is invalid")
+    encoded = [
+        [
+            special_ids["cls"],
+            *_sentencepiece_bpe_ids(item.text, tokenizer, special_ids["unk"])[
+                : max_tokens - 2
+            ],
+            special_ids["sep"],
+        ]
+        for item in items
+    ]
+    return (
+        [ids + [special_ids["pad"]] * (max_tokens - len(ids)) for ids in encoded],
+        [[1] * len(ids) + [0] * (max_tokens - len(ids)) for ids in encoded],
+    )
+
+
+def _sentencepiece_bpe_ids(
+    text: str, tokenizer: _SentencePieceBpeTokenizer, unk_id: object
+) -> list[int]:
+    normalized = "▁" + "▁".join(unicodedata.normalize("NFKC", text).split())
+    nodes = [
+        [
+            piece,
+            *tokenizer.normal_piece_ids.get(piece, (None, 0.0)),
+            index - 1,
+            index + 1,
+        ]
+        for index, piece in enumerate(normalized)
+    ]
+    if nodes:
+        nodes[-1][-1] = -1
+    candidates: list[tuple[float, int, int, int]] = []
+    for index in range(len(nodes) - 1):
+        _add_sentencepiece_bpe_candidate(nodes, tokenizer, candidates, index)
+    while candidates:
+        _score, left, right, token_id = heapq.heappop(candidates)
+        if nodes[left][3] == -2 or nodes[right][3] == -2 or nodes[left][4] != right:
+            continue
+        candidate = nodes[left][0] + nodes[right][0]
+        current = tokenizer.normal_piece_ids.get(candidate)
+        if current is None or current[0] != token_id:
+            continue
+        nodes[left][0] = candidate
+        nodes[left][1] = token_id
+        nodes[left][2] = current[1]
+        nodes[left][4] = nodes[right][4]
+        nodes[right][3] = -2
+        if nodes[right][4] != -1:
+            nodes[nodes[right][4]][3] = left
+        previous = nodes[left][3]
+        if previous != -1:
+            assert isinstance(previous, int)
+            _add_sentencepiece_bpe_candidate(nodes, tokenizer, candidates, previous)
+        _add_sentencepiece_bpe_candidate(nodes, tokenizer, candidates, left)
+    return [
+        node[1] if node[1] is not None else unk_id for node in nodes if node[3] != -2
+    ]
+
+
+def _add_sentencepiece_bpe_candidate(
+    nodes: list[list[object]],
+    tokenizer: _SentencePieceBpeTokenizer,
+    candidates: list[tuple[float, int, int, int]],
+    left: int,
+) -> None:
+    right = nodes[left][4]
+    if right == -1:
+        return
+    assert isinstance(right, int)
+    left_piece = nodes[left][0]
+    right_piece = nodes[right][0]
+    assert isinstance(left_piece, str)
+    assert isinstance(right_piece, str)
+    token = tokenizer.normal_piece_ids.get(left_piece + right_piece)
+    if token is not None:
+        heapq.heappush(candidates, (-token[1], left, right, token[0]))
 
 
 def _bert_basic_tokens(text: str) -> list[str]:
