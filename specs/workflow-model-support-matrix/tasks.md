@@ -210,7 +210,7 @@ remains unimplemented
   - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py
     tests/test_agent_sessions.py tests/test_executor.py -q`.
 
-- [ ] WMS2.7 [tests, RED/GREEN] Add a tool-pack-composition profile using
+- [x] WMS2.7 [tests, RED/GREEN] Add a tool-pack-composition profile using
       injected web, workspace, and subagent collaborators. Prove descriptor
       selection, approval, dispatch, redaction, and external-I/O/process
       blocking without starting a child or external client.

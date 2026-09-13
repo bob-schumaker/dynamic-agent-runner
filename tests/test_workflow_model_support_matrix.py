@@ -583,3 +583,76 @@ def test_stateful_context_profile_records_only_bounded_execution_facts() -> None
     assert "provider-window-identifier" not in repr(receipt)
     assert "compacted summary" not in repr(receipt)
     validate_workflow_support_receipt(profile, candidate, cell, receipt)
+
+
+def test_tool_pack_profile_selects_approved_injected_collaborators() -> None:
+    profile = WorkflowSupportProfile(
+        profile_id="tool-pack-composition-synthetic-v1",
+        workflow_family="tool-pack-composition",
+        required_adapter_capabilities=("tool_pack",),
+        required_abi_capabilities=(),
+        required_provider_capabilities=(),
+        required_host_capabilities=(),
+        material_identity=None,
+        execution_mode="synthetic",
+        authorization_required=False,
+        implemented=True,
+    )
+    candidate = WorkflowSupportCandidate(
+        adapter_id="injected-tool-pack-adapter",
+        adapter_capabilities=frozenset({"tool_pack"}),
+        available_abi_capabilities=frozenset(),
+        provider_capabilities=frozenset(),
+        host_capabilities=frozenset(),
+        material_identity=None,
+        authorization_granted=False,
+    )
+    selected_descriptors = ("web.search.v1", "workspace.read.v1", "subagent.run.v1")
+    approval_decisions: list[str] = []
+    calls: list[str] = []
+    registry = create_host_tool_registry(
+        tuple(
+            HostToolBinding(
+                canonical_id=f"tool-pack:{descriptor}",
+                model_id=model_id,
+                handler=lambda _arguments, name=model_id: (
+                    calls.append(name) or {"status": "complete", "secret": "redacted"}
+                ),
+            )
+            for descriptor, model_id in zip(
+                selected_descriptors,
+                ("web_search", "workspace_read", "subagent_run"),
+                strict=True,
+            )
+        )
+    )
+    cell = classify_workflow_support(profile, candidate)
+
+    assert cell.status is WorkflowSupportStatus.SUPPORTED
+    approval_decisions.append("approved")
+    results = [
+        registry.invoke_tool(tool_id, {})
+        for tool_id in ("web_search", "workspace_read", "subagent_run")
+    ]
+    receipt = WorkflowSupportReceipt(
+        profile_digest=cell.profile_digest,
+        adapter_id=cell.adapter_id,
+        material_identity=cell.material_identity,
+        test_mode="synthetic",
+        status=cell.status,
+        reason_codes=cell.reason_codes,
+        dispatch_count=len(calls),
+    )
+
+    assert selected_descriptors == (
+        "web.search.v1",
+        "workspace.read.v1",
+        "subagent.run.v1",
+    )
+    assert approval_decisions == ["approved"]
+    assert calls == ["web_search", "workspace_read", "subagent_run"]
+    assert [result.output for result in results] == [
+        {"status": "complete", "secret": "redacted"}
+    ] * 3
+    assert "secret" not in repr(receipt)
+    validate_workflow_support_receipt(profile, candidate, cell, receipt)
