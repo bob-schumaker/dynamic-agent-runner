@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import math
+import unicodedata
 from collections.abc import Mapping
+from dataclasses import dataclass
 
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
     ExecutionDescriptor,
@@ -192,3 +195,226 @@ def _hex(value: object) -> None:
 
 def _invalid() -> None:
     raise ExecutionDescriptorError("MLX RoBERTa encoder ABI fields are invalid")
+
+
+@dataclass(frozen=True)
+class _RobertaByteLevelBpeTokenizer:
+    vocab: Mapping[str, int]
+    merge_ranks: Mapping[tuple[str, str], int]
+    byte_encoder: Mapping[int, str]
+    unk_id: int
+
+
+def _parse_roberta_byte_level_bpe(  # noqa: C901 - one closed asset-admission boundary.
+    vocab_bytes: bytes, merges_bytes: bytes, descriptor: ExecutionDescriptor
+) -> _RobertaByteLevelBpeTokenizer:
+    """Admit only the ABI's bounded `vocab.json` and `merges.txt` grammar."""
+
+    try:
+        RobertaEncoderMlxV1DescriptorValidator().validate(descriptor)
+        fields = descriptor.abi_fields["tokenizer"]
+        encoder = descriptor.abi_fields["encoder"]
+        limits = descriptor.abi_fields["limits"]
+        if not all(isinstance(value, Mapping) for value in (fields, encoder, limits)):
+            raise ValueError
+        if (
+            len(vocab_bytes) > limits["max_tokenizer_bytes"]
+            or len(merges_bytes) > limits["max_tokenizer_bytes"]
+        ):
+            raise ValueError
+        vocab_value = json.loads(vocab_bytes.decode("utf-8"))
+        if (
+            not isinstance(vocab_value, dict)
+            or len(vocab_value) != encoder["vocab_size"]
+        ):
+            raise ValueError
+        vocab: dict[str, int] = {}
+        for token, token_id in vocab_value.items():
+            if (
+                not isinstance(token, str)
+                or not isinstance(token_id, int)
+                or isinstance(token_id, bool)
+                or token_id < 0
+                or token_id >= encoder["vocab_size"]
+                or token in vocab
+            ):
+                raise ValueError
+            vocab[token] = token_id
+        if set(vocab.values()) != set(range(encoder["vocab_size"])):
+            raise ValueError
+        special_ids = fields["special_token_ids"]
+        if not isinstance(special_ids, Mapping) or any(
+            vocab.get(token) != special_ids[name]
+            for name, token in (
+                ("bos", "<s>"),
+                ("eos", "</s>"),
+                ("pad", "<pad>"),
+                ("unk", "<unk>"),
+                ("mask", "<mask>"),
+            )
+        ):
+            raise ValueError
+        lines = merges_bytes.decode("utf-8").splitlines()
+        if not lines or lines[0] != "#version: 0.2" or len(lines) - 1 > len(vocab):
+            raise ValueError
+        merge_ranks: dict[tuple[str, str], int] = {}
+        for rank, line in enumerate(lines[1:]):
+            pair = tuple(line.split(" "))
+            if len(pair) != 2 or not all(pair) or pair in merge_ranks:
+                raise ValueError
+            if (
+                pair[0] not in vocab
+                or pair[1] not in vocab
+                or "".join(pair) not in vocab
+            ):
+                raise ValueError
+            merge_ranks[pair] = rank
+        return _RobertaByteLevelBpeTokenizer(
+            vocab=vocab,
+            merge_ranks=merge_ranks,
+            byte_encoder=_gpt2_byte_encoder(),
+            unk_id=special_ids["unk"],
+        )
+    except (
+        ExecutionDescriptorError,
+        TypeError,
+        UnicodeDecodeError,
+        ValueError,
+    ) as error:
+        raise ValueError("RoBERTa tokenizer material is invalid") from error
+
+
+def _tokenize_roberta_byte_level_bpe_items(
+    tokenizer: _RobertaByteLevelBpeTokenizer,
+    items: tuple[object, ...],
+    descriptor: ExecutionDescriptor,
+) -> tuple[list[list[int]], list[list[int]]]:
+    """Frame bounded byte-level BPE IDs with the ABI's RoBERTa special tokens."""
+
+    fields = descriptor.abi_fields["tokenizer"]
+    limits = descriptor.abi_fields["limits"]
+    if not isinstance(fields, Mapping) or not isinstance(limits, Mapping):
+        raise ValueError
+    special_ids = fields["special_token_ids"]
+    max_tokens = limits["max_tokens"]
+    if (
+        not isinstance(special_ids, Mapping)
+        or not isinstance(max_tokens, int)
+        or max_tokens < 2
+    ):
+        raise ValueError
+    encoded: list[list[int]] = []
+    for item in items:
+        text = getattr(item, "text", None)
+        if not isinstance(text, str):
+            raise ValueError
+        token_ids = _roberta_byte_level_bpe_ids(text, tokenizer)[: max_tokens - 2]
+        encoded.append([special_ids["bos"], *token_ids, special_ids["eos"]])
+    return (
+        [ids + [special_ids["pad"]] * (max_tokens - len(ids)) for ids in encoded],
+        [[1] * len(ids) + [0] * (max_tokens - len(ids)) for ids in encoded],
+    )
+
+
+def _roberta_position_ids(
+    token_ids: list[list[int]], *, pad_id: int
+) -> list[list[int]]:
+    """Derive RoBERTa's padding-aware absolute position IDs without MLX."""
+
+    if not isinstance(pad_id, int) or isinstance(pad_id, bool) or pad_id < 0:
+        raise ValueError
+    result: list[list[int]] = []
+    for row in token_ids:
+        position = pad_id
+        positions: list[int] = []
+        for token_id in row:
+            if (
+                not isinstance(token_id, int)
+                or isinstance(token_id, bool)
+                or token_id < 0
+            ):
+                raise ValueError
+            if token_id == pad_id:
+                positions.append(pad_id)
+            else:
+                position += 1
+                positions.append(position)
+        result.append(positions)
+    return result
+
+
+def _roberta_byte_level_bpe_ids(
+    text: str, tokenizer: _RobertaByteLevelBpeTokenizer
+) -> list[int]:
+    token_ids: list[int] = []
+    for piece in _gpt2_pretokens(text):
+        symbols = [tokenizer.byte_encoder[value] for value in piece.encode("utf-8")]
+        while len(symbols) > 1:
+            candidates = [
+                (tokenizer.merge_ranks[pair], index, pair)
+                for index, pair in enumerate(zip(symbols, symbols[1:], strict=False))
+                if pair in tokenizer.merge_ranks
+            ]
+            if not candidates:
+                break
+            _rank, index, pair = min(candidates)
+            symbols[index : index + 2] = [pair[0] + pair[1]]
+        token_ids.extend(
+            tokenizer.vocab.get(symbol, tokenizer.unk_id) for symbol in symbols
+        )
+    return token_ids
+
+
+def _gpt2_pretokens(text: str) -> list[str]:
+    """Implement the ABI-fixed GPT-2 Unicode-category pre-tokenizer."""
+
+    pieces: list[str] = []
+    index = 0
+    contractions = ("'s", "'t", "'re", "'ve", "'m", "'ll", "'d")
+    while index < len(text):
+        contraction = next(
+            (value for value in contractions if text.startswith(value, index)), None
+        )
+        if contraction is not None:
+            pieces.append(contraction)
+            index += len(contraction)
+            continue
+        start = index
+        if text[index] == " " and index + 1 < len(text):
+            category = unicodedata.category(text[index + 1])
+            if category[0] in {"L", "N"} or not text[index + 1].isspace():
+                index += 1
+        if index < len(text) and unicodedata.category(text[index])[0] in {"L", "N"}:
+            kind = unicodedata.category(text[index])[0]
+            index += 1
+            while index < len(text) and unicodedata.category(text[index])[0] == kind:
+                index += 1
+        elif index < len(text) and not text[index].isspace():
+            index += 1
+            while (
+                index < len(text)
+                and not text[index].isspace()
+                and unicodedata.category(text[index])[0] not in {"L", "N"}
+            ):
+                index += 1
+        else:
+            index += 1
+            while index < len(text) and text[index].isspace():
+                index += 1
+        pieces.append(text[start:index])
+    return pieces
+
+
+def _gpt2_byte_encoder() -> dict[int, str]:
+    bytes_in_order = (
+        list(range(ord("!"), ord("~") + 1))
+        + list(range(161, 173))
+        + list(range(174, 256))
+    )
+    code_points = list(bytes_in_order)
+    for index, value in enumerate(
+        value for value in range(256) if value not in bytes_in_order
+    ):
+        bytes_in_order.append(value)
+        code_points.append(256 + index)
+    return dict(zip(bytes_in_order, map(chr, code_points), strict=True))
