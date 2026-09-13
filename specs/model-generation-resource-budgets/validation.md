@@ -27,7 +27,7 @@ rejected before worker launch.
 
 Date: 2026-09-12
 
-- `poetry run pytest -q`: `2460 passed, 1 skipped, 7 deselected in 56.13s`
+- `poetry run pytest -q`: `2461 passed, 1 skipped, 7 deselected in 54.78s`
 - `poetry run ruff check src tests`: passed
 - `git diff --check`: passed
 
@@ -36,3 +36,9 @@ generation-budget execution descriptor, its exact validator, matching runner
 binding, and a host policy. One provider-unavailability ordering vector retains
 its legacy fixture solely to prove that capability revalidation fails before
 model admission.
+
+The generic packed converter adapter requires its bound canonical budget before
+sealed payload packing and no longer reads request `max_tokens` or
+`max_continuations` aliases. The retained single-image model-family conformance
+fixture continues to accept its public OpenAI request limit independently of
+the generic converter path.
