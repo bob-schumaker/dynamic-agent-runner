@@ -321,6 +321,50 @@ def test_launcher_rejects_a_controller_that_cannot_enforce_the_selected_device()
         )
 
 
+def test_launcher_rejects_a_capability_that_cannot_enforce_selected_device() -> None:
+    worker_capability = _worker_capability()
+    descriptor = GenerationWorkerLaunchDescriptor(
+        "generation-worker-v1",
+        "invocation-1",
+        "a" * 64,
+        0,
+        worker_capability.runner_id,
+        worker_capability.contract_digest,
+        "converter-v1",
+        "c" * 64,
+        "d" * 64,
+        "e" * 64,
+        "mps",
+        _budget(),
+        ("asset-handle-1",),
+    )
+
+    class Factory:
+        runner_id = worker_capability.runner_id
+        capability = worker_capability
+
+        def create_launch_descriptor(self) -> GenerationWorkerLaunchDescriptor:
+            return descriptor
+
+    class Controller:
+        runner_id = worker_capability.runner_id
+        supported_execution_devices = frozenset({"mps"})
+
+        def launch(self, _descriptor: object) -> object:
+            pytest.fail("an uncovered device must fail before launch")
+
+        def wait_ready(self, _child: object, _timeout: float) -> bool:
+            pytest.fail("an uncovered device must not await readiness")
+
+    with pytest.raises(GenerationResourceBudgetError, match="memory budget"):
+        GenerationWorkerLauncher().launch(
+            factory=Factory(),
+            controller=Controller(),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000),
+            clock=lambda: 0.0,
+        )
+
+
 def test_launcher_rejects_a_factory_with_an_unbound_capability_contract() -> None:
     descriptor = GenerationWorkerLaunchDescriptor(
         "generation-worker-v1",

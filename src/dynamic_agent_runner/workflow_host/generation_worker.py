@@ -966,6 +966,7 @@ def _has_matching_worker_bindings(
         and capability.runner_id == descriptor.runner_id
         and capability.worker_protocol == descriptor.protocol_version
         and capability.contract_digest == descriptor.capability_contract_digest
+        and descriptor.execution_device in capability.supported_execution_devices
         and getattr(controller, "runner_id", None) == descriptor.runner_id
         and isinstance(supported_devices, frozenset)
         and descriptor.execution_device in supported_devices
