@@ -7,7 +7,9 @@ T4.8. T4.6 has recorded the explicitly authorized fixture-only Darwin
 pre-dispatch resource rejection and its effective limits. S5 adds the pending
 concrete Darwin Metal/MPS worker implementation and separate executable fixture;
 T5.1–T5.3 now provide a Darwin-only reviewed allocator envelope and no-model
-worker fixture; T5.4 remains a real locally prepared model gate. Converter host
+worker fixture. T5.4 has recorded an authorized locally prepared MPS-model
+receipt; T5.6 and T5.9 completed the production preparation and selected-child
+transport prerequisites discovered while executing that gate. Converter host
 vectors now use a verified v2 model-material lock and generation-budget
 execution descriptor by default; the isolated provider-unavailability ordering
 vector retains a legacy fixture because it deliberately fails before model
@@ -222,7 +224,7 @@ admission.
   the MPS controller and cannot dispatch through the CPU controller; run its
   deterministic no-model lifecycle vector without downloading or executing a
   live model.
-- [ ] T5.4 [manual gate] With explicit authorization and a locally prepared
+- [x] T5.4 [manual gate] With explicit authorization and a locally prepared
   supported MPS model, run T4.6 through the S5 fixture and record only redacted
   effective limits, aggregate facts, and bootstrap/authorization/reap receipt.
 - [x] T5.5 [tests, RED/GREEN + implementation] Add a DAR-owned constructor for
@@ -230,7 +232,7 @@ admission.
   It must reject non-Darwin, unavailable, and over-capacity policies before
   host open; preserve caller-supplied policies; and allow the existing prepared
   Transformers/PEFT workflow to select MPS without test-only provider code.
-- [ ] T5.6 [tests, RED/GREEN + implementation] Register the reviewed pinned
+- [x] T5.6 [tests, RED/GREEN + implementation] Register the reviewed pinned
   floorplan Transformers/PEFT preparation recipe and human-created local
   profile path in production host composition. Preparation must verify only the
   exact approved base/adapter artifacts from DAR-owned or approved cache roots;
@@ -243,8 +245,13 @@ admission.
   model-runner provider registration to the production floorplan package path.
   Reject registration before converter ingress when that material is absent;
   do not use the legacy fixture recipe or direct cache state as a substitute.
-- [ ] T5.9 [tests, RED/GREEN + implementation] Fix the real Darwin MPS worker
+- [x] T5.9 [tests, RED/GREEN + implementation] Fix the real Darwin MPS worker
   pack command/response transaction. The prepared model launches and direct
   packing succeeds, but `GenerationWorkerLauncher.pack_receipt` receives a
   protocol failure before authorization; add a spawned-child regression that
   proves the `packed` frame reaches the parent before changing transport code.
+- [x] T5.10 [tests, RED/GREEN] Align the scenario-neutral production-source
+  regression with T5.6: allow the reviewed floorplan model identity only in the
+  preparation registry, host configuration, and profile control-plane modules;
+  retain rejection of obsolete scenario-specific runner and converter identities
+  everywhere in production source.

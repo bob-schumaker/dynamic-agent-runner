@@ -100,6 +100,12 @@ class _CpuBlockingRuntime(_CpuIpcRuntime):
         return b"{}", 2
 
 
+class _CpuDelayedPackRuntime(_CpuIpcRuntime):
+    def pack(self) -> int:
+        time.sleep(5.1)
+        return 3
+
+
 class _CpuFailingRuntime(_CpuIpcRuntime):
     def generate(self) -> tuple[bytes, int]:
         raise RuntimeError("test runtime failure")
@@ -1222,6 +1228,52 @@ def test_controller_set_routes_only_to_the_controller_for_the_selected_device() 
         ("kill", "mps", "mps"),
         ("reap", "mps", "mps", 0.25),
     ]
+
+
+def test_controller_set_forwards_deadline_to_a_spawned_child_pack_response() -> None:
+    descriptor = replace(
+        _descriptor(execution_device="cpu"),
+        budget=replace(
+            _descriptor(execution_device="cpu").budget, max_memory_bytes=2**62
+        ),
+    )
+    controller = GenerationWorkerControllerSet(
+        runner_id="runner-v1",
+        controllers={
+            "cpu": CpuMultiprocessingGenerationWorkerController(
+                runner_id="runner-v1", worker_runtime=_CpuDelayedPackRuntime()
+            )
+        },
+    )
+    child = controller.launch(descriptor)
+    session = GenerationWorkerSession(
+        invocation_id=descriptor.invocation_id,
+        invocation_digest=descriptor.invocation_digest,
+        converter_digest=descriptor.converter_asset_digest,
+        material_lock_digest=descriptor.material_lock_digest,
+        execution_device=descriptor.execution_device,
+        max_total_generated_tokens=descriptor.budget.max_total_generated_tokens,
+        max_total_output_bytes=descriptor.budget.max_total_output_bytes,
+    )
+    deadline = GenerationDeadline.start(
+        time.monotonic(), max_runtime_milliseconds=8_000
+    )
+
+    try:
+        assert controller.wait_ready(child, 5.0) is True
+        receipt = GenerationWorkerLauncher().pack_receipt(
+            child=child,
+            session=session,
+            fragment_index=0,
+            max_memory_bytes=descriptor.budget.max_memory_bytes,
+            execution_device=descriptor.execution_device,
+            deadline=deadline,
+            controller=controller,
+        )
+    finally:
+        assert controller.reap(child, 1.0) is True
+
+    assert receipt.packed_context_tokens == 3
 
 
 def test_machine_controller_factory_exposes_mps_only_with_darwin_runtime_support() -> (

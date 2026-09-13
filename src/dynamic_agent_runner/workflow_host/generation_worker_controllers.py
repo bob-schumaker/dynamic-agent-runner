@@ -587,6 +587,45 @@ class _SelectedWorkerChild:
     controller: object
     child: object
 
+    def install_bootstrap_limit(
+        self, max_memory_bytes: int, execution_device: str
+    ) -> None:
+        self._transport_method("install_bootstrap_limit")(
+            max_memory_bytes, execution_device
+        )
+
+    def pack(self) -> int | tuple[int, bool]:
+        return self._transport_method("pack")()
+
+    def authorize(
+        self, receipt: GenerationWorkerPackReceipt, remaining_generated_tokens: int
+    ) -> None:
+        self._transport_method("authorize")(receipt, remaining_generated_tokens)
+
+    def generate(
+        self,
+    ) -> (
+        tuple[bytes, int]
+        | tuple[bytes, int, bool]
+        | tuple[bytes, int, int, int]
+        | tuple[bytes, int, int, int, bool]
+    ):
+        return self._transport_method("generate")()
+
+    def reap(self) -> None:
+        self._transport_method("reap")()
+
+    def set_deadline_timeout(self, timeout: float) -> None:
+        """Forward the parent deadline to the selected child IPC transport."""
+
+        self._transport_method("set_deadline_timeout")(timeout)
+
+    def _transport_method(self, name: str) -> Callable[..., object]:
+        method = getattr(self.child, name, None)
+        if not callable(method):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        return method
+
 
 class GenerationWorkerControllerSet:
     """Select one reviewed machine controller by its exact execution device."""

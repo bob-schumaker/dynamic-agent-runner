@@ -1,5 +1,28 @@
 # Model Generation Resource Budgets Validation
 
+## T5.4 — Authorized Darwin MPS prepared-model evidence
+
+Date: 2026-09-13
+
+The user explicitly authorized a local arm64 macOS MPS run with the reviewed
+prepared floorplan Transformers/PEFT model, S5 converter fixture, and explicit
+MPS host policy. The bounded effective limits were: 512 generated tokens per
+fragment and in total, zero continuations, 32,768 output bytes, 4,096 effective
+context tokens, 120,000 runtime milliseconds, and 30,150,672,384 memory bytes.
+
+The content-free receipt recorded the lifecycle
+`bootstrap_ready -> packed_receipt -> authorized -> reaped`. One completed
+fragment recorded 194 packed-context tokens, 78 generated tokens, and 417
+aggregate output bytes. The normal result exposed no model content, sealed
+input, paths, handles, token IDs, or tensors.
+
+The run first rejected a 128-token context ceiling and a one-token,
+zero-continuation allowance at their intended admission limits. After raising
+only those bounded limits, the worker completed. During this gate T5.9 exposed
+and repaired the selected-controller child transport proxy; its spawned-child
+regression proves a `packed` response delayed beyond the default IPC wait
+reaches the parent under the configured lifecycle deadline.
+
 ## S5 — Darwin MPS no-model worker fixture
 
 Date: 2026-09-13
