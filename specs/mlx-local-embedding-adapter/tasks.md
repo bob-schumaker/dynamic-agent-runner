@@ -415,7 +415,7 @@
     no tokenizer dependency, plugin registry, model-name branch, or alternate
     tokenizer asset was added.
 
-- [ ] MLE7.3a [implementation, RED/GREEN] Add one receiver-owned,
+- [x] MLE7.3a [implementation, RED/GREEN] Add one receiver-owned,
       descriptor-bound safetensors preparation provider for the MLE7 source
       `model.safetensors`: convert declared non-LayerNorm float32 tensors to
       float16, preserve declared LayerNorm float32 tensors, write canonical
@@ -433,6 +433,18 @@
     selection; its only execution selection is the sealed MLE7 descriptor.
   - Followed by: MLE7.4 uses its declared output `weights` role rather than the
     upstream float32 source role.
+  - Evidence: `mlx_v4_weight_preparation.py` supplies exactly one
+    v4-descriptor-bound receiver provider. It accepts only the declared
+    `source_weights` to `weights` operation, strictly admits an all-F32 source
+    safetensors header (including the optional all-or-nothing BERT pooler),
+    deterministically writes sorted canonical safetensors bytes with F16
+    non-LayerNorm data and retained F32 LayerNorm data, and imports no MLX
+    runtime. `tests/test_mlx_v4_weight_preparation.py` was RED at collection
+    before implementation; its fake-only vectors cover provider selection,
+    descriptor binding, operation/source/header/tensor/dtype rejection,
+    deterministic output, and material-admission capability/transformation
+    binding. Focused MLX/material suites: 102 passed; Ruff, format, and diff
+    checks passed.
 
 - [ ] MLE7.4 [approval/package, tests RED/GREEN] With a recorded license and
       material decision, create a package-local lock and exact descriptor for
