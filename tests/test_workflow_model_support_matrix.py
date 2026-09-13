@@ -464,3 +464,77 @@ def test_fastmail_synthetic_profile_dispatches_one_read_only_tool_call() -> None
     assert dispatches == [{}]
     assert report["status"] == "complete"
     validate_workflow_support_receipt(profile, candidate, cell, receipt)
+
+
+def test_structured_output_profile_runs_one_tool_then_fixed_json() -> None:
+    profile = WorkflowSupportProfile(
+        profile_id="structured-output-after-tool-synthetic-v1",
+        workflow_family="structured-output-after-tool",
+        required_adapter_capabilities=("structured_output", "tool_use"),
+        required_abi_capabilities=(),
+        required_provider_capabilities=(),
+        required_host_capabilities=(),
+        material_identity=None,
+        execution_mode="synthetic",
+        authorization_required=False,
+        implemented=True,
+    )
+    candidate = WorkflowSupportCandidate(
+        adapter_id="deterministic-structured-tool-adapter",
+        adapter_capabilities=frozenset({"structured_output", "tool_use"}),
+        available_abi_capabilities=frozenset(),
+        provider_capabilities=frozenset(),
+        host_capabilities=frozenset(),
+        material_identity=None,
+        authorization_granted=False,
+    )
+    unsupported_candidate = replace(
+        candidate, adapter_capabilities=frozenset({"tool_use"})
+    )
+    unsupported_cell = classify_workflow_support(profile, unsupported_candidate)
+    adapter_turns: list[str] = []
+    tool_calls: list[dict[str, object]] = []
+    registry = create_host_tool_registry(
+        (
+            HostToolBinding(
+                canonical_id="structured-output-after-tool:lookup_record",
+                model_id="lookup_record",
+                handler=lambda arguments: (
+                    tool_calls.append(dict(arguments)) or {"record_id": "record-seed"}
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {"key": {"type": "string"}},
+                    "required": ["key"],
+                    "additionalProperties": False,
+                },
+            ),
+        )
+    )
+
+    assert unsupported_cell.status is WorkflowSupportStatus.NOT_APPLICABLE
+    assert unsupported_cell.reason_codes == ("adapter_capability_missing",)
+    assert adapter_turns == []
+    assert tool_calls == []
+
+    cell = classify_workflow_support(profile, candidate)
+    adapter_turns.append("tool")
+    tool_result = registry.invoke_tool("lookup_record", {"key": "seed"})
+    adapter_turns.append("structured_output")
+    terminal_json = {"status": "ok", "value": "DAR_STRUCTURED_PARITY_OK"}
+    receipt = WorkflowSupportReceipt(
+        profile_digest=cell.profile_digest,
+        adapter_id=cell.adapter_id,
+        material_identity=cell.material_identity,
+        test_mode="synthetic",
+        status=cell.status,
+        reason_codes=cell.reason_codes,
+        dispatch_count=len(tool_calls),
+    )
+
+    assert cell.status is WorkflowSupportStatus.SUPPORTED
+    assert tool_result.success is True
+    assert adapter_turns == ["tool", "structured_output"]
+    assert tool_calls == [{"key": "seed"}]
+    assert terminal_json == {"status": "ok", "value": "DAR_STRUCTURED_PARITY_OK"}
+    validate_workflow_support_receipt(profile, candidate, cell, receipt)

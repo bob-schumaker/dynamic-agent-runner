@@ -173,7 +173,7 @@ remains unimplemented
   - Validation: `poetry run pytest tests/test_floorplan_svg_fixture.py
     tests/test_workflow_model_support_matrix.py -q`.
 
-- [ ] WMS2.5 [tests, RED/GREEN] Add a controlled structured-output-after-tool-
+- [x] WMS2.5 [tests, RED/GREEN] Add a controlled structured-output-after-tool-
       use profile with schema-valid success and pre-dispatch
       `not_applicable` coverage for adapters without the declared capability.
   - Spec: FR-008, FR-010, AC-007.
