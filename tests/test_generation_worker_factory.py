@@ -83,6 +83,7 @@ def _factory_arguments(tmp_path) -> dict[str, object]:
         "asset_handles": GenerationWorkerAssetHandleService(
             store=PrivateStateStore(tmp_path / "state"), owner="test-owner"
         ),
+        "invocation_id": "invocation-1",
         "invocation_digest": "a" * 64,
         "fragment_index": 0,
         "converter": converter,
