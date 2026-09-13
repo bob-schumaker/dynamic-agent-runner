@@ -143,13 +143,17 @@
 
 ## MLE6 — Sealed workflow onboarding
 
-- [ ] MLE6.1 [approval/design] Produce a bounded approval packet for one
+- [x] MLE6.1 [approval/design] Produce a bounded approval packet for one
       BERT-compatible embedding material closure: exact source revision and
       file list, license decision, expected descriptor ABI, package ID, and
       resource ceilings. Record the human decision in package-local artifacts;
       do not put the model identity in DAR production source or configuration.
   - Spec: Operational Completion Gate 1.
   - Depends on: MLE5.3.
+  - Evidence: user approval on 2026-09-13 is recorded in
+    `tests/fixtures/mlx-gte-tiny/mle6-approval.md`. The closure remains local
+    internal conformance-only because upstream Hub metadata declares no license;
+    it does not authorize redistribution or live material use.
 
 - [ ] MLE6.2 [tests, RED/GREEN] Add package-admission tests for the selected
       v2 `model-materials.json`, `bert-encoder-mlx-v1` descriptor, required

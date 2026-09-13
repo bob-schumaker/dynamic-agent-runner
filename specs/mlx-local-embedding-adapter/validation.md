@@ -14,7 +14,7 @@ Status: generic ABI/provider validated; MLE6 sealed workflow onboarding pending
 
 | Gate | Required evidence | Status |
 | --- | --- | --- |
-| Material decision | approved package-local v2 lock and ABI descriptor | not run |
+| Material decision | approved package-local v2 lock and ABI descriptor | approval recorded; v2 lock/descriptor pending MLE6.2 |
 | Fixture conformance | trusted local reference vectors bound to that lock | not run |
 | Offline admission | fake-only package/provider/index regressions | not run |
 | Darwin competency | authorized redacted package-bound MLX receipt | not run |
@@ -22,6 +22,8 @@ Status: generic ABI/provider validated; MLE6 sealed workflow onboarding pending
 
 ## Boundaries
 
-- The old model-specific experiment fixtures are not MLE6 package evidence.
-- No live run, material download, or model selection is authorized by this
-  planning record.
+- The approval record at `tests/fixtures/mlx-gte-tiny/mle6-approval.md` selects
+  one cached BERT-compatible closure for local internal conformance only. It
+  does not convert the legacy v1 fixture into an MLE6 package.
+- No live run, material download, or reference-vector generation is authorized
+  by this approval record.
