@@ -89,7 +89,7 @@ remains unimplemented
     handler accepts only `{}`, returns de-identified bounded data, and the
     classifier runs before any fake model or tool construction.
 
-- [ ] WMS2.2 [implementation, GREEN] Integrate the synthetic Fastmail fixture
+- [x] WMS2.2 [implementation, GREEN] Integrate the synthetic Fastmail fixture
       with eligible adapters through the existing coordinator/host test seams,
       retaining exact dispatch-count and contract-valid report assertions.
   - Spec: FR-003, FR-007.

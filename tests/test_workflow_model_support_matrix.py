@@ -7,6 +7,7 @@ import json
 from dataclasses import fields, replace
 from pathlib import Path
 
+from dynamic_agent_runner import HostToolBinding, create_host_tool_registry
 from dynamic_agent_runner.workflow_host.workflow_support_matrix import (
     MaterialIdentity,
     WorkflowSupportCandidate,
@@ -15,6 +16,9 @@ from dynamic_agent_runner.workflow_host.workflow_support_matrix import (
     WorkflowSupportStatus,
     classify_workflow_support,
     validate_workflow_support_receipt,
+)
+from dynamic_agent_runner.workflow_host.fastmail_triage_report import (
+    parse_fastmail_triage_report,
 )
 from pytest import raises
 
@@ -403,3 +407,60 @@ def test_fastmail_synthetic_profile_requires_fixture_bound_tool_material() -> No
         )
 
     assert fixture["synthetic_search_email_result"] == {"items": []}
+
+
+def test_fastmail_synthetic_profile_dispatches_one_read_only_tool_call() -> None:
+    fixture = _fastmail_fixture()
+    profile = _fastmail_profile(fixture)
+    material_identity = _fastmail_material_identity(fixture)
+    candidate = _fastmail_candidate(material_identity=material_identity)
+    cell = classify_workflow_support(profile, candidate)
+    dispatches: list[dict[str, object]] = []
+    registry = create_host_tool_registry(
+        (
+            HostToolBinding(
+                canonical_id="fastmail-triage-synthetic-v1:search_email",
+                model_id="search_email",
+                handler=lambda arguments: (
+                    dispatches.append(dict(arguments))
+                    or fixture["synthetic_search_email_result"]
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": False,
+                },
+                side_effect="read",
+            ),
+        )
+    )
+
+    assert cell.status is WorkflowSupportStatus.SUPPORTED
+    tool_result = registry.invoke_tool("search_email", {})
+    report = parse_fastmail_triage_report(
+        json.dumps(
+            {
+                "status": "complete",
+                "window": "previous_24_hours",
+                "matched_count": 0,
+                "truncated": False,
+                "items": [],
+                "warnings": [],
+            }
+        )
+    )
+    receipt = WorkflowSupportReceipt(
+        profile_digest=cell.profile_digest,
+        adapter_id=cell.adapter_id,
+        material_identity=cell.material_identity,
+        test_mode="synthetic",
+        status=cell.status,
+        reason_codes=cell.reason_codes,
+        dispatch_count=len(dispatches),
+    )
+
+    assert tool_result.success is True
+    assert tool_result.output == {"items": []}
+    assert dispatches == [{}]
+    assert report["status"] == "complete"
+    validate_workflow_support_receipt(profile, candidate, cell, receipt)
