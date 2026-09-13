@@ -169,7 +169,7 @@
     parsers and pure validators; no model artifact, MLX import, or provider is
     reached.
 
-- [ ] MLE6.3 [manual fixture, RED/GREEN] Generate a package-bound synthetic
+- [x] MLE6.3 [manual fixture, RED/GREEN] Generate a package-bound synthetic
       reference-vector fixture from the exact locked material closure using a
       local trusted reference runtime with `trust_remote_code=False`. Add tests
       that reject an altered fixture or reference/runtime identity.
@@ -177,6 +177,12 @@
   - Depends on: MLE6.2 and separate authorization to use the selected material.
   - Evidence: canonical fixture digest, token/mask checks, and numeric tolerance
     only; no user document, raw production vector, credential, or model output.
+  - Evidence: the verified cached closure generated
+    `tests/fixtures/mlx-gte-tiny/mle6-package/conformance-fixture.json` through
+    `tests/manual/generate_mlx_gte_tiny_mle6_conformance.py` with local-only
+    Transformers 5.16.1 and Torch 2.13.0. The fixture retains only synthetic
+    vector evidence and token/mask digests; its binding and altered-runtime
+    rejection are covered by `tests/test_mlx_gte_tiny_mle6_conformance.py`.
 
 - [ ] MLE6.4 [tests, RED/GREEN] Run the selected sealed package through the
       generic embedding/index workflow using injected MLX/provider facts. Prove
