@@ -7,6 +7,7 @@ from dataclasses import dataclass, fields
 from hashlib import sha256
 import json
 import math
+import threading
 from typing import Protocol
 
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
@@ -82,6 +83,46 @@ class MemoryReservationProvider(Protocol):
         self, request: "GenerationMemoryReservationRequest"
     ) -> MemoryReservation | None:
         """Reserve bounded memory or return no reservation."""
+
+
+class CapacityMemoryReservationProvider:
+    """Atomic receiver-owned admission against one device memory capacity."""
+
+    def __init__(self, *, capacity_bytes: int) -> None:
+        if not _positive_int(capacity_bytes):
+            raise GenerationResourceBudgetError("generation memory budget is invalid")
+        self._capacity_bytes = capacity_bytes
+        self._reserved_bytes = 0
+        self._lock = threading.Lock()
+
+    def reserve(
+        self, request: "GenerationMemoryReservationRequest"
+    ) -> MemoryReservation | None:
+        if not isinstance(request, GenerationMemoryReservationRequest):
+            return None
+        with self._lock:
+            if request.max_memory_bytes > self._capacity_bytes - self._reserved_bytes:
+                return None
+            self._reserved_bytes += request.max_memory_bytes
+        return _CapacityMemoryReservation(self, request.max_memory_bytes)
+
+    def _release(self, bytes_to_release: int) -> None:
+        with self._lock:
+            self._reserved_bytes -= bytes_to_release
+
+
+class _CapacityMemoryReservation:
+    def __init__(
+        self, provider: CapacityMemoryReservationProvider, bytes_: int
+    ) -> None:
+        self._provider = provider
+        self._bytes = bytes_
+        self._released = False
+
+    def release(self) -> None:
+        if not self._released:
+            self._released = True
+            self._provider._release(self._bytes)
 
 
 @dataclass(frozen=True)

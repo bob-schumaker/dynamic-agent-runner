@@ -15,6 +15,11 @@ This is lifecycle evidence only. It does not replace T5.4/T4.6, which still
 require an explicitly authorized locally prepared MPS model and redacted
 aggregate result evidence.
 
+The DAR-owned MPS host-policy constructor verifies an explicit caller ceiling
+against the reviewed MPS working-set capacity and supplies an atomic local
+reservation provider. Focused controller and budget coverage passed: `44 passed
+in 6.23s`.
+
 ## T4.6 — Fixture-only Darwin pre-dispatch evidence
 
 Date: 2026-09-12

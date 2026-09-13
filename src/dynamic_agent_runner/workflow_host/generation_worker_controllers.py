@@ -15,6 +15,8 @@ except ImportError:  # pragma: no cover - exercised on platforms without POSIX l
     resource = None  # type: ignore[assignment]
 
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    CapacityMemoryReservationProvider,
+    GenerationExecutionHostPolicy,
     GenerationResourceBudget,
     GenerationResourceBudgetError,
 )
@@ -183,6 +185,32 @@ class TorchMpsGenerationWorkerRuntime:
             _close(worker.command_connection)
             _close(worker.response_connection)
             _close(worker.ready_connection)
+
+
+def darwin_mps_generation_execution_host_policy(
+    *,
+    ceiling: GenerationResourceBudget,
+    mps_api: object | None = None,
+    platform_system: Callable[[], str] = platform.system,
+) -> GenerationExecutionHostPolicy:
+    """Construct one explicit, capacity-bounded local MPS host policy."""
+
+    api = _torch_mps_api() if mps_api is None else mps_api
+    capacity = _mps_memory_capacity(api)
+    if (
+        platform_system() != "Darwin"
+        or not isinstance(ceiling, GenerationResourceBudget)
+        or capacity is None
+        or ceiling.max_memory_bytes > capacity
+    ):
+        raise GenerationResourceBudgetError("generation memory budget is unavailable")
+    return GenerationExecutionHostPolicy(
+        ceiling=ceiling,
+        execution_device="mps",
+        memory_reservation_provider=CapacityMemoryReservationProvider(
+            capacity_bytes=capacity
+        ),
+    )
 
 
 class CpuGenerationWorkerRuntime(Protocol):
@@ -1177,11 +1205,21 @@ def _mps_memory_fraction(
     ):
         return None
     try:
-        capacity = mps_api.recommended_max_memory()
-        if not _positive_int(capacity) or budget.max_memory_bytes > capacity:
+        capacity = _mps_memory_capacity(mps_api)
+        if capacity is None or budget.max_memory_bytes > capacity:
             return None
         fraction = budget.max_memory_bytes / capacity
         return fraction if 0 < fraction <= 1 else None
+    except Exception:
+        return None
+
+
+def _mps_memory_capacity(mps_api: object) -> int | None:
+    if not _mps_api_available(mps_api):
+        return None
+    try:
+        capacity = mps_api.recommended_max_memory()
+        return capacity if _positive_int(capacity) else None
     except Exception:
         return None
 

@@ -327,6 +327,45 @@ def test_mps_runtime_rejects_an_unavailable_or_insufficient_allocator() -> None:
     )
 
 
+def test_darwin_mps_policy_uses_an_atomic_capacity_reservation() -> None:
+    from dynamic_agent_runner.workflow_host.generation_worker_controllers import (
+        darwin_mps_generation_execution_host_policy,
+    )
+
+    class Mps:
+        def is_available(self) -> bool:
+            return True
+
+        def recommended_max_memory(self) -> int:
+            return 8_192
+
+        def set_per_process_memory_fraction(self, _fraction: float) -> None:
+            pass
+
+    budget = _descriptor(execution_device="mps").budget
+    policy = darwin_mps_generation_execution_host_policy(
+        ceiling=budget, mps_api=Mps(), platform_system=lambda: "Darwin"
+    )
+    request = GenerationMemoryReservationRequest(
+        material_lock_digest="d" * 64,
+        runner_identity="runner-v1",
+        execution_device="mps",
+        packed_context_tokens=3,
+        requested_new_tokens=2,
+        max_memory_bytes=budget.max_memory_bytes,
+        deadline_monotonic=1.0,
+    )
+
+    first = policy.memory_reservation_provider.reserve(request)
+    second = policy.memory_reservation_provider.reserve(request)
+
+    assert policy.execution_device == "mps"
+    assert first is not None
+    assert second is not None
+    first.release()
+    second.release()
+
+
 @pytest.mark.skipif(platform.system() != "Darwin", reason="requires Darwin MPS")
 def test_darwin_mps_fixture_runs_the_fixed_no_model_worker_lifecycle() -> None:
     from dynamic_agent_runner.workflow_host.generation_worker_controllers import (
