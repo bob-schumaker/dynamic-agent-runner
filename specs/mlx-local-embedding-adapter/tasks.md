@@ -184,7 +184,7 @@
     vector evidence and token/mask digests; its binding and altered-runtime
     rejection are covered by `tests/test_mlx_gte_tiny_mle6_conformance.py`.
 
-- [ ] MLE6.4 [tests, RED/GREEN] Run the selected sealed package through the
+- [x] MLE6.4 [tests, RED/GREEN] Run the selected sealed package through the
       generic embedding/index workflow using injected MLX/provider facts. Prove
       opaque index results and redacted receipts, including provider/material
       mismatch rejection before execution.
@@ -192,6 +192,11 @@
   - Depends on: MLE6.2 and MLE6.3.
   - Validation: focused embedding execution, sealed-artifact callback, and
     MLE6 fixture tests remain offline and fake-backed.
+  - Evidence: `tests/test_mlx_gte_tiny_mle6_execution.py` binds the selected
+    package's exact material and capability digests to the existing generic
+    provider/index path. It was immediately green because that generic bridge
+    already composes sealed bindings; no MLX import occurs. A changed material
+    digest rejects before the fake provider receives an execution call.
 
 - [ ] MLE6.5 [manual competency gate] With explicit authorization, prepare the
       exact sealed package on Darwin arm64 with `mlx==0.32.2`, run the MLX

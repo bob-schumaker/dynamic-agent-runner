@@ -16,7 +16,7 @@ Status: generic ABI/provider validated; MLE6 sealed workflow onboarding pending
 | --- | --- | --- |
 | Material decision | approved package-local v2 lock and ABI descriptor | complete; MLE6.2 fixture package |
 | Fixture conformance | trusted local reference vectors bound to that lock | complete; MLE6.3 local-only reference fixture |
-| Offline admission | fake-only package/provider/index regressions | not run |
+| Offline admission | fake-only package/provider/index regressions | complete; MLE6.4 fake provider/index coverage |
 | Darwin competency | authorized redacted package-bound MLX receipt | not run |
 | Matrix admission | exact package/material support row | not run |
 
