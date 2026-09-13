@@ -13,10 +13,10 @@ Status: Draft
 ## Technical Summary
 
 Add a package-owned declarative profile and classifier layer over existing
-adapter, provider, sealed-material, and host-capability facts. Run safe
-synthetic fixtures through it in pytest. Add a separately gated live Fastmail
-entry point that consumes an eligible classified row and emits only a redacted
-receipt.
+adapter, provider, sealed-material, host-capability, session/context, and
+tool-pack facts. Run safe synthetic fixtures through it in pytest. Add separate
+gated Fastmail and floorplan entry points that consume eligible classified rows
+and emit only redacted receipts.
 
 ## Architecture and Data Flow
 
@@ -32,7 +32,7 @@ workflow profile + package/material lock + adapter/provider facts + host facts
           +--------------+----------------+
           |                               |
           v                               v
-synthetic fake-only fixture       authorized live Fastmail probe
+synthetic fake-only profiles      authorized Fastmail/floorplan probes
           |                               |
           +---------------+---------------+
                           v
@@ -41,8 +41,19 @@ synthetic fake-only fixture       authorized live Fastmail probe
 
 The classifier must inspect only declared facts and immutable package/material
 identity before selecting an execution route. Synthetic profiles are distinct
-from production Fastmail package evidence. Live evidence is package-digest
-bound and cannot be generalized to another model/material closure.
+from production package evidence. Live evidence is package-digest bound and
+cannot be generalized to another model/material closure.
+
+## Initial Profile Catalog
+
+| Profile | Execution mode | Required facts | Evidence boundary |
+| --- | --- | --- | --- |
+| Fastmail triage | synthetic; separately authorized live read-only | tool use, reviewed read-only surface, exact package lock | no mailbox content or OAuth data |
+| Embedding/index | synthetic | matching sealed embedding material and admitted ABI/provider | injected documents/provider only |
+| Floorplan SVG | deterministic fixture; separately authorized MPS completion | exact converter, material closure, validator, bounded runner, eligible MPS policy | source fixture and redacted receipt only |
+| Structured output after tool use | synthetic | tool use and declared JSON/schema output capability | controlled schemas/results only |
+| Stateful context | synthetic | session/context preparation and bounded overflow retry | redacted selection/classification only |
+| Tool-pack composition | synthetic | descriptor packing, approval, injected web/workspace/subagent collaborators | no external clients or child processes |
 
 ## Affected Areas
 
@@ -85,6 +96,7 @@ Status meaning:
 | FR-003 | fake-only Fastmail and embedding fixture tests | `poetry run pytest tests/test_workflow_model_support_matrix.py tests/test_fastmail_triage_report.py tests/test_embedding_execution.py -q` |
 | FR-004/FR-005 | authorization and redacted-receipt tests with fakes | `poetry run pytest tests/test_workflow_model_support_matrix.py -q` |
 | FR-006/FR-007 | binding/non-transferability and regression tests | `poetry run pytest tests/test_workflow_model_support_matrix.py tests/test_model_interface_matrix.py -q` |
+| FR-008--FR-010 | profile fixture and no-external-I/O tests | `poetry run pytest tests/test_workflow_model_support_matrix.py -q` |
 | All | full regression and lint | `poetry run pytest -q && poetry run ruff check src tests` |
 
 ## Risks and Mitigations
@@ -95,6 +107,8 @@ Status meaning:
 | Live probe leaks content | privacy breach | redacted fixed receipt schema; no raw payload persistence |
 | Fastmail package evidence is generalized | invalid compatibility claim | bind every receipt to package/material identity |
 | MLX embedding is unfinished | misleading failure | retain `deferred` profile rows until its ABI path is implemented |
+| Floorplan evidence overstates portability | invalid model claim | bind profile and receipts to converter/material/validator/MPS facts |
+| Synthetic profiles call real collaborators | unintended side effect | install I/O and process blockers in every profile test |
 
 ## Rejected Alternatives
 
@@ -102,6 +116,8 @@ Status meaning:
   adapters and sealed packages do not share capabilities or material formats.
 - Extend S1--S6 with Fastmail/MCP — rejected because that suite is deliberately
   harmless and offline.
+- Add a live test to every workflow profile — rejected because most profiles
+  have deterministic injected seams and no live external behavior to authorize.
 
 ## Plan Approval
 

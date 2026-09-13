@@ -7,10 +7,10 @@ Date: 2026-09-13
 
 ## Objective
 
-Provide a single, capability-gated support matrix for DAR's Fastmail-triage and
-embedding/index workflow families. It must make evidence and eligibility
-auditable without claiming that a workflow is portable to a model or provider
-that lacks its required capabilities or locked materials.
+Provide a single, capability-gated support matrix for DAR's implemented
+workflow families. It must make evidence and eligibility auditable without
+claiming that a workflow is portable to a model or provider that lacks its
+required capabilities or locked materials.
 
 ## User Stories
 
@@ -21,6 +21,9 @@ that lacks its required capabilities or locked materials.
   run so that live authorization remains separate from ordinary tests.
 - As a package author, I want embedding support evaluated against the workflow's
   locked material closure and ABI, rather than against a named global model list.
+- As a maintainer, I want multimodal conversion/generation, structured output,
+  session/context, and tool-pack composition represented by explicit profiles
+  so that generic tests do not conceal workflow-level gaps.
 
 ## Functional Requirements
 
@@ -49,6 +52,18 @@ that lacks its required capabilities or locked materials.
 - [MUST] FR-007: Keep the current S1--S6 controlled tool-interface matrix and
   existing Fastmail acceptance independent; this feature composes their facts
   and adds workflow-level coverage rather than changing their contracts.
+- [MUST] FR-008: Define initial profiles for synthetic Fastmail triage,
+  synthetic embedding/index execution, sealed multimodal converter/generation,
+  structured-output-after-tool-use, stateful context preparation, and injected
+  tool-pack composition. Each profile must declare the exact workflow contract
+  it covers and the capability facts it needs.
+- [MUST] FR-009: The sealed multimodal converter/generation profile must bind
+  the exact floorplan package/material/converter descriptors and separately
+  represent deterministic fixture coverage from an operator-authorized MPS
+  completion probe.
+- [MUST] FR-010: Structured-output, stateful-context, and tool-pack-composition
+  profiles must remain deterministic and injected. They must not call a remote
+  model, external service, retrieval system, or subagent process.
 
 ## Non-Functional Requirements
 
@@ -75,6 +90,21 @@ that lacks its required capabilities or locked materials.
   without authorization it does not start.
 - AC-005: Given a result from a different package digest or material descriptor,
   when evidence is recorded, then the matrix rejects it as non-transferable.
+- AC-006: Given a floorplan candidate missing its exact converter, material
+  closure, eligible MPS policy, or required output validator, when evaluated,
+  then it is non-executing and classified with the missing fact; given all
+  facts and authorization, its manual completion receipt is descriptor-bound.
+- AC-007: Given a structured-output-after-tool-use profile, when the controlled
+  tool result is returned, then an eligible synthetic adapter produces only the
+  declared schema-valid terminal result; a missing structured-output capability
+  is `not_applicable` before model dispatch.
+- AC-008: Given a stateful-context profile, when bounded prior turns, session
+  state, and an overflow-retry fixture are prepared, then the matrix records
+  the selected context and terminal classification without retaining raw turns.
+- AC-009: Given a tool-pack-composition profile, when the controlled web,
+  workspace, and subagent collaborators are injected, then descriptor packing,
+  approval, invocation, and redacted result shaping are tested with no external
+  client or child process.
 
 ## Edge and Error Cases
 
@@ -88,7 +118,7 @@ that lacks its required capabilities or locked materials.
 ## Boundaries
 
 - In scope: support classification, deterministic fixtures, redacted receipts,
-  manual read-only Fastmail gates, and documentation of coverage.
+  manual read-only Fastmail and floorplan gates, and documentation of coverage.
 - Out of scope: making every adapter support tool use or embeddings; converting
   models; sharing model files across incompatible backends; changing Fastmail
   OAuth/MCP behavior; live mailbox mutation; automatic model provisioning; and
@@ -102,8 +132,9 @@ that lacks its required capabilities or locked materials.
 ## Dependencies and Assumptions
 
 - Depends on `model-interface-parity`, `fastmail-inbox-triage`,
-  `workflow-embedding-index-artifacts`, workflow capability requirements, and
-  model-material binding/preparation contracts.
+  `workflow-embedding-index-artifacts`, model-generation resource budgets,
+  context preparation, tool-pack contracts, workflow capability requirements,
+  and model-material binding/preparation contracts.
 - Assumption: runtime capability reporting can expose enough adapter/provider
   facts to classify a candidate without starting a model. Any missing fact is
   `blocked` or `deferred`, never inferred.

@@ -66,6 +66,49 @@ Status: Draft — implementation not approved
     tests/test_workflow_model_support_matrix.py tests/test_embedding_execution.py
     -q`.
 
+- [ ] WMS2.4 [tests, RED/GREEN] Define the floorplan SVG profile from the exact
+      sealed converter, model-material, generation-budget, MPS-policy, and
+      output-validator facts. Add deterministic non-executing classification
+      vectors for every missing or mismatched fact.
+  - Spec: FR-008, FR-009, AC-006.
+  - Files/components: floorplan fixture/material tests and
+    `tests/test_workflow_model_support_matrix.py`.
+  - Depends on: WMS1.3.
+  - Validation: `poetry run pytest tests/test_floorplan_svg_fixture.py
+    tests/test_workflow_model_support_matrix.py -q`.
+
+- [ ] WMS2.5 [tests, RED/GREEN] Add a controlled structured-output-after-tool-
+      use profile with schema-valid success and pre-dispatch
+      `not_applicable` coverage for adapters without the declared capability.
+  - Spec: FR-008, FR-010, AC-007.
+  - Files/components: `tests/test_workflow_model_support_matrix.py`, existing
+    model-interface matrix fixtures.
+  - Depends on: WMS1.2.
+  - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py
+    tests/test_model_interface_matrix.py -q`.
+
+- [ ] WMS2.6 [tests, RED/GREEN] Add a stateful-context profile with bounded
+      prior turns, session restoration, selected-context assertions, and an
+      overflow-retry classification fixture. Prove raw turns are absent from
+      the resulting matrix receipt.
+  - Spec: FR-008, FR-010, AC-008.
+  - Files/components: `tests/test_workflow_model_support_matrix.py`, session
+    and context-management test seams.
+  - Depends on: WMS1.2.
+  - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py
+    -q`.
+
+- [ ] WMS2.7 [tests, RED/GREEN] Add a tool-pack-composition profile using
+      injected web, workspace, and subagent collaborators. Prove descriptor
+      selection, approval, dispatch, redaction, and external-I/O/process
+      blocking without starting a child or external client.
+  - Spec: FR-008, FR-010, AC-009.
+  - Files/components: `tests/test_workflow_model_support_matrix.py` and
+    existing tool-pack tests.
+  - Depends on: WMS1.2.
+  - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py
+    -q`.
+
 - [ ] WMS3.1 [tests, RED] Add a fake-only authorization and redaction contract
       for a Fastmail live candidate: no authorization, non-supported cell, or
       stale surface rejects before model construction or dispatch.
@@ -81,6 +124,15 @@ Status: Draft — implementation not approved
   - Depends on: WMS3.1.
   - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py -q`.
 
+- [ ] WMS3.3 [tests, RED/GREEN + manual gate] Add the operator-gated floorplan
+      completion route. It must require a `supported` descriptor-bound MPS cell,
+      preserve resource-budget/reap evidence, validate the SVG contract, and
+      render only a redacted completion receipt.
+  - Spec: FR-005, FR-009, AC-006.
+  - Depends on: WMS2.4.
+  - Validation: focused fake authorization/receipt tests; a later explicit MPS
+    authorization for one exact profile/package/material cell.
+
 - [ ] WMS4.1 [docs/validation] Document the generated support report, all four
       statuses, package non-transferability, and live-run authorization. Add a
       matrix validation record with deterministic results and an empty manual
@@ -95,8 +147,10 @@ Status: Draft — implementation not approved
 ## Checkpoints
 
 - WMS1: pure, side-effect-free classification and non-transferable evidence.
-- WMS2: fully offline Fastmail and embedding workflow coverage.
-- WMS3: human-gated live Fastmail receipt path with fake authorization coverage.
+- WMS2: fully offline Fastmail, embedding, floorplan, structured-output,
+  stateful-context, and tool-pack workflow coverage.
+- WMS3: human-gated Fastmail and floorplan receipt paths with fake authorization
+  coverage.
 - WMS4: documented coverage and validation record.
 
 ## Validation
@@ -107,6 +161,9 @@ Status: Draft — implementation not approved
 
 ## Boundary Notes
 
-- Live Fastmail work remains a per-run human authorization boundary.
+- Live Fastmail and floorplan work remain per-run human authorization boundaries.
 - Package/material locks are authoritative; adapters do not silently substitute
   files or providers.
+- Proposed MLX embeddings, locked inference callbacks, sandboxed write/shell,
+  runner-owned RAG, and natural-language authoring are excluded until their
+  owning feature contracts are implemented.

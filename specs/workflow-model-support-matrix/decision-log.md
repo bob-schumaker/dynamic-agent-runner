@@ -10,6 +10,13 @@
   material-evidence rules.
 - 2026-09-13 — Fastmail live probes remain separate human-authorized operations.
   — Ordinary tests must remain offline and retain no mailbox data.
+- 2026-09-13 — Floorplan SVG, structured output after tool use, stateful
+  context, and tool-pack composition join this matrix as profiles rather than
+  separate feature specs. — They share the same capability classification and
+  redacted receipt contract.
+- 2026-09-13 — Proposed or intentionally deferred runtime features are explicit
+  exclusions, not empty matrix rows. — A row requires an implemented owning
+  contract before it can be classified honestly.
 
 ## Rejected Options
 
