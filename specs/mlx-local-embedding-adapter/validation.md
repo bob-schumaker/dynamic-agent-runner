@@ -1,6 +1,7 @@
 # macOS Generalized MLX Embedding Execution Validation
 
-Status: generic ABI/provider validated; MLE6 sealed workflow onboarding pending
+Status: generic ABI/provider and one sealed workflow package validated; matrix
+admission pending
 
 ## Completed Generic Evidence
 
@@ -17,7 +18,7 @@ Status: generic ABI/provider validated; MLE6 sealed workflow onboarding pending
 | Material decision | approved package-local v2 lock and ABI descriptor | complete; MLE6.2 fixture package |
 | Fixture conformance | trusted local reference vectors bound to that lock | complete; MLE6.3 local-only reference fixture |
 | Offline admission | fake-only package/provider/index regressions | complete; MLE6.4 fake provider/index coverage |
-| Darwin competency | authorized redacted package-bound MLX receipt | not run |
+| Darwin competency | authorized redacted package-bound MLX receipt | complete; v3 package `mle6.5-receipt.json`, 3×384 vectors, `max_abs_error` `0.00022599101066589355` |
 | Matrix admission | exact package/material support row | not run |
 
 ## Boundaries
@@ -25,5 +26,7 @@ Status: generic ABI/provider validated; MLE6 sealed workflow onboarding pending
 - The approval record at `tests/fixtures/mlx-gte-tiny/mle6-approval.md` selects
   one cached BERT-compatible closure for local internal conformance only. It
   does not convert the legacy v1 fixture into an MLE6 package.
-- No live run, material download, or reference-vector generation is authorized
-  by this approval record.
+- This MLE6 goal explicitly authorized local cache material verification,
+  local-only reference-vector generation, and the Darwin competency run. The
+  committed receipt retains only redacted package identity, limits, resource,
+  dimension, opaque-output, and pass/fail evidence.
