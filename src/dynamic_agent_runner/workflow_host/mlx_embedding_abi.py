@@ -994,6 +994,8 @@ def _sentencepiece_unigram_ids(
     text: str, tokenizer: _SentencePieceUnigramTokenizer, unk_id: object
 ) -> list[int]:
     normalized = _normalize_sentencepiece_text(text, tokenizer.normalizer_map)
+    if normalized == "▁":
+        return []
     scores = [-math.inf] * (len(normalized) + 1)
     tokens: list[tuple[int, int] | None] = [None] * (len(normalized) + 1)
     scores[0] = 0.0

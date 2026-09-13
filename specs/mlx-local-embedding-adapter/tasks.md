@@ -464,6 +464,23 @@
     the backend header grammar: source/output lock hashes match, no position-ID
     tensor is emitted, and output is 235,368,292 bytes.
 
+- [x] MLE7.3c [bug, tests RED/GREEN] Preserve empty and whitespace-only
+      SentencePiece-Unigram input as no content pieces before special-token
+      framing.
+  - Discovered: the MLE7.7 trusted-tokenizer comparison found DAR emitted the
+    SentencePiece dummy-boundary token for an empty input (`[0, 6, 2, ...]`),
+    while the locked reference emits only `[0, 2, ...]`. The same reference
+    behavior applies to whitespace-only input.
+  - Depends on: MLE7.3.
+  - Acceptance: focused closed-tokenizer vectors prove empty and whitespace-only
+    values have no Unigram pieces and frame to CLS/SEP followed by padding;
+    non-empty tokenization remains unchanged.
+  - Evidence: the closed tokenizer now maps the normalized boundary-only form to
+    zero pieces before Viterbi selection. The focused test was RED with the
+    former dummy-boundary token, then GREEN for empty and whitespace-only
+    inputs, ordinary Unigram selection, and CLS/SEP/padding framing. The ABI,
+    backend, MLE7 fixture, and sealed-execution suites passed (75 tests).
+
 - [x] MLE7.4 [approval/package, tests RED/GREEN] With a recorded license and
       material decision, create a package-local lock and exact descriptor for
       `intfloat/multilingual-e5-small`; prove changed material, ABI, tokenizer,

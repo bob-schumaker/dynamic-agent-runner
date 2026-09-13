@@ -204,11 +204,18 @@ def test_sentencepiece_unigram_admission_and_tokenization_are_sealed() -> None:
     assert _sentencepiece_unigram_ids("a", tokenizer, 3) == [8]
     assert _sentencepiece_unigram_ids("ab", tokenizer, 3) == [4, 7]
     assert _sentencepiece_unigram_ids("z", tokenizer, 3) == [4, 3]
+    assert _sentencepiece_unigram_ids("", tokenizer, 3) == []
+    assert _sentencepiece_unigram_ids(" \t\n\u00a0", tokenizer, 3) == []
     assert _tokenize_sentencepiece_unigram_items(
         tokenizer,
         (EmbeddingInputItem(id="item", text="ab"),),
         descriptor,
     ) == ([[0, 4, 7, 2, 1]], [[1, 1, 1, 1, 0]])
+    assert _tokenize_sentencepiece_unigram_items(
+        tokenizer,
+        (EmbeddingInputItem(id="empty", text=""),),
+        descriptor,
+    ) == ([[0, 2, 1, 1, 1]], [[1, 1, 0, 0, 0]])
 
 
 def test_sentencepiece_unigram_rejects_unknown_modelproto_fields() -> None:
