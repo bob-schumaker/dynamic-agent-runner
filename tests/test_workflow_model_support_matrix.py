@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from dynamic_agent_runner.workflow_host.workflow_support_matrix import (
     MaterialIdentity,
     WorkflowSupportCandidate,
     WorkflowSupportProfile,
+    WorkflowSupportReceipt,
     WorkflowSupportStatus,
     classify_workflow_support,
+    validate_workflow_support_receipt,
 )
+from pytest import raises
 
 
 def _material_identity(*, package_id: str = "embedding-package") -> MaterialIdentity:
@@ -128,3 +133,44 @@ def test_matching_immutable_facts_are_supported_without_reasons() -> None:
     assert cell.adapter_id == "mlx-local-embedding"
     assert cell.status is WorkflowSupportStatus.SUPPORTED
     assert cell.reason_codes == ()
+
+
+def test_receipt_is_accepted_only_for_its_exact_evaluated_cell() -> None:
+    profile = _profile()
+    candidate = _candidate()
+    cell = classify_workflow_support(profile, candidate)
+    receipt = WorkflowSupportReceipt(
+        profile_digest=cell.profile_digest,
+        adapter_id=cell.adapter_id,
+        material_identity=_material_identity(),
+        test_mode="synthetic",
+        status=cell.status,
+        reason_codes=cell.reason_codes,
+    )
+
+    validate_workflow_support_receipt(profile, candidate, cell, receipt)
+
+
+def test_receipt_cannot_transfer_to_a_different_profile_adapter_or_material() -> None:
+    profile = _profile()
+    candidate = _candidate()
+    cell = classify_workflow_support(profile, candidate)
+    receipt = WorkflowSupportReceipt(
+        profile_digest=cell.profile_digest,
+        adapter_id=cell.adapter_id,
+        material_identity=_material_identity(),
+        test_mode="synthetic",
+        status=cell.status,
+        reason_codes=cell.reason_codes,
+    )
+
+    for changed_receipt in (
+        replace(receipt, profile_digest="d" * 64),
+        replace(receipt, adapter_id="other-adapter"),
+        replace(
+            receipt,
+            material_identity=_material_identity(package_id="other-package"),
+        ),
+    ):
+        with raises(ValueError, match="receipt does not match support cell"):
+            validate_workflow_support_receipt(profile, candidate, cell, changed_receipt)

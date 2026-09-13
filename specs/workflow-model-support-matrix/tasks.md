@@ -44,6 +44,8 @@ Status: WMS1 ready for implementation approval; implementation not approved
     `tests/test_workflow_model_support_matrix.py`.
   - Depends on: WMS1.2.
   - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py -q`.
+  - Evidence: focused receipt-transfer tests are RED before the receipt data
+    contract and pure evaluator exist.
 
 - [ ] WMS2.1 [tests, RED] Define a synthetic Fastmail support profile using
       only de-identified fixture messages and a controlled read-only
