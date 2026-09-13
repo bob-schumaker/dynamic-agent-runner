@@ -798,7 +798,8 @@ def _bert_dtype_details(
     assert isinstance(encoder, Mapping)
     dtype = encoder["dtype"]
     if (
-        descriptor.architecture_abi == BERT_ENCODER_MLX_V2_ABI
+        descriptor.architecture_abi
+        in (BERT_ENCODER_MLX_V2_ABI, BERT_ENCODER_MLX_V3_ABI)
         and ".LayerNorm." in tensor_name
     ):
         dtype = encoder["layer_norm_dtype"]

@@ -262,13 +262,23 @@
     before implementation and green after; all three selected document token
     IDs and attention masks exactly match their locked reference digests.
 
+- [x] MLE6.4g [bug, tests RED/GREEN] Apply the v2 closed F32 LayerNorm tensor
+      rule to its v3 tokenizer-normalization successor during safetensors
+      admission and memory accounting.
+  - Discovered: MLE6.5 rerun on 2026-09-13 admitted the v3 descriptor but
+    rejected its verified F32 LayerNorm header because the runtime predicate
+    named only v2.
+  - Depends on: MLE6.4f.
+  - Evidence: a v3 LayerNorm dtype assertion was red under the v2-only
+    predicate and green after the shared exact rule covered both ABIs.
+
 - [ ] MLE6.5 [manual competency gate] With explicit authorization, prepare the
       exact sealed package on Darwin arm64 with `mlx==0.32.2`, run the MLX
       embedding/index workflow, and compare against its locked reference
       fixture. Retain only package/material/descriptor digests, limits,
       duration, memory, vector count/dimension, opaque output IDs, and status.
   - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
-  - Depends on: MLE6.4f.
+  - Depends on: MLE6.4g.
 
 - [ ] MLE6.6 [tests/docs] Add the exact successful package/material identity to
       the workflow model support matrix, update MLX embedding status/validation,

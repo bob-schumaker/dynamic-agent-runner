@@ -15,6 +15,7 @@ from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
     BertEncoderMlxV1DescriptorValidator,
     BertEncoderMlxV2DescriptorValidator,
     BertEncoderMlxV3DescriptorValidator,
+    _bert_dtype_details,
 )
 
 
@@ -111,6 +112,15 @@ def test_v3_accepts_only_lowercase_accent_stripping_normalization() -> None:
     descriptor = _descriptor(abi=BERT_ENCODER_MLX_V3_ABI)
 
     BertEncoderMlxV3DescriptorValidator().validate(descriptor)
+
+
+def test_v3_retains_the_v2_float32_layer_norm_tensor_rule() -> None:
+    descriptor = _descriptor(abi=BERT_ENCODER_MLX_V3_ABI)
+
+    assert _bert_dtype_details(descriptor, "embeddings.LayerNorm.weight") == (
+        "F32",
+        4,
+    )
 
 
 @pytest.mark.parametrize(
