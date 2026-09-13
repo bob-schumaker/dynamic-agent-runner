@@ -106,3 +106,28 @@ an installed MLX ABI; other providers and platforms remain unchanged.
 Exit: one sealed package can perform bounded MLX embedding/index execution on
 an eligible Mac with a descriptor-bound receipt. This does not admit another
 model or architecture without its own material and conformance evidence.
+
+## S6 — Tokenizer and encoder ABI expansion (MLE7--MLE8)
+
+Two sealed expansion tracks follow the same package admission, fixture,
+workflow, Darwin, and matrix sequence, but they do not share an ABI.
+
+1. MLE7 adds a closed SentencePiece-BPE tokenizer grammar to a new BERT ABI
+   successor. It preserves the existing BERT executor only after fake tokenizer
+   vectors prove the exact package-declared tokenizer semantics. The first
+   intended material closure is `intfloat/multilingual-e5-small`.
+2. MLE8 adds a new closed RoBERTa executor ABI with byte-level BPE. It owns
+   tensor names, padding-index position IDs, LayerNorm epsilon, and execution
+   math rather than treating RoBERTa as a BERT descriptor variant. The first
+   intended material closure is `sentence-transformers/all-distilroberta-v1`.
+3. Each track locks a revision and license decision only in package-local
+   artifacts, generates synthetic reference vectors locally with
+   `trust_remote_code=False`, proves provider/index binding with fakes, then
+   waits for separate authorization for a Darwin competency run. No unit test
+   downloads a model, imports MLX, or invokes an external tokenizer runtime.
+4. Each successful receipt produces a non-transferable package/material row.
+   Until then, the candidate is planned rather than supported; neither result
+   authorizes a different tokenizer, encoder, revision, or workflow package.
+
+Exit: each model is supported only by its own sealed package evidence and exact
+installed ABI; the generic workflow capability remains unchanged.

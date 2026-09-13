@@ -1,7 +1,7 @@
 # macOS Generalized MLX Embedding Execution Validation
 
 Status: generic ABI/provider and one sealed workflow package validated; exact
-matrix admission recorded
+matrix admission recorded; MLE7 and MLE8 expansions planned
 
 ## Completed Generic Evidence
 
@@ -31,3 +31,6 @@ matrix admission recorded
   local-only reference-vector generation, and the Darwin competency run. The
   committed receipt retains only redacted package identity, limits, resource,
   dimension, opaque-output, and pass/fail evidence.
+- MLE7 and MLE8 have no package, material, fixture, or Darwin evidence yet.
+  Their planned model names do not establish support, authorize a download or
+  material use, or transfer the MLE6 receipt to either tokenizer/executor ABI.

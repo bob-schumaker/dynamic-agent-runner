@@ -313,3 +313,125 @@
   - Evidence: the package-local machine-readable row binds its package ID,
     material lock, descriptor/ABI, capability, and receipt SHA. Focused tests
     reject a different package ID or changed material lock from inheriting it.
+
+## MLE7 — SentencePiece-BPE BERT package expansion
+
+- [ ] MLE7.1 [spec/design] Register a new closed BERT successor ABI for the
+      exact SentencePiece-BPE tokenizer grammar required by
+      `intfloat/multilingual-e5-small`; record its canonical identity/digest,
+      roles, tokenizer-byte and resource ceilings, special IDs, normalization,
+      boundary behavior, truncation, and padding semantics.
+  - Spec: planned `bert-encoder-mlx-v4` expansion, FR-2 and FR-3.
+  - Depends on: MLE6.6.
+  - Acceptance: it reuses BERT execution only after declaring a finite
+    tokenizer grammar; it accepts neither arbitrary SentencePiece models,
+    tokenizer packages/plugins, callbacks, remote code, nor an invocation path.
+
+- [ ] MLE7.2 [tests, RED/GREEN] Add fake-only tokenizer admission and execution
+      vectors for valid SentencePiece-BPE bytes plus malformed/truncated assets,
+      changed normalizer, unknown pieces, special IDs, leading/adjacent
+      whitespace, Unicode boundaries, truncation, and exact-width padding.
+  - Spec: FR-2, FR-3, FR-5.
+  - Depends on: MLE7.1.
+  - Files/components: `mlx_embedding_abi.py`, MLX embedding backend tests, and
+    sealed synthetic tokenizer fixtures.
+  - Validation: focused pytest remains offline and never imports MLX or a
+    SentencePiece runtime.
+
+- [ ] MLE7.3 [implementation] Implement only the registered tokenizer grammar
+      and bind it to the existing BERT arithmetic path; preserve v1--v3
+      WordPiece behavior and reject all unregistered tokenizer formats.
+  - Spec: planned BERT SentencePiece-BPE ABI.
+  - Depends on: MLE7.2.
+
+- [ ] MLE7.4 [approval/package, tests RED/GREEN] With a recorded license and
+      material decision, create a package-local lock and exact descriptor for
+      `intfloat/multilingual-e5-small`; prove changed material, ABI, tokenizer,
+      descriptor, or capability facts reject before MLX import or egress.
+  - Spec: Operational Completion Gates 1 and 3.
+  - Depends on: MLE7.3 and explicit material-use authorization.
+
+- [ ] MLE7.5 [manual fixture, RED/GREEN] Generate a synthetic reference fixture
+      from the exact locked MLE7 closure using a local trusted
+      `trust_remote_code=False` runtime; lock tokenizer IDs/masks and vector
+      tolerance without retaining user content or arbitrary model output.
+  - Spec: FR-5, Operational Completion Gate 2.
+  - Depends on: MLE7.4 and separate authorization.
+
+- [ ] MLE7.6 [tests, RED/GREEN] Exercise the MLE7 package through
+      `embedding.execute.v1` and the sealed index path with injected facts;
+      prove opaque output and non-transferability before provider execution.
+  - Spec: FR-6, Operational Completion Gate 3.
+  - Depends on: MLE7.4 and MLE7.5.
+
+- [ ] MLE7.7 [manual] With explicit authorization, run the locked MLE7 package
+      on Darwin arm64, compare its vectors to the fixture, and retain only the
+      redacted receipt fields required by the operational gate.
+  - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
+  - Depends on: MLE7.6.
+
+- [ ] MLE7.8 [tests/docs] Add the successful MLE7 package/material receipt as
+      a non-transferable embedding support row and update validation status.
+  - Spec: Operational Completion Gate 5.
+  - Depends on: MLE7.7.
+
+## MLE8 — RoBERTa byte-level-BPE execution ABI
+
+- [ ] MLE8.1 [spec/design] Register a new closed `roberta-encoder-mlx-v1` ABI
+      for `sentence-transformers/all-distilroberta-v1`: exact byte-level BPE
+      grammar, RoBERTa tensor names/shapes/dtypes, padding-index position-ID
+      derivation, LayerNorm epsilon, attention/activation/residual order,
+      pooling, normalization, resource ceilings, and canonical contract digest.
+  - Spec: planned RoBERTa ABI, FR-2 and FR-3.
+  - Depends on: MLE6.6.
+  - Acceptance: the descriptor cannot select a generic transformer interpreter,
+    tokenizer code, unbounded merge/vocabulary asset, unknown tensor, or an
+    alternate position-ID rule.
+
+- [ ] MLE8.2 [tests, RED/GREEN] Add fake-only ABI vectors for byte-level BPE
+      vocabulary/merge admission, Unicode byte and leading-space behavior,
+      special tokens, malformed merges, RoBERTa position IDs around padding,
+      tensor/header rejection, attention/pooling/normalization, and exact
+      conformance fixture binding.
+  - Spec: FR-2, FR-3, FR-5.
+  - Depends on: MLE8.1.
+  - Files/components: `mlx_embedding_abi.py`, a dedicated RoBERTa backend,
+    fake MLX tests, and sealed synthetic fixtures.
+  - Validation: tests do not import MLX, download model files, or invoke a
+    tokenizer package.
+
+- [ ] MLE8.3 [implementation] Implement the closed RoBERTa tokenizer and
+      executor behind the registry without changing BERT ABI behavior, generic
+      provider selection, or generation adapters.
+  - Spec: planned `roberta-encoder-mlx-v1` ABI.
+  - Depends on: MLE8.2.
+
+- [ ] MLE8.4 [approval/package, tests RED/GREEN] With a recorded license and
+      material decision, create the package-local lock and descriptor for
+      `sentence-transformers/all-distilroberta-v1`; reject changed roles,
+      weights, tokenizer, ABI, descriptor, and capability facts pre-execution.
+  - Spec: Operational Completion Gates 1 and 3.
+  - Depends on: MLE8.3 and explicit material-use authorization.
+
+- [ ] MLE8.5 [manual fixture, RED/GREEN] Generate and bind synthetic local
+      reference vectors for the exact MLE8 closure with `trust_remote_code=False`,
+      including byte-level tokenizer IDs/masks and padding-position vectors.
+  - Spec: FR-5, Operational Completion Gate 2.
+  - Depends on: MLE8.4 and separate authorization.
+
+- [ ] MLE8.6 [tests, RED/GREEN] Run the MLE8 package through generic embedding
+      execution and index-artifact paths with injected facts; prove changed
+      package/material facts reject before execution and no MLE7 evidence
+      transfers to this ABI.
+  - Spec: FR-6, Operational Completion Gate 3.
+  - Depends on: MLE8.4 and MLE8.5.
+
+- [ ] MLE8.7 [manual] With explicit authorization, run the locked MLE8 package
+      on Darwin arm64 and retain a redacted package-bound competency receipt.
+  - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
+  - Depends on: MLE8.6.
+
+- [ ] MLE8.8 [tests/docs] Add the successful MLE8 package/material receipt as
+      a non-transferable embedding support row and update validation status.
+  - Spec: Operational Completion Gate 5.
+  - Depends on: MLE8.7.

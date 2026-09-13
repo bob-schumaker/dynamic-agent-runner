@@ -3,8 +3,8 @@
 ## Metadata
 
 - Feature slug: `mlx-local-embedding-adapter`
-- Status: generic ABI/provider implemented; MLE6 sealed workflow onboarding is
-  pending
+- Status: generic ABI/provider and one BERT/WordPiece package implemented;
+  MLE7 SentencePiece-BPE and MLE8 RoBERTa expansions planned
 - Owner: dynamic-agent-runner local-model and embedding-capability boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`
@@ -200,6 +200,52 @@ equals `unk_token`. `normalizer` has `type: "BertNormalizer"` and a Boolean
 three required objects may not alter these semantics; no tokenizer asset may
 provide an import, executable callback, model path, or remote reference.
 
+### Planned closed SentencePiece-BPE extension: `bert-encoder-mlx-v4`
+
+`bert-encoder-mlx-v4` is a planned successor ABI, not an installed fallback
+for v1--v3. It will retain the v2 mixed-precision BERT tensor and arithmetic
+contract, while replacing only the tokenizer grammar with one reviewed,
+closed SentencePiece BPE grammar. Its exact ABI version and contract digest
+must be registered before any descriptor can name it.
+
+The grammar must interpret only package-sealed tokenizer bytes. It must fix the
+SentencePiece normalizer, BPE vocabulary/merge behavior, special-token IDs,
+unknown-token behavior, whitespace/word-boundary handling, truncation, and
+exact-width padding. It must reject model-supplied code, protobuf extensions,
+normalizer plugins, byte fallbacks, arbitrary model files, and any grammar not
+explicitly represented by the ABI. It may not invoke a SentencePiece Python
+package or load an upstream tokenizer dynamically.
+
+`intfloat/multilingual-e5-small` is the first intended package-level
+conformance target for this ABI. Its upstream configuration identifies a
+standard BERT encoder with absolute positions, GELU, 12 layers, 384 hidden
+dimensions, LayerNorm epsilon `1e-12`, and an `XLMRobertaTokenizer` backed by
+`sentencepiece.bpe.model`. The model name is planning evidence only: DAR
+production source and generic registry selection remain model-neutral. A
+sealed revision, complete material closure, license decision, exact tokenizer
+semantics, and conformance fixture are still required before it is supported.
+
+### Planned closed RoBERTa execution ABI: `roberta-encoder-mlx-v1`
+
+`roberta-encoder-mlx-v1` is a separate planned ABI; it must not be represented
+as a BERT descriptor revision. It will own a byte-level BPE tokenizer grammar
+and RoBERTa's independently fixed tensor layout and arithmetic: token and
+absolute-position embeddings, RoBERTa padding-index position-ID derivation,
+embedding and layer LayerNorm epsilon, attention/residual ordering, activation,
+and permitted pooling/normalization. The ABI must name every accepted tensor
+key, shape, dtype rule, and safetensors span; it may not accept arbitrary
+`transformers` configuration, model code, tokenizer callbacks, unknown tensors,
+or a generic transformer interpreter.
+
+`sentence-transformers/all-distilroberta-v1` is the first intended package
+conformance target. It is a six-layer RoBERTa encoder with byte-level BPE
+`vocab.json`/`merges.txt` assets, 768-dimensional output, absolute positions,
+and LayerNorm epsilon `1e-5`. The ABI's tokenizer vectors must include leading
+space, punctuation, Unicode/byte behavior, special tokens, truncation, and
+padding; its executor vectors must distinguish RoBERTa position IDs from the
+BERT position sequence. The model identity remains package-local evidence,
+not a generic DAR model selection setting.
+
 The ABI owns this complete safetensors tensor-key and shape grammar, where `H`,
 `I`, `L`, `V`, `P`, and `T` are respectively `hidden_size`,
 `intermediate_size`, `layers`, `vocab_size`, `max_positions`, and
@@ -385,6 +431,12 @@ authoritative for snapshots and index-bundle behavior.
   descriptor's semantics without retaining private input or vector data.
 - Static and receiver-resolved metadata distinguish embedding from generation
   and llama.cpp without breaking lazy admission.
+- A sealed `intfloat/multilingual-e5-small` package can be admitted only by the
+  registered SentencePiece-BPE BERT ABI, and rejects a changed tokenizer,
+  material closure, tokenizer grammar, or conformance fixture before MLX load.
+- A sealed `sentence-transformers/all-distilroberta-v1` package can be admitted
+  only by the registered RoBERTa ABI, and fake vectors prove byte-level BPE and
+  padding-index position-ID semantics before an authorized Darwin run.
 
 ## Delivery Gate
 
@@ -400,9 +452,9 @@ assets and cannot become production runtime identities.
 The generic ABI/provider is not complete support for a workflow user until one
 workflow-owned material closure has passed all of the following gates:
 
-1. A human-approved BERT-compatible model/material decision, including license
-   acceptance, is sealed into one package-local v2 material lock and matching
-   `bert-encoder-mlx-v1` descriptor. DAR source must not name that model.
+1. A human-approved model/material decision, including license acceptance, is
+   sealed into one package-local v2 material lock and matching installed ABI
+   descriptor. DAR source must not name that model.
 2. A trusted local reference runtime creates a synthetic vector fixture from
    those exact locked bytes with `trust_remote_code=False`; the fixture is
    package-bound and contains no user documents.
