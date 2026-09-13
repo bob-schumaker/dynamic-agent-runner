@@ -164,9 +164,19 @@ def _tokenizer_bytes(*, mutate: TokenizerMutation | None = None) -> bytes:
     return json.dumps(asset).encode()
 
 
-def _weights_header(*, mutate: HeaderMutation | None = None) -> bytes:
+def _weights_header(
+    *, mutate: HeaderMutation | None = None, include_pooler: bool = False
+) -> bytes:
     descriptor = _materials().execution_descriptor
     cursor = 0
+    shapes = dict(_bert_tensor_shapes(descriptor))
+    if include_pooler:
+        shapes.update(
+            {
+                "pooler.dense.bias": (2,),
+                "pooler.dense.weight": (2, 2),
+            }
+        )
     header = {
         name: {
             "data_offsets": [
@@ -176,7 +186,7 @@ def _weights_header(*, mutate: HeaderMutation | None = None) -> bytes:
             "dtype": "F32",
             "shape": list(shape),
         }
-        for name, shape in _bert_tensor_shapes(descriptor).items()
+        for name, shape in shapes.items()
     }
     if mutate is not None:
         mutate(header)
@@ -187,12 +197,14 @@ def _weights_blob(
     *,
     mutate: HeaderMutation | None = None,
     values: dict[str, list[float]] | None = None,
+    include_pooler: bool = False,
 ) -> bytes:
-    header = _weights_header(mutate=mutate)
+    header = _weights_header(mutate=mutate, include_pooler=include_pooler)
     descriptor = _materials().execution_descriptor
-    payload_size = sum(
-        4 * math.prod(shape) for shape in _bert_tensor_shapes(descriptor).values()
-    )
+    shapes = _bert_tensor_shapes(descriptor)
+    payload_size = sum(4 * math.prod(shape) for shape in shapes.values())
+    if include_pooler:
+        payload_size += 4 * (2 + 2 * 2)
     payload = bytearray(payload_size)
     if values is not None:
         metadata = json.loads(header)
@@ -316,6 +328,36 @@ def test_backend_accepts_bounded_safetensors_metadata(
 @pytest.mark.parametrize("metadata", ("pt", {"format": 1}, {"format": ["pt"]}))
 def test_backend_rejects_non_string_safetensors_metadata(metadata: object) -> None:
     weights = _weights_blob(mutate=lambda header: header.update(__metadata__=metadata))
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda role: (
+            _tokenizer_bytes() if role == "tokenizer" else weights
+        ),
+        mlx_loader=lambda: (_ for _ in ()).throw(AssertionError("MLX must not load")),
+    )
+
+    with pytest.raises(EmbeddingExecutionError, match="material"):
+        backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
+
+
+def test_backend_accepts_the_optional_bert_pooler_pair_without_executing_it() -> None:
+    weights = _weights_blob(include_pooler=True)
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda role: (
+            _tokenizer_bytes() if role == "tokenizer" else weights
+        ),
+        mlx_loader=_NumpyMlx,
+    )
+
+    result = backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
+
+    assert result.items[0].id == "entry"
+
+
+def test_backend_rejects_an_optional_pooler_with_wrong_shape() -> None:
+    weights = _weights_blob(
+        include_pooler=True,
+        mutate=lambda header: header["pooler.dense.bias"].update(shape=[3]),
+    )
     backend = BertEncoderMlxV1EmbeddingBackend(
         artifact_reader=lambda role: (
             _tokenizer_bytes() if role == "tokenizer" else weights

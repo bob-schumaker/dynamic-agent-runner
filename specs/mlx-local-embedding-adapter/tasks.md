@@ -220,13 +220,22 @@
     string-only mapping was excluded from the tensor set, then green; malformed
     metadata still rejects before the MLX loader is called.
 
+- [x] MLE6.4c [bug, tests RED/GREEN] Admit the optional BERT pooler tensor pair
+      only when its exact descriptor-derived dtype, shapes, and contiguous spans
+      validate; do not execute it or accept any other surplus tensor.
+  - Discovered: MLE6.5 preflight on 2026-09-13 found the verified GTE Tiny
+    closure includes the standard unused `pooler.dense.{weight,bias}` pair.
+  - Depends on: MLE6.4b.
+  - Evidence: a fake complete pair was red before admission and green after;
+    a malformed pooler shape rejects before the MLX loader is called.
+
 - [ ] MLE6.5 [manual competency gate] With explicit authorization, prepare the
       exact sealed package on Darwin arm64 with `mlx==0.32.2`, run the MLX
       embedding/index workflow, and compare against its locked reference
       fixture. Retain only package/material/descriptor digests, limits,
       duration, memory, vector count/dimension, opaque output IDs, and status.
   - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
-  - Depends on: MLE6.4b.
+  - Depends on: MLE6.4c.
 
 - [ ] MLE6.6 [tests/docs] Add the exact successful package/material identity to
       the workflow model support matrix, update MLX embedding status/validation,

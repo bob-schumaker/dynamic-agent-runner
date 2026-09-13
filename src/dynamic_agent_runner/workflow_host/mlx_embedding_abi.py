@@ -608,7 +608,10 @@ def _validate_bert_tensor_header(
     header: Mapping[str, object], descriptor: ExecutionDescriptor, *, data_size: int
 ) -> None:
     shapes = _bert_tensor_shapes(descriptor)
-    tensor_header = _tensor_header(header, shapes)
+    optional_shapes = _bert_optional_pooler_shapes(descriptor)
+    tensor_header = _tensor_header(header, shapes, optional_shapes)
+    if set(optional_shapes).issubset(tensor_header):
+        shapes.update(optional_shapes)
     expected_dtype, item_bytes = _bert_dtype_details(descriptor)
     spans: list[tuple[int, int]] = []
     for name, expected_shape in shapes.items():
@@ -648,7 +651,9 @@ def _validate_bert_tensor_header(
 
 
 def _tensor_header(
-    header: Mapping[str, object], shapes: Mapping[str, tuple[int, ...]]
+    header: Mapping[str, object],
+    shapes: Mapping[str, tuple[int, ...]],
+    optional_shapes: Mapping[str, tuple[int, ...]],
 ) -> dict[str, object]:
     tensor_header = dict(header)
     metadata = tensor_header.pop("__metadata__", None)
@@ -660,9 +665,28 @@ def _tensor_header(
         )
     ):
         raise ValueError
-    if set(tensor_header) != set(shapes):
+    tensor_names = set(tensor_header)
+    optional_names = set(optional_shapes)
+    if (
+        not set(shapes).issubset(tensor_names)
+        or tensor_names - set(shapes) - optional_names
+        or (tensor_names & optional_names and not optional_names.issubset(tensor_names))
+    ):
         raise ValueError
     return tensor_header
+
+
+def _bert_optional_pooler_shapes(
+    descriptor: ExecutionDescriptor,
+) -> dict[str, tuple[int, ...]]:
+    encoder = descriptor.abi_fields["encoder"]
+    assert isinstance(encoder, Mapping)
+    hidden_size = encoder["hidden_size"]
+    assert isinstance(hidden_size, int)
+    return {
+        "pooler.dense.bias": (hidden_size,),
+        "pooler.dense.weight": (hidden_size, hidden_size),
+    }
 
 
 def _validate_embedding_inputs(
@@ -697,9 +721,10 @@ def _validate_declared_memory(
     descriptor: ExecutionDescriptor, limits: Mapping[str, object], *, item_count: int
 ) -> None:
     _, item_bytes = _bert_dtype_details(descriptor)
+    parameter_shapes = _bert_tensor_shapes(descriptor)
+    parameter_shapes.update(_bert_optional_pooler_shapes(descriptor))
     parameter_bytes = sum(
-        math.prod(shape) * item_bytes
-        for shape in _bert_tensor_shapes(descriptor).values()
+        math.prod(shape) * item_bytes for shape in parameter_shapes.values()
     )
     encoder = descriptor.abi_fields["encoder"]
     assert isinstance(encoder, Mapping)
