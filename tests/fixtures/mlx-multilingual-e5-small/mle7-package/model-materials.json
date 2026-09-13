@@ -1,7 +1,7 @@
 {
   "execution_descriptor": {
     "filename": "execution-descriptor.json",
-    "sha256": "018c0c7af4977578da26a2092ea3621d41b50583107926e3bc5c35c5a0a6b8b2"
+    "sha256": "26fb054f69b04d992a619456b5f48c755a7042d45d8d6e9dfd152ebee84d016c"
   },
   "format_version": 2,
   "logical_model_id": "mlx-multilingual-e5-small-embedding-v1",

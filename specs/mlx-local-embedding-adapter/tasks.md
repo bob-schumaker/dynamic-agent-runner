@@ -480,11 +480,11 @@
     transformation digest, and the verified prepared-weights digest. The
     fake-only package suite was RED before artifacts existed, then proves
     changed source-weight/tokenizer material, ABI/descriptor, and capability
-    facts fail before model execution. `conformance-fixture.json` remains the
-    explicit MLE7.5 gate; its digest will replace the declared placeholder in
-    the descriptor and lock when locally generated.
+    facts fail before model execution. MLE7.5 subsequently replaces the
+    descriptor's temporary fixture declaration with the exact local reference
+    fixture digest and refreshes the lock's descriptor binding.
 
-- [ ] MLE7.5 [manual fixture, RED/GREEN] Generate a synthetic reference fixture
+- [x] MLE7.5 [manual fixture, RED/GREEN] Generate a synthetic reference fixture
       from the exact locked MLE7 closure using a local trusted
       `trust_remote_code=False` runtime; lock tokenizer IDs/masks and vector
       tolerance without retaining user content or arbitrary model output.
@@ -492,6 +492,14 @@
   - Depends on: MLE7.4 and separate authorization.
   - Acceptance: synthetic literal `query:` and `passage:` inputs, if used,
     demonstrate workflow-supplied bytes rather than DAR prefix behavior.
+  - Evidence: local-only CPU `torch==2.13.0` and `transformers==5.16.1`
+    generation with `trust_remote_code=False` verified every locked source byte
+    before loading. The committed fixture binds its generator, runtime,
+    synthetic-document, token-ID/mask, and finite F32-vector evidence; its
+    three synthetic cases retain literal empty, `query:`, and `passage:` input
+    policies. The final fixture digest is bound into the v4 descriptor and its
+    material lock; no MLX import, model download, user content, or raw local
+    material is retained in the test suite.
 
 - [ ] MLE7.6 [tests, RED/GREEN] Exercise the MLE7 package through
       `embedding.execute.v1` and the sealed index path with injected facts;
