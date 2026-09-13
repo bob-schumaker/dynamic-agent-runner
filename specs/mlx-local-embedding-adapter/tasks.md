@@ -650,7 +650,7 @@
     sealed limits to the generic embedding boundary. BERT and generation code
     remain unchanged.
 
-- [ ] MLE8.3a [implementation, RED/GREEN] Add one receiver-owned,
+- [x] MLE8.3a [implementation, RED/GREEN] Add one receiver-owned,
       descriptor-bound source-extraction provider for the approved RoBERTa
       source profile when its exact safetensors header contains source-only
       position-ID or masked-LM tensors.
@@ -662,6 +662,11 @@
     MLX work. If the approved exact source header lacks a declared group, the
     package records no preparation operation; the provider never becomes an
     arbitrary filter, converter, path selector, or model-name branch.
+  - Evidence (2026-09-13): the dedicated provider accepts only the sealed
+    `source_weights` operation, the exact execution tensor closure, and either
+    complete or absent standard position-ID and masked-LM groups. Fake headers
+    prove partial groups, changed ancillary dtype, and extra tensors reject
+    before output; successful output is canonical execution-only safetensors.
 
 - [ ] MLE8.4 [approval/package, tests RED/GREEN] With a recorded license and
       material decision, create the package-local lock and descriptor for
