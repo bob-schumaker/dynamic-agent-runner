@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import fields, replace
 
 from dynamic_agent_runner.workflow_host.workflow_support_matrix import (
     MaterialIdentity,
@@ -180,6 +180,7 @@ def test_receipt_is_accepted_only_for_its_exact_evaluated_cell() -> None:
         test_mode="synthetic",
         status=cell.status,
         reason_codes=cell.reason_codes,
+        dispatch_count=1,
     )
 
     validate_workflow_support_receipt(profile, candidate, cell, receipt)
@@ -196,6 +197,7 @@ def test_receipt_cannot_transfer_to_a_different_profile_adapter_or_material() ->
         test_mode="synthetic",
         status=cell.status,
         reason_codes=cell.reason_codes,
+        dispatch_count=1,
     )
 
     for changed_receipt in (
@@ -214,3 +216,41 @@ def test_receipt_cannot_transfer_to_a_different_profile_adapter_or_material() ->
     ):
         with raises(ValueError, match="receipt does not match support cell"):
             validate_workflow_support_receipt(profile, candidate, cell, changed_receipt)
+
+
+def test_receipt_binds_dispatch_count_without_runtime_payloads() -> None:
+    profile = _profile()
+    candidate = _candidate()
+    cell = classify_workflow_support(profile, candidate)
+    receipt = WorkflowSupportReceipt(
+        profile_digest=cell.profile_digest,
+        adapter_id=cell.adapter_id,
+        material_identity=_material_identity(),
+        test_mode="synthetic",
+        status=cell.status,
+        reason_codes=cell.reason_codes,
+        dispatch_count=1,
+    )
+
+    assert receipt.dispatch_count == 1
+    assert {field.name for field in fields(receipt)} == {
+        "profile_digest",
+        "adapter_id",
+        "material_identity",
+        "test_mode",
+        "status",
+        "reason_codes",
+        "dispatch_count",
+    }
+
+    for dispatch_count in (-1, True):
+        with raises(ValueError, match="dispatch_count is invalid"):
+            replace(receipt, dispatch_count=dispatch_count)
+
+    with raises(ValueError, match="dispatch_count is invalid"):
+        replace(
+            receipt,
+            status=WorkflowSupportStatus.BLOCKED,
+            reason_codes=("required_provider_unavailable",),
+            dispatch_count=1,
+        )
