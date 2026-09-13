@@ -1383,6 +1383,37 @@ def test_launcher_deadline_covers_prepacking_containment_and_packing() -> None:
     assert events == ["limit", "pack", "reap"]
 
 
+def test_launcher_configures_a_child_deadline_before_packing() -> None:
+    events: list[object] = []
+
+    class Child:
+        def set_deadline_timeout(self, timeout: float) -> None:
+            events.append(("deadline", timeout))
+
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            assert events == [("deadline", 1.0)]
+            events.append("limit")
+
+        def pack(self) -> int:
+            events.append("pack")
+            return 3
+
+        def reap(self) -> None:
+            events.append("reap")
+
+    assert (
+        GenerationWorkerLauncher().pack(
+            child=Child(),
+            max_memory_bytes=8,
+            execution_device="cpu",
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000),
+            clock=lambda: 0.0,
+        )
+        == 3
+    )
+    assert events == [("deadline", 1.0), "limit", "pack"]
+
+
 def test_launcher_reserves_memory_before_authorizing_a_packed_receipt() -> None:
     events: list[str] = []
 

@@ -487,6 +487,8 @@ class GenerationWorkerLauncher:
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         packed_successfully = False
         try:
+            if deadline is not None:
+                _configure_child_deadline(child=child, deadline=deadline, clock=clock)
             packed_context_tokens = self._pack_with_envelope(
                 install_limit=install_limit,
                 pack=pack,

@@ -99,6 +99,7 @@ class _CpuWorkerChild:
                 "execution_device": execution_device,
             },
             "packed",
+            timeout=self._deadline_timeout,
         )
 
     def pack(self) -> int:
@@ -184,7 +185,7 @@ class _CpuWorkerChild:
         try:
             self.command_connection.send(dict(request))
             if not self.response_connection.poll(timeout_seconds):
-                if response_type == "result" and timeout is not None:
+                if timeout is not None:
                     raise GenerationWorkerDeadlineExceeded(
                         "generation deadline exceeded"
                     )
@@ -220,7 +221,7 @@ class _CpuWorkerChild:
         }
 
     def set_deadline_timeout(self, timeout: float) -> None:
-        """Bound the next result wait by the parent's remaining deadline."""
+        """Bound the next child IPC wait by the parent's remaining deadline."""
 
         if not _positive_timeout(timeout):
             raise GenerationWorkerDeadlineExceeded("generation deadline exceeded")
