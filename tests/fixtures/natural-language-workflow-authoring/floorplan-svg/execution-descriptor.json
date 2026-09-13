@@ -4,9 +4,9 @@
       "max_continuations": 0,
       "max_effective_context_tokens": 4096,
       "max_memory_bytes": 30150672384,
-      "max_new_tokens_per_fragment": 512,
-      "max_runtime_milliseconds": 120000,
-      "max_total_generated_tokens": 512,
+      "max_new_tokens_per_fragment": 1024,
+      "max_runtime_milliseconds": 360000,
+      "max_total_generated_tokens": 1024,
       "max_total_output_bytes": 32768
     }
   },

@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import shutil
 import stat
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -23,6 +24,9 @@ from dynamic_agent_runner.workflow_host.local_tools import (
     LocalToolDefinition,
     LocalToolSandbox,
     execute_macos_sandbox_exec,
+)
+from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    validate_generation_budget_field,
 )
 from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
@@ -218,6 +222,15 @@ def test_floorplan_package_binds_a_sealed_generation_descriptor(tmp_path: Path) 
     assert policy.model_materials is not None
     assert policy.execution_descriptor is not None
     assert policy.model_execution_binding is not None
+    assert asdict(validate_generation_budget_field(policy.execution_descriptor)) == {
+        "max_new_tokens_per_fragment": 1024,
+        "max_continuations": 0,
+        "max_total_generated_tokens": 1024,
+        "max_total_output_bytes": 32768,
+        "max_effective_context_tokens": 4096,
+        "max_runtime_milliseconds": 360000,
+        "max_memory_bytes": 30150672384,
+    }
     assert tuple(
         (
             source.role,
