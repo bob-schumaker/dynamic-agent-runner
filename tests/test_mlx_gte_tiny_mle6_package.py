@@ -65,7 +65,15 @@ def test_approved_gte_tiny_v2_package_is_admitted_without_mlx_or_material_io() -
     assert lock.format_version == 2
     assert lock.logical_model_id == "mlx-gte-tiny-embedding-v1"
     assert [(source.role, source.filename) for source in lock.sources] == [
+        ("bert_config", "config.json"),
+        ("modules_manifest", "modules.json"),
+        ("pooling_config", "1_Pooling/config.json"),
+        ("sentence_transformer_config", "sentence_bert_config.json"),
         ("tokenizer", "tokenizer.json"),
+        ("tokenizer_added_tokens", "added_tokens.json"),
+        ("tokenizer_config", "tokenizer_config.json"),
+        ("tokenizer_special_tokens", "special_tokens_map.json"),
+        ("tokenizer_vocab", "vocab.txt"),
         ("weights", "model.safetensors"),
     ]
     assert all(

@@ -164,9 +164,10 @@
     before MLX import, model load, or artifact egress.
   - Evidence: `tests/test_mlx_gte_tiny_mle6_package.py` was red before the
     `tests/fixtures/mlx-gte-tiny/mle6-package/` artifacts existed and is green
-    after their v2 lock, canonical descriptor digest, capability declaration,
-    and synthetic documents were sealed. It exercises only parsers and pure
-    validators; no model artifact, MLX import, or provider is reached.
+    after their v2 lock seals the approved ten-file closure, canonical descriptor
+    digest, capability declaration, and synthetic documents. It exercises only
+    parsers and pure validators; no model artifact, MLX import, or provider is
+    reached.
 
 - [ ] MLE6.3 [manual fixture, RED/GREEN] Generate a package-bound synthetic
       reference-vector fixture from the exact locked material closure using a
