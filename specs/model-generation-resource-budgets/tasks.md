@@ -3,11 +3,11 @@
 ## Status
 
 Automated implementation and focused/full-suite evidence are complete through
-T4.5. T4.6 has recorded the explicitly authorized fixture-only Darwin
-pre-dispatch resource rejection and its effective limits. The canonical resolver
-no longer accepts legacy request aliases. T4.7 remains open until the converter
-workflow package migration in T4.8 makes missing-budget rejection occur before
-sealed-input handling.
+T4.8. T4.6 has recorded the explicitly authorized fixture-only Darwin
+pre-dispatch resource rejection and its effective limits. Converter host vectors
+now use a verified v2 model-material lock and generation-budget execution
+descriptor by default; the isolated provider-unavailability ordering vector
+retains a legacy fixture because it deliberately fails before model admission.
 
 ## S1 — Canonical Contract and Admission
 
@@ -189,11 +189,11 @@ sealed-input handling.
   cancellation lifecycle form, record bounded terminal cleanup. An unsupported
   machine may additionally record a redacted pre-dispatch rejection; an OS
   memory kill fails this gate.
-- [ ] T4.7 [validation] Run `poetry run pytest -q`,
+- [x] T4.7 [validation] Run `poetry run pytest -q`,
   `poetry run ruff check src tests`, and `git diff --check`; update the related
   spec statuses and remove compatibility aliases only after all consumers have
   migrated.
-- [ ] T4.8 [migration] Migrate converter-capable workflow package fixtures and
+- [x] T4.8 [migration] Migrate converter-capable workflow package fixtures and
   their host integration vectors to a verified v2 model-material lock and
   execution descriptor carrying the canonical `generation_budget`; register the
   matching descriptor validator, runner binding, and host policy. Require the

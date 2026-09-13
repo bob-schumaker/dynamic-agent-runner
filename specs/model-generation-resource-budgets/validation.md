@@ -22,3 +22,17 @@ Effective limits recorded by the harness:
 No prompt, sealed payload, model output, model/cache path, or worker exception
 detail was recorded. A worker receipt is not applicable because admission was
 rejected before worker launch.
+
+## T4.7 — Automated validation
+
+Date: 2026-09-12
+
+- `poetry run pytest -q`: `2460 passed, 1 skipped, 7 deselected in 56.13s`
+- `poetry run ruff check src tests`: passed
+- `git diff --check`: passed
+
+Converter-host vectors use a verified v2 model-material lock, a
+generation-budget execution descriptor, its exact validator, matching runner
+binding, and a host policy. One provider-unavailability ordering vector retains
+its legacy fixture solely to prove that capability revalidation fails before
+model admission.
