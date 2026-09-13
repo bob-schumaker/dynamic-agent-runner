@@ -628,6 +628,7 @@ def test_launcher_terminates_and_confirms_reap_before_releasing_on_deadline() ->
         max_memory_bytes=8,
         execution_device="cpu",
     )
+    deadline = GenerationDeadline.start(0.0, max_runtime_milliseconds=1)
 
     with pytest.raises(GenerationWorkerDeadlineExceeded, match="deadline exceeded"):
         launcher.generate(
@@ -643,9 +644,9 @@ def test_launcher_terminates_and_confirms_reap_before_releasing_on_deadline() ->
                 packed_context_tokens=3,
                 requested_new_tokens=1,
                 max_memory_bytes=8,
-                deadline_monotonic=1.0,
+                deadline_monotonic=deadline.expires_at,
             ),
-            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1),
+            deadline=deadline,
             now=0.0,
             clock=lambda: 1.0,
             controller=Controller(),
@@ -1558,6 +1559,59 @@ def test_launcher_rejects_reservation_requests_not_bound_to_packed_receipt(
         )
 
 
+def test_launcher_rejects_a_reservation_deadline_outside_its_invocation() -> None:
+    events: list[str] = []
+
+    class Provider:
+        def reserve(self, _request: object) -> object:
+            pytest.fail("a mismatched deadline must not reserve memory")
+
+    class Child:
+        def generate(self) -> tuple[bytes, int]:
+            pytest.fail("a mismatched deadline must not dispatch generation")
+
+        def reap(self) -> None:
+            events.append("reap")
+
+    session = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=2,
+    )
+    receipt = session.pack(fragment_index=0, packed_context_tokens=3)
+    child = Child()
+    launcher = GenerationWorkerLauncher()
+    launcher._packed_receipts[id(child)] = receipt  # type: ignore[attr-defined]
+    deadline = GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000)
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        launcher.generate(
+            child=child,
+            session=session,
+            receipt=receipt,
+            remaining_generated_tokens=2,
+            provider=Provider(),
+            request=GenerationMemoryReservationRequest(
+                material_lock_digest="c" * 64,
+                runner_identity="runner",
+                execution_device="cpu",
+                packed_context_tokens=3,
+                requested_new_tokens=2,
+                max_memory_bytes=8,
+                deadline_monotonic=deadline.expires_at + 1.0,
+            ),
+            deadline=deadline,
+            now=0.0,
+            clock=lambda: 0.0,
+        )
+
+    assert events == ["reap"]
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     (
@@ -1817,6 +1871,7 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
         max_memory_bytes=8,
         execution_device="cpu",
     )
+    deadline = GenerationDeadline.start(0.0, max_runtime_milliseconds=1)
     result = launcher.generate(
         child=child,
         session=worker,
@@ -1830,9 +1885,9 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
             packed_context_tokens=3,
             requested_new_tokens=1,
             max_memory_bytes=8,
-            deadline_monotonic=1.0,
+            deadline_monotonic=deadline.expires_at,
         ),
-        deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1),
+        deadline=deadline,
         now=0.0,
         clock=lambda: 0.0,
     )
@@ -1968,6 +2023,7 @@ def test_launcher_discards_a_result_when_the_deadline_expires_during_generation(
         max_memory_bytes=8,
         execution_device="cpu",
     )
+    deadline = GenerationDeadline.start(0.0, max_runtime_milliseconds=1)
     ticks = iter((0.0, 0.001))
     with pytest.raises(GenerationWorkerDeadlineExceeded, match="deadline exceeded"):
         launcher.generate(
@@ -1983,9 +2039,9 @@ def test_launcher_discards_a_result_when_the_deadline_expires_during_generation(
                 packed_context_tokens=3,
                 requested_new_tokens=1,
                 max_memory_bytes=8,
-                deadline_monotonic=1.0,
+                deadline_monotonic=deadline.expires_at,
             ),
-            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1),
+            deadline=deadline,
             now=0.0,
             clock=lambda: next(ticks),
         )

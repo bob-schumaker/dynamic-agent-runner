@@ -730,6 +730,8 @@ class GenerationWorkerLauncher:
         request: GenerationMemoryReservationRequest,
         deadline: GenerationDeadline,
     ) -> None:
+        if request.deadline_monotonic != deadline.expires_at:
+            session.reject()
         if descriptor is not None and not _reservation_matches_descriptor(
             request=request,
             receipt=receipt,
