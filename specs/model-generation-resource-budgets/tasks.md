@@ -237,7 +237,7 @@ admission.
   profile path in production host composition. Preparation must verify only the
   exact approved base/adapter artifacts from DAR-owned or approved cache roots;
   do not fabricate records or invoke directly from a cache path.
-- [ ] T5.7 [manual gate] Create/register the prepared floorplan workflow through
+- [x] T5.7 [manual gate] Create/register the prepared floorplan workflow through
   the supported host APIs, then execute T5.4 with the explicit Darwin MPS host
   policy and record only its redacted receipt and aggregate facts.
 - [x] T5.8 [tests, RED/GREEN + implementation] Add the canonical sealed
@@ -263,3 +263,8 @@ admission.
   `json_object` response contract through the generic co-located
   converter/runner worker assets and validate the completed worker response;
   do not reject the reviewed floorplan package before MPS worker launch.
+- [ ] T5.13 [tests, RED/GREEN + manual gate] Establish a reviewed generation
+  budget that can complete the floorplan package's required JSON contract on
+  the prepared MPS model, while retaining the bounded worker lifecycle and
+  sealed descriptor validation. Do not treat a 512-token continuation-limit
+  rejection as a successful floorplan result.

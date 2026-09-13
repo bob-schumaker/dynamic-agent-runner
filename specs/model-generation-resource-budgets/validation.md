@@ -64,6 +64,20 @@ bundle accepted no JSON contract; it now proves that the child receives
 `json_mode=True`. Focused generic adapter, asset, and factory verification
 passed: `85 passed`.
 
+## T5.7 — Public-host Darwin MPS floorplan gate
+
+Date: 2026-09-13
+
+The supported host configuration, local-model preparation, package selection,
+registration, explicit image ingress, sealing, and debug run all completed on
+the local Darwin MPS environment. The redacted receipt recorded
+`bootstrap_ready -> packed_receipt -> authorized -> reaped`, with 309 packed
+context tokens and one 512-token, 1,197-byte fragment. The sealed no-
+continuation budget correctly rejected the exhausted incomplete JSON response;
+no model output, prompt, image, model/cache path, handle, token IDs, or tensors
+were recorded. T5.13 tracks the separate requirement for a reviewed budget
+that completes this package's JSON contract.
+
 ## S5 — Darwin MPS no-model worker fixture
 
 Date: 2026-09-13
