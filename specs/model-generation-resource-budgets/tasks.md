@@ -225,3 +225,8 @@ admission.
 - [ ] T5.4 [manual gate] With explicit authorization and a locally prepared
   supported MPS model, run T4.6 through the S5 fixture and record only redacted
   effective limits, aggregate facts, and bootstrap/authorization/reap receipt.
+- [ ] T5.5 [tests, RED/GREEN + implementation] Add a DAR-owned constructor for
+  an explicit MPS host ceiling and atomic local memory reservation provider.
+  It must reject non-Darwin, unavailable, and over-capacity policies before
+  host open; preserve caller-supplied policies; and allow the existing prepared
+  Transformers/PEFT workflow to select MPS without test-only provider code.
