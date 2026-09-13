@@ -703,23 +703,44 @@ class GenerationWorkerLauncher:
             ) from error
         finally:
             self._launched_descriptors.pop(id(child), None)
-            try:
-                if controller is None:
-                    reap()
-                else:
-                    self._close_with_controller(
-                        child=child,
-                        controller=controller,
-                        deadline=deadline,
-                        clock=clock,
-                    )
-            except Exception as error:
-                raise GenerationWorkerProtocolError(
-                    "generation worker protocol invalid"
-                ) from error
+            self._finish_generation_cleanup(
+                child=child,
+                reap=reap,
+                controller=controller,
+                reservation=reservation,
+                deadline=deadline,
+                clock=clock,
+            )
+
+    def _finish_generation_cleanup(
+        self,
+        *,
+        child: object,
+        reap: Callable[[], object],
+        controller: object | None,
+        reservation: ReservedGenerationMemory | None,
+        deadline: GenerationDeadline,
+        clock: Callable[[], float],
+    ) -> None:
+        deadline_expired_during_cleanup = False
+        try:
+            if controller is None:
+                reap()
             else:
-                if reservation is not None:
-                    reservation.release()
+                deadline_expired_during_cleanup = self._close_with_controller(
+                    child=child,
+                    controller=controller,
+                    deadline=deadline,
+                    clock=clock,
+                )
+        except Exception as error:
+            raise GenerationWorkerProtocolError(
+                "generation worker protocol invalid"
+            ) from error
+        if reservation is not None:
+            reservation.release()
+        if deadline_expired_during_cleanup:
+            raise GenerationWorkerDeadlineExceeded("generation deadline exceeded")
 
     def _validate_launched_reservation(
         self,
@@ -777,7 +798,7 @@ class GenerationWorkerLauncher:
         controller: object,
         deadline: GenerationDeadline,
         clock: Callable[[], float],
-    ) -> None:
+    ) -> bool:
         """Confirm worker cleanup, escalating an expired deadline through kill."""
 
         terminate = getattr(controller, "terminate", None)
@@ -801,6 +822,7 @@ class GenerationWorkerLauncher:
                 raise GenerationWorkerProtocolError(
                     "generation worker protocol invalid"
                 ) from error
+        return expired or deadline.remaining_seconds(clock()) <= 0
 
     def authorize(
         self,

@@ -662,6 +662,97 @@ def test_launcher_terminates_and_confirms_reap_before_releasing_on_deadline() ->
     ]
 
 
+def test_launcher_classifies_expiry_during_reap_after_releasing_memory() -> None:
+    events: list[str] = []
+
+    class Reservation:
+        def release(self) -> None:
+            events.append("release")
+
+    class Provider:
+        def reserve(self, _request: object) -> Reservation:
+            events.append("reserve")
+            return Reservation()
+
+    class Child:
+        def install_bootstrap_limit(self, _memory_bytes: int, _device: str) -> None:
+            events.append("limit")
+
+        def pack(self) -> int:
+            events.append("pack")
+            return 3
+
+        def generate(self) -> tuple[bytes, int]:
+            events.append("generate")
+            return b"{}", 1
+
+        def reap(self) -> None:
+            pytest.fail("controller lifecycle must own reap")
+
+    class Controller:
+        def terminate(self, _child: object) -> None:
+            events.append("terminate")
+
+        def kill(self, _child: object) -> None:
+            events.append("kill")
+
+        def reap(self, _child: object, _timeout: float) -> bool:
+            events.append("reap")
+            return True
+
+    session = GenerationWorkerSession(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="b" * 64,
+        material_lock_digest="c" * 64,
+        execution_device="cpu",
+        max_total_generated_tokens=4,
+        max_total_output_bytes=2,
+    )
+    child = Child()
+    launcher = GenerationWorkerLauncher()
+    receipt = launcher.pack_receipt(
+        child=child,
+        session=session,
+        fragment_index=0,
+        max_memory_bytes=8,
+        execution_device="cpu",
+    )
+    deadline = GenerationDeadline.start(0.0, max_runtime_milliseconds=1)
+    ticks = iter((0.0, 0.0, 0.0, 0.0, 1.0))
+
+    with pytest.raises(GenerationWorkerDeadlineExceeded, match="deadline exceeded"):
+        launcher.generate(
+            child=child,
+            session=session,
+            receipt=receipt,
+            remaining_generated_tokens=1,
+            provider=Provider(),
+            request=GenerationMemoryReservationRequest(
+                material_lock_digest="c" * 64,
+                runner_identity="runner",
+                execution_device="cpu",
+                packed_context_tokens=3,
+                requested_new_tokens=1,
+                max_memory_bytes=8,
+                deadline_monotonic=deadline.expires_at,
+            ),
+            deadline=deadline,
+            now=0.0,
+            clock=lambda: next(ticks),
+            controller=Controller(),
+        )
+
+    assert events == [
+        "limit",
+        "pack",
+        "reserve",
+        "generate",
+        "reap",
+        "release",
+    ]
+
+
 def test_launcher_keeps_its_reservation_when_reap_cannot_be_confirmed() -> None:
     events: list[str] = []
 
