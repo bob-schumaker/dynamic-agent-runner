@@ -597,7 +597,7 @@
   - Evidence: spec, plan, and task amendments below; the deliberation was
     advisory sequential fallback rather than independent parallel review.
 
-- [ ] MLE8.1 [spec/design] Register a new closed `roberta-encoder-mlx-v1` ABI
+- [x] MLE8.1 [spec/design] Register a new closed `roberta-encoder-mlx-v1` ABI
       for `sentence-transformers/all-distilroberta-v1`: exact byte-level BPE
       grammar, RoBERTa tensor names/shapes/dtypes, padding-index position-ID
       derivation, LayerNorm epsilon, attention/activation/residual order,
@@ -612,8 +612,13 @@
     byte-to-Unicode bijection, Unicode-category pre-tokenization, merge-rank and
     tie behavior, `add_prefix_space: false` behavior, special-token framing,
     UTF-8 failure handling, and finite vocabulary/merge/token ceilings. It
-    fixes the target-compatible padding index, RoBERTa position-ID derivation,
-    and `1e-5` LayerNorm epsilon rather than inheriting BERT's `1e-12` rule.
+  fixes the target-compatible padding index, RoBERTa position-ID derivation,
+  and `1e-5` LayerNorm epsilon rather than inheriting BERT's `1e-12` rule.
+  - Evidence (2026-09-13): `mlx_roberta_embedding_abi.py` registers the exact
+    identity and a pure finite descriptor validator. Its fake-only focused
+    tests admit the target-shaped descriptor and reject alternate tokenizer,
+    position-ID, epsilon, token-type, and executable-tokenizer facts without
+    material or MLX work.
 
 - [ ] MLE8.2 [tests, RED/GREEN] Add fake-only ABI vectors for byte-level BPE
       vocabulary/merge admission, Unicode byte and leading-space behavior,

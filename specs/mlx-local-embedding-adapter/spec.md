@@ -3,8 +3,9 @@
 ## Metadata
 
 - Feature slug: `mlx-local-embedding-adapter`
-- Status: generic ABI/provider, one BERT/WordPiece package, and one
-  SentencePiece-Unigram package implemented; MLE8 RoBERTa expansion planned
+- Status: generic ABI/provider, one BERT/WordPiece package, one
+  SentencePiece-Unigram package, and the MLE8 RoBERTa descriptor ABI
+  implemented; RoBERTa execution and package evidence remain planned
 - Owner: dynamic-agent-runner local-model and embedding-capability boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`
@@ -254,9 +255,13 @@ converts only the sealed source role into the declared `weights` role; arbitrary
 conversion, input paths, tensor policy, and model-name selection remain out of
 scope.
 
-### Planned closed RoBERTa execution ABI: `roberta-encoder-mlx-v1`
+### Registered closed RoBERTa execution ABI: `roberta-encoder-mlx-v1`
 
-`roberta-encoder-mlx-v1` is a separate planned ABI; it must not be represented
+`roberta-encoder-mlx-v1` is the exact ABI identity
+`{"id":"roberta-encoder-mlx-v1","version":"1","contract_digest":"7770aa3d61b26984d2e549f99092459935d0237f67cae2e8b176c0516ce04391"}`.
+Its contract digest is SHA-256 over the UTF-8 contract string
+`dar.roberta-encoder-mlx-v1@1|roles=merges,vocab,weights|tokenizer=roberta-byte-level-bpe-v1,gpt2-byte-level-v1,add_prefix_space=false,utf8-strict|positions=padding-index-derived-v1|layer_norm_epsilon=1e-5|layout=roberta-encoder-safetensors-v1|pooling=cls,masked_mean|normalization=none,l2`.
+It is a separate ABI; it must not be represented
 as a BERT descriptor revision. It will own a byte-level BPE tokenizer grammar
 and RoBERTa's independently fixed tensor layout and arithmetic: token and
 absolute-position embeddings, RoBERTa padding-index position-ID derivation,
