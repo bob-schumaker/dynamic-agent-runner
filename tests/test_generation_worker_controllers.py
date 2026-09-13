@@ -402,6 +402,51 @@ def test_cpu_worker_requires_its_bound_transcript_identity_on_every_frame() -> N
         )
 
 
+def test_cpu_worker_rejects_out_of_order_and_duplicate_authorization() -> None:
+    from dynamic_agent_runner.workflow_host import generation_worker_controllers
+
+    descriptor = _descriptor(execution_device="cpu")
+    runtime = _CpuIpcRuntime()
+    transcript = {
+        "invocation_id": descriptor.invocation_id,
+        "invocation_digest": descriptor.invocation_digest,
+        "fragment_index": descriptor.fragment_index,
+    }
+    receipt = GenerationWorkerPackReceipt(
+        invocation_id=descriptor.invocation_id,
+        invocation_digest=descriptor.invocation_digest,
+        converter_digest=descriptor.converter_asset_digest,
+        material_lock_digest=descriptor.material_lock_digest,
+        execution_device=descriptor.execution_device,
+        fragment_index=descriptor.fragment_index,
+        packed_context_tokens=3,
+    )
+    authorize_request = {
+        "type": "authorize",
+        **transcript,
+        "receipt": generation_worker_controllers._receipt_to_wire(receipt),
+        "remaining_generated_tokens": 2,
+    }
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        generation_worker_controllers._cpu_worker_response(
+            request=authorize_request,
+            descriptor=descriptor,
+            worker_runtime=runtime,
+            packed_context_tokens=None,
+            authorized_remaining_generated_tokens=None,
+        )
+
+    with pytest.raises(GenerationWorkerProtocolError, match="protocol invalid"):
+        generation_worker_controllers._cpu_worker_response(
+            request=authorize_request,
+            descriptor=descriptor,
+            worker_runtime=runtime,
+            packed_context_tokens=3,
+            authorized_remaining_generated_tokens=2,
+        )
+
+
 def test_cpu_child_constructs_a_runtime_only_after_child_bootstrap() -> None:
     base_descriptor = _descriptor(execution_device="cpu")
     descriptor = replace(
