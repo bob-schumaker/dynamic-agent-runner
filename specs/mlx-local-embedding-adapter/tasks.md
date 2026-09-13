@@ -156,7 +156,7 @@
     it does not authorize redistribution or live material use.
 
 - [x] MLE6.2 [tests, RED/GREEN] Add package-admission tests for the selected
-      v2 `model-materials.json`, `bert-encoder-mlx-v1` descriptor, required
+      v2 `model-materials.json`, `bert-encoder-mlx-v2` descriptor, required
       `embedding.execute.v1` capability, and synthetic document fixture.
   - Spec: FR-2, FR-4, Operational Completion Gates 1 and 3.
   - Depends on: MLE6.1.
@@ -229,13 +229,24 @@
   - Evidence: a fake complete pair was red before admission and green after;
     a malformed pooler shape rejects before the MLX loader is called.
 
+- [x] MLE6.4d [bug, tests RED/GREEN] Add a versioned closed BERT descriptor
+      grammar that permits only F32 LayerNorm affine tensors alongside a
+      declared F16 base dtype; retain the uniform v1 grammar unchanged.
+  - Discovered: MLE6.5 preflight on 2026-09-13 found the verified GTE Tiny
+    closure stores its 26 `*.LayerNorm.{weight,bias}` tensors as F32 while its
+    other encoder and optional pooler tensors are F16.
+  - Depends on: MLE6.4c.
+  - Evidence: v2 acceptance and incompatible precision-pattern rejection were
+    red before the closed v2 validator was added, then green with package
+    identity and generic execution-binding tests.
+
 - [ ] MLE6.5 [manual competency gate] With explicit authorization, prepare the
       exact sealed package on Darwin arm64 with `mlx==0.32.2`, run the MLX
       embedding/index workflow, and compare against its locked reference
       fixture. Retain only package/material/descriptor digests, limits,
       duration, memory, vector count/dimension, opaque output IDs, and status.
   - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
-  - Depends on: MLE6.4c.
+  - Depends on: MLE6.4d.
 
 - [ ] MLE6.6 [tests/docs] Add the exact successful package/material identity to
       the workflow model support matrix, update MLX embedding status/validation,

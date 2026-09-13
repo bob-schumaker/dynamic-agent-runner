@@ -10,15 +10,31 @@ from dynamic_agent_runner.workflow_host.execution_descriptors import (
 )
 from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
     BERT_ENCODER_MLX_V1_ABI,
+    BERT_ENCODER_MLX_V2_ABI,
     BertEncoderMlxV1DescriptorValidator,
+    BertEncoderMlxV2DescriptorValidator,
 )
 
 
-def _descriptor():
+def _descriptor(*, abi=BERT_ENCODER_MLX_V1_ABI):
+    encoder = {
+        "weights_role": "weights",
+        "tensor_layout": "bert-encoder-safetensors-v1",
+        "dtype": "float32",
+        "vocab_size": 30_522,
+        "hidden_size": 768,
+        "layers": 12,
+        "attention_heads": 12,
+        "intermediate_size": 3_072,
+        "max_positions": 512,
+        "type_vocab_size": 2,
+    }
+    if abi == BERT_ENCODER_MLX_V2_ABI:
+        encoder.update(dtype="float16", layer_norm_dtype="float32")
     return parse_execution_descriptor(
         {
             "format_version": 1,
-            "architecture_abi": BERT_ENCODER_MLX_V1_ABI.to_mapping(),
+            "architecture_abi": abi.to_mapping(),
             "material_roles": ["tokenizer", "weights"],
             "abi_fields": {
                 "tokenizer": {
@@ -34,18 +50,7 @@ def _descriptor():
                     },
                     "truncation": "longest-first",
                 },
-                "encoder": {
-                    "weights_role": "weights",
-                    "tensor_layout": "bert-encoder-safetensors-v1",
-                    "dtype": "float32",
-                    "vocab_size": 30_522,
-                    "hidden_size": 768,
-                    "layers": 12,
-                    "attention_heads": 12,
-                    "intermediate_size": 3_072,
-                    "max_positions": 512,
-                    "type_vocab_size": 2,
-                },
+                "encoder": encoder,
                 "pooling": "masked_mean",
                 "normalization": "l2",
                 "limits": {
@@ -89,6 +94,24 @@ def test_two_distinct_descriptors_are_accepted_by_the_same_abi() -> None:
 
     assert first.architecture_abi == second.architecture_abi
     assert first.digest != second.digest
+
+
+def test_v2_accepts_only_the_declared_float32_layer_norm_override() -> None:
+    descriptor = _descriptor(abi=BERT_ENCODER_MLX_V2_ABI)
+
+    BertEncoderMlxV2DescriptorValidator().validate(descriptor)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (("dtype", "float32"), ("layer_norm_dtype", "float16")),
+)
+def test_v2_rejects_other_precision_patterns(field: str, value: str) -> None:
+    descriptor = _descriptor(abi=BERT_ENCODER_MLX_V2_ABI)
+    descriptor.abi_fields["encoder"][field] = value
+
+    with pytest.raises(ExecutionDescriptorError, match="ABI fields"):
+        BertEncoderMlxV2DescriptorValidator().validate(descriptor)
 
 
 @pytest.mark.parametrize(

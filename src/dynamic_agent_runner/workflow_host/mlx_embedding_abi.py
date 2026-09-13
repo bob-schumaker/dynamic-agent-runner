@@ -30,11 +30,29 @@ BERT_ENCODER_MLX_V1_ABI = ExecutionDescriptorAbi(
     "2179662461bf786c7f55d88d9e3454a3d4dc59f5e818a96e248847abc62e4420",
 )
 
+BERT_ENCODER_MLX_V2_ABI = ExecutionDescriptorAbi(
+    "bert-encoder-mlx-v2",
+    "2",
+    "646e958aae4752c3fdb2503d257929b95ad037c5462a35a7fa9e5d23aa14d35d",
+)
+
 
 class BertEncoderMlxV1DescriptorValidator:
     """Validate the finite, model-neutral BERT encoder descriptor grammar."""
 
     identity = BERT_ENCODER_MLX_V1_ABI
+    encoder_keys = {
+        "weights_role",
+        "tensor_layout",
+        "dtype",
+        "vocab_size",
+        "hidden_size",
+        "layers",
+        "attention_heads",
+        "intermediate_size",
+        "max_positions",
+        "type_vocab_size",
+    }
 
     def validate(self, descriptor: ExecutionDescriptor) -> None:
         if descriptor.architecture_abi != self.identity:
@@ -63,21 +81,7 @@ class BertEncoderMlxV1DescriptorValidator:
                 "truncation",
             },
         )
-        encoder = _mapping(
-            fields["encoder"],
-            {
-                "weights_role",
-                "tensor_layout",
-                "dtype",
-                "vocab_size",
-                "hidden_size",
-                "layers",
-                "attention_heads",
-                "intermediate_size",
-                "max_positions",
-                "type_vocab_size",
-            },
-        )
+        encoder = _mapping(fields["encoder"], self.encoder_keys)
         limits = _mapping(
             fields["limits"],
             {
@@ -113,7 +117,7 @@ class BertEncoderMlxV1DescriptorValidator:
             _invalid()
         _one_of(encoder["weights_role"], {"weights"})
         _one_of(encoder["tensor_layout"], {"bert-encoder-safetensors-v1"})
-        _one_of(encoder["dtype"], {"float16", "bfloat16", "float32"})
+        self._validate_dtypes(encoder)
         hidden_size = _bounded_int(encoder["hidden_size"], 4_096)
         _bounded_int(encoder["layers"], 48)
         heads = _bounded_int(encoder["attention_heads"], 64)
@@ -158,6 +162,22 @@ class BertEncoderMlxV1DescriptorValidator:
         ):
             _invalid()
 
+    def _validate_dtypes(self, encoder: Mapping[str, object]) -> None:
+        _one_of(encoder["dtype"], {"float16", "bfloat16", "float32"})
+
+
+class BertEncoderMlxV2DescriptorValidator(BertEncoderMlxV1DescriptorValidator):
+    """Validate the closed mixed-precision BERT descriptor grammar."""
+
+    identity = BERT_ENCODER_MLX_V2_ABI
+    encoder_keys = BertEncoderMlxV1DescriptorValidator.encoder_keys | {
+        "layer_norm_dtype"
+    }
+
+    def _validate_dtypes(self, encoder: Mapping[str, object]) -> None:
+        _one_of(encoder["dtype"], {"float16"})
+        _one_of(encoder["layer_norm_dtype"], {"float32"})
+
 
 def bert_encoder_mlx_v1_embedding_batch_limits(
     descriptor: ExecutionDescriptor,
@@ -165,7 +185,7 @@ def bert_encoder_mlx_v1_embedding_batch_limits(
     """Project one admitted BERT ABI descriptor to private generic batch limits."""
 
     try:
-        BertEncoderMlxV1DescriptorValidator().validate(descriptor)
+        _validate_supported_bert_descriptor(descriptor)
         fields = descriptor.abi_fields
         limits = fields["limits"]
         encoder = fields["encoder"]
@@ -250,7 +270,7 @@ def _admit_bert_descriptor(
         if not isinstance(materials.execution_descriptor, ExecutionDescriptor):
             raise ValueError
         descriptor = materials.execution_descriptor
-        BertEncoderMlxV1DescriptorValidator().validate(descriptor)
+        _validate_supported_bert_descriptor(descriptor)
         limits = descriptor.abi_fields["limits"]
         if not isinstance(limits, Mapping):
             raise ValueError
@@ -259,6 +279,17 @@ def _admit_bert_descriptor(
         raise EmbeddingExecutionError(
             "MLX embedding material is unavailable"
         ) from error
+
+
+def _validate_supported_bert_descriptor(descriptor: ExecutionDescriptor) -> None:
+    validators = {
+        BERT_ENCODER_MLX_V1_ABI: BertEncoderMlxV1DescriptorValidator(),
+        BERT_ENCODER_MLX_V2_ABI: BertEncoderMlxV2DescriptorValidator(),
+    }
+    validator = validators.get(descriptor.architecture_abi)
+    if validator is None:
+        _invalid()
+    validator.validate(descriptor)
 
 
 def _read_bert_artifacts(
@@ -612,9 +643,9 @@ def _validate_bert_tensor_header(
     tensor_header = _tensor_header(header, shapes, optional_shapes)
     if set(optional_shapes).issubset(tensor_header):
         shapes.update(optional_shapes)
-    expected_dtype, item_bytes = _bert_dtype_details(descriptor)
     spans: list[tuple[int, int]] = []
     for name, expected_shape in shapes.items():
+        expected_dtype, item_bytes = _bert_dtype_details(descriptor, name)
         tensor_metadata = tensor_header[name]
         if not isinstance(tensor_metadata, Mapping):
             raise ValueError
@@ -720,11 +751,11 @@ def _validate_embedding_inputs(
 def _validate_declared_memory(
     descriptor: ExecutionDescriptor, limits: Mapping[str, object], *, item_count: int
 ) -> None:
-    _, item_bytes = _bert_dtype_details(descriptor)
     parameter_shapes = _bert_tensor_shapes(descriptor)
     parameter_shapes.update(_bert_optional_pooler_shapes(descriptor))
     parameter_bytes = sum(
-        math.prod(shape) * item_bytes for shape in parameter_shapes.values()
+        math.prod(shape) * _bert_dtype_details(descriptor, name)[1]
+        for name, shape in parameter_shapes.items()
     )
     encoder = descriptor.abi_fields["encoder"]
     assert isinstance(encoder, Mapping)
@@ -733,14 +764,22 @@ def _validate_declared_memory(
         raise EmbeddingExecutionError("MLX embedding material is unavailable")
 
 
-def _bert_dtype_details(descriptor: ExecutionDescriptor) -> tuple[str, int]:
+def _bert_dtype_details(
+    descriptor: ExecutionDescriptor, tensor_name: str
+) -> tuple[str, int]:
     encoder = descriptor.abi_fields["encoder"]
     assert isinstance(encoder, Mapping)
+    dtype = encoder["dtype"]
+    if (
+        descriptor.architecture_abi == BERT_ENCODER_MLX_V2_ABI
+        and ".LayerNorm." in tensor_name
+    ):
+        dtype = encoder["layer_norm_dtype"]
     return {
         "float16": ("F16", 2),
         "bfloat16": ("BF16", 2),
         "float32": ("F32", 4),
-    }[encoder["dtype"]]
+    }[dtype]
 
 
 def _validate_wordpiece_tokenizer(

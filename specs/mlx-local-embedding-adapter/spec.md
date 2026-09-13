@@ -167,6 +167,17 @@ at 128 bytes, accepts at most two material roles, and applies these ABI maxima:
 The output vector dimension is exactly `encoder.hidden_size`; it is not a
 separate descriptor setting.
 
+### Closed mixed-precision extension: `bert-encoder-mlx-v2`
+
+`bert-encoder-mlx-v2@2` has contract digest
+`646e958aae4752c3fdb2503d257929b95ad037c5462a35a7fa9e5d23aa14d35d`.
+It retains every v1 field and bound, but its `encoder` object additionally
+requires `"layer_norm_dtype": "float32"` and fixes `"dtype": "float16"`.
+Only the affine tensors named `*.LayerNorm.{weight,bias}` use
+`layer_norm_dtype`; every other required tensor and the optional complete
+`pooler.dense.{weight,bias}` pair use `dtype`. v1 remains a uniform-dtype
+grammar and does not accept this field.
+
 `wordpiece-json-v1` is a closed tokenizer-asset grammar, not a request to
 execute a tokenizer package. Its UTF-8 JSON root has `model`, `normalizer`,
 and `pre_tokenizer` objects. `model` has `type: "WordPiece"`, a string
@@ -181,7 +192,8 @@ provide an import, executable callback, model path, or remote reference.
 The ABI owns this complete safetensors tensor-key and shape grammar, where `H`,
 `I`, `L`, `V`, `P`, and `T` are respectively `hidden_size`,
 `intermediate_size`, `layers`, `vocab_size`, `max_positions`, and
-`type_vocab_size`; every listed tensor uses the declared `dtype`:
+`type_vocab_size`; every listed tensor uses the declared `dtype`, except for
+the v2 LayerNorm affine-tensor rule above:
 
 | Keys | Shape |
 | --- | --- |
@@ -196,7 +208,9 @@ The ABI owns this complete safetensors tensor-key and shape grammar, where `H`,
 | `encoder.layer.{0..L-1}.output.dense.{weight,bias}` | `[H, I]` for `weight`; `[H]` for `bias` |
 | `encoder.layer.{0..L-1}.output.LayerNorm.{weight,bias}` | `[H]` |
 
-No other tensor key is accepted. The descriptor provides no regex, expression,
+The only additional accepted keys are the complete unused standard
+`pooler.dense.{weight,bias}` pair, with the exact descriptor-derived shapes and
+dtype; no other tensor key is accepted. The descriptor provides no regex, expression,
 arbitrary tensor predicate, import, loader, runtime-version, device, or provider
 field. After verified material resolution, the backend validates the actual
 tokenizer bytes and safetensors header against those byte ceilings and this

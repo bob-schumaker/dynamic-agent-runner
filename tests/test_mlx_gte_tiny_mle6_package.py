@@ -21,7 +21,7 @@ from dynamic_agent_runner.workflow_host.execution_descriptors import (
     parse_execution_descriptor,
 )
 from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
-    BertEncoderMlxV1DescriptorValidator,
+    BertEncoderMlxV2DescriptorValidator,
 )
 from dynamic_agent_runner.workflow_host.model_execution_binding import (
     ModelExecutionBindingError,
@@ -82,7 +82,7 @@ def test_approved_gte_tiny_v2_package_is_admitted_without_mlx_or_material_io() -
     )
     assert lock.execution_descriptor is not None
     assert lock.execution_descriptor.sha256 == descriptor.digest
-    BertEncoderMlxV1DescriptorValidator().validate(descriptor)
+    BertEncoderMlxV2DescriptorValidator().validate(descriptor)
     conformance = descriptor.abi_fields["conformance"]
     assert isinstance(conformance, dict)
     assert (
@@ -124,7 +124,7 @@ def test_changed_descriptor_or_capability_rejects_before_model_execution() -> No
     assert isinstance(abi, dict)
     abi["id"] = "other-encoder-v1"
     with pytest.raises(ExecutionDescriptorError, match="ABI fields"):
-        BertEncoderMlxV1DescriptorValidator().validate(
+        BertEncoderMlxV2DescriptorValidator().validate(
             parse_execution_descriptor(changed_descriptor)
         )
 
@@ -156,7 +156,7 @@ def _descriptor_validators():
     )
 
     return ExecutionDescriptorValidatorRegistry(
-        (BertEncoderMlxV1DescriptorValidator(),)
+        (BertEncoderMlxV2DescriptorValidator(),)
     )
 
 
