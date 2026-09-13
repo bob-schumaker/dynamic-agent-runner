@@ -303,6 +303,39 @@ def test_memory_reservation_rejects_missing_or_malformed_providers() -> None:
         reserve_generation_memory(object(), request)
 
 
+def test_memory_reservation_redacts_a_cleanup_failure_without_retrying() -> None:
+    calls = 0
+
+    class Reservation:
+        def release(self) -> None:
+            nonlocal calls
+            calls += 1
+            raise RuntimeError("private receiver failure")
+
+    class Provider:
+        def reserve(self, _request: object) -> Reservation:
+            return Reservation()
+
+    reservation = reserve_generation_memory(
+        Provider(),
+        GenerationMemoryReservationRequest(
+            material_lock_digest="a" * 64,
+            runner_identity="runner",
+            execution_device="cpu",
+            packed_context_tokens=1,
+            requested_new_tokens=1,
+            max_memory_bytes=1,
+            deadline_monotonic=1.0,
+        ),
+    )
+
+    with pytest.raises(GenerationResourceBudgetError, match="memory budget"):
+        reservation.release()
+    reservation.release()
+
+    assert calls == 1
+
+
 def test_memory_reservation_request_redacts_a_non_string_material_lock_identity() -> (
     None
 ):

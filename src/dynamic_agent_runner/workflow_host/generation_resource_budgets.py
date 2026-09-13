@@ -145,7 +145,12 @@ class ReservedGenerationMemory:
         if reservation is None:
             return
         self._reservation = None
-        reservation.release()
+        try:
+            reservation.release()
+        except Exception as error:  # noqa: BLE001 - receiver cleanup stays private.
+            raise GenerationResourceBudgetError(
+                "generation memory budget is unavailable"
+            ) from error
 
 
 @dataclass(frozen=True)
