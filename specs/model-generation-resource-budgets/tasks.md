@@ -4,10 +4,13 @@
 
 Automated implementation and focused/full-suite evidence are complete through
 T4.8. T4.6 has recorded the explicitly authorized fixture-only Darwin
-pre-dispatch resource rejection and its effective limits. Converter host vectors
-now use a verified v2 model-material lock and generation-budget execution
-descriptor by default; the isolated provider-unavailability ordering vector
-retains a legacy fixture because it deliberately fails before model admission.
+pre-dispatch resource rejection and its effective limits. S5 adds the pending
+concrete Darwin Metal/MPS worker implementation and separate executable fixture;
+until it completes, the host continues to reject MPS worker admission. Converter
+host vectors now use a verified v2 model-material lock and generation-budget
+execution descriptor by default; the isolated provider-unavailability ordering
+vector retains a legacy fixture because it deliberately fails before model
+admission.
 
 ## S1 — Canonical Contract and Admission
 
@@ -199,3 +202,25 @@ retains a legacy fixture because it deliberately fails before model admission.
   matching descriptor validator, runner binding, and host policy. Require the
   workflow runner to reject a missing or incompatible generation budget before
   converter loading or sealed-input materialization, then rerun T4.7.
+
+## S5 — Darwin Metal/MPS Worker Support
+
+- [ ] T5.1 [tests, RED] Add Darwin-only concrete-runtime vectors for a
+  receiver-installed MPS allocator envelope: reject an unavailable MPS runtime
+  before ingress; derive a bounded process fraction from the canonical memory
+  ceiling and reviewed device capacity; install the envelope in the child
+  before converter packing or model/device access; and preserve the fixed
+  bootstrap -> pack -> authorize -> generate -> reap IPC lifecycle.
+- [ ] T5.2 [implementation] Implement the reviewed Darwin Metal/MPS runtime
+  over the existing fixed worker transport. Register it only for the DAR-owned
+  Transformers/PEFT runner when MPS is available, while retaining the current
+  CPU path on non-Darwin machines. Do not register an MPS fallback or weaken a
+  failed memory envelope into best-effort admission.
+- [ ] T5.3 [tests, RED/GREEN] Add a distinct MPS-capable test workflow/profile
+  fixture alongside the existing conformance fixture. Prove it selects only
+  the MPS controller and cannot dispatch through the CPU controller; run its
+  deterministic no-model lifecycle vector without downloading or executing a
+  live model.
+- [ ] T5.4 [manual gate] With explicit authorization and a locally prepared
+  supported MPS model, run T4.6 through the S5 fixture and record only redacted
+  effective limits, aggregate facts, and bootstrap/authorization/reap receipt.

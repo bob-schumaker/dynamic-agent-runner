@@ -72,6 +72,12 @@ budget resolved before a model runner executes.
    selected registration, invokes a worker-only factory only through the fixed
    entry point, and retains aggregate accounting, telemetry, and terminal
    response shaping. It rejects context growth rather than compressing it.
+9. Add a separately registered Darwin Metal/MPS worker implementation for the
+   DAR-owned Transformers/PEFT runner. Its receiver-installed runtime verifies
+   MPS availability and installs a reviewed bounded allocator envelope in the
+   child before packing, then uses the existing fixed worker IPC transport for
+   lifecycle control. It is unavailable rather than falling back when that
+   envelope cannot be installed; non-Darwin CPU behavior remains unchanged.
 
 ## Verification
 
