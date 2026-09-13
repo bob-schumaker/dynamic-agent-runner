@@ -43,8 +43,8 @@ from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
     BERT_ENCODER_MLX_V4_ABI,
     BertEncoderMlxV1EmbeddingBackend,
     BertEncoderMlxV4DescriptorValidator,
-    _parse_sentencepiece_bpe_model,
-    _tokenize_sentencepiece_bpe_items,
+    _parse_sentencepiece_unigram_model,
+    _tokenize_sentencepiece_unigram_items,
     BertEncoderMlxV1DescriptorValidator,
     _wordpiece_ids,
     _bert_tensor_shapes,
@@ -159,7 +159,7 @@ def _sentencepiece_model(
         ("quer", 6.0, 1),
         ("▁qu", 7.0, 1),
         ("▁quer", 8.0, 1),
-        ("▁query", 9.0, 1),
+        ("▁query", 30.0, 1),
     )
     encoded_pieces = []
     for piece, score, kind in pieces:
@@ -195,9 +195,9 @@ def _v4_materials(*, max_tokens: int = 5, **limit_overrides: int) -> SimpleNames
     v1_descriptor = _materials().execution_descriptor
     fields = v1_descriptor.abi_fields
     fields["tokenizer"].update(
-        format="sentencepiece-bpe-model-v1",
+        format="sentencepiece-unigram-model-v1",
         normalization="nmt-nfkc",
-        pre_tokenizer="sentencepiece-bpe-v1",
+        pre_tokenizer="sentencepiece-unigram-v1",
         special_token_ids={"cls": 0, "sep": 2, "pad": 1, "unk": 3},
         id_offset=1,
     )
@@ -220,11 +220,11 @@ def _v4_materials(*, max_tokens: int = 5, **limit_overrides: int) -> SimpleNames
     return SimpleNamespace(execution_descriptor=descriptor)
 
 
-def test_sentencepiece_bpe_model_decodes_and_preserves_literal_e5_prefix() -> None:
+def test_sentencepiece_unigram_model_decodes_and_preserves_literal_e5_prefix() -> None:
     descriptor = _v4_materials().execution_descriptor
 
-    tokenizer = _parse_sentencepiece_bpe_model(_sentencepiece_model(), descriptor)
-    token_ids, masks = _tokenize_sentencepiece_bpe_items(
+    tokenizer = _parse_sentencepiece_unigram_model(_sentencepiece_model(), descriptor)
+    token_ids, masks = _tokenize_sentencepiece_unigram_items(
         tokenizer,
         (EmbeddingInputItem("item", "query:"),),
         descriptor,
@@ -234,22 +234,22 @@ def test_sentencepiece_bpe_model_decodes_and_preserves_literal_e5_prefix() -> No
     assert masks == [[1, 1, 1, 1, 0]]
 
 
-def test_sentencepiece_bpe_model_rejects_unknown_wire_field_before_weights_read() -> (
+def test_sentencepiece_unigram_model_rejects_unknown_wire_field_before_weights_read() -> (
     None
 ):
     descriptor = _v4_materials().execution_descriptor
 
     with pytest.raises(ValueError):
-        _parse_sentencepiece_bpe_model(
+        _parse_sentencepiece_unigram_model(
             _sentencepiece_model(unknown_field=True), descriptor
         )
 
 
-def test_sentencepiece_bpe_model_rejects_byte_fallback() -> None:
+def test_sentencepiece_unigram_model_rejects_byte_fallback() -> None:
     descriptor = _v4_materials().execution_descriptor
 
     with pytest.raises(ValueError):
-        _parse_sentencepiece_bpe_model(
+        _parse_sentencepiece_unigram_model(
             _sentencepiece_model(byte_fallback=True), descriptor
         )
 
@@ -262,13 +262,13 @@ def test_sentencepiece_bpe_model_rejects_byte_fallback() -> None:
         _sentencepiece_model().replace(b"nmt_nfkc", b"nmt_Xfkc"),
     ),
 )
-def test_sentencepiece_bpe_model_rejects_malformed_or_changed_profile(
+def test_sentencepiece_unigram_model_rejects_malformed_or_changed_profile(
     asset: bytes,
 ) -> None:
     descriptor = _v4_materials().execution_descriptor
 
     with pytest.raises(ValueError):
-        _parse_sentencepiece_bpe_model(asset, descriptor)
+        _parse_sentencepiece_unigram_model(asset, descriptor)
 
 
 @pytest.mark.parametrize(
@@ -279,24 +279,24 @@ def test_sentencepiece_bpe_model_rejects_malformed_or_changed_profile(
         ("?", [0, 4, 3, 2, 1]),
     ),
 )
-def test_sentencepiece_bpe_normalizes_boundaries_and_emits_unknown_piece(
+def test_sentencepiece_unigram_normalizes_boundaries_and_emits_unknown_piece(
     text: str, expected: list[int]
 ) -> None:
     descriptor = _v4_materials().execution_descriptor
-    tokenizer = _parse_sentencepiece_bpe_model(_sentencepiece_model(), descriptor)
+    tokenizer = _parse_sentencepiece_unigram_model(_sentencepiece_model(), descriptor)
 
-    token_ids, _masks = _tokenize_sentencepiece_bpe_items(
+    token_ids, _masks = _tokenize_sentencepiece_unigram_items(
         tokenizer, (EmbeddingInputItem("item", text),), descriptor
     )
 
     assert token_ids == [expected]
 
 
-def test_sentencepiece_bpe_truncates_before_exact_width_padding() -> None:
+def test_sentencepiece_unigram_truncates_before_exact_width_padding() -> None:
     descriptor = _v4_materials(max_tokens=4).execution_descriptor
-    tokenizer = _parse_sentencepiece_bpe_model(_sentencepiece_model(), descriptor)
+    tokenizer = _parse_sentencepiece_unigram_model(_sentencepiece_model(), descriptor)
 
-    token_ids, masks = _tokenize_sentencepiece_bpe_items(
+    token_ids, masks = _tokenize_sentencepiece_unigram_items(
         tokenizer, (EmbeddingInputItem("item", "query:?"),), descriptor
     )
 
@@ -304,7 +304,7 @@ def test_sentencepiece_bpe_truncates_before_exact_width_padding() -> None:
     assert masks == [[1, 1, 1, 1]]
 
 
-def test_sentencepiece_bpe_tokenizer_limit_rejects_before_weights_or_mlx() -> None:
+def test_sentencepiece_unigram_tokenizer_limit_rejects_before_weights_or_mlx() -> None:
     materials = _v4_materials(max_tokenizer_bytes=1)
     calls: list[str] = []
     backend = BertEncoderMlxV1EmbeddingBackend(

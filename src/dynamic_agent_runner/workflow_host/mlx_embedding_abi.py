@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 import json
 import tempfile
-import heapq
 import struct
 from collections.abc import Mapping
 from collections.abc import Callable, Sequence
@@ -47,8 +46,8 @@ BERT_ENCODER_MLX_V3_ABI = ExecutionDescriptorAbi(
 
 BERT_ENCODER_MLX_V4_ABI = ExecutionDescriptorAbi(
     "bert-encoder-mlx-v4",
-    "4",
-    "319a33d6fa584b5dc1a12e4f5cf21714a9475e15f014c34035233faa5ec44242",
+    "5",
+    "1db6568e50f14b1fd7752772573024e2da87518674cd78ba4f9c57cb84febb4f",
 )
 
 
@@ -211,16 +210,16 @@ class BertEncoderMlxV3DescriptorValidator(BertEncoderMlxV2DescriptorValidator):
 
 
 class BertEncoderMlxV4DescriptorValidator(BertEncoderMlxV2DescriptorValidator):
-    """Validate the closed SentencePiece-BPE BERT descriptor grammar."""
+    """Validate the closed SentencePiece-Unigram BERT descriptor grammar."""
 
     identity = BERT_ENCODER_MLX_V4_ABI
     tokenizer_keys = BertEncoderMlxV1DescriptorValidator.tokenizer_keys | {"id_offset"}
 
     def _validate_tokenizer_format(self, format_name: object) -> None:
-        _one_of(format_name, {"sentencepiece-bpe-model-v1"})
+        _one_of(format_name, {"sentencepiece-unigram-model-v1"})
 
     def _validate_pre_tokenizer(self, pre_tokenizer: object) -> None:
-        _one_of(pre_tokenizer, {"sentencepiece-bpe-v1"})
+        _one_of(pre_tokenizer, {"sentencepiece-unigram-v1"})
 
     def validate(self, descriptor: ExecutionDescriptor) -> None:
         super().validate(descriptor)
@@ -367,8 +366,8 @@ def _read_bert_artifacts(
             raise ValueError
         tokenizer_fields = descriptor.abi_fields["tokenizer"]
         assert isinstance(tokenizer_fields, Mapping)
-        if tokenizer_fields["format"] == "sentencepiece-bpe-model-v1":
-            tokenizer = _parse_sentencepiece_bpe_model(tokenizer_bytes, descriptor)
+        if tokenizer_fields["format"] == "sentencepiece-unigram-model-v1":
+            tokenizer = _parse_sentencepiece_unigram_model(tokenizer_bytes, descriptor)
         else:
             tokenizer = json.loads(tokenizer_bytes.decode("utf-8"))
             if not isinstance(tokenizer, Mapping):
@@ -478,8 +477,8 @@ def _execute_bert_encoder(
     items: tuple[EmbeddingInputItem, ...],
     descriptor: ExecutionDescriptor,
 ) -> EmbeddingBatchResult:
-    if isinstance(tokenizer, _SentencePieceBpeTokenizer):
-        token_ids, attention_mask = _tokenize_sentencepiece_bpe_items(
+    if isinstance(tokenizer, _SentencePieceUnigramTokenizer):
+        token_ids, attention_mask = _tokenize_sentencepiece_unigram_items(
             tokenizer, items, descriptor
         )
     elif isinstance(tokenizer, Mapping):
@@ -697,16 +696,23 @@ def _wordpiece_ids(
     return ids
 
 
+@dataclass
+class _SentencePieceUnigramTrieNode:
+    children: dict[str, _SentencePieceUnigramTrieNode]
+    token: tuple[int, float] | None = None
+
+
 @dataclass(frozen=True)
-class _SentencePieceBpeTokenizer:
-    pieces: tuple[tuple[str, float, int], ...]
-    normal_piece_ids: Mapping[str, tuple[int, float]]
+class _SentencePieceUnigramTokenizer:
+    trie: _SentencePieceUnigramTrieNode
+    min_score: float
+    normalizer_map: bytes
 
 
-def _parse_sentencepiece_bpe_model(  # noqa: C901 - the closed profile is one boundary.
+def _parse_sentencepiece_unigram_model(  # noqa: C901 - the closed profile is one boundary.
     model_bytes: bytes, descriptor: ExecutionDescriptor
-) -> _SentencePieceBpeTokenizer:
-    """Decode the finite SentencePiece BPE ModelProto profile used by v4."""
+) -> _SentencePieceUnigramTokenizer:
+    """Decode the finite SentencePiece Unigram ModelProto profile used by v4."""
 
     fields = _protobuf_fields(model_bytes, {1: 2, 2: 2, 3: 2})
     piece_messages = fields.get(1)
@@ -776,7 +782,9 @@ def _parse_sentencepiece_bpe_model(  # noqa: C901 - the closed profile is one bo
     pieces = tuple(_parse_sentencepiece_piece(value) for value in piece_messages)
     if _single_int(trainer.get(4)) != len(pieces):
         raise ValueError
-    _validate_sentencepiece_normalizer(_single_bytes(normalizer_messages))
+    normalizer_map = _validate_sentencepiece_normalizer(
+        _single_bytes(normalizer_messages)
+    )
     tokenizer_fields = descriptor.abi_fields["tokenizer"]
     encoder = descriptor.abi_fields["encoder"]
     assert isinstance(tokenizer_fields, Mapping)
@@ -800,13 +808,22 @@ def _parse_sentencepiece_bpe_model(  # noqa: C901 - the closed profile is one bo
         or pieces[2][2] != 3
     ):
         raise ValueError
-    normal_piece_ids: dict[str, tuple[int, float]] = {}
+    trie = _SentencePieceUnigramTrieNode({})
+    min_score = math.inf
     for index, (piece, score, kind) in enumerate(pieces):
         if kind == 1:
-            if piece in normal_piece_ids:
+            node = trie
+            for character in piece:
+                node = node.children.setdefault(
+                    character, _SentencePieceUnigramTrieNode({})
+                )
+            if node.token is not None:
                 raise ValueError
-            normal_piece_ids[piece] = (index + id_offset, score)
-    return _SentencePieceBpeTokenizer(pieces, normal_piece_ids)
+            node.token = (index + id_offset, score)
+            min_score = min(min_score, score)
+    if not math.isfinite(min_score):
+        raise ValueError
+    return _SentencePieceUnigramTokenizer(trie, min_score, normalizer_map)
 
 
 def _parse_sentencepiece_piece(value: object) -> tuple[str, float, int]:
@@ -825,7 +842,7 @@ def _parse_sentencepiece_piece(value: object) -> tuple[str, float, int]:
     return piece, score, kind
 
 
-def _validate_sentencepiece_normalizer(value: bytes) -> None:
+def _validate_sentencepiece_normalizer(value: bytes) -> bytes:
     fields = _protobuf_fields(value, {1: 2, 2: 2, 3: 0, 4: 0, 5: 0, 6: 2})
     if (
         _single_bytes(fields.get(1)) != b"nmt_nfkc"
@@ -835,6 +852,41 @@ def _validate_sentencepiece_normalizer(value: bytes) -> None:
         or fields.get(6) not in (None, [b""])
     ):
         raise ValueError
+    charsmap = _single_bytes(fields.get(2)) if fields.get(2) else b""
+    if charsmap:
+        _sentencepiece_normalizer_parts(charsmap)
+    return charsmap
+
+
+def _sentencepiece_normalizer_parts(charsmap: bytes) -> tuple[tuple[int, ...], bytes]:
+    if len(charsmap) < 1_029:
+        raise ValueError
+    trie_size = int.from_bytes(charsmap[:4], "little")
+    if (
+        trie_size < 1_024
+        or trie_size % 1_024
+        or trie_size >= len(charsmap) - 4
+        or len(charsmap) > 16 * 1024 * 1024
+    ):
+        raise ValueError
+    normalized = charsmap[4 + trie_size :]
+    if not normalized.endswith(b"\0"):
+        raise ValueError
+    units = tuple(
+        int.from_bytes(charsmap[offset : offset + 4], "little")
+        for offset in range(4, 4 + trie_size, 4)
+    )
+    _validate_sentencepiece_darts_units(units)
+    return units, normalized
+
+
+def _validate_sentencepiece_darts_units(units: tuple[int, ...]) -> None:
+    for index, unit in enumerate(units):
+        if _darts_label(unit) > 0xFF:
+            continue
+        base = index ^ _darts_offset(unit)
+        if any(base ^ byte >= len(units) for byte in range(256)):
+            raise ValueError
 
 
 def _protobuf_fields(
@@ -907,8 +959,8 @@ def _single_int(values: object) -> int:
     return values[0]
 
 
-def _tokenize_sentencepiece_bpe_items(
-    tokenizer: _SentencePieceBpeTokenizer,
+def _tokenize_sentencepiece_unigram_items(
+    tokenizer: _SentencePieceUnigramTokenizer,
     items: tuple[EmbeddingInputItem, ...],
     descriptor: ExecutionDescriptor,
 ) -> tuple[list[list[int]], list[list[int]]]:
@@ -925,7 +977,7 @@ def _tokenize_sentencepiece_bpe_items(
     encoded = [
         [
             special_ids["cls"],
-            *_sentencepiece_bpe_ids(item.text, tokenizer, special_ids["unk"])[
+            *_sentencepiece_unigram_ids(item.text, tokenizer, special_ids["unk"])[
                 : max_tokens - 2
             ],
             special_ids["sep"],
@@ -938,66 +990,121 @@ def _tokenize_sentencepiece_bpe_items(
     )
 
 
-def _sentencepiece_bpe_ids(
-    text: str, tokenizer: _SentencePieceBpeTokenizer, unk_id: object
+def _sentencepiece_unigram_ids(
+    text: str, tokenizer: _SentencePieceUnigramTokenizer, unk_id: object
 ) -> list[int]:
-    normalized = "▁" + "▁".join(unicodedata.normalize("NFKC", text).split())
-    nodes = [
-        [
-            piece,
-            *tokenizer.normal_piece_ids.get(piece, (None, 0.0)),
-            index - 1,
-            index + 1,
-        ]
-        for index, piece in enumerate(normalized)
-    ]
-    if nodes:
-        nodes[-1][-1] = -1
-    candidates: list[tuple[float, int, int, int]] = []
-    for index in range(len(nodes) - 1):
-        _add_sentencepiece_bpe_candidate(nodes, tokenizer, candidates, index)
-    while candidates:
-        _score, left, right, token_id = heapq.heappop(candidates)
-        if nodes[left][3] == -2 or nodes[right][3] == -2 or nodes[left][4] != right:
+    normalized = _normalize_sentencepiece_text(text, tokenizer.normalizer_map)
+    scores = [-math.inf] * (len(normalized) + 1)
+    tokens: list[tuple[int, int] | None] = [None] * (len(normalized) + 1)
+    scores[0] = 0.0
+    for start in range(len(normalized)):
+        if not math.isfinite(scores[start]):
             continue
-        candidate = nodes[left][0] + nodes[right][0]
-        current = tokenizer.normal_piece_ids.get(candidate)
-        if current is None or current[0] != token_id:
-            continue
-        nodes[left][0] = candidate
-        nodes[left][1] = token_id
-        nodes[left][2] = current[1]
-        nodes[left][4] = nodes[right][4]
-        nodes[right][3] = -2
-        if nodes[right][4] != -1:
-            nodes[nodes[right][4]][3] = left
-        previous = nodes[left][3]
-        if previous != -1:
-            assert isinstance(previous, int)
-            _add_sentencepiece_bpe_candidate(nodes, tokenizer, candidates, previous)
-        _add_sentencepiece_bpe_candidate(nodes, tokenizer, candidates, left)
-    return [
-        node[1] if node[1] is not None else unk_id for node in nodes if node[3] != -2
-    ]
+        candidates, has_single_piece = _sentencepiece_unigram_candidates(
+            normalized, tokenizer.trie, start
+        )
+        for end, token_id, token_score in candidates:
+            candidate = scores[start] + token_score
+            if candidate > scores[end + 1]:
+                scores[end + 1] = candidate
+                tokens[end + 1] = (start, token_id)
+        if not has_single_piece:
+            candidate = scores[start] + tokenizer.min_score - 10.0
+            if candidate > scores[start + 1]:
+                scores[start + 1] = candidate
+                tokens[start + 1] = (start, unk_id)
+    result: list[int] = []
+    position = len(normalized)
+    while position:
+        token = tokens[position]
+        if token is None:
+            raise ValueError
+        position, token_id = token
+        result.append(token_id)
+    return list(reversed(result))
 
 
-def _add_sentencepiece_bpe_candidate(
-    nodes: list[list[object]],
-    tokenizer: _SentencePieceBpeTokenizer,
-    candidates: list[tuple[float, int, int, int]],
-    left: int,
-) -> None:
-    right = nodes[left][4]
-    if right == -1:
-        return
-    assert isinstance(right, int)
-    left_piece = nodes[left][0]
-    right_piece = nodes[right][0]
-    assert isinstance(left_piece, str)
-    assert isinstance(right_piece, str)
-    token = tokenizer.normal_piece_ids.get(left_piece + right_piece)
-    if token is not None:
-        heapq.heappush(candidates, (-token[1], left, right, token[0]))
+def _sentencepiece_unigram_candidates(
+    normalized: str, trie: _SentencePieceUnigramTrieNode, start: int
+) -> tuple[list[tuple[int, int, float]], bool]:
+    node = trie
+    candidates: list[tuple[int, int, float]] = []
+    has_single_piece = False
+    for end in range(start, len(normalized)):
+        node = node.children.get(normalized[end])
+        if node is None:
+            break
+        if node.token is not None:
+            token_id, token_score = node.token
+            candidates.append((end, token_id, token_score))
+            has_single_piece |= end == start
+    return candidates, has_single_piece
+
+
+def _normalize_sentencepiece_text(text: str, charsmap: bytes) -> str:
+    source = text.encode("utf-8")
+    if not charsmap:
+        mapped = unicodedata.normalize("NFKC", text).encode("utf-8")
+    else:
+        units, replacements = _sentencepiece_normalizer_parts(charsmap)
+        output = bytearray()
+        offset = 0
+        while offset < len(source):
+            length, value = _sentencepiece_longest_prefix(units, source, offset)
+            if length:
+                end = replacements.find(b"\0", value)
+                if end < value:
+                    raise ValueError
+                output.extend(replacements[value:end])
+                offset += length
+            else:
+                width = _utf8_width(source[offset])
+                output.extend(source[offset : offset + width])
+                offset += width
+        mapped = bytes(output)
+    return "▁" + "▁".join(mapped.decode("utf-8").split())
+
+
+def _sentencepiece_longest_prefix(
+    units: tuple[int, ...], source: bytes, start: int
+) -> tuple[int, int]:
+    if not units:
+        raise ValueError
+    node = _darts_offset(units[0])
+    if node >= len(units):
+        raise ValueError
+    longest = (0, 0)
+    for index in range(start, len(source)):
+        node ^= source[index]
+        if node >= len(units) or _darts_label(units[node]) != source[index]:
+            break
+        unit = units[node]
+        node ^= _darts_offset(unit)
+        if node >= len(units):
+            raise ValueError
+        if unit & 0x100:
+            longest = (index - start + 1, units[node] & 0x7FFFFFFF)
+    return longest
+
+
+def _darts_label(unit: int) -> int:
+    return unit & 0x800000FF
+
+
+def _darts_offset(unit: int) -> int:
+    return (unit >> 10) << ((unit & 0x200) >> 6)
+
+
+def _utf8_width(first: int) -> int:
+    if first < 0x80:
+        return 1
+    if 0xC2 <= first <= 0xDF:
+        return 2
+    if 0xE0 <= first <= 0xEF:
+        return 3
+    if 0xF0 <= first <= 0xF4:
+        return 4
+    return 1
 
 
 def _bert_basic_tokens(text: str) -> list[str]:

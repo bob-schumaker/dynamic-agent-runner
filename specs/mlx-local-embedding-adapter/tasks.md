@@ -316,7 +316,7 @@
 
 ## MLE7 — SentencePiece-Unigram BERT package expansion
 
-- [ ] MLE7.0 [review] Reconcile the ABI, package, and workflow boundaries before
+- [x] MLE7.0 [review] Reconcile the ABI, package, and workflow boundaries before
       implementation.
   - Council: Aristotle, Ada, and Feynman performed a reduced-independence
     sequential architecture review on 2026-09-13. They required the plan to
@@ -334,17 +334,24 @@
     2026-09-13 found `trainer_spec.model_type == 1` (Unigram), not BPE (`2`).
     The previous BPE review, descriptor, and decoder are invalid for the target
     and must not be used as MLE7 completion evidence.
-  - Required refreshed verdict: the closed Unigram grammar must retain the same
-    no-runtime, no-plugin, sealed-byte boundary and state its finite lattice,
-    score, tie, and UTF-8 rules before implementation resumes.
-  - Verdict: MLE7.1--MLE7.8 are implementation-ready in order only after that
-    correction. MLE7.4--MLE7.7
+  - Refreshed Council: Aristotle, Ada, and Feynman performed a
+    reduced-independence sequential architecture review on 2026-09-13. They
+    required the closed Unigram lattice to select maximum cumulative finite
+    score with stable ties; rejected filename-driven BPE inference; and
+    required every compiled-normalizer Darts transition to be structurally
+    bounded before weights are read. The model remains the sole sealed grammar
+    asset; no generic SentencePiece runtime, plugin, registry, or model-name
+    dispatch is admitted.
+  - Ponytail: use the standard library for Unicode plus one package-local trie
+    and Viterbi pass; do not add a tokenizer dependency, generic protobuf
+    framework, or alternate tokenizer input.
+  - Verdict: MLE7.1--MLE7.8 are implementation-ready in order. MLE7.4--MLE7.7
     remain separately authorization-gated; this review authorizes neither
     model retrieval nor local material use.
   - Evidence: spec, plan, and task amendments below; reduced-independence
     execution is advisory rather than independent parallel deliberation.
 
-- [ ] MLE7.1 [spec/design] Register a new closed BERT successor ABI for the
+- [x] MLE7.1 [spec/design] Register a new closed BERT successor ABI for the
       exact SentencePiece-Unigram tokenizer grammar required by
       `intfloat/multilingual-e5-small`; record its canonical identity/digest,
       roles, tokenizer-byte and resource ceilings, special IDs, normalization,
@@ -365,8 +372,15 @@
   - Target fact: the immutable `sentencepiece.bpe.model` filename is retained
     as a sealed role name, but its ModelProto declares `model_type == 1`
     (Unigram). File naming must not select grammar semantics.
+  - Evidence: `bert-encoder-mlx-v4@5`, contract digest
+    `1db6568e50f14b1fd7752772573024e2da87518674cd78ba4f9c57cb84febb4f`,
+    and fake-only descriptor, compiled-normalizer, sealed Unigram admission,
+    Viterbi, unknown, and padding vectors in
+    `tests/test_mlx_embedding_abi.py` (2026-09-13). A local trusted oracle
+    agrees for width folding, whitespace, literal prefixes, English, and
+    Chinese; it is cross-check evidence, not unit-test infrastructure.
 
-- [ ] MLE7.2 [tests, RED/GREEN] Add fake-only tokenizer admission and execution
+- [x] MLE7.2 [tests, RED/GREEN] Add fake-only tokenizer admission and execution
       vectors for valid SentencePiece-Unigram bytes plus malformed/truncated assets,
       changed normalizer, unknown pieces, special IDs, leading/adjacent
       whitespace, Unicode boundaries, truncation, and exact-width padding.
@@ -378,8 +392,15 @@
     SentencePiece runtime. Vectors also prove unknown ModelProto fields and
     resource ceilings reject before weights/MLX work, and that literal E5
     prefix bytes are not receiver-injected or rewritten.
+  - Evidence: synthetic ModelProto vectors cover closed field admission,
+    malformed/truncated assets, changed normalizer, byte fallback, bounded
+    Darts transitions, unknown pieces, special IDs, leading/adjacent
+    whitespace, Unicode normalization, literal `query:` bytes, truncation,
+    exact-width padding, and tokenizer ceiling rejection before weights or MLX
+    in `tests/test_mlx_embedding_abi.py` and
+    `tests/test_mlx_bert_embedding_backend.py` (2026-09-13).
 
-- [ ] MLE7.3 [implementation] Implement only the registered tokenizer grammar
+- [x] MLE7.3 [implementation] Implement only the registered tokenizer grammar
       and bind it to the existing BERT arithmetic path; preserve v1--v3
       WordPiece behavior and reject all unregistered tokenizer formats.
   - Spec: planned BERT SentencePiece-Unigram ABI.
@@ -388,6 +409,11 @@
     add a generic SentencePiece runtime, a tokenizer plugin registry, or a
     model-name branch. Existing BERT tensor/arithmetic code remains shared only
     after the v4 descriptor and tokenizer admission succeed.
+  - Evidence: the v4-only parser builds one sealed Unicode trie and performs
+    deterministic maximum-score Unigram Viterbi selection after strict
+    descriptor and ModelProto admission. v1--v3 retain their WordPiece path;
+    no tokenizer dependency, plugin registry, model-name branch, or alternate
+    tokenizer asset was added.
 
 - [ ] MLE7.4 [approval/package, tests RED/GREEN] With a recorded license and
       material decision, create a package-local lock and exact descriptor for
