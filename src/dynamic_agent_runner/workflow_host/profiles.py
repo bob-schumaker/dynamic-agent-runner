@@ -174,6 +174,7 @@ class LocalModelProfileControlPlane:
         elif adapter_id in {
             "apple-foundation-models-adapter-v1",
             FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+            QWEN25_VL_3B_FLOORPLAN_GRPO_ADAPTER_ID,
         }:
             if base_url is not None:
                 raise LocalModelProfileError("local model profile is invalid")
