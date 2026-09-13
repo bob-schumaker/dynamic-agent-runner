@@ -1,0 +1,29 @@
+{
+  "architecture_abi": {
+    "contract_digest": "18f1131a9ab9e42ab07163914552f2099a891e0d8fec696290804480f47538a6",
+    "id": "bert-encoder-mlx-v3",
+    "version": "3"
+  },
+  "execution_descriptor_digest": "52d897280404456873448f1cf794396f32c7bbb3994c9c6c759072c72290fedc",
+  "format_version": 1,
+  "material_lock_digest": "395dcdb691846ca314816036b9594e00f0a84987ad278435323cf740564c7970",
+  "package_id": "mlx-gte-tiny-embedding-v1",
+  "profile_id": "embedding-index-sealed-v1",
+  "receipt_filename": "mle6.5-receipt.json",
+  "receipt_sha256": "adb7e5fcb20acb8bb5bb3043a347201ccf148c35c443574e41453a69bbca44c0",
+  "required_capability": {
+    "contract_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "id": "embedding.execute.v1",
+    "required_features": [
+      "deterministic"
+    ],
+    "version": "1"
+  },
+  "required_material_roles": [
+    "tokenizer",
+    "weights"
+  ],
+  "status": "supported",
+  "test_mode": "darwin-mlx-competency",
+  "workflow_family": "embedding-index"
+}

@@ -58,7 +58,9 @@ unrelated artifacts would duplicate their common support-state contract.
 - No product ambiguity blocks planning. Exact initial profiles and fixture
   package IDs are implementation-time discovery tasks because availability is
   host- and material-dependent.
-- The MLX generic embedding backend is implemented, but its real workflow row
-  remains excluded until MLE6 seals and validates one package/material closure.
+- The MLX generic embedding backend is implemented. One exact MLE6 package,
+  material lock, descriptor, capability, and redacted Darwin competency receipt
+  now have a static machine-checked evidence row; it does not substitute for
+  the unimplemented generic matrix classifier.
   Sandboxed write/shell execution and runner-owned RAG remain excluded until
   their owning contracts are implemented and admitted.

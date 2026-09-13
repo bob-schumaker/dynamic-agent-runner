@@ -15,7 +15,7 @@ from dynamic_agent_runner.workflow_host.execution_descriptors import (
     parse_execution_descriptor,
 )
 from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
-    BertEncoderMlxV1DescriptorValidator,
+    BertEncoderMlxV3DescriptorValidator,
 )
 from dynamic_agent_runner.workflow_host.model_materials import (
     parse_model_dependency_lock,
@@ -50,7 +50,7 @@ def _validate(fixture: dict[str, object]) -> None:
     lock = parse_model_dependency_lock(
         json.loads((_PACKAGE / "model-materials.json").read_text("utf-8"))
     )
-    BertEncoderMlxV1DescriptorValidator().validate(descriptor)
+    BertEncoderMlxV3DescriptorValidator().validate(descriptor)
     assert lock.execution_descriptor is not None
     assert lock.execution_descriptor.sha256 == descriptor.digest
     conformance = descriptor.abi_fields["conformance"]

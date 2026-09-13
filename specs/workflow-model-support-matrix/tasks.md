@@ -164,6 +164,7 @@ Status: Draft — implementation not approved
 - Live Fastmail and floorplan work remain per-run human authorization boundaries.
 - Package/material locks are authoritative; adapters do not silently substitute
   files or providers.
-- MLX real workflow rows are excluded until MLE6 records one sealed package and
-  receipt. Sandboxed write/shell and runner-owned RAG remain excluded until
+- One exact MLX package row is recorded by MLE6 evidence; generic MLX row
+  classification remains WMS2.3 work. Sandboxed write/shell and runner-owned
+  RAG remain excluded until
   their owning feature contracts are implemented.

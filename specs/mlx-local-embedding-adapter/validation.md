@@ -1,7 +1,7 @@
 # macOS Generalized MLX Embedding Execution Validation
 
-Status: generic ABI/provider and one sealed workflow package validated; matrix
-admission pending
+Status: generic ABI/provider and one sealed workflow package validated; exact
+matrix admission recorded
 
 ## Completed Generic Evidence
 
@@ -19,7 +19,7 @@ admission pending
 | Fixture conformance | trusted local reference vectors bound to that lock | complete; MLE6.3 local-only reference fixture |
 | Offline admission | fake-only package/provider/index regressions | complete; MLE6.4 fake provider/index coverage |
 | Darwin competency | authorized redacted package-bound MLX receipt | complete; v3 package `mle6.5-receipt.json`, 3×384 vectors, `max_abs_error` `0.00022599101066589355` |
-| Matrix admission | exact package/material support row | not run |
+| Matrix admission | exact package/material support row | complete; package-local `support-matrix-row.json` and non-transferability tests |
 
 ## Boundaries
 

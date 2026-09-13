@@ -281,6 +281,15 @@
   - Evidence: the manual gate failed at the opaque-index stage before sorting
     and passed after canonical ordering without changing vector input order.
 
+- [x] MLE6.4i [bug, tests RED/GREEN] Keep the MLE6.3 locked-reference
+      regression aligned with the package's versioned v3 descriptor contract.
+  - Discovered: MLE6.6 focused validation on 2026-09-13 found the conformance
+    regression still instantiated the v1 validator after the package migrated
+    through the closed v2 and v3 extensions.
+  - Depends on: MLE6.4h.
+  - Evidence: the focused MLE6 conformance suite failed under the retired v1
+    validator and passed after asserting the exact v3 descriptor contract.
+
 - [x] MLE6.5 [manual competency gate] With explicit authorization, prepare the
       exact sealed package on Darwin arm64 with `mlx==0.32.2`, run the MLX
       embedding/index workflow, and compare against its locked reference
@@ -293,10 +302,13 @@
     index artifacts, `0.00022599101066589355` maximum absolute error, bounded
     limits, duration, and maximum RSS without retaining inputs or vectors.
 
-- [ ] MLE6.6 [tests/docs] Add the exact successful package/material identity to
+- [x] MLE6.6 [tests/docs] Add the exact successful package/material identity to
       the workflow model support matrix, update MLX embedding status/validation,
       and prove a different package or changed material cannot inherit the row.
   - Spec: Operational Completion Gate 5.
   - Depends on: MLE6.5.
   - Validation: focused support-matrix tests, full pytest, Ruff, Markdown hooks,
     and `git diff --check`.
+  - Evidence: the package-local machine-readable row binds its package ID,
+    material lock, descriptor/ABI, capability, and receipt SHA. Focused tests
+    reject a different package ID or changed material lock from inheriting it.

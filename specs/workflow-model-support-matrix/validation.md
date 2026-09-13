@@ -1,12 +1,14 @@
 # Workflow Model Support Matrix Validation
 
-Status: Draft — no implementation or live receipt yet
+Status: Draft — generic classifier implementation and Fastmail/floorplan live
+receipts remain absent; one package-bound MLE6 competency row is recorded
 
 ## Commands Run
 
 | Command | Result | Notes |
 | --- | --- | --- |
 | Artifact consistency review | pass | Requirements, plan, and WMS1--WMS4 task dependencies agree; no code was changed. |
+| MLE6 package-bound row | pass | `tests/test_mlx_gte_tiny_mle6_matrix.py` validates exact package/material/descriptor/capability/receipt binding and rejects changed package or material identity. |
 
 ## Traceability Matrix
 
@@ -25,7 +27,10 @@ Status: Draft — no implementation or live receipt yet
 ## Manual Receipt Register
 
 No live Fastmail or floorplan run is authorized or recorded by this artifact
-creation.
+creation. The separate local-only MLE6 Darwin competency receipt is recorded
+at `tests/fixtures/mlx-gte-tiny/mle6-package/mle6.5-receipt.json`, and its
+static matrix row is package-local at
+`tests/fixtures/mlx-gte-tiny/mle6-package/support-matrix-row.json`.
 Future receipts must contain only the fields specified by FR-005.
 
 ## Residual Risks
