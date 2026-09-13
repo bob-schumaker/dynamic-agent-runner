@@ -3,7 +3,8 @@
 ## Metadata
 
 - Feature slug: `mlx-local-embedding-adapter`
-- Status: proposed
+- Status: implemented generic ABI/provider; real sealed workflow onboarding is
+  pending
 - Owner: dynamic-agent-runner local-model and embedding-capability boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`

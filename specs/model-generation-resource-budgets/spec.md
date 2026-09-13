@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `model-generation-resource-budgets`
-- Status: ready for implementation
+- Status: implemented and validated through T5.13
 - Owner: dynamic-agent-runner workflow-host and local-model boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`

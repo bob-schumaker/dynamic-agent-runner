@@ -4,8 +4,8 @@
 
 - Feature slug: `local-model-runner-interface`
 - Mode: guided
-- Status: implemented through the T5 manual gate; canonical generation-budget
-  migration remains pending
+- Status: implemented through the T5 manual gate and canonical generation-budget
+  adoption
 - Owner: dynamic-agent-runner local-model and workflow-host boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`

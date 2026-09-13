@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `workflow-locked-inference-callback`
-- Status: proposed from external embedding-workflow feedback
+- Status: implemented through I3
 - Owner: dynamic-agent-runner package, capability, material, and sandbox boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`

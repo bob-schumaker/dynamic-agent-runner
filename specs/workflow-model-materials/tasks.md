@@ -1,7 +1,7 @@
 # Workflow Model Materials Tasks
 
-Status: approved 2026-09-09. Runtime implementation may begin and remains
-fake-only and test-first.
+Status: implemented through M8. Runtime implementation remained fake-only and
+test-first; completion evidence is recorded under each task.
 
 ## M1 — Canonical Lock Parser
 

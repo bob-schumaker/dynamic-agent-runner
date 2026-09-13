@@ -6,7 +6,8 @@ Deliver one DAR-owned closed `transformers-peft-single-image-v1` profile for
 the Qwen floorplan recipe. Keep the existing client-runner catalog only for
 nonstandard profiles; do not build the future plugin interface or a resource
 scheduler in this slice. T1–T4.2 are implemented or recorded; this plan's
-remaining executable slice is T5, generic MPS placement.
+generic MPS placement is implemented through T5; this plan records its
+completed delivery evidence.
 
 1. Add the closed loader-profile value to preparation recipes and canonical
    digests. Validate exact groups, roles, no unknown configuration, and the

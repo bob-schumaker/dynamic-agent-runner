@@ -1,6 +1,6 @@
 # Local Model Availability API Validation Log
 
-Status: implemented through Slice A4
+Status: implemented through Slice A5.1
 
 ## Scope
 

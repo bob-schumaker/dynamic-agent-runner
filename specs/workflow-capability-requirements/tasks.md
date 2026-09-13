@@ -1,8 +1,7 @@
 # Workflow Capability Requirements Tasks
 
-Status: C1–C4 are complete and verified. `workflow-model-materials` planning
-is approved, so C5 implementation may begin. Every implementation task is
-fake-only and test-first.
+Status: C1–C5.6 are complete and verified. Implementation was fake-only and
+test-first; completion evidence is recorded under each task.
 `WorkflowPolicy.required_capabilities` remains the existing string-set
 preflight contract; these tasks add a separate exact-contract path.
 

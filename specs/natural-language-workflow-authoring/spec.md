@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `natural-language-workflow-authoring`
-- Status: ready for implementation
+- Status: implemented through NLA-5
 - Owner: dynamic-agent-runner
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Implementation plan: `plan.md`

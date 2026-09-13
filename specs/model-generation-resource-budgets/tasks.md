@@ -2,18 +2,13 @@
 
 ## Status
 
-Automated implementation and focused/full-suite evidence are complete through
-T4.8. T4.6 has recorded the explicitly authorized fixture-only Darwin
-pre-dispatch resource rejection and its effective limits. S5 adds the pending
-concrete Darwin Metal/MPS worker implementation and separate executable fixture;
-T5.1–T5.3 now provide a Darwin-only reviewed allocator envelope and no-model
-worker fixture. T5.4 has recorded an authorized locally prepared MPS-model
-receipt; T5.6 and T5.9 completed the production preparation and selected-child
-transport prerequisites discovered while executing that gate. Converter host
-vectors now use a verified v2 model-material lock and generation-budget
-execution descriptor by default; the isolated provider-unavailability ordering
-vector retains a legacy fixture because it deliberately fails before model
-admission.
+Implementation and focused/full-suite evidence are complete through T5.13.
+The Darwin Metal/MPS worker, allocator envelope, production preparation,
+selected-child transport, sealed material binding, and reviewed completion
+budget are implemented and validated. Converter host vectors use a verified v2
+model-material lock and generation-budget execution descriptor by default; the
+isolated provider-unavailability ordering vector retains a legacy fixture
+because it deliberately fails before model admission.
 
 ## S1 — Canonical Contract and Admission
 

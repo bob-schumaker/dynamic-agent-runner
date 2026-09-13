@@ -5,7 +5,7 @@
 - Feature slug: `live-model-interface-acceptance`
 - Mode: `guided`
 - Artifact type: manually gated acceptance contract
-- Status: manual acceptance evidence recorded
+- Status: T1--T5.1 complete; T5.2 compatibility resolution pending
 - Owner: `specs/model-interface-parity/spec.md`
 - Related specs:
   - `specs/model-interface-parity/spec.md`
