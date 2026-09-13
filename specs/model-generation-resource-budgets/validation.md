@@ -78,6 +78,25 @@ no model output, prompt, image, model/cache path, handle, token IDs, or tensors
 were recorded. T5.13 tracks the separate requirement for a reviewed budget
 that completes this package's JSON contract.
 
+## T5.13 — Reviewed floorplan completion budget
+
+Date: 2026-09-13
+
+The sealed floorplan descriptor now allows one 1,024-token fragment, zero
+continuations, 1,024 total generated tokens, 32,768 output bytes, 4,096 context
+tokens, 360,000 runtime milliseconds, and 30,150,672,384 MPS memory bytes. The
+v2 material lock binds the new canonical descriptor digest.
+
+The focused descriptor regression first failed against the prior 512-token,
+120,000-millisecond lock. It then passed after the descriptor and lock digest
+were updated. An elevated public-host MPS gate prepared the reviewed model,
+selected and registered the sealed package, ingressed the image through the
+declared contract, and completed a non-exhausted 811-token / 1,865-byte fragment.
+The terminal result completed with one 1,562-byte output field. The redacted
+worker receipt was `bootstrap_ready -> packed_receipt -> authorized -> reaped`.
+No prompt, image, model output, paths, handles, token IDs, or tensors were
+recorded.
+
 ## S5 — Darwin MPS no-model worker fixture
 
 Date: 2026-09-13

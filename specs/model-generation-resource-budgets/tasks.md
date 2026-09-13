@@ -263,7 +263,7 @@ admission.
   `json_object` response contract through the generic co-located
   converter/runner worker assets and validate the completed worker response;
   do not reject the reviewed floorplan package before MPS worker launch.
-- [ ] T5.13 [tests, RED/GREEN + manual gate] Establish a reviewed generation
+- [x] T5.13 [tests, RED/GREEN + manual gate] Establish a reviewed generation
   budget that can complete the floorplan package's required JSON contract on
   the prepared MPS model, while retaining the bounded worker lifecycle and
   sealed descriptor validation. Do not treat a 512-token continuation-limit
