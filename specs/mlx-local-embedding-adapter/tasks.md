@@ -415,12 +415,31 @@
     no tokenizer dependency, plugin registry, model-name branch, or alternate
     tokenizer asset was added.
 
+- [ ] MLE7.3a [implementation, RED/GREEN] Add one receiver-owned,
+      descriptor-bound safetensors preparation provider for the MLE7 source
+      `model.safetensors`: convert declared non-LayerNorm float32 tensors to
+      float16, preserve declared LayerNorm float32 tensors, write canonical
+      safetensors bytes, and bind its exact capability and transformation
+      digest in the material lock.
+  - Why: the exact cached MLE7 source weights are float32 (470,641,600 bytes),
+    while the registered v4 execution ABI fixes float16 weights with float32
+    LayerNorm. The existing generic material-admission boundary supports a
+    declared preparation operation but has no provider for this conversion.
+  - Depends on: MLE7.3.
+  - Acceptance: fake-only tests prove selected-provider identity, descriptor
+    binding, source/header/tensor/dtype rejection, deterministic output digest,
+    and pre-MLX failure on changed conversion facts. The provider exposes no
+    arbitrary source path, tensor policy, executable callback, or model-name
+    selection; its only execution selection is the sealed MLE7 descriptor.
+  - Followed by: MLE7.4 uses its declared output `weights` role rather than the
+    upstream float32 source role.
+
 - [ ] MLE7.4 [approval/package, tests RED/GREEN] With a recorded license and
       material decision, create a package-local lock and exact descriptor for
       `intfloat/multilingual-e5-small`; prove changed material, ABI, tokenizer,
       descriptor, or capability facts reject before MLX import or egress.
   - Spec: Operational Completion Gates 1 and 3.
-  - Depends on: MLE7.3 and explicit material-use authorization.
+  - Depends on: MLE7.3a and explicit material-use authorization.
   - Acceptance: execution maps only the sealed `sentencepiece.bpe.model` role
     and weights role. The package lock also records the model, tokenizer, and
     pooling metadata needed to establish provenance, but the descriptor fixes

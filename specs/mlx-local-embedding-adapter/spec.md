@@ -247,6 +247,12 @@ dimensions, LayerNorm epsilon `1e-12`, and an `XLMRobertaTokenizer` backed by
 production source and generic registry selection remain model-neutral. A
 sealed revision, complete material closure, license decision, exact tokenizer
 semantics, and conformance fixture are still required before it is supported.
+Its source safetensors weights are float32, while this ABI fixes float16
+non-LayerNorm tensors and float32 LayerNorm. Package completion therefore
+requires one receiver-owned, descriptor-bound preparation operation that
+converts only the sealed source role into the declared `weights` role; arbitrary
+conversion, input paths, tensor policy, and model-name selection remain out of
+scope.
 
 ### Planned closed RoBERTa execution ABI: `roberta-encoder-mlx-v1`
 
