@@ -216,6 +216,7 @@ class WorkflowSupportReceipt:
     test_mode: str
     status: WorkflowSupportStatus
     reason_codes: tuple[str, ...]
+    dispatch_count: int
 
     def __post_init__(self) -> None:
         _digest(self.profile_digest, "profile_digest")
@@ -236,6 +237,10 @@ class WorkflowSupportReceipt:
             raise WorkflowSupportMatrixError("receipt reasons are invalid")
         if status is not WorkflowSupportStatus.SUPPORTED and not reasons:
             raise WorkflowSupportMatrixError("receipt reasons are invalid")
+        if type(self.dispatch_count) is not int or self.dispatch_count < 0:
+            raise WorkflowSupportMatrixError("dispatch_count is invalid")
+        if status is not WorkflowSupportStatus.SUPPORTED and self.dispatch_count:
+            raise WorkflowSupportMatrixError("dispatch_count is invalid")
         object.__setattr__(self, "status", status)
         object.__setattr__(self, "reason_codes", reasons)
 

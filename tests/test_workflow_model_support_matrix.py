@@ -208,6 +208,7 @@ def test_receipt_cannot_transfer_to_a_different_profile_adapter_or_material() ->
             receipt,
             status=WorkflowSupportStatus.BLOCKED,
             reason_codes=("required_provider_unavailable",),
+            dispatch_count=0,
         ),
         replace(
             receipt,
