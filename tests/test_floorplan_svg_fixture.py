@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import json
 import shutil
 import stat
 from dataclasses import asdict
@@ -38,6 +40,21 @@ from dynamic_agent_runner.workflow_host.policy import (
 import dynamic_agent_runner.workflow_host.policy as policy_module
 from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore
+from dynamic_agent_runner.workflow_host.model_materials import (
+    parse_model_dependency_lock,
+)
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    parse_execution_descriptor,
+)
+from dynamic_agent_runner.workflow_host.workflow_support_matrix import (
+    MaterialIdentity,
+    WorkflowSupportCandidate,
+    WorkflowSupportProfile,
+    WorkflowSupportReceipt,
+    WorkflowSupportStatus,
+    classify_workflow_support,
+    validate_workflow_support_receipt,
+)
 
 
 NOW = datetime(2026, 9, 6, tzinfo=UTC)
@@ -54,6 +71,131 @@ IMAGE = (
     / "assets"
     / "agent-engineering.png"
 )
+
+
+def _floorplan_matrix_profile(*, live: bool) -> WorkflowSupportProfile:
+    lock = parse_model_dependency_lock(
+        json.loads((FIXTURE / "model-materials.json").read_text(encoding="utf-8"))
+    )
+    descriptor = parse_execution_descriptor(
+        json.loads((FIXTURE / "execution-descriptor.json").read_text(encoding="utf-8"))
+    )
+    material = MaterialIdentity(
+        package_id=lock.logical_model_id,
+        material_lock_digest=lock.digest,
+        material_roles=descriptor.material_roles,
+        artifact_digests={
+            "execution_descriptor": descriptor.digest,
+            "input_converter": hashlib.sha256(
+                (FIXTURE / "assets" / "qwen25_vl_3b_grpo_converter.py").read_bytes()
+            ).hexdigest(),
+            "terminal_svg_validator": hashlib.sha256(
+                (FIXTURE / "tools" / "validate_svg").read_bytes()
+            ).hexdigest(),
+        },
+    )
+    return WorkflowSupportProfile(
+        profile_id=(
+            "floorplan-svg-mps-completion-v1" if live else "floorplan-svg-synthetic-v1"
+        ),
+        workflow_family="floorplan-svg",
+        required_adapter_capabilities=("structured_output",),
+        required_abi_capabilities=(descriptor.architecture_abi.abi_id,),
+        required_provider_capabilities=(lock.runner_contract.contract_id,),
+        required_host_capabilities=("mps",) if live else (),
+        material_identity=material,
+        execution_mode="live" if live else "synthetic",
+        authorization_required=live,
+        implemented=True,
+    )
+
+
+def _floorplan_matrix_candidate(
+    profile: WorkflowSupportProfile,
+    *,
+    material_identity: MaterialIdentity | None = None,
+    missing_material: bool = False,
+    host_capabilities: frozenset[str] = frozenset(),
+    provider_capabilities: frozenset[str] = frozenset({"transformers-generate-v1"}),
+    authorization_granted: bool = False,
+) -> WorkflowSupportCandidate:
+    return WorkflowSupportCandidate(
+        adapter_id="floorplan-fixture-runner",
+        adapter_capabilities=frozenset({"structured_output"}),
+        available_abi_capabilities=frozenset({"transformers-peft-generation-v1"}),
+        provider_capabilities=provider_capabilities,
+        host_capabilities=host_capabilities,
+        material_identity=(
+            None if missing_material else material_identity or profile.material_identity
+        ),
+        authorization_granted=authorization_granted,
+    )
+
+
+def test_floorplan_matrix_profiles_bind_synthetic_and_mps_facts() -> None:
+    synthetic = _floorplan_matrix_profile(live=False)
+    synthetic_candidate = _floorplan_matrix_candidate(synthetic)
+    synthetic_cell = classify_workflow_support(synthetic, synthetic_candidate)
+    synthetic_receipt = WorkflowSupportReceipt(
+        profile_digest=synthetic_cell.profile_digest,
+        adapter_id=synthetic_cell.adapter_id,
+        material_identity=synthetic_cell.material_identity,
+        test_mode="synthetic",
+        status=synthetic_cell.status,
+        reason_codes=synthetic_cell.reason_codes,
+        dispatch_count=1,
+    )
+
+    assert synthetic_cell.status is WorkflowSupportStatus.SUPPORTED
+    validate_workflow_support_receipt(
+        synthetic, synthetic_candidate, synthetic_cell, synthetic_receipt
+    )
+
+    live = _floorplan_matrix_profile(live=True)
+    assert live.material_identity is not None
+
+    def mismatched_material(role: str) -> MaterialIdentity:
+        artifacts = dict(live.material_identity.artifact_digests)
+        artifacts[role] = "f" * 64
+        return MaterialIdentity(
+            package_id=live.material_identity.package_id,
+            material_lock_digest=live.material_identity.material_lock_digest,
+            material_roles=live.material_identity.material_roles,
+            artifact_digests=artifacts,
+        )
+
+    blocked_candidates = (
+        _floorplan_matrix_candidate(live),
+        _floorplan_matrix_candidate(live, missing_material=True),
+        *(
+            _floorplan_matrix_candidate(
+                live, material_identity=mismatched_material(role)
+            )
+            for role in (
+                "execution_descriptor",
+                "input_converter",
+                "terminal_svg_validator",
+            )
+        ),
+        _floorplan_matrix_candidate(live, provider_capabilities=frozenset()),
+        _floorplan_matrix_candidate(
+            live, host_capabilities=frozenset({"mps"}), authorization_granted=False
+        ),
+    )
+    for candidate in blocked_candidates:
+        cell = classify_workflow_support(live, candidate)
+        receipt = WorkflowSupportReceipt(
+            profile_digest=cell.profile_digest,
+            adapter_id=cell.adapter_id,
+            material_identity=cell.material_identity,
+            test_mode="live",
+            status=cell.status,
+            reason_codes=cell.reason_codes,
+            dispatch_count=0,
+        )
+
+        assert cell.status is WorkflowSupportStatus.BLOCKED
+        validate_workflow_support_receipt(live, candidate, cell, receipt)
 
 
 def test_floorplan_host_configures_workspace_ingress_for_its_image_contract(

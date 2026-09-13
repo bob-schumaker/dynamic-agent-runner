@@ -146,7 +146,7 @@ remains unimplemented
     tests/test_embedding_execution.py
     -q`.
 
-- [ ] WMS2.4 [tests, RED/GREEN] Define the floorplan SVG profile from the exact
+- [x] WMS2.4 [tests, RED/GREEN] Define the floorplan SVG profile from the exact
       sealed converter, model-material, generation-budget, MPS-policy, and
       output-validator facts. Add deterministic non-executing classification
       vectors for every missing or mismatched fact.
