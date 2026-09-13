@@ -69,15 +69,17 @@ cannot be generalized to another model/material closure.
 
 ## Contracts
 
-The implementation will define, after existing capability-report types are
-inspected:
+WMS1 defines these pure types in one internal classifier module after existing
+capability-report types are inspected:
 
 - `WorkflowSupportProfile`: profile ID, workflow family, required capability
-  facts, material roles/identity, permitted mode, and authorization class.
+  facts, material roles/identity, permitted mode, authorization class, and
+  canonical digest.
 - `WorkflowSupportCell`: profile/adapter/environment identity, one status,
   ordered reason codes, and no execution side effects.
 - `WorkflowSupportReceipt`: redacted execution evidence bound to the profile and
-  exact package/material descriptors.
+  exact package/material descriptors. WMS1 validates the data shape only;
+  WMS3 owns rendering and live entry points.
 
 Status meaning:
 
@@ -106,7 +108,7 @@ Status meaning:
 | Provider names become proxy capabilities | false support claims | classify declared capability/material facts only |
 | Live probe leaks content | privacy breach | redacted fixed receipt schema; no raw payload persistence |
 | Fastmail package evidence is generalized | invalid compatibility claim | bind every receipt to package/material identity |
-| MLX package onboarding is incomplete | misleading support claim | retain `deferred` rows until MLE6 records one sealed package/material receipt |
+| A candidate lacks an exact MLX package row | misleading support claim | retain `deferred` rows until that candidate records its own sealed package/material receipt; MLE6's existing row is non-transferable |
 | Floorplan evidence overstates portability | invalid model claim | bind profile and receipts to converter/material/validator/MPS facts |
 | Synthetic profiles call real collaborators | unintended side effect | install I/O and process blockers in every profile test |
 
@@ -121,5 +123,6 @@ Status meaning:
 
 ## Plan Approval
 
-- Status: skipped by user direction for artifact authoring only.
-- Notes: implementation remains separately unapproved.
+- Status: WMS1 readiness review complete.
+- Notes: implementation remains separately unapproved; WMS1 is ready for that
+  approval and must remain a pure classifier plus fake-test slice.

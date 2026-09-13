@@ -1,13 +1,15 @@
 # Workflow Model Support Matrix Validation
 
-Status: Draft — generic classifier implementation and Fastmail/floorplan live
-receipts remain absent; one package-bound MLE6 competency row is recorded
+Status: WMS1 readiness review complete; generic classifier implementation and
+Fastmail/floorplan live receipts remain absent; one package-bound MLE6
+competency row is recorded
 
 ## Commands Run
 
 | Command | Result | Notes |
 | --- | --- | --- |
 | Artifact consistency review | pass | Requirements, plan, and WMS1--WMS4 task dependencies agree; no code was changed. |
+| WMS1 readiness review | pass | Closed classifier identity, reason-code, precedence, receipt-binding, and no-side-effect boundaries are specified; Council and Ponytail reviews require no further scope. |
 | MLE6 package-bound row | pass | `tests/test_mlx_gte_tiny_mle6_matrix.py` validates exact package/material/descriptor/capability/receipt binding and rejects changed package or material identity. |
 
 ## Traceability Matrix

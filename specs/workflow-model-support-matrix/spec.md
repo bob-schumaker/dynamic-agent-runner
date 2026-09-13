@@ -74,6 +74,53 @@ required capabilities or locked materials.
 - [MUST] NFR-003: Unsupported and deferred rows must be visible in the report
   and must not count as passing evidence.
 
+## WMS1 Classifier Contract
+
+WMS1 is a pure, side-effect-free classification boundary. It receives only
+immutable declarative values; it must not construct an adapter, load a package,
+resolve a provider, read materials, import a model runtime, or dispatch a tool.
+The existing `CapabilityStatusReport` remains a workflow-preflight input, not
+the support-matrix result type.
+
+A `WorkflowSupportProfile` has a stable profile ID, workflow family, sorted
+required capability facts, sorted required material roles, execution mode, and
+authorization class. A profile digest is the SHA-256 of its UTF-8 canonical JSON
+representation: recursively NFC-normalized strings, object keys sorted, and
+JSON encoded with `sort_keys=True`, `separators=(",", ":")`, and
+`ensure_ascii=False`. A `WorkflowSupportCandidate` has an adapter identity,
+host capability facts, provider capability facts, and an optional material
+identity. A material identity has a package ID, material-lock digest, and any
+descriptor/converter digest declared by the profile. A candidate cannot claim
+an identity by repository name, mutable revision label, path, or provider name.
+
+A `WorkflowSupportCell` contains the profile digest, candidate identity,
+one terminal status, and an ordered tuple of reason codes. A deterministic or
+live `WorkflowSupportReceipt` repeats those values and binds them to its exact
+test mode. A receipt is rejected when its profile digest, adapter identity,
+package ID, material-lock digest, or any profile-required descriptor/converter
+digest differs from the evaluated cell. WMS1 defines these data contracts and
+their pure validation only; receipt rendering and live dispatch begin in WMS3.
+
+The only WMS1 reason codes are:
+
+| Code | Terminal status |
+| --- | --- |
+| `profile_unimplemented` | `deferred` |
+| `adapter_capability_missing` | `not_applicable` |
+| `required_material_missing` | `blocked` |
+| `material_identity_mismatch` | `blocked` |
+| `required_abi_unavailable` | `blocked` |
+| `required_provider_unavailable` | `blocked` |
+| `required_host_capability_missing` | `blocked` |
+| `authorization_missing` | `blocked` |
+
+Malformed profiles, candidates, or receipts are invalid inputs and raise before
+classification; they are not a fifth status. For valid inputs, the classifier
+uses this precedence: `profile_unimplemented`; then
+`adapter_capability_missing`; then all applicable `blocked` reasons in lexical
+code order; otherwise `supported` with no reasons. A supported cell has no
+reason codes; every other cell has one or more codes allowed by its status.
+
 ## Acceptance Criteria
 
 - AC-001: Given a Fastmail profile requiring tool use and a read-only tool

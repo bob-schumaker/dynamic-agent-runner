@@ -1,6 +1,6 @@
 # Workflow Model Support Matrix Tasks
 
-Status: Draft — implementation not approved
+Status: WMS1 ready for implementation approval; implementation not approved
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ Status: Draft — implementation not approved
 - [ ] WMS1.1 [discovery/tests, RED] Inspect the existing capability-report,
       package-lock, and live-matrix types; add focused failing tests for a
       profile/cell classifier without changing existing S1--S6 semantics.
-  - Spec: FR-001, FR-002, AC-001, AC-002.
+  - Spec: FR-001, FR-002, AC-001, AC-002, WMS1 Classifier Contract.
   - Files/components: `src/dynamic_agent_runner/` capability and material
     boundaries; `tests/test_workflow_model_support_matrix.py`.
   - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py -q`.
@@ -23,15 +23,17 @@ Status: Draft — implementation not approved
 - [ ] WMS1.2 [implementation, GREEN] Implement validated declarative support
       profiles and pure cell classification with stable reasons for supported,
       not-applicable, blocked, and deferred states.
-  - Spec: FR-001, FR-002, NFR-002, NFR-003.
+  - Spec: FR-001, FR-002, NFR-002, NFR-003, WMS1 Classifier Contract.
   - Depends on: WMS1.1.
   - Evidence: fake facts prove no model load, download, provider invocation, or
     tool dispatch occurs during classification.
+  - Boundary: one internal classifier module and its tests only; do not add a
+    runner, script, live entry point, or broad public export in WMS1.
 
 - [ ] WMS1.3 [tests, RED/GREEN] Add package/material identity binding tests,
       including rejection of a receipt whose profile/package/material digest
       differs from the evaluated cell.
-  - Spec: FR-006, AC-005.
+  - Spec: FR-006, AC-005, WMS1 Classifier Contract.
   - Files/components: classifier/receipt boundary and
     `tests/test_workflow_model_support_matrix.py`.
   - Depends on: WMS1.2.
@@ -57,7 +59,8 @@ Status: Draft — implementation not approved
 
 - [ ] WMS2.3 [tests, RED/GREEN] Define and execute a synthetic sealed embedding
       profile against an injected provider; cover missing ABI, wrong material
-      role, and an unonboarded MLE6 package as classified non-executing rows.
+      role, and an unonboarded embedding package as classified non-executing
+      rows.
   - Spec: FR-002, FR-003, AC-002.
   - Files/components: existing embedding test seams,
     `tests/test_workflow_model_support_matrix.py`.
