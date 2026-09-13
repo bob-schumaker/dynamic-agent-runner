@@ -23,7 +23,7 @@ Status: WMS1 ready for implementation approval; implementation not approved
     it fixes the canonical profile/material facts and all four status outcomes
     without importing an adapter, provider, or runtime.
 
-- [ ] WMS1.2 [implementation, GREEN] Implement validated declarative support
+- [x] WMS1.2 [implementation, GREEN] Implement validated declarative support
       profiles and pure cell classification with stable reasons for supported,
       not-applicable, blocked, and deferred states.
   - Spec: FR-001, FR-002, NFR-002, NFR-003, WMS1 Classifier Contract.
@@ -32,6 +32,9 @@ Status: WMS1 ready for implementation approval; implementation not approved
     tool dispatch occurs during classification.
   - Boundary: one internal classifier module and its tests only; do not add a
     runner, script, live entry point, or broad public export in WMS1.
+  - Evidence: `workflow_support_matrix.py` accepts only immutable profile and
+    candidate facts, canonicalizes profile digests, and produces the closed
+    terminal status/reason set without importing a runtime collaborator.
 
 - [ ] WMS1.3 [tests, RED/GREEN] Add package/material identity binding tests,
       including rejection of a receipt whose profile/package/material digest
