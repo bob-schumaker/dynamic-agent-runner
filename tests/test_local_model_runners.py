@@ -181,9 +181,19 @@ def test_host_rejects_a_partial_builtin_worker_pair() -> None:
         )
 
 
-def test_host_builds_a_cpu_gated_dar_owned_worker_pair(tmp_path) -> None:
+def test_host_builds_a_cpu_gated_dar_owned_worker_pair(tmp_path, monkeypatch) -> None:
+    from dynamic_agent_runner.workflow_host import generation_worker_controllers
     from dynamic_agent_runner.workflow_host.transformers_peft_model import (
         TRANSFORMERS_GENERATE_CAPABILITY,
+    )
+
+    original_factory = (
+        generation_worker_controllers.machine_generation_worker_controllers
+    )
+    monkeypatch.setattr(
+        generation_worker_controllers,
+        "machine_generation_worker_controllers",
+        lambda **kwargs: original_factory(**kwargs, platform_system=lambda: "Linux"),
     )
 
     factory, controller = _dar_owned_generation_worker_pair(
