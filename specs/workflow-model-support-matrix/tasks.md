@@ -12,13 +12,16 @@ Status: WMS1 ready for implementation approval; implementation not approved
 
 ## Task List
 
-- [ ] WMS1.1 [discovery/tests, RED] Inspect the existing capability-report,
+- [x] WMS1.1 [discovery/tests, RED] Inspect the existing capability-report,
       package-lock, and live-matrix types; add focused failing tests for a
       profile/cell classifier without changing existing S1--S6 semantics.
   - Spec: FR-001, FR-002, AC-001, AC-002, WMS1 Classifier Contract.
   - Files/components: `src/dynamic_agent_runner/` capability and material
     boundaries; `tests/test_workflow_model_support_matrix.py`.
   - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py -q`.
+  - Evidence: the new focused suite fails at collection before implementation;
+    it fixes the canonical profile/material facts and all four status outcomes
+    without importing an adapter, provider, or runtime.
 
 - [ ] WMS1.2 [implementation, GREEN] Implement validated declarative support
       profiles and pure cell classification with stable reasons for supported,
