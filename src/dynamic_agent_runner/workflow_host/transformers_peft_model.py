@@ -658,8 +658,6 @@ class TransformersPeftPackedInputAdapter:
                     if self._generation_host_policy is not None
                     else None
                 ),
-                max_tokens=request.extra.get("max_tokens"),
-                max_continuations=request.extra.get("max_continuations"),
             )
         except GenerationResourceBudgetError as error:
             raise ModelExecutionError("model generation budget is invalid") from error
@@ -1361,6 +1359,12 @@ class DeferredTransformersPeftSingleImageAdapter:
             raise ModelExecutionError("sealed converter input is unavailable")
         if self._generation_worker_factory is not None:
             raise ModelExecutionError("generation worker is unavailable")
+        if (
+            self._generation_budget is None
+            or self._generation_host_policy is None
+            or self._generation_material_lock_digest is None
+        ):
+            raise ModelExecutionError("model generation budget is unavailable")
         self._resolved_packed_adapter().bind_sealed_payload(content=content)
         self._payload_bound = True
 
@@ -1743,7 +1747,7 @@ class DeferredTransformersPeftSingleImageAdapter:
     def _resolved_worker_generation_budget(
         self, request: OpenAIModelRequest
     ) -> GenerationResourceBudget:
-        """Resolve public compatibility aliases before the child factory binds them."""
+        """Resolve the sealed budget before the child factory binds it."""
 
         budget = self._generation_budget
         policy = self._generation_host_policy
@@ -1755,8 +1759,6 @@ class DeferredTransformersPeftSingleImageAdapter:
                 runner_capability=TRANSFORMERS_GENERATE_CAPABILITY,
                 host=policy.ceiling,
                 execution_device=policy.execution_device,
-                max_tokens=request.extra.get("max_tokens"),
-                max_continuations=request.extra.get("max_continuations"),
             )
         except GenerationResourceBudgetError as error:
             raise ModelExecutionError("model generation budget is invalid") from error

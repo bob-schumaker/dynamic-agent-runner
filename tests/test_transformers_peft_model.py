@@ -239,9 +239,38 @@ def test_deferred_adapter_binds_only_a_valid_sealed_generation_budget(
     assert adapter._generation_host_policy is host_policy
 
 
+def test_deferred_adapter_rejects_converter_payload_without_a_generation_budget(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        DeferredTransformersPeftSingleImageAdapter,
+    )
+
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    adapter = DeferredTransformersPeftSingleImageAdapter(
+        model_id=recipe.model_id,
+        adapter_id=recipe.adapter_id,
+        resolve_prepared_set=lambda: PreparedArtifactSet(recipe, paths),
+    )
+
+    with pytest.raises(ModelExecutionError, match="generation budget"):
+        adapter.bind_sealed_payload(content=b"sealed image")
+
+
 def test_deferred_adapter_requires_a_manifest_bound_converter_package(
     tmp_path: Path,
 ) -> None:
+    from dynamic_agent_runner.workflow_host.execution_descriptors import (
+        ExecutionDescriptor,
+        ExecutionDescriptorAbi,
+    )
+    from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+        GenerationExecutionHostPolicy,
+    )
     from dynamic_agent_runner.workflow_host.transformers_peft_model import (
         DeferredTransformersPeftSingleImageAdapter,
     )
@@ -275,6 +304,25 @@ def test_deferred_adapter_requires_a_manifest_bound_converter_package(
         model_id=recipe.model_id,
         adapter_id=recipe.adapter_id,
         resolve_prepared_set=lambda: PreparedArtifactSet(recipe, paths),
+    )
+
+    class Reservation:
+        def release(self) -> None:
+            pass
+
+    class Provider:
+        def reserve(self, _request: object) -> Reservation:
+            return Reservation()
+
+    budget = _generation_budget()
+    adapter.bind_generation_budget(
+        descriptor=ExecutionDescriptor(
+            ExecutionDescriptorAbi("test-generation-v1", "1", "a" * 64),
+            ("weights",),
+            {"generation_budget": budget.__dict__},
+        ),
+        material_lock_digest="b" * 64,
+        host_policy=GenerationExecutionHostPolicy(budget, "cpu", Provider()),
     )
 
     with pytest.raises(ModelExecutionError, match="sealed converter input"):

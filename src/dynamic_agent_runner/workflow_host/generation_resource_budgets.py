@@ -350,8 +350,6 @@ def resolve_generation_resource_budget(
     host: GenerationResourceBudget | None = None,
     sealed_artifact_cap: GenerationResourceBudgetCap | None = None,
     execution_device: str | None = None,
-    max_tokens: object | None = None,
-    max_continuations: object | None = None,
 ) -> GenerationResourceBudget:
     """Resolve declared limits against their typed, applicable caps."""
 
@@ -393,38 +391,7 @@ def resolve_generation_resource_budget(
         if field == "max_effective_context_tokens":
             limits.append(runner_capability.max_effective_context_tokens)
         resolved[field] = min(limits)
-    _reduce_legacy_limit(
-        resolved,
-        field="max_new_tokens_per_fragment",
-        value=max_tokens,
-        minimum=1,
-    )
-    _reduce_legacy_limit(
-        resolved,
-        field="max_continuations",
-        value=max_continuations,
-        minimum=0,
-    )
     return GenerationResourceBudget(**resolved)
-
-
-def _reduce_legacy_limit(
-    resolved: dict[str, int],
-    *,
-    field: str,
-    value: object | None,
-    minimum: int,
-) -> None:
-    if value is None:
-        return
-    if (
-        not isinstance(value, int)
-        or isinstance(value, bool)
-        or value < minimum
-        or value > resolved[field]
-    ):
-        raise GenerationResourceBudgetError("generation budget is invalid")
-    resolved[field] = value
 
 
 def _positive_int(value: object) -> bool:

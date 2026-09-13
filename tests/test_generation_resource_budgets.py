@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import inspect
 
 import pytest
 
@@ -179,34 +180,11 @@ def test_runner_capability_requires_one_valid_lifecycle_form() -> None:
         )
 
 
-def test_legacy_aliases_only_reduce_fragment_and_continuation_limits() -> None:
-    resolved = resolve_generation_resource_budget(
-        declared=_budget(),
-        runner_capability=_runner_capability(),
-        host=_budget(),
-        execution_device="cpu",
-        max_tokens=4,
-        max_continuations=1,
-    )
+def test_canonical_budget_resolver_has_no_legacy_request_aliases() -> None:
+    parameters = inspect.signature(resolve_generation_resource_budget).parameters
 
-    assert resolved == _budget(max_new_tokens_per_fragment=4, max_continuations=1)
-
-    with pytest.raises(GenerationResourceBudgetError, match="invalid"):
-        resolve_generation_resource_budget(
-            declared=_budget(),
-            runner_capability=_runner_capability(),
-            host=_budget(),
-            execution_device="cpu",
-            max_tokens=9,
-        )
-    with pytest.raises(GenerationResourceBudgetError, match="invalid"):
-        resolve_generation_resource_budget(
-            declared=_budget(),
-            runner_capability=_runner_capability(),
-            host=_budget(),
-            execution_device="cpu",
-            max_continuations=3,
-        )
+    assert "max_tokens" not in parameters
+    assert "max_continuations" not in parameters
 
 
 def test_generation_budget_field_is_bound_by_the_canonical_descriptor() -> None:
