@@ -273,6 +273,7 @@ class _NumpyMlx:
                 offset=metadata["data_offsets"][0],
             ).reshape(metadata["shape"])
             for name, metadata in header.items()
+            if name != "__metadata__"
         }
 
 
@@ -293,6 +294,37 @@ class _PathOnlyNumpyMlx(_NumpyMlx):
         path = Path(source)
         assert path.name == "weights.safetensors"
         return _NumpyMlx.load(BytesIO(path.read_bytes()))
+
+
+@pytest.mark.parametrize("metadata", ({"format": "pt"}, {}))
+def test_backend_accepts_bounded_safetensors_metadata(
+    metadata: dict[str, str],
+) -> None:
+    weights = _weights_blob(mutate=lambda header: header.update(__metadata__=metadata))
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda role: (
+            _tokenizer_bytes() if role == "tokenizer" else weights
+        ),
+        mlx_loader=_NumpyMlx,
+    )
+
+    result = backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
+
+    assert result.items[0].id == "entry"
+
+
+@pytest.mark.parametrize("metadata", ("pt", {"format": 1}, {"format": ["pt"]}))
+def test_backend_rejects_non_string_safetensors_metadata(metadata: object) -> None:
+    weights = _weights_blob(mutate=lambda header: header.update(__metadata__=metadata))
+    backend = BertEncoderMlxV1EmbeddingBackend(
+        artifact_reader=lambda role: (
+            _tokenizer_bytes() if role == "tokenizer" else weights
+        ),
+        mlx_loader=lambda: (_ for _ in ()).throw(AssertionError("MLX must not load")),
+    )
+
+    with pytest.raises(EmbeddingExecutionError, match="material"):
+        backend.embed((EmbeddingInputItem("entry", "text"),), _materials())
 
 
 def test_backend_rejects_malformed_artifacts_before_tokenizer_or_model_work() -> None:

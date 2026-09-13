@@ -226,7 +226,9 @@ class BertEncoderMlxV1EmbeddingBackend:
                 with open(path, "xb") as material_file:
                     material_file.write(weights)
                 tensors = mlx.load(path)
-            if not isinstance(tensors, Mapping) or set(tensors) != set(header):
+            if not isinstance(tensors, Mapping) or set(tensors) != (
+                set(header) - {"__metadata__"}
+            ):
                 raise ValueError
             return _execute_bert_encoder(
                 mlx,
@@ -606,18 +608,17 @@ def _validate_bert_tensor_header(
     header: Mapping[str, object], descriptor: ExecutionDescriptor, *, data_size: int
 ) -> None:
     shapes = _bert_tensor_shapes(descriptor)
-    if set(header) != set(shapes):
-        raise ValueError
+    tensor_header = _tensor_header(header, shapes)
     expected_dtype, item_bytes = _bert_dtype_details(descriptor)
     spans: list[tuple[int, int]] = []
     for name, expected_shape in shapes.items():
-        metadata = header[name]
-        if not isinstance(metadata, Mapping):
+        tensor_metadata = tensor_header[name]
+        if not isinstance(tensor_metadata, Mapping):
             raise ValueError
-        shape = metadata.get("shape")
-        offsets = metadata.get("data_offsets")
+        shape = tensor_metadata.get("shape")
+        offsets = tensor_metadata.get("data_offsets")
         if (
-            metadata.get("dtype") != expected_dtype
+            tensor_metadata.get("dtype") != expected_dtype
             or not isinstance(shape, list)
             or tuple(shape) != expected_shape
             or any(
@@ -644,6 +645,24 @@ def _validate_bert_tensor_header(
         previous_end = end
     if previous_end != data_size:
         raise ValueError
+
+
+def _tensor_header(
+    header: Mapping[str, object], shapes: Mapping[str, tuple[int, ...]]
+) -> dict[str, object]:
+    tensor_header = dict(header)
+    metadata = tensor_header.pop("__metadata__", None)
+    if metadata is not None and (
+        not isinstance(metadata, Mapping)
+        or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in metadata.items()
+        )
+    ):
+        raise ValueError
+    if set(tensor_header) != set(shapes):
+        raise ValueError
+    return tensor_header
 
 
 def _validate_embedding_inputs(

@@ -209,13 +209,24 @@
     failed before the probe used `mlx.core.__version__`, then passed with the
     existing lazy-admission regression suite.
 
+- [x] MLE6.4b [bug, tests RED/GREEN] Permit one bounded standard safetensors
+      `__metadata__` string mapping while preserving exact BERT tensor names,
+      shapes, dtypes, and contiguous data-span validation.
+  - Discovered: MLE6.5 preflight on 2026-09-13 reached the backend but rejected
+    the verified GTE Tiny header solely because it contains
+    `{"__metadata__":{"format":"pt"}}`.
+  - Depends on: MLE6.4a.
+  - Evidence: metadata-bearing fake safetensors was red before the reserved
+    string-only mapping was excluded from the tensor set, then green; malformed
+    metadata still rejects before the MLX loader is called.
+
 - [ ] MLE6.5 [manual competency gate] With explicit authorization, prepare the
       exact sealed package on Darwin arm64 with `mlx==0.32.2`, run the MLX
       embedding/index workflow, and compare against its locked reference
       fixture. Retain only package/material/descriptor digests, limits,
       duration, memory, vector count/dimension, opaque output IDs, and status.
   - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
-  - Depends on: MLE6.4a.
+  - Depends on: MLE6.4b.
 
 - [ ] MLE6.6 [tests/docs] Add the exact successful package/material identity to
       the workflow model support matrix, update MLX embedding status/validation,
