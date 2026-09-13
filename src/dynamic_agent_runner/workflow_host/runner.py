@@ -386,6 +386,8 @@ class WorkflowRunner:
             self._validate_adapter(registration)
             self._validate_declared_response_formats(package_root)
             self._validate_guardrail_registry(package_root, guardrail_registry)
+            if policy.input_converter is not None:
+                self._bind_generation_budget(policy)
             sealed = self._preparation.load(
                 request.prepared_input_id, registration=registration, now=now
             )
@@ -580,7 +582,6 @@ class WorkflowRunner:
         converter = policy.input_converter
         if converter is None:
             return None
-        self._bind_generation_budget(policy)
         if (
             getattr(self._model_adapter, "input_converter_contract_id", None)
             != converter.compatible_runner_contract_id
@@ -660,7 +661,7 @@ class WorkflowRunner:
         """Bind the immutable descriptor budget before converter payload ingress."""
 
         if policy.execution_descriptor is None:
-            return
+            raise RunDarWorkflowError("model generation budget is unavailable")
         binding = policy.model_execution_binding
         host_policy = self._generation_execution_host_policy
         if binding is None or host_policy is None:

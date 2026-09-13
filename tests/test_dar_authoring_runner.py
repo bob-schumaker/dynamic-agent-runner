@@ -72,6 +72,14 @@ from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
     DeclaredTerminalOutputProcessor,
     DeclaredTerminalOutputValidator,
 )
+from dynamic_agent_runner.workflow_host.execution_descriptors import (  # noqa: E402
+    ExecutionDescriptor,
+    ExecutionDescriptorAbi,
+)
+from dynamic_agent_runner.workflow_host.generation_resource_budgets import (  # noqa: E402
+    GenerationExecutionHostPolicy,
+    GenerationResourceBudget,
+)
 from dynamic_agent_runner.workflow_host.host import LocalWorkflowHost  # noqa: E402
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa: E402
     ReviewedToolPackageBinding,
@@ -354,7 +362,15 @@ class ConverterFakeAdapter(VisionFakeAdapter):
         self.bound_converters: list[tuple[Path, object]] = []
         self.converter_error: Exception | None = None
         self.payload_cleared = 0
+        self.bound_generation_budgets: list[tuple[object, str, object]] = []
         self.input_converter_contract_id = "transformers-generate-v1"
+
+    def bind_generation_budget(
+        self, *, descriptor: object, material_lock_digest: str, host_policy: object
+    ) -> None:
+        self.bound_generation_budgets.append(
+            (descriptor, material_lock_digest, host_policy)
+        )
 
     def bind_input_converter(self, *, package_root: Path, converter: object) -> None:
         if self.converter_error is not None:
@@ -702,24 +718,85 @@ def _runner(
             )
         )
     )
+    runner = WorkflowRunner(
+        registrations=registrations,
+        catalog=catalog,
+        preparation=preparation,
+        model_adapter=adapter,
+        configured_profile=profiles.load(active_profile_id or profile.profile_id),
+        local_tool_executor=local_tool_executor,  # type: ignore[arg-type]
+        reviewed_tool_packages=reviewed_tool_packages,
+        reviewed_artifact_tool_executors=reviewed_artifact_tool_executors,  # type: ignore[arg-type]
+        terminal_diagnostic_store=store,
+        terminal_diagnostic_owner="test-local-user",
+        capability_catalog=capability_catalog,
+    )
+    _configure_generation_budget_fixture(runner)
     return (
-        WorkflowRunner(
-            registrations=registrations,
-            catalog=catalog,
-            preparation=preparation,
-            model_adapter=adapter,
-            configured_profile=profiles.load(active_profile_id or profile.profile_id),
-            local_tool_executor=local_tool_executor,  # type: ignore[arg-type]
-            reviewed_tool_packages=reviewed_tool_packages,
-            reviewed_artifact_tool_executors=reviewed_artifact_tool_executors,  # type: ignore[arg-type]
-            terminal_diagnostic_store=store,
-            terminal_diagnostic_owner="test-local-user",
-            capability_catalog=capability_catalog,
-        ),
+        runner,
         preparation,
         registration,
         revision,
         client,
+    )
+
+
+def _configure_generation_budget_fixture(runner: WorkflowRunner) -> None:
+    adapter = runner._model_adapter
+    if not isinstance(adapter, ConverterFakeAdapter):
+        return
+    budget = GenerationResourceBudget(
+        max_new_tokens_per_fragment=4,
+        max_continuations=1,
+        max_total_generated_tokens=8,
+        max_total_output_bytes=64,
+        max_effective_context_tokens=8,
+        max_runtime_milliseconds=1_000,
+        max_memory_bytes=1_024,
+    )
+
+    class Provider:
+        def reserve(self, _request: object) -> object:
+            return object()
+
+    descriptor = ExecutionDescriptor(
+        ExecutionDescriptorAbi("test-generation-v1", "1", "a" * 64),
+        ("weights",),
+        {"generation_budget": budget.__dict__},
+    )
+    binding = ModelExecutionBinding(
+        "test-model",
+        "test-runner-v1",
+        "1",
+        None,
+        None,
+        "b" * 64,
+        "c" * 64,
+        "test-runner-v1",
+        "1",
+        "d" * 64,
+    )
+    original_preflight = runner._preflight
+
+    def preflight(workflow_id: str):
+        registration, package_root, policy, terminal_output_contract = (
+            original_preflight(workflow_id)
+        )
+        return (
+            registration,
+            package_root,
+            replace(
+                policy,
+                execution_descriptor=descriptor,
+                model_execution_binding=binding,
+            ),
+            terminal_output_contract,
+        )
+
+    runner._preflight = preflight  # type: ignore[method-assign]
+    runner._validate_model_execution_binding = lambda _policy: None  # type: ignore[method-assign]
+    runner._generation_execution_host_policy = GenerationExecutionHostPolicy(
+        budget, "cpu", Provider()
     )
 
 
@@ -2435,12 +2512,64 @@ def test_runner_delivers_converter_payload_without_media_type_routing(
     assert isinstance(adapter, ConverterFakeAdapter)
     assert result.output == {"message": "completed locally"}
     assert len(adapter.bound_converters) == 1
+    assert len(adapter.bound_generation_budgets) == 1
     assert adapter.bound_converters[0][1].converter_id == "qwen25-vl-3b-grpo-input-v1"
     assert adapter.bound_payloads == [b"sealed-image-bytes"]
     assert adapter.bound_images == []
     assert adapter.payload_cleared == 1
     assert "sealed-image-bytes" not in repr(client.responses.calls)
     assert "v1.source-image" not in repr(runner.traces())
+
+
+def test_runner_rejects_converter_without_budget_before_sealed_input_loading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+    )
+    preflight = runner._preflight
+
+    def without_generation_budget(workflow_id: str):
+        registration, package_root, policy, terminal_output_contract = preflight(
+            workflow_id
+        )
+        return (
+            registration,
+            package_root,
+            replace(policy, execution_descriptor=None),
+            terminal_output_contract,
+        )
+
+    runner._preflight = without_generation_budget  # type: ignore[method-assign]
+    load_calls: list[object] = []
+
+    def load(**_kwargs: object) -> object:
+        load_calls.append(object())
+        raise AssertionError("sealed input must not be loaded")
+
+    monkeypatch.setattr(
+        preparation,
+        "load",
+        load,
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="generation budget"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": "unloaded-input",
+                }
+            ),
+            now=NOW,
+        )
+
+    assert load_calls == []
 
 
 def test_runner_rejects_declared_json_before_binding_sealed_payload(
