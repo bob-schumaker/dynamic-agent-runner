@@ -230,3 +230,11 @@ admission.
   It must reject non-Darwin, unavailable, and over-capacity policies before
   host open; preserve caller-supplied policies; and allow the existing prepared
   Transformers/PEFT workflow to select MPS without test-only provider code.
+- [ ] T5.6 [tests, RED/GREEN + implementation] Register the reviewed pinned
+  floorplan Transformers/PEFT preparation recipe and human-created local
+  profile path in production host composition. Preparation must verify only the
+  exact approved base/adapter artifacts from DAR-owned or approved cache roots;
+  do not fabricate records or invoke directly from a cache path.
+- [ ] T5.7 [manual gate] Create/register the prepared floorplan workflow through
+  the supported host APIs, then execute T5.4 with the explicit Darwin MPS host
+  policy and record only its redacted receipt and aggregate facts.
