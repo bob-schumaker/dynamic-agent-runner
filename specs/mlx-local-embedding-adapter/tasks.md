@@ -153,7 +153,8 @@
   - Evidence: user approval on 2026-09-13 is recorded in
     `tests/fixtures/mlx-gte-tiny/mle6-approval.md`. The closure remains local
     internal conformance-only because upstream Hub metadata declares no license;
-    it does not authorize redistribution or live material use.
+    it does not authorize redistribution or independently authorize a live
+    material run.
 
 - [x] MLE6.2 [tests, RED/GREEN] Add package-admission tests for the selected
       v2 `model-materials.json`, `bert-encoder-mlx-v3` descriptor, required

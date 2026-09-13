@@ -25,7 +25,8 @@ matrix admission recorded
 
 - The approval record at `tests/fixtures/mlx-gte-tiny/mle6-approval.md` selects
   one cached BERT-compatible closure for local internal conformance only. It
-  does not convert the legacy v1 fixture into an MLE6 package.
+  does not convert the legacy v1 fixture into an MLE6 package or independently
+  authorize a competency run.
 - This MLE6 goal explicitly authorized local cache material verification,
   local-only reference-vector generation, and the Darwin competency run. The
   committed receipt retains only redacted package identity, limits, resource,
