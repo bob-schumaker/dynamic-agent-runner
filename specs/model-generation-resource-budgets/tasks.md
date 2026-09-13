@@ -4,9 +4,10 @@
 
 Automated implementation and focused/full-suite evidence are complete through
 T4.5. T4.6 has recorded the explicitly authorized fixture-only Darwin
-pre-dispatch resource rejection and its effective limits. T4.7 remains open for
-post-gate validation and compatibility-alias retirement after every consumer
-has migrated.
+pre-dispatch resource rejection and its effective limits. The canonical resolver
+no longer accepts legacy request aliases. T4.7 remains open until the converter
+workflow package migration in T4.8 makes missing-budget rejection occur before
+sealed-input handling.
 
 ## S1 — Canonical Contract and Admission
 
@@ -192,3 +193,9 @@ has migrated.
   `poetry run ruff check src tests`, and `git diff --check`; update the related
   spec statuses and remove compatibility aliases only after all consumers have
   migrated.
+- [ ] T4.8 [migration] Migrate converter-capable workflow package fixtures and
+  their host integration vectors to a verified v2 model-material lock and
+  execution descriptor carrying the canonical `generation_budget`; register the
+  matching descriptor validator, runner binding, and host policy. Require the
+  workflow runner to reject a missing or incompatible generation budget before
+  converter loading or sealed-input materialization, then rerun T4.7.
