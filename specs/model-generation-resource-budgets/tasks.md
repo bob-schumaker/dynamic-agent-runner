@@ -243,3 +243,8 @@ admission.
   model-runner provider registration to the production floorplan package path.
   Reject registration before converter ingress when that material is absent;
   do not use the legacy fixture recipe or direct cache state as a substitute.
+- [ ] T5.9 [tests, RED/GREEN + implementation] Fix the real Darwin MPS worker
+  pack command/response transaction. The prepared model launches and direct
+  packing succeeds, but `GenerationWorkerLauncher.pack_receipt` receives a
+  protocol failure before authorization; add a spawned-child regression that
+  proves the `packed` frame reaches the parent before changing transport code.
