@@ -666,6 +666,7 @@ class GenerationWorkerLauncher:
         self._packed_receipts.pop(id(child), None)
         reservation: ReservedGenerationMemory | None = None
         try:
+            deadline.require_remaining(now)
             self._validate_launched_reservation(
                 descriptor=descriptor,
                 session=session,
@@ -681,7 +682,7 @@ class GenerationWorkerLauncher:
                 request=request,
             )
             _authorize_child_if_supported(child, receipt, remaining_generated_tokens)
-            deadline.require_remaining(now)
+            deadline.require_remaining(clock())
             _configure_child_deadline(child=child, deadline=deadline, clock=clock)
             return self._validated_generation_result(
                 generate=generate,
