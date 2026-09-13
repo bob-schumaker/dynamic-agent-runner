@@ -4,8 +4,8 @@
 
 - Feature slug: `mlx-local-embedding-adapter`
 - Status: generic ABI/provider, one BERT/WordPiece package, one
-  SentencePiece-Unigram package, and the MLE8 RoBERTa descriptor ABI
-  implemented; RoBERTa execution and package evidence remain planned
+  SentencePiece-Unigram package, and the MLE8 RoBERTa ABI/executor
+  implemented; RoBERTa package evidence remains planned
 - Owner: dynamic-agent-runner local-model and embedding-capability boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`

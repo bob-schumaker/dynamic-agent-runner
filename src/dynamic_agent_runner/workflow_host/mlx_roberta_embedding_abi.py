@@ -4,15 +4,24 @@ from __future__ import annotations
 
 import json
 import math
+import tempfile
 import unicodedata
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from typing import Protocol
 
+from dynamic_agent_runner.errors import EmbeddingExecutionError
+from dynamic_agent_runner.local_models import (
+    EmbeddingBatchResult,
+    EmbeddingInputItem,
+    EmbeddingVectorItem,
+)
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
     ExecutionDescriptor,
     ExecutionDescriptorAbi,
     ExecutionDescriptorError,
 )
+from dynamic_agent_runner.workflow_host.embedding_execution import EmbeddingBatchLimits
 
 
 ROBERTA_ENCODER_MLX_V1_ABI = ExecutionDescriptorAbi(
@@ -203,6 +212,417 @@ class _RobertaByteLevelBpeTokenizer:
     merge_ranks: Mapping[tuple[str, str], int]
     byte_encoder: Mapping[int, str]
     unk_id: int
+
+
+class _EmbeddingMaterialReceipt(Protocol):
+    execution_descriptor: ExecutionDescriptor
+
+
+class RobertaEncoderMlxV1EmbeddingBackend:
+    """Admit and execute only the closed RoBERTa ABI material grammar."""
+
+    def __init__(
+        self,
+        *,
+        artifact_reader: Callable[[str], bytes],
+        mlx_loader: Callable[[], object] | None = None,
+    ) -> None:
+        self._artifact_reader = artifact_reader
+        self._mlx_loader = mlx_loader or _load_mlx_core
+
+    def embed(
+        self,
+        items: Sequence[EmbeddingInputItem],
+        materials: _EmbeddingMaterialReceipt,
+    ) -> EmbeddingBatchResult:
+        """Embed one finite batch after material admission and before no fallback."""
+
+        try:
+            descriptor = materials.execution_descriptor
+            RobertaEncoderMlxV1DescriptorValidator().validate(descriptor)
+            limits = _roberta_embedding_limits(descriptor)
+            _validate_embedding_inputs(items, limits)
+            tokenizer, weights, header = _read_roberta_artifacts(
+                self._artifact_reader, descriptor
+            )
+            mlx = self._mlx_loader()
+            with tempfile.TemporaryDirectory(prefix="dar-mlx-") as directory:
+                path = f"{directory}/weights.safetensors"
+                with open(path, "xb") as material_file:
+                    material_file.write(weights)
+                tensors = mlx.load(path)
+            if not isinstance(tensors, Mapping) or set(tensors) != set(header) - {
+                "__metadata__"
+            }:
+                raise ValueError
+            return _execute_roberta_encoder(
+                mlx, tensors, tokenizer, tuple(items), descriptor
+            )
+        except EmbeddingExecutionError:
+            raise
+        except Exception as error:  # noqa: BLE001 - receiver material boundary.
+            raise EmbeddingExecutionError(
+                "MLX embedding material is unavailable"
+            ) from error
+
+
+def _roberta_embedding_limits(descriptor: ExecutionDescriptor) -> Mapping[str, object]:
+    limits = descriptor.abi_fields.get("limits")
+    if not isinstance(limits, Mapping):
+        raise ValueError
+    return limits
+
+
+def roberta_encoder_mlx_v1_embedding_batch_limits(
+    descriptor: ExecutionDescriptor,
+) -> EmbeddingBatchLimits:
+    """Project one admitted RoBERTa ABI descriptor to generic batch limits."""
+
+    try:
+        RobertaEncoderMlxV1DescriptorValidator().validate(descriptor)
+        limits = _roberta_embedding_limits(descriptor)
+        encoder = descriptor.abi_fields["encoder"]
+        if not isinstance(encoder, Mapping):
+            raise ValueError
+        return EmbeddingBatchLimits(
+            max_items=limits["max_items"],  # type: ignore[arg-type]
+            max_item_utf8_bytes=limits["max_item_bytes"],  # type: ignore[arg-type]
+            max_total_utf8_bytes=limits["max_aggregate_bytes"],  # type: ignore[arg-type]
+            max_vector_dimension=encoder["hidden_size"],  # type: ignore[arg-type]
+            max_total_vectors=limits["max_vectors"],  # type: ignore[arg-type]
+        )
+    except Exception as error:  # noqa: BLE001 - sealed ABI boundary.
+        raise EmbeddingExecutionError("MLX embedding limits are unavailable") from error
+
+
+def _read_roberta_artifacts(
+    artifact_reader: Callable[[str], bytes], descriptor: ExecutionDescriptor
+) -> tuple[_RobertaByteLevelBpeTokenizer, bytes, Mapping[str, object]]:
+    limits = _roberta_embedding_limits(descriptor)
+    vocab = artifact_reader("vocab")
+    merges = artifact_reader("merges")
+    tokenizer = _parse_roberta_byte_level_bpe(vocab, merges, descriptor)
+    weights = artifact_reader("weights")
+    if (
+        not isinstance(weights, bytes)
+        or len(weights) < 8
+        or len(weights) > limits["max_weights_bytes"]
+    ):
+        raise ValueError
+    header_size = int.from_bytes(weights[:8], "little")
+    if (
+        header_size > limits["max_safetensors_header_bytes"]
+        or len(weights) < 8 + header_size
+    ):
+        raise ValueError
+    header = json.loads(weights[8 : 8 + header_size].decode("utf-8"))
+    if not isinstance(header, Mapping):
+        raise ValueError
+    _validate_roberta_tensor_header(
+        header, descriptor, data_size=len(weights) - 8 - header_size
+    )
+    return tokenizer, weights, header
+
+
+def _roberta_tensor_shapes(
+    descriptor: ExecutionDescriptor,
+) -> dict[str, tuple[int, ...]]:
+    encoder = descriptor.abi_fields["encoder"]
+    if not isinstance(encoder, Mapping):
+        raise ValueError
+    values = tuple(
+        encoder[name]
+        for name in (
+            "vocab_size",
+            "hidden_size",
+            "layers",
+            "intermediate_size",
+            "max_positions",
+            "type_vocab_size",
+        )
+    )
+    if not all(isinstance(value, int) for value in values):
+        raise ValueError
+    (
+        vocab_size,
+        hidden_size,
+        layers,
+        intermediate_size,
+        max_positions,
+        type_vocab_size,
+    ) = values
+    shapes = {
+        "embeddings.word_embeddings.weight": (vocab_size, hidden_size),
+        "embeddings.position_embeddings.weight": (max_positions, hidden_size),
+        "embeddings.token_type_embeddings.weight": (type_vocab_size, hidden_size),
+        "embeddings.LayerNorm.weight": (hidden_size,),
+        "embeddings.LayerNorm.bias": (hidden_size,),
+    }
+    for index in range(layers):
+        prefix = f"encoder.layer.{index}"
+        for projection in ("query", "key", "value"):
+            shapes[f"{prefix}.attention.self.{projection}.weight"] = (
+                hidden_size,
+                hidden_size,
+            )
+            shapes[f"{prefix}.attention.self.{projection}.bias"] = (hidden_size,)
+        shapes.update(
+            {
+                f"{prefix}.attention.output.dense.weight": (hidden_size, hidden_size),
+                f"{prefix}.attention.output.dense.bias": (hidden_size,),
+                f"{prefix}.attention.output.LayerNorm.weight": (hidden_size,),
+                f"{prefix}.attention.output.LayerNorm.bias": (hidden_size,),
+                f"{prefix}.intermediate.dense.weight": (intermediate_size, hidden_size),
+                f"{prefix}.intermediate.dense.bias": (intermediate_size,),
+                f"{prefix}.output.dense.weight": (hidden_size, intermediate_size),
+                f"{prefix}.output.dense.bias": (hidden_size,),
+                f"{prefix}.output.LayerNorm.weight": (hidden_size,),
+                f"{prefix}.output.LayerNorm.bias": (hidden_size,),
+            }
+        )
+    return shapes
+
+
+def _validate_roberta_tensor_header(
+    header: Mapping[str, object], descriptor: ExecutionDescriptor, *, data_size: int
+) -> None:
+    tensor_header = dict(header)
+    metadata = tensor_header.pop("__metadata__", None)
+    if metadata is not None and (
+        not isinstance(metadata, Mapping)
+        or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in metadata.items()
+        )
+    ):
+        raise ValueError
+    shapes = _roberta_tensor_shapes(descriptor)
+    if set(tensor_header) != set(shapes):
+        raise ValueError
+    spans: list[tuple[int, int]] = []
+    for name, expected_shape in shapes.items():
+        entry = tensor_header[name]
+        if not isinstance(entry, Mapping):
+            raise ValueError
+        shape = entry.get("shape")
+        offsets = entry.get("data_offsets")
+        if (
+            entry.get("dtype") != "F32"
+            or not isinstance(shape, list)
+            or tuple(shape) != expected_shape
+            or any(
+                not isinstance(value, int) or isinstance(value, bool) for value in shape
+            )
+            or not isinstance(offsets, list)
+            or len(offsets) != 2
+            or any(
+                not isinstance(value, int) or isinstance(value, bool)
+                for value in offsets
+            )
+        ):
+            raise ValueError
+        start, end = offsets
+        if (
+            start < 0
+            or end < start
+            or end > data_size
+            or end - start != math.prod(expected_shape) * 4
+        ):
+            raise ValueError
+        spans.append((start, end))
+    previous_end = 0
+    for start, end in sorted(spans):
+        if start != previous_end:
+            raise ValueError
+        previous_end = end
+    if previous_end != data_size:
+        raise ValueError
+
+
+def _execute_roberta_encoder(
+    mlx: object,
+    tensors: Mapping[str, object],
+    tokenizer: _RobertaByteLevelBpeTokenizer,
+    items: tuple[EmbeddingInputItem, ...],
+    descriptor: ExecutionDescriptor,
+) -> EmbeddingBatchResult:
+    token_ids, attention_mask = _tokenize_roberta_byte_level_bpe_items(
+        tokenizer, items, descriptor
+    )
+    fields = descriptor.abi_fields
+    encoder = fields["encoder"]
+    tokenizer_fields = fields["tokenizer"]
+    if not isinstance(encoder, Mapping) or not isinstance(tokenizer_fields, Mapping):
+        raise ValueError
+    special_ids = tokenizer_fields["special_token_ids"]
+    if not isinstance(special_ids, Mapping):
+        raise ValueError
+    token_array = mlx.array(token_ids, dtype=mlx.int32)
+    mask_array = mlx.array(attention_mask, dtype=mlx.int32)
+    position_array = mlx.array(
+        _roberta_position_ids(token_ids, pad_id=special_ids["pad"]), dtype=mlx.int32
+    )
+    batch_size, token_count = token_array.shape
+    hidden_size = encoder["hidden_size"]
+    heads = encoder["attention_heads"]
+    layers = encoder["layers"]
+    epsilon = encoder["layer_norm_epsilon"]
+    if (
+        not all(isinstance(value, int) for value in (hidden_size, heads, layers))
+        or epsilon != 1e-5
+    ):
+        raise ValueError
+    hidden = (
+        tensors["embeddings.word_embeddings.weight"][token_array]
+        + tensors["embeddings.position_embeddings.weight"][position_array]
+        + tensors["embeddings.token_type_embeddings.weight"][
+            mlx.zeros((batch_size, token_count), dtype=mlx.int32)
+        ]
+    )
+    hidden = _roberta_layer_norm(
+        mlx,
+        hidden,
+        tensors["embeddings.LayerNorm.weight"],
+        tensors["embeddings.LayerNorm.bias"],
+    )
+    head_size = hidden_size // heads
+    for index in range(layers):
+        prefix = f"encoder.layer.{index}"
+        query = _dense(
+            hidden,
+            tensors[f"{prefix}.attention.self.query.weight"],
+            tensors[f"{prefix}.attention.self.query.bias"],
+        )
+        key = _dense(
+            hidden,
+            tensors[f"{prefix}.attention.self.key.weight"],
+            tensors[f"{prefix}.attention.self.key.bias"],
+        )
+        value = _dense(
+            hidden,
+            tensors[f"{prefix}.attention.self.value.weight"],
+            tensors[f"{prefix}.attention.self.value.bias"],
+        )
+        query = query.reshape(batch_size, token_count, heads, head_size).transpose(
+            0, 2, 1, 3
+        )
+        key = key.reshape(batch_size, token_count, heads, head_size).transpose(
+            0, 2, 1, 3
+        )
+        value = value.reshape(batch_size, token_count, heads, head_size).transpose(
+            0, 2, 1, 3
+        )
+        scores = query @ key.transpose(0, 1, 3, 2) / math.sqrt(head_size)
+        attended = (
+            mlx.softmax(scores + (1 - mask_array[:, None, None, :]) * -10000.0, axis=-1)
+            @ value
+        )
+        attended = attended.transpose(0, 2, 1, 3).reshape(
+            batch_size, token_count, hidden_size
+        )
+        hidden = _roberta_layer_norm(
+            mlx,
+            hidden
+            + _dense(
+                attended,
+                tensors[f"{prefix}.attention.output.dense.weight"],
+                tensors[f"{prefix}.attention.output.dense.bias"],
+            ),
+            tensors[f"{prefix}.attention.output.LayerNorm.weight"],
+            tensors[f"{prefix}.attention.output.LayerNorm.bias"],
+        )
+        intermediate = _dense(
+            hidden,
+            tensors[f"{prefix}.intermediate.dense.weight"],
+            tensors[f"{prefix}.intermediate.dense.bias"],
+        )
+        intermediate = (
+            0.5 * intermediate * (1.0 + mlx.erf(intermediate / math.sqrt(2.0)))
+        )
+        hidden = _roberta_layer_norm(
+            mlx,
+            hidden
+            + _dense(
+                intermediate,
+                tensors[f"{prefix}.output.dense.weight"],
+                tensors[f"{prefix}.output.dense.bias"],
+            ),
+            tensors[f"{prefix}.output.LayerNorm.weight"],
+            tensors[f"{prefix}.output.LayerNorm.bias"],
+        )
+    if fields["pooling"] == "cls":
+        vectors = hidden[:, 0, :]
+    else:
+        mask = mask_array[:, :, None]
+        vectors = mlx.sum(hidden * mask, axis=1) / mlx.sum(mask, axis=1, keepdims=False)
+    if fields["normalization"] == "l2":
+        vectors = vectors / mlx.sqrt(mlx.sum(vectors * vectors, axis=-1, keepdims=True))
+    mlx.eval(vectors)
+    values = vectors.tolist()
+    if not isinstance(values, list) or len(values) != len(items):
+        raise ValueError
+    result_items: list[EmbeddingVectorItem] = []
+    for item, vector in zip(items, values, strict=True):
+        if (
+            not isinstance(vector, list)
+            or len(vector) != hidden_size
+            or any(
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or not math.isfinite(value)
+                for value in vector
+            )
+        ):
+            raise ValueError
+        result_items.append(
+            EmbeddingVectorItem(item.id, tuple(float(value) for value in vector))
+        )
+    return EmbeddingBatchResult(model=descriptor.digest, items=tuple(result_items))
+
+
+def _dense(values: object, weight: object, bias: object) -> object:
+    return values @ weight.T + bias
+
+
+def _roberta_layer_norm(
+    mlx: object, values: object, weight: object, bias: object
+) -> object:
+    mean = mlx.mean(values, axis=-1, keepdims=True)
+    variance = mlx.mean((values - mean) * (values - mean), axis=-1, keepdims=True)
+    return (values - mean) / mlx.sqrt(variance + 1e-5) * weight + bias
+
+
+def _validate_embedding_inputs(
+    items: Sequence[EmbeddingInputItem], limits: Mapping[str, object]
+) -> None:
+    if not items or len(items) > limits["max_items"]:
+        raise EmbeddingExecutionError("MLX embedding input is invalid")
+    aggregate_bytes = 0
+    seen_ids: set[str] = set()
+    for item in items:
+        if (
+            not isinstance(item, EmbeddingInputItem)
+            or not item.id
+            or item.id in seen_ids
+        ):
+            raise EmbeddingExecutionError("MLX embedding input is invalid")
+        try:
+            item_bytes = len(item.text.encode("utf-8"))
+        except UnicodeError as error:
+            raise EmbeddingExecutionError("MLX embedding input is invalid") from error
+        aggregate_bytes += item_bytes
+        if (
+            item_bytes > limits["max_item_bytes"]
+            or aggregate_bytes > limits["max_aggregate_bytes"]
+        ):
+            raise EmbeddingExecutionError("MLX embedding input is invalid")
+        seen_ids.add(item.id)
+
+
+def _load_mlx_core() -> object:
+    import mlx.core as mx
+
+    return mx
 
 
 def _parse_roberta_byte_level_bpe(  # noqa: C901 - one closed asset-admission boundary.

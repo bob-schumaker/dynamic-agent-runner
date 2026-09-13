@@ -11,6 +11,9 @@ from dynamic_agent_runner.workflow_host.execution_descriptors import (
     ExecutionDescriptorValidatorRegistry,
     parse_execution_descriptor,
 )
+from dynamic_agent_runner.workflow_host.mlx_embedding_abi import (
+    BertEncoderMlxV1DescriptorValidator,
+)
 from dynamic_agent_runner.workflow_host.mlx_roberta_embedding_abi import (
     ROBERTA_ENCODER_MLX_V1_ABI,
     RobertaEncoderMlxV1DescriptorValidator,
@@ -204,3 +207,8 @@ def test_roberta_position_ids_skip_padding_from_its_padding_index() -> None:
         [2, 3, 4, 1],
         [1, 2, 3, 1],
     ]
+
+
+def test_bert_abi_rejects_roberta_descriptor_facts() -> None:
+    with pytest.raises(ExecutionDescriptorError, match="ABI fields"):
+        BertEncoderMlxV1DescriptorValidator().validate(_descriptor())

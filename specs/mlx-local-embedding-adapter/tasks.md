@@ -620,7 +620,7 @@
     position-ID, epsilon, token-type, and executable-tokenizer facts without
     material or MLX work.
 
-- [ ] MLE8.2 [tests, RED/GREEN] Add fake-only ABI vectors for byte-level BPE
+- [x] MLE8.2 [tests, RED/GREEN] Add fake-only ABI vectors for byte-level BPE
       vocabulary/merge admission, Unicode byte and leading-space behavior,
       special tokens, malformed merges, RoBERTa position IDs around padding,
       tensor/header rejection, attention/pooling/normalization, and exact
@@ -633,12 +633,22 @@
     tokenizer package. They prove `tokenizer.json` and model configuration
     cannot alter execution semantics, descriptor `1e-5` is used at embedding
     and encoder LayerNorm sites, and no BERT ABI accepts RoBERTa facts.
+  - Evidence (2026-09-13): focused fake-only vectors cover sealed
+    `vocab.json`/`merges.txt` admission, malformed assets, leading spaces,
+    UTF-8 bytes, special framing, padding-derived positions, exact tensor
+    headers, BERT-ABI rejection, and each embedding/encoder `1e-5` LayerNorm
+    site. They do not import MLX or a tokenizer package.
 
-- [ ] MLE8.3 [implementation] Implement the closed RoBERTa tokenizer and
+- [x] MLE8.3 [implementation] Implement the closed RoBERTa tokenizer and
       executor behind the registry without changing BERT ABI behavior, generic
       provider selection, or generation adapters.
   - Spec: planned `roberta-encoder-mlx-v1` ABI.
   - Depends on: MLE8.2.
+  - Evidence (2026-09-13): the separate receiver backend reads only the three
+    admitted roles, validates the exact safetensors closure before MLX loading,
+    executes the fixed RoBERTa arithmetic with a fake MLX surface, and projects
+    sealed limits to the generic embedding boundary. BERT and generation code
+    remain unchanged.
 
 - [ ] MLE8.3a [implementation, RED/GREEN] Add one receiver-owned,
       descriptor-bound source-extraction provider for the approved RoBERTa
