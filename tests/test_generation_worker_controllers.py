@@ -1098,7 +1098,7 @@ def test_machine_controller_factory_exposes_mps_only_with_darwin_runtime_support
     )
 
     assert linux.supported_execution_devices == frozenset({"cpu"})
-    assert darwin.supported_execution_devices == frozenset({"cpu", "mps"})
+    assert darwin.supported_execution_devices == frozenset({"mps"})
 
 
 def test_machine_controller_factory_wires_cpu_child_assets_and_runtime() -> None:
@@ -1109,6 +1109,7 @@ def test_machine_controller_factory_wires_cpu_child_assets_and_runtime() -> None
         runner_id="runner-v1",
         asset_handles=asset_handles,
         worker_runtime=worker_runtime,
+        platform_system=lambda: "Linux",
     )
 
     cpu = controllers._controllers["cpu"]  # type: ignore[attr-defined]

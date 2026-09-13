@@ -510,15 +510,16 @@ def machine_generation_worker_controllers(
     """Build only the CPU/MPS controllers the receiving machine can enforce."""
 
     controllers: dict[str, object] = {}
-    try:
-        controllers["cpu"] = CpuMultiprocessingGenerationWorkerController(
-            runner_id=runner_id,
-            process_context=process_context,
-            asset_handles=asset_handles,
-            worker_runtime=worker_runtime,
-        )
-    except GenerationResourceBudgetError:
-        pass
+    if platform_system() != "Darwin":
+        try:
+            controllers["cpu"] = CpuMultiprocessingGenerationWorkerController(
+                runner_id=runner_id,
+                process_context=process_context,
+                asset_handles=asset_handles,
+                worker_runtime=worker_runtime,
+            )
+        except GenerationResourceBudgetError:
+            pass
     if metal_runtime is not None:
         try:
             controllers["mps"] = MacMpsGenerationWorkerController(
