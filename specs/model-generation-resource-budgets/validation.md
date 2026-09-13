@@ -52,6 +52,18 @@ floorplan package and ingresses its declared `source_image` PNG through the
 public host API. Focused verification passed: `1 passed`; Ruff and
 `git diff --check` also passed.
 
+## T5.12 — Co-located JSON response contract
+
+Date: 2026-09-13
+
+The generic worker asset bundle now carries the validated `json_object` mode
+from the parent request to the co-located Transformers runner. The completed
+parent response is validated as a JSON object, while other formats remain
+rejected. The focused child-runtime regression first failed because the asset
+bundle accepted no JSON contract; it now proves that the child receives
+`json_mode=True`. Focused generic adapter, asset, and factory verification
+passed: `85 passed`.
+
 ## S5 — Darwin MPS no-model worker fixture
 
 Date: 2026-09-13

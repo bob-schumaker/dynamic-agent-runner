@@ -396,7 +396,9 @@ class TransformersPeftGenerationWorkerRuntime:
             raise ModelExecutionError("generation worker protocol invalid")
         try:
             generated = self._runner.generate_chunk(
-                packed, max_new_tokens=remaining_generated_tokens
+                packed,
+                max_new_tokens=remaining_generated_tokens,
+                json_mode=self._assets.json_mode,
             )
             generated_tokens = generated.generated_tokens
             if (
@@ -1466,6 +1468,7 @@ class DeferredTransformersPeftSingleImageAdapter:
                 messages=canonical_messages,
                 sealed_payload=sealed_payload,
                 sealed_payload_digest=sha256(sealed_payload).hexdigest(),
+                json_mode=_json_mode_requested(request.response_format, supported=True),
                 material_lock_digest=material_lock_digest,
                 execution_descriptor_digest=execution_descriptor_digest,
                 execution_device=host_policy.execution_device,
@@ -1480,8 +1483,7 @@ class DeferredTransformersPeftSingleImageAdapter:
     def _create_worker_response(self, request: OpenAIModelRequest) -> ModelResponse:
         """Execute one bounded fragment and retain only aggregate parent facts."""
 
-        if request.response_format is not None:
-            raise ModelExecutionError("local model response format is unsupported")
+        json_mode = _json_mode_requested(request.response_format, supported=True)
         budget = self._resolved_worker_generation_budget(request)
         deadline = GenerationDeadline.start(
             time.monotonic(), max_runtime_milliseconds=budget.max_runtime_milliseconds
@@ -1500,6 +1502,8 @@ class DeferredTransformersPeftSingleImageAdapter:
                     host_policy=host_policy,
                 )
             )
+            if json_mode:
+                content = _validated_json_object(content)
             return ModelResponse(
                 content=content,
                 metadata={

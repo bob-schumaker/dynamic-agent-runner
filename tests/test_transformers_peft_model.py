@@ -1224,12 +1224,15 @@ def test_transformers_worker_runtime_keeps_converter_and_packed_input_in_child(
             events.append("runner")
 
         def generate_chunk(
-            self, received: PackedModelInput, *, max_new_tokens: int
+            self, received: PackedModelInput, *, max_new_tokens: int, json_mode: bool
         ) -> GeneratedText:
             assert received is packed
             assert max_new_tokens == 4
+            assert json_mode is True
             events.append("generate")
-            return GeneratedText("answer", exhausted=True, generated_tokens=2)
+            return GeneratedText(
+                '{"message":"answer"}', exhausted=True, generated_tokens=2
+            )
 
     monkeypatch.setattr(
         "dynamic_agent_runner.workflow_host.transformers_peft_model.TransformersGenerateRunner",
@@ -1250,6 +1253,7 @@ def test_transformers_worker_runtime_keeps_converter_and_packed_input_in_child(
         prepared_set=SimpleNamespace(),
         messages=({"role": "user", "content": "go"},),
         sealed_payload=b"sealed",
+        json_mode=True,
     )
     runtime = TransformersPeftGenerationWorkerRuntimeFactory().create_runtime(
         assets=assets, converter=Converter()
@@ -1270,7 +1274,13 @@ def test_transformers_worker_runtime_keeps_converter_and_packed_input_in_child(
         4,
     )
 
-    assert runtime.generate() == (b"answer", 2, 2, len(b"answer"), True)
+    assert runtime.generate() == (
+        b'{"message":"answer"}',
+        2,
+        2,
+        len(b'{"message":"answer"}'),
+        True,
+    )
     assert packed.is_cleared is True
     assert events == ["runner", "pack", "generate"]
 

@@ -40,6 +40,7 @@ class GenerationWorkerCoLocatedFactory:
         messages: tuple[Mapping[str, object], ...],
         sealed_payload: bytes,
         sealed_payload_digest: str,
+        json_mode: bool = False,
         material_lock_digest: str,
         execution_descriptor_digest: str,
         execution_device: str,
@@ -83,6 +84,7 @@ class GenerationWorkerCoLocatedFactory:
                 messages=messages,
                 sealed_payload=sealed_payload,
                 sealed_payload_digest=sealed_payload_digest,
+                json_mode=json_mode,
                 expires_at=expires_at,
                 now=now,
             )

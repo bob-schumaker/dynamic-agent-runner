@@ -41,6 +41,7 @@ class GenerationWorkerCoLocatedAssets:
     prepared_set: PreparedArtifactSet
     messages: tuple[Mapping[str, object], ...]
     sealed_payload: bytes
+    json_mode: bool = False
 
 
 class GenerationWorkerAssetHandleService:
@@ -153,6 +154,7 @@ class GenerationWorkerAssetHandleService:
         messages: tuple[Mapping[str, object], ...],
         sealed_payload: bytes,
         sealed_payload_digest: str,
+        json_mode: bool = False,
         expires_at: datetime,
         now: datetime,
     ) -> str:
@@ -167,6 +169,7 @@ class GenerationWorkerAssetHandleService:
                 messages=messages,
                 sealed_payload=sealed_payload,
                 sealed_payload_digest=sealed_payload_digest,
+                json_mode=json_mode,
             )
             return self._store.issue(
                 kind=self._CO_LOCATED_KIND,
@@ -278,6 +281,7 @@ def _co_located_payload(
     messages: object,
     sealed_payload: object,
     sealed_payload_digest: object,
+    json_mode: object,
 ) -> dict[str, object]:
     if (
         not isinstance(descriptor, GenerationWorkerLaunchDescriptor)
@@ -288,6 +292,7 @@ def _co_located_payload(
         or not sealed_payload
         or not _digest(sealed_payload_digest)
         or sha256(sealed_payload).hexdigest() != sealed_payload_digest
+        or not isinstance(json_mode, bool)
         or converter.converter_id != descriptor.converter_id
         or converter.asset_digest != descriptor.converter_asset_digest
         or converter.compatible_runner_contract_id != descriptor.runner_id
@@ -322,6 +327,7 @@ def _co_located_payload(
         "messages": canonical_messages,
         "sealed_payload": base64.b64encode(sealed_payload).decode("ascii"),
         "sealed_payload_digest": sealed_payload_digest,
+        "json_mode": json_mode,
     }
 
 
@@ -369,6 +375,7 @@ def _resolved_co_located_assets(
             payload["messages"], maximum_bytes=converter.max_input_bytes
         ),
         sealed_payload=sealed_payload,
+        json_mode=payload["json_mode"],
     )
 
 

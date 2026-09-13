@@ -259,3 +259,7 @@ admission.
   Transformers/PEFT host configuration to bind a caller-approved workspace input
   root, so its declared image artifact contract can be ingressed through the
   supported host API before execution.
+- [x] T5.12 [tests, RED/GREEN + implementation] Propagate the declared
+  `json_object` response contract through the generic co-located
+  converter/runner worker assets and validate the completed worker response;
+  do not reject the reviewed floorplan package before MPS worker launch.
