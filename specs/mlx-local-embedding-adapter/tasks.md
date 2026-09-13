@@ -575,6 +575,28 @@
 
 ## MLE8 — RoBERTa byte-level-BPE execution ABI
 
+- [x] MLE8.0 [review] Reconcile the separate RoBERTa ABI, source-closure, and
+      package boundaries before implementation.
+  - Council: Aristotle, Ada, and Feynman performed a reduced-independence
+    sequential architecture review on 2026-09-13. They required a separate
+    RoBERTa category rather than a BERT descriptor variant; one authoritative
+    `1e-5` LayerNorm rule; exact byte-BPE execution semantics; and a
+    descriptor-bound source-extraction decision for source-only tensors. The
+    published target metadata confirms a six-layer, 768-hidden, 12-head,
+    `type_vocab_size: 1`, padding-index-1 RoBERTa configuration and a
+    masked-LM source architecture, but it does not authorize a revision, model
+    download, raw material inspection, or package admission.
+  - Ponytail: accepted one dedicated closed ABI/backend and reuse of the
+    existing generic adapter, material-lock, synthetic-fixture, and matrix-row
+    seams. Rejected a generic transformer interpreter, `tokenizers` or
+    SentencePiece dependency, tokenizer/plugin registry, BERT refactor, model
+    name dispatch, and an arbitrary tensor-stripper.
+  - Verdict: MLE8.1--MLE8.8 are implementation-ready in order. MLE8.4--MLE8.7
+    remain separately authorization-gated; this review authorizes neither
+    model retrieval nor local material use.
+  - Evidence: spec, plan, and task amendments below; the deliberation was
+    advisory sequential fallback rather than independent parallel review.
+
 - [ ] MLE8.1 [spec/design] Register a new closed `roberta-encoder-mlx-v1` ABI
       for `sentence-transformers/all-distilroberta-v1`: exact byte-level BPE
       grammar, RoBERTa tensor names/shapes/dtypes, padding-index position-ID
@@ -584,7 +606,14 @@
   - Depends on: MLE6.6.
   - Acceptance: the descriptor cannot select a generic transformer interpreter,
     tokenizer code, unbounded merge/vocabulary asset, unknown tensor, or an
-    alternate position-ID rule.
+    alternate position-ID rule. It declares only sealed `vocab.json` and
+    `merges.txt` as tokenizer execution inputs; `tokenizer.json`, fast-tokenizer
+    code, and configuration files are provenance only. The ABI fixes the GPT-2
+    byte-to-Unicode bijection, Unicode-category pre-tokenization, merge-rank and
+    tie behavior, `add_prefix_space: false` behavior, special-token framing,
+    UTF-8 failure handling, and finite vocabulary/merge/token ceilings. It
+    fixes the target-compatible padding index, RoBERTa position-ID derivation,
+    and `1e-5` LayerNorm epsilon rather than inheriting BERT's `1e-12` rule.
 
 - [ ] MLE8.2 [tests, RED/GREEN] Add fake-only ABI vectors for byte-level BPE
       vocabulary/merge admission, Unicode byte and leading-space behavior,
@@ -596,7 +625,9 @@
   - Files/components: `mlx_embedding_abi.py`, a dedicated RoBERTa backend,
     fake MLX tests, and sealed synthetic fixtures.
   - Validation: tests do not import MLX, download model files, or invoke a
-    tokenizer package.
+    tokenizer package. They prove `tokenizer.json` and model configuration
+    cannot alter execution semantics, descriptor `1e-5` is used at embedding
+    and encoder LayerNorm sites, and no BERT ABI accepts RoBERTa facts.
 
 - [ ] MLE8.3 [implementation] Implement the closed RoBERTa tokenizer and
       executor behind the registry without changing BERT ABI behavior, generic
@@ -604,18 +635,41 @@
   - Spec: planned `roberta-encoder-mlx-v1` ABI.
   - Depends on: MLE8.2.
 
+- [ ] MLE8.3a [implementation, RED/GREEN] Add one receiver-owned,
+      descriptor-bound source-extraction provider for the approved RoBERTa
+      source profile when its exact safetensors header contains source-only
+      position-ID or masked-LM tensors.
+  - Depends on: MLE8.3.
+  - Acceptance: fake-only source headers prove that the provider accepts only
+    the finite descriptor-derived source-only groups, validates their dtypes,
+    shapes, and spans, and writes canonical execution-only safetensors bytes.
+    Changed names, groups, dtypes, shapes, spans, or extra tensors reject before
+    MLX work. If the approved exact source header lacks a declared group, the
+    package records no preparation operation; the provider never becomes an
+    arbitrary filter, converter, path selector, or model-name branch.
+
 - [ ] MLE8.4 [approval/package, tests RED/GREEN] With a recorded license and
       material decision, create the package-local lock and descriptor for
       `sentence-transformers/all-distilroberta-v1`; reject changed roles,
       weights, tokenizer, ABI, descriptor, and capability facts pre-execution.
   - Spec: Operational Completion Gates 1 and 3.
-  - Depends on: MLE8.3 and explicit material-use authorization.
+  - Depends on: MLE8.3a and explicit material-use authorization.
+  - Acceptance: record an explicit license/material decision, exact revision,
+    and every source role. Bind any required MLE8.3a prepared execution output
+    rather than allowing source-only tensors into the execution role. The
+    descriptor declares masked-mean pooling and L2 normalization only when the
+    locked sentence-transformer closure requires them; modules/configuration
+    files remain provenance rather than runtime selectors.
 
 - [ ] MLE8.5 [manual fixture, RED/GREEN] Generate and bind synthetic local
       reference vectors for the exact MLE8 closure with `trust_remote_code=False`,
       including byte-level tokenizer IDs/masks and padding-position vectors.
   - Spec: FR-5, Operational Completion Gate 2.
   - Depends on: MLE8.4 and separate authorization.
+  - Acceptance: if the descriptor requires L2 normalization, the fixture
+    validates finite unit vectors after exactly one declared normalization;
+    token/mask evidence distinguishes RoBERTa padding-position derivation from
+    BERT's positional sequence.
 
 - [ ] MLE8.6 [tests, RED/GREEN] Run the MLE8 package through generic embedding
       execution and index-artifact paths with injected facts; prove changed

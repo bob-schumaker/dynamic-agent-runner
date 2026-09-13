@@ -120,10 +120,16 @@ workflow, Darwin, and matrix sequence, but they do not share an ABI.
    Workflow-local E5 prefixes remain literal caller input, while package pooling
    and normalization are declared in the descriptor. The first intended
    material closure is `intfloat/multilingual-e5-small`.
-2. MLE8 adds a new closed RoBERTa executor ABI with byte-level BPE. It owns
-   tensor names, padding-index position IDs, LayerNorm epsilon, and execution
-   math rather than treating RoBERTa as a BERT descriptor variant. The first
-   intended material closure is `sentence-transformers/all-distilroberta-v1`.
+2. MLE8 adds a new closed RoBERTa executor ABI with byte-level BPE. Its only
+   tokenizer execution inputs are sealed `vocab.json` and `merges.txt`; a
+   tokenizer implementation or `tokenizer.json` is provenance only. It owns
+   the byte-to-Unicode mapping, pre-tokenization, merge ordering, special-token
+   framing, tensor names, padding-index position IDs, `1e-5` LayerNorm epsilon,
+   and execution math rather than treating RoBERTa as a BERT descriptor
+   variant. Before the package lock, a receiver-owned source-extraction
+   provider must reject or remove only the exact approved source-only tensors;
+   it cannot broaden the execution header grammar. The first intended material
+   closure is `sentence-transformers/all-distilroberta-v1`.
 3. Each track locks a revision and license decision only in package-local
    artifacts, generates synthetic reference vectors locally with
    `trust_remote_code=False`, proves provider/index binding with fakes, then

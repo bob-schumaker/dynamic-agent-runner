@@ -294,17 +294,18 @@ the v2 LayerNorm affine-tensor rule above:
 | `encoder.layer.{0..L-1}.output.dense.{weight,bias}` | `[H, I]` for `weight`; `[H]` for `bias` |
 | `encoder.layer.{0..L-1}.output.LayerNorm.{weight,bias}` | `[H]` |
 
-The only additional accepted keys are the complete unused standard
-`pooler.dense.{weight,bias}` pair, with the exact descriptor-derived shapes and
-dtype; no other tensor key is accepted. The descriptor provides no regex, expression,
-arbitrary tensor predicate, import, loader, runtime-version, device, or provider
-field. After verified material resolution, the backend validates the actual
-tokenizer bytes and safetensors header against those byte ceilings and this
-grammar before allocation. It computes with checked integer arithmetic the
-declared parameter bytes plus `4 * max_items * max_tokens * hidden_size`
-activation bytes and rejects an estimate greater than the tighter descriptor or
-host memory ceiling before MLX allocation. This is a pre-allocation admission
-bound, not a claim that in-process MLX gives a hard memory limit.
+The prepared execution artifact's only additional accepted keys are the
+complete unused standard `pooler.dense.{weight,bias}` pair, with the exact
+descriptor-derived shapes and dtype; no other tensor key is accepted. The
+descriptor provides no regex, expression, arbitrary tensor predicate, import,
+loader, runtime-version, device, or provider field. After verified material
+resolution, the backend validates the actual tokenizer bytes and safetensors
+header against those byte ceilings and this grammar before allocation. It
+computes with checked integer arithmetic the declared parameter bytes plus
+`4 * max_items * max_tokens * hidden_size` activation bytes and rejects an
+estimate greater than the tighter descriptor or host memory ceiling before MLX
+allocation. This is a pre-allocation admission bound, not a claim that
+in-process MLX gives a hard memory limit.
 
 The fixture filename is exactly `conformance-fixture.json`, a unique regular
 package-manifest entry; its SHA-256 and descriptor byte ceiling are verified
@@ -313,19 +314,29 @@ tolerance evidence but does not select a model or authorize the provider. The
 receiver's MLX dependency/version admission remains host-owned, not descriptor
 data.
 
-The ABI fixes encoder math as follows: embed each token by summing word,
-absolute-position, and token-type vectors, then apply LayerNorm with population
-variance and epsilon `1e-12`; do not apply dropout. Convert a binary attention
-mask to additive `0` for accepted keys and `-10000` for rejected keys. For each
-layer, compute scaled dot-product attention as `QKᵀ / sqrt(H / heads)`, add the
-mask, and softmax over the final (key) axis; apply the output dense layer,
-residual, and the same LayerNorm. Apply the exact-error-function GELU
-`0.5 * x * (1 + erf(x / sqrt(2)))` in the intermediate block, then output
-dense, residual, and LayerNorm. `pooling: "cls"` returns the final hidden state
-at position zero; it never uses a pooler projection, and a pooler tensor is not
-accepted. `pooling: "masked_mean"` averages final hidden states over accepted
-mask positions. Finally apply the declared normalization. These are ABI
-constants, not descriptor settings.
+The RoBERTa ABI fixes encoder math as follows: derive position IDs from token
+IDs using the descriptor-declared padding index, then embed each token by
+summing word, derived absolute-position, and token-type vectors. Apply
+LayerNorm with population variance and epsilon `1e-5`; do not apply dropout.
+Convert a binary attention mask to additive `0` for accepted keys and `-10000`
+for rejected keys. For each layer, compute scaled dot-product attention as
+`QKᵀ / sqrt(H / heads)`, add the mask, and softmax over the final (key) axis;
+apply the output dense layer, residual, and the same LayerNorm. Apply the
+exact-error-function GELU `0.5 * x * (1 + erf(x / sqrt(2)))` in the intermediate
+block, then output dense, residual, and LayerNorm. `pooling: "cls"` returns the
+final hidden state at position zero; it never uses a pooler projection, and a
+pooler tensor is not accepted. `pooling: "masked_mean"` averages final hidden
+states over accepted mask positions. Finally apply the declared normalization.
+These are ABI constants, not descriptor settings.
+
+The source closure may contain the standard unused RoBERTa position-ID buffer
+or task-head tensors because the upstream target advertises a masked-LM
+architecture. Those source tensors are not execution tensors. Before package
+admission, a receiver-owned, descriptor-bound preparation provider must either
+reject the exact source profile or validate and remove only the separately
+declared source-only tensor groups while writing the closed execution artifact.
+It must not accept arbitrary source keys, regex-selected names, tensor policies,
+or a model-name branch.
 
 The backend shall:
 
