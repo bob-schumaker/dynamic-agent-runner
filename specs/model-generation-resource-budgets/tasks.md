@@ -3,9 +3,10 @@
 ## Status
 
 Automated implementation and focused/full-suite evidence are complete through
-T4.5. T4.6 remains gated on explicit authorization for one supported local
-model run; T4.7 remains open for post-gate validation and compatibility-alias
-retirement after every consumer has migrated.
+T4.5. T4.6 has recorded the explicitly authorized fixture-only Darwin
+pre-dispatch resource rejection and its effective limits. T4.7 remains open for
+post-gate validation and compatibility-alias retirement after every consumer
+has migrated.
 
 ## S1 — Canonical Contract and Admission
 
@@ -180,7 +181,7 @@ retirement after every consumer has migrated.
 - [x] T4.5 [tests, GREEN] Run focused converter, worker transport,
   local-model-runners, execution-plugin, local-runner, sealed-artifact, and
   model-budget suites without a live model or GPU.
-- [ ] T4.6 [manual gate] With explicit authorization, run one supported local
+- [x] T4.6 [manual gate] With explicit authorization, run one supported local
   model under a declared bounded budget and record only redacted effective
   limits and aggregate facts. For the worker lifecycle form, also record a
   supported receipt showing bootstrap, authorization, and reap; for the
