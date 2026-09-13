@@ -72,6 +72,10 @@ def main() -> int:
             output = model(**encoded).last_hidden_state.to(dtype=torch.float32)
             mask = encoded["attention_mask"].to(dtype=torch.float32).unsqueeze(-1)
             vector = (output * mask).sum(dim=1) / mask.sum(dim=1)
+            norm = torch.linalg.vector_norm(vector, dim=1, keepdim=True)
+            if not bool(torch.isfinite(norm).all()) or bool((norm == 0).any()):
+                raise RuntimeError("reference vector normalization is invalid")
+            vector = vector / norm
             values = vector.numpy().astype("<f4", copy=False).tobytes()
             vectors.append(
                 {

@@ -518,6 +518,22 @@
     material lock; no MLX import, model download, user content, or raw local
     material is retained in the test suite.
 
+- [x] MLE7.5a [bug, tests RED/GREEN] Make the MLE7 reference fixture apply the
+      v4 descriptor's required L2 normalization after masked-mean pooling.
+  - Discovered: MLE7.7’s Metal run had equivalent encoder outputs only after
+    normalizing the fixture vectors; the committed unnormalized vectors had
+    norms 4.45--4.82 despite the descriptor’s `normalization: l2` field.
+  - Depends on: MLE7.5.
+  - Acceptance: fixture validation rejects non-unit vectors, the generator
+    applies exactly one finite nonzero L2 normalization to its float32 pooled
+    vector, and its package/lock bindings are refreshed from local locked
+    material before repeating the MLE7.7 gate.
+  - Evidence: the unit-norm assertion was RED against the former fixture, then
+    the authorized local trusted CPU generator regenerated its three synthetic
+    vectors with one finite nonzero L2 normalization. The fixture, descriptor,
+    and package-lock bindings are refreshed; the MLE7 fixture, sealed-execution,
+    ABI, and backend suites passed (75 tests).
+
 - [x] MLE7.6 [tests, RED/GREEN] Exercise the MLE7 package through
       `embedding.execute.v1` and the sealed index path with injected facts;
       prove opaque output and non-transferability before provider execution.

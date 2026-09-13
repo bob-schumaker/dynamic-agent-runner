@@ -91,7 +91,14 @@ def _validate(fixture: dict[str, object]) -> None:
         }
         vector = base64.b64decode(case["vector_f32le_base64"], validate=True)
         assert len(vector) == 384 * 4
-        assert all(math.isfinite(value) for value in struct.unpack("<384f", vector))
+        values = struct.unpack("<384f", vector)
+        assert all(math.isfinite(value) for value in values)
+        assert math.isclose(
+            math.sqrt(sum(value * value for value in values)),
+            1.0,
+            abs_tol=1e-5,
+            rel_tol=0.0,
+        )
         for name in (
             "attention_mask_sha256",
             "input_ids_sha256",
