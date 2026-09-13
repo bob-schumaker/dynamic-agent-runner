@@ -29,6 +29,7 @@ from dynamic_agent_runner.workflow_host.generation_worker_controllers import (
     CpuMultiprocessingGenerationWorkerController,
     GenerationWorkerControllerSet,
     MacMpsGenerationWorkerController,
+    _CpuWorkerChild,
     install_cpu_memory_limit,
     machine_generation_worker_controllers,
 )
@@ -161,6 +162,43 @@ def test_cpu_resource_limit_caps_address_space_before_worker_entry() -> None:
     install_cpu_memory_limit(4_096, resource_module=Resource())
 
     assert events == [("get", 1), ("set", 1, (2_048, 2_048))]
+
+
+def test_cpu_child_bounds_authorization_ipc_by_its_deadline() -> None:
+    timeouts: list[float] = []
+
+    class Connection:
+        def send(self, _request: object) -> None:
+            pass
+
+        def poll(self, timeout: float) -> bool:
+            timeouts.append(timeout)
+            return False
+
+    child = _CpuWorkerChild(
+        process=object(),
+        command_connection=Connection(),
+        response_connection=Connection(),
+        ready_connection=object(),
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        fragment_index=0,
+    )
+    child.set_deadline_timeout(0.25)
+    receipt = GenerationWorkerPackReceipt(
+        invocation_id="invocation-1",
+        invocation_digest="a" * 64,
+        converter_digest="c" * 64,
+        material_lock_digest="d" * 64,
+        execution_device="cpu",
+        fragment_index=0,
+        packed_context_tokens=3,
+    )
+
+    with pytest.raises(GenerationWorkerDeadlineExceeded, match="deadline exceeded"):
+        child.authorize(receipt, 2)
+
+    assert timeouts == [0.25]
 
 
 def test_cpu_entry_installs_the_cap_before_resolving_child_assets(monkeypatch) -> None:

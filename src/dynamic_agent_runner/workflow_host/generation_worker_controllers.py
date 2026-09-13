@@ -124,6 +124,7 @@ class _CpuWorkerChild:
                 "remaining_generated_tokens": remaining_generated_tokens,
             },
             "authorized",
+            timeout=self._deadline_timeout,
         )
 
     def generate(
