@@ -41,6 +41,7 @@ _OUTPUT_ROLE = "weights"
 _OUTPUT_GROUP = "weights"
 _OUTPUT_FILENAME = "model.safetensors"
 _CONVERSION_CHUNK_FLOATS = 65_536
+_POSITION_IDS_NAME = "embeddings.position_ids"
 
 
 def mlx_v4_weight_preparation_provider(
@@ -180,7 +181,7 @@ def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     return result
 
 
-def _source_tensor_header(
+def _source_tensor_header(  # noqa: C901 - the closed source profile is one boundary.
     header: Mapping[str, object],
     *,
     expected: Mapping[str, tuple[tuple[int, ...], str]],
@@ -196,6 +197,7 @@ def _source_tensor_header(
         )
     ):
         raise ValueError
+    position_ids = tensors.pop(_POSITION_IDS_NAME, None)
     known_names = set(expected)
     optional_names = {"pooler.dense.bias", "pooler.dense.weight"}
     tensor_names = set(tensors)
@@ -240,6 +242,16 @@ def _source_tensor_header(
             raise ValueError
         offsets[name] = (start, end)
         spans.append((start, end))
+    if position_ids is not None:
+        positions = expected["embeddings.position_embeddings.weight"][0][0]
+        spans.append(
+            _source_span(
+                position_ids,
+                dtype="I64",
+                shape=(1, positions),
+                data_size=data_size,
+            )
+        )
     previous_end = 0
     for start, end in sorted(spans):
         if start != previous_end:
@@ -248,6 +260,44 @@ def _source_tensor_header(
     if previous_end != data_size:
         raise ValueError
     return offsets, metadata
+
+
+def _source_span(
+    specification: object,
+    *,
+    dtype: str,
+    shape: tuple[int, ...],
+    data_size: int,
+) -> tuple[int, int]:
+    if not isinstance(specification, Mapping):
+        raise ValueError
+    source_shape = specification.get("shape")
+    data_offsets = specification.get("data_offsets")
+    if (
+        specification.get("dtype") != dtype
+        or not isinstance(source_shape, list)
+        or tuple(source_shape) != shape
+        or any(
+            not isinstance(value, int) or isinstance(value, bool)
+            for value in source_shape
+        )
+        or not isinstance(data_offsets, list)
+        or len(data_offsets) != 2
+        or any(
+            not isinstance(value, int) or isinstance(value, bool)
+            for value in data_offsets
+        )
+    ):
+        raise ValueError
+    start, end = data_offsets
+    if (
+        start < 0
+        or end < start
+        or end > data_size
+        or end - start != math.prod(shape) * 8
+    ):
+        raise ValueError
+    return start, end
 
 
 def _f32_to_f16(source: bytes) -> bytes:

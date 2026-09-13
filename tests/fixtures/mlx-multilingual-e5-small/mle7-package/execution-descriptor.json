@@ -1,0 +1,62 @@
+{
+  "abi_fields": {
+    "conformance": {
+      "fixture_filename": "conformance-fixture.json",
+      "fixture_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "max_error": 0.005,
+      "metric": "max_abs",
+      "precision": "float32"
+    },
+    "encoder": {
+      "attention_heads": 12,
+      "dtype": "float16",
+      "hidden_size": 384,
+      "intermediate_size": 1536,
+      "layer_norm_dtype": "float32",
+      "layers": 12,
+      "max_positions": 512,
+      "tensor_layout": "bert-encoder-safetensors-v1",
+      "type_vocab_size": 2,
+      "vocab_size": 250037,
+      "weights_role": "weights"
+    },
+    "limits": {
+      "max_aggregate_bytes": 1048576,
+      "max_conformance_fixture_bytes": 1048576,
+      "max_item_bytes": 65536,
+      "max_items": 16,
+      "max_memory_bytes": 536870912,
+      "max_safetensors_header_bytes": 16777216,
+      "max_tokenizer_bytes": 16777216,
+      "max_tokens": 512,
+      "max_vectors": 16,
+      "max_weights_bytes": 536870912
+    },
+    "normalization": "l2",
+    "pooling": "masked_mean",
+    "tokenizer": {
+      "format": "sentencepiece-unigram-model-v1",
+      "id_offset": 1,
+      "normalization": "nmt-nfkc",
+      "pre_tokenizer": "sentencepiece-unigram-v1",
+      "role": "tokenizer",
+      "special_token_ids": {
+        "cls": 0,
+        "pad": 1,
+        "sep": 2,
+        "unk": 3
+      },
+      "truncation": "longest-first"
+    }
+  },
+  "architecture_abi": {
+    "contract_digest": "1db6568e50f14b1fd7752772573024e2da87518674cd78ba4f9c57cb84febb4f",
+    "id": "bert-encoder-mlx-v4",
+    "version": "5"
+  },
+  "format_version": 1,
+  "material_roles": [
+    "tokenizer",
+    "weights"
+  ]
+}

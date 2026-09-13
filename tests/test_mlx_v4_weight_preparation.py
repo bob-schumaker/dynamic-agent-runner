@@ -119,7 +119,9 @@ def _operation(*, source_role: str = "source_weights") -> PreparationOperation:
     )
 
 
-def _source_weights(descriptor, *, mutate=None) -> bytes:
+def _source_weights(
+    descriptor, *, include_position_ids: bool = False, mutate=None
+) -> bytes:
     shapes = _bert_tensor_shapes(descriptor)
     header: dict[str, object] = {"__metadata__": {"format": "pt"}}
     body = bytearray()
@@ -130,6 +132,16 @@ def _source_weights(descriptor, *, mutate=None) -> bytes:
         header[name] = {
             "dtype": "F32",
             "shape": list(shape),
+            "data_offsets": [start, len(body)],
+        }
+    if include_position_ids:
+        positions = descriptor.abi_fields["encoder"]["max_positions"]
+        assert isinstance(positions, int)
+        start = len(body)
+        body.extend(struct.pack(f"<{positions}q", *range(positions)))
+        header["embeddings.position_ids"] = {
+            "dtype": "I64",
+            "shape": [1, positions],
             "data_offsets": [start, len(body)],
         }
     if mutate is not None:
@@ -226,6 +238,44 @@ def test_provider_rejects_changed_operation_or_source_role_before_conversion() -
 
     with pytest.raises(ValueError, match="unavailable"):
         provider.prepare(_operation(source_role="weights"), {"weights": source})
+
+
+def test_provider_discards_only_the_standard_position_ids_buffer() -> None:
+    descriptor = _descriptor()
+    provider = mlx_v4_weight_preparation_provider(descriptor)
+
+    prepared = provider.prepare(
+        _operation(),
+        {"source_weights": _source_weights(descriptor, include_position_ids=True)},
+    )
+
+    assert "embeddings.position_ids" not in _header(prepared)
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    (
+        lambda header: header["embeddings.position_ids"].update(dtype="I32"),
+        lambda header: header["embeddings.position_ids"].update(shape=[1, 3]),
+        lambda header: header["embeddings.position_ids"].update(data_offsets=[1, 2]),
+        lambda header: header.update(
+            extra_ids={"dtype": "I64", "shape": [1, 4], "data_offsets": [0, 32]}
+        ),
+    ),
+)
+def test_provider_rejects_changed_or_extra_ancillary_source_tensors(mutate) -> None:
+    descriptor = _descriptor()
+    provider = mlx_v4_weight_preparation_provider(descriptor)
+
+    with pytest.raises(ValueError, match="unavailable"):
+        provider.prepare(
+            _operation(),
+            {
+                "source_weights": _source_weights(
+                    descriptor, include_position_ids=True, mutate=mutate
+                )
+            },
+        )
 
 
 def test_admission_selects_only_the_descriptor_bound_preparation_provider() -> None:

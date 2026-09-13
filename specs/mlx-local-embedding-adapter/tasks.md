@@ -446,7 +446,25 @@
     binding. Focused MLX/material suites: 102 passed; Ruff, format, and diff
     checks passed.
 
-- [ ] MLE7.4 [approval/package, tests RED/GREEN] With a recorded license and
+- [x] MLE7.3b [bug, tests RED/GREEN] Admit and discard only the standard unused
+      `embeddings.position_ids` int64 safetensors buffer when it has the exact
+      descriptor-derived `[1, max_positions]` shape and contiguous span.
+  - Discovered: the exact MLE7 source header contains that standard BERT buffer;
+    it is not part of the receiver's BERT execution tensor grammar and must not
+    reach the prepared `weights` output.
+  - Depends on: MLE7.3a.
+  - Acceptance: a fake source with the exact buffer is accepted and omits it
+    from canonical output; a changed name, dtype, shape, or span rejects before
+    conversion or MLX work. No other ancillary source tensor is admitted.
+  - Evidence: the source profile now admits exactly descriptor-derived
+    `embeddings.position_ids` as `[1, max_positions]` `I64`, validates its
+    contiguous span, and omits it from output. New fake-only RED/GREEN vectors
+    prove exact acceptance plus wrong dtype, shape, span, and extra-tensor
+    rejection. The cached MLE7 source was then transformed and verified against
+    the backend header grammar: source/output lock hashes match, no position-ID
+    tensor is emitted, and output is 235,368,292 bytes.
+
+- [x] MLE7.4 [approval/package, tests RED/GREEN] With a recorded license and
       material decision, create a package-local lock and exact descriptor for
       `intfloat/multilingual-e5-small`; prove changed material, ABI, tokenizer,
       descriptor, or capability facts reject before MLX import or egress.
@@ -456,6 +474,15 @@
     and weights role. The package lock also records the model, tokenizer, and
     pooling metadata needed to establish provenance, but the descriptor fixes
     pooling and normalization directly and has no model-name or prefix field.
+  - Evidence: `tests/fixtures/mlx-multilingual-e5-small/mle7-package/` locks
+    the MIT-approved revision `614241f622f53c4eeff9890bdc4f31cfecc418b3`,
+    eight source roles, the v4 descriptor, exact preparation capability and
+    transformation digest, and the verified prepared-weights digest. The
+    fake-only package suite was RED before artifacts existed, then proves
+    changed source-weight/tokenizer material, ABI/descriptor, and capability
+    facts fail before model execution. `conformance-fixture.json` remains the
+    explicit MLE7.5 gate; its digest will replace the declared placeholder in
+    the descriptor and lock when locally generated.
 
 - [ ] MLE7.5 [manual fixture, RED/GREEN] Generate a synthetic reference fixture
       from the exact locked MLE7 closure using a local trusted
