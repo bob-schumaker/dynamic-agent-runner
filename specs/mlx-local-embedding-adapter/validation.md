@@ -14,7 +14,7 @@ Status: generic ABI/provider validated; MLE6 sealed workflow onboarding pending
 
 | Gate | Required evidence | Status |
 | --- | --- | --- |
-| Material decision | approved package-local v2 lock and ABI descriptor | approval recorded; v2 lock/descriptor pending MLE6.2 |
+| Material decision | approved package-local v2 lock and ABI descriptor | complete; MLE6.2 fixture package |
 | Fixture conformance | trusted local reference vectors bound to that lock | not run |
 | Offline admission | fake-only package/provider/index regressions | not run |
 | Darwin competency | authorized redacted package-bound MLX receipt | not run |

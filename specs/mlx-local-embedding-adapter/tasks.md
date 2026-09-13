@@ -155,13 +155,18 @@
     internal conformance-only because upstream Hub metadata declares no license;
     it does not authorize redistribution or live material use.
 
-- [ ] MLE6.2 [tests, RED/GREEN] Add package-admission tests for the selected
+- [x] MLE6.2 [tests, RED/GREEN] Add package-admission tests for the selected
       v2 `model-materials.json`, `bert-encoder-mlx-v1` descriptor, required
       `embedding.execute.v1` capability, and synthetic document fixture.
   - Spec: FR-2, FR-4, Operational Completion Gates 1 and 3.
   - Depends on: MLE6.1.
   - Validation: changed material, ABI, descriptor, or capability facts reject
     before MLX import, model load, or artifact egress.
+  - Evidence: `tests/test_mlx_gte_tiny_mle6_package.py` was red before the
+    `tests/fixtures/mlx-gte-tiny/mle6-package/` artifacts existed and is green
+    after their v2 lock, canonical descriptor digest, capability declaration,
+    and synthetic documents were sealed. It exercises only parsers and pure
+    validators; no model artifact, MLX import, or provider is reached.
 
 - [ ] MLE6.3 [manual fixture, RED/GREEN] Generate a package-bound synthetic
       reference-vector fixture from the exact locked material closure using a

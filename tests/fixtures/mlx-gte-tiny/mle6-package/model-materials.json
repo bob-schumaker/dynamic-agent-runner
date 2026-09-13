@@ -1,0 +1,33 @@
+{
+  "execution_descriptor": {
+    "filename": "execution-descriptor.json",
+    "sha256": "e31acde45a891f081484f82f042621e0b3ae033057d2a7c5437a6837ae21c8b9"
+  },
+  "format_version": 2,
+  "logical_model_id": "mlx-gte-tiny-embedding-v1",
+  "preparation": [],
+  "runner_contract": {
+    "id": "mlx-embedding-v1",
+    "version": "1"
+  },
+  "sources": [
+    {
+      "filename": "tokenizer.json",
+      "group": "tokenizer",
+      "repository": "TaylorAI/gte-tiny",
+      "revision": "4cc5e73d86a67c601897257b467187234aa3bca3",
+      "role": "tokenizer",
+      "sha256": "da0e79933b9ed51798a3ae27893d3c5fa4a201126cef75586296df9b4d2c62a0",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "model.safetensors",
+      "group": "encoder",
+      "repository": "TaylorAI/gte-tiny",
+      "revision": "4cc5e73d86a67c601897257b467187234aa3bca3",
+      "role": "weights",
+      "sha256": "41282c37ddd19dbf7352fca3bafd3d187baffacd7231f3f0cd69b7525630e08d",
+      "source_type": "huggingface_file"
+    }
+  ]
+}
