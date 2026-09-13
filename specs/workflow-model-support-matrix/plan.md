@@ -106,7 +106,7 @@ Status meaning:
 | Provider names become proxy capabilities | false support claims | classify declared capability/material facts only |
 | Live probe leaks content | privacy breach | redacted fixed receipt schema; no raw payload persistence |
 | Fastmail package evidence is generalized | invalid compatibility claim | bind every receipt to package/material identity |
-| MLX embedding is unfinished | misleading failure | retain `deferred` profile rows until its ABI path is implemented |
+| MLX package onboarding is incomplete | misleading support claim | retain `deferred` rows until MLE6 records one sealed package/material receipt |
 | Floorplan evidence overstates portability | invalid model claim | bind profile and receipts to converter/material/validator/MPS facts |
 | Synthetic profiles call real collaborators | unintended side effect | install I/O and process blockers in every profile test |
 

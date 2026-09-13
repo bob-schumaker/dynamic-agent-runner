@@ -58,6 +58,7 @@ unrelated artifacts would duplicate their common support-state contract.
 - No product ambiguity blocks planning. Exact initial profiles and fixture
   package IDs are implementation-time discovery tasks because availability is
   host- and material-dependent.
-- Proposed MLX embeddings, locked inference callbacks, sandboxed write/shell
-  execution, runner-owned RAG, and natural-language authoring remain exclusions
-  until their owning contracts are implemented and admitted.
+- The MLX generic embedding backend is implemented, but its real workflow row
+  remains excluded until MLE6 seals and validates one package/material closure.
+  Sandboxed write/shell execution and runner-owned RAG remain excluded until
+  their owning contracts are implemented and admitted.

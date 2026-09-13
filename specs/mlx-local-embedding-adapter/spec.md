@@ -3,11 +3,12 @@
 ## Metadata
 
 - Feature slug: `mlx-local-embedding-adapter`
-- Status: implemented generic ABI/provider; real sealed workflow onboarding is
+- Status: generic ABI/provider implemented; MLE6 sealed workflow onboarding is
   pending
 - Owner: dynamic-agent-runner local-model and embedding-capability boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`
+- Validation: `validation.md`
 - Related specifications:
   - `specs/mlx-local-model-adapter/spec.md`
   - `specs/workflow-embedding-index-artifacts/spec.md`
@@ -368,3 +369,21 @@ schema. Provider registration
 also requires the approved `embedding.execute.v1` contract and its sealed-runner
 prerequisites. Model-specific experiments may live only in test/manual harness
 assets and cannot become production runtime identities.
+
+## Operational Completion Gate
+
+The generic ABI/provider is not complete support for a workflow user until one
+workflow-owned material closure has passed all of the following gates:
+
+1. A human-approved BERT-compatible model/material decision, including license
+   acceptance, is sealed into one package-local v2 material lock and matching
+   `bert-encoder-mlx-v1` descriptor. DAR source must not name that model.
+2. A trusted local reference runtime creates a synthetic vector fixture from
+   those exact locked bytes with `trust_remote_code=False`; the fixture is
+   package-bound and contains no user documents.
+3. Fake-only package/admission tests prove the material, descriptor, provider,
+   and opaque index-output bindings before an MLX import or artifact egress.
+4. An explicitly authorized Apple Silicon run proves the exact package's
+   reference tolerance, bounded resource receipt, and redacted index result.
+5. The workflow model support matrix records the package/material-bound MLX
+   row. A different package or material closure starts at gate 1 again.

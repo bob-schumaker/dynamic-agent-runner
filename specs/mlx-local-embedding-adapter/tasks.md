@@ -140,3 +140,55 @@
     the MLE5.1 composition test verifies the generic MLX path uses that same
     catalog. The sealed-artifact callback tests retain unavailable-provider and
     pre-egress coverage.
+
+## MLE6 — Sealed workflow onboarding
+
+- [ ] MLE6.1 [approval/design] Produce a bounded approval packet for one
+      BERT-compatible embedding material closure: exact source revision and
+      file list, license decision, expected descriptor ABI, package ID, and
+      resource ceilings. Record the human decision in package-local artifacts;
+      do not put the model identity in DAR production source or configuration.
+  - Spec: Operational Completion Gate 1.
+  - Depends on: MLE5.3.
+
+- [ ] MLE6.2 [tests, RED/GREEN] Add package-admission tests for the selected
+      v2 `model-materials.json`, `bert-encoder-mlx-v1` descriptor, required
+      `embedding.execute.v1` capability, and synthetic document fixture.
+  - Spec: FR-2, FR-4, Operational Completion Gates 1 and 3.
+  - Depends on: MLE6.1.
+  - Validation: changed material, ABI, descriptor, or capability facts reject
+    before MLX import, model load, or artifact egress.
+
+- [ ] MLE6.3 [manual fixture, RED/GREEN] Generate a package-bound synthetic
+      reference-vector fixture from the exact locked material closure using a
+      local trusted reference runtime with `trust_remote_code=False`. Add tests
+      that reject an altered fixture or reference/runtime identity.
+  - Spec: FR-5, Operational Completion Gate 2.
+  - Depends on: MLE6.2 and separate authorization to use the selected material.
+  - Evidence: canonical fixture digest, token/mask checks, and numeric tolerance
+    only; no user document, raw production vector, credential, or model output.
+
+- [ ] MLE6.4 [tests, RED/GREEN] Run the selected sealed package through the
+      generic embedding/index workflow using injected MLX/provider facts. Prove
+      opaque index results and redacted receipts, including provider/material
+      mismatch rejection before execution.
+  - Spec: FR-3, FR-6, Operational Completion Gate 3.
+  - Depends on: MLE6.2 and MLE6.3.
+  - Validation: focused embedding execution, sealed-artifact callback, and
+    MLE6 fixture tests remain offline and fake-backed.
+
+- [ ] MLE6.5 [manual competency gate] With explicit authorization, prepare the
+      exact sealed package on Darwin arm64 with `mlx==0.32.2`, run the MLX
+      embedding/index workflow, and compare against its locked reference
+      fixture. Retain only package/material/descriptor digests, limits,
+      duration, memory, vector count/dimension, opaque output IDs, and status.
+  - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
+  - Depends on: MLE6.4.
+
+- [ ] MLE6.6 [tests/docs] Add the exact successful package/material identity to
+      the workflow model support matrix, update MLX embedding status/validation,
+      and prove a different package or changed material cannot inherit the row.
+  - Spec: Operational Completion Gate 5.
+  - Depends on: MLE6.5.
+  - Validation: focused support-matrix tests, full pytest, Ruff, Markdown hooks,
+    and `git diff --check`.

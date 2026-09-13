@@ -57,7 +57,7 @@ Status: Draft — implementation not approved
 
 - [ ] WMS2.3 [tests, RED/GREEN] Define and execute a synthetic sealed embedding
       profile against an injected provider; cover missing ABI, wrong material
-      role, and deferred MLX embedding support as classified non-executing rows.
+      role, and an unonboarded MLE6 package as classified non-executing rows.
   - Spec: FR-002, FR-003, AC-002.
   - Files/components: existing embedding test seams,
     `tests/test_workflow_model_support_matrix.py`.
@@ -164,6 +164,6 @@ Status: Draft — implementation not approved
 - Live Fastmail and floorplan work remain per-run human authorization boundaries.
 - Package/material locks are authoritative; adapters do not silently substitute
   files or providers.
-- Proposed MLX embeddings, locked inference callbacks, sandboxed write/shell,
-  runner-owned RAG, and natural-language authoring are excluded until their
-  owning feature contracts are implemented.
+- MLX real workflow rows are excluded until MLE6 records one sealed package and
+  receipt. Sandboxed write/shell and runner-owned RAG remain excluded until
+  their owning feature contracts are implemented.

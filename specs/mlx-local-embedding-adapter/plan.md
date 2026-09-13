@@ -82,3 +82,27 @@ returns work to S0–S2.
 
 Exit: a compatible Mac receiver can satisfy any sealed descriptor supported by
 an installed MLX ABI; other providers and platforms remain unchanged.
+
+## S5 — Sealed workflow onboarding (MLE6)
+
+1. Obtain explicit human approval for one BERT-compatible material closure and
+   its license decision. Construct a package-local v2 material lock, a matching
+   `bert-encoder-mlx-v1` descriptor, and a bounded synthetic document fixture.
+   Do not add the selected model identity to DAR source or configuration.
+2. Use a trusted, local-only, `trust_remote_code=False` reference runtime to
+   generate and lock synthetic vector evidence. Test the canonical package,
+   descriptor, material, and fixture binding with no MLX import or download.
+3. Exercise the package through `embedding.execute.v1` and the sealed
+   index-artifact path with injected provider facts. Reject absent onboarding,
+   changed material, wrong ABI, or invalid reference fixtures before model load
+   or artifact egress.
+4. With separate authorization, prepare the exact material closure on Darwin
+   arm64, run the MLX conformance/index workflow, and retain only digests,
+   limits, duration, memory, vector count/dimension, and opaque result IDs.
+5. Add the successful package/material identity as the MLX embedding support
+   matrix row. Until the authorized run succeeds, classify it as `deferred` or
+   `blocked`; generic backend evidence is not workflow acceptance.
+
+Exit: one sealed package can perform bounded MLX embedding/index execution on
+an eligible Mac with a descriptor-bound receipt. This does not admit another
+model or architecture without its own material and conformance evidence.
