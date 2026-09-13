@@ -40,6 +40,18 @@ canonical converter capability binding is rejected before converter asset
 validation. The legacy provider-unavailability ordering vector remains valid
 because it deliberately does not declare that canonical converter binding.
 
+## T5.11 — Floorplan workspace ingress configuration
+
+Date: 2026-09-13
+
+The dedicated reviewed floorplan host configuration now accepts the same
+caller-approved workspace root and byte ceiling as the generic local-host
+configuration. A focused regression first failed because the floorplan
+configuration rejected `workspace_input_root`; it now registers the sealed
+floorplan package and ingresses its declared `source_image` PNG through the
+public host API. Focused verification passed: `1 passed`; Ruff and
+`git diff --check` also passed.
+
 ## S5 — Darwin MPS no-model worker fixture
 
 Date: 2026-09-13

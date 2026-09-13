@@ -255,3 +255,7 @@ admission.
   preparation registry, host configuration, and profile control-plane modules;
   retain rejection of obsolete scenario-specific runner and converter identities
   everywhere in production source.
+- [x] T5.11 [tests, RED/GREEN + implementation] Allow the reviewed floorplan
+  Transformers/PEFT host configuration to bind a caller-approved workspace input
+  root, so its declared image artifact contract can be ingressed through the
+  supported host API before execution.

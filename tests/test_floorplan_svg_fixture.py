@@ -16,6 +16,8 @@ from dynamic_agent_runner.local_model_preparation import (
 from dynamic_agent_runner.workflow_host.catalog import PackageCatalog
 from dynamic_agent_runner.workflow_host.host import (
     _dar_owned_transformers_generation_bindings,
+    LocalWorkflowHost,
+    configure_floorplan_transformers_peft_host,
 )
 from dynamic_agent_runner.workflow_host.local_tools import (
     LocalToolDefinition,
@@ -41,6 +43,39 @@ FIXTURE = (
     / "natural-language-workflow-authoring"
     / "floorplan-svg"
 )
+IMAGE = (
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "m4-4-direct-plugin-baseline"
+    / "assets"
+    / "agent-engineering.png"
+)
+
+
+def test_floorplan_host_configures_workspace_ingress_for_its_image_contract(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "state"
+    configure_floorplan_transformers_peft_host(
+        root=root,
+        package_root=FIXTURE.parent,
+        workspace_input_root=IMAGE.parent,
+    )
+    host = LocalWorkflowHost.open(root)
+    source = host.select_package(FIXTURE, now=NOW)
+    registration = host.register(
+        workflow_id="floorplan-from-image", package_source_handle=source, now=NOW
+    )
+
+    artifact = host.ingress_file(
+        workflow_id=registration.workflow_id,
+        path=IMAGE,
+        role="source_image",
+        media_type="image/png",
+        now=NOW,
+    )
+
+    assert artifact.byte_count > 0
 
 
 def test_floorplan_fixture_stages_a_workflow_owned_svg_validator(

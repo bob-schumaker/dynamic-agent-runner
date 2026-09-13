@@ -536,16 +536,28 @@ def configure_fastmail_triage_llama_cpp_host(
 
 
 def configure_floorplan_transformers_peft_host(
-    *, root: Path, package_root: Path
+    *,
+    root: Path,
+    package_root: Path,
+    workspace_input_root: Path | None = None,
+    workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES,
 ) -> LocalWorkflowHostConfiguration:
     """Configure the reviewed local floorplan Transformers/PEFT profile."""
 
     _validate_root(root)
     _validate_package_root(package_root)
+    if workspace_input_root is not None:
+        _validate_workspace_input_root(workspace_input_root)
+    _validate_workspace_input_max_bytes(workspace_input_max_bytes)
     profile = LocalModelProfileControlPlane(
         store=PrivateStateStore(root)
     ).create_floorplan_transformers_peft()
-    configuration = LocalWorkflowHostConfiguration(package_root, profile.profile_id)
+    configuration = LocalWorkflowHostConfiguration(
+        package_root,
+        profile.profile_id,
+        workspace_input_root,
+        workspace_input_max_bytes,
+    )
     _write_configuration(root, configuration)
     return configuration
 
