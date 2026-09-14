@@ -552,7 +552,8 @@ def test_dar_guidance_requests_host_owned_local_model_preparation_only() -> None
         / "dar-runtime-profile.md"
     ).read_text(encoding="utf-8")
 
-    assert "dar-package prepare --model <logical-model-requirement>" in guidance
+    assert "package-bound sealed material lock" in guidance
+    assert "dar-package prepare" not in guidance
     assert "dar-package invoke --package-name <saved-workflow> --prompt-stdin" in (
         guidance
     )

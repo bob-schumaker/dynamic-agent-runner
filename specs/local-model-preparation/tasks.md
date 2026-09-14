@@ -82,10 +82,11 @@ current package-bound contract and its manual receipt.
 - [x] T5.1 [validation] Run every focused suite from S1–S4, then the full
   repository test suite and configured formatter/lint gates.
 - [ ] T5.2 [manual gate] After explicit authorization, prepare or reuse the
-  pinned floorplan set, execute the saved workflow with one sealed image, and
-  validate its structured JSON terminal output. JSON-to-SVG rendering and SVG
-  validation are downstream workflow-local tooling. Record only redacted
-  artifact identities and verification outcomes.
+  pinned floorplan set, execute the saved workflow with one sealed image, admit
+  its structured JSON model output, and validate the resulting SVG terminal
+  artifact. JSON-to-SVG rendering and SVG validation are downstream
+  workflow-local tooling. Record only redacted artifact identities and
+  verification outcomes.
 - [x] T5.3 [validation] Inspect user-facing results, traces, workflow metadata,
   and generated plugin guidance for paths, cache roots, converter commands, and
   opaque handoff identifiers.

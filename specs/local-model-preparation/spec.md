@@ -30,6 +30,13 @@ legacy DAR-owned preparation-recipe identifiers. References below to recipe
 selection describe legacy implementation mechanics only and must not govern
 construction of new workflow packages.
 
+The floorplan references below are retained only as historical evidence. The
+successor fixture's completion witness has two separately named stages: its
+model output is admitted as complete floorplan JSON, then workflow-local
+deterministic tooling renders and validates the final SVG terminal artifact.
+The M9 successor fixture will seal a budget of 4,096 tokens per fragment, at
+most three continuations, and 16,384 total/effective-context tokens.
+
 For a known package/runtime pair, DAR resolves the package-bound, pinned
 material declaration to the complete artifact set required by that runtime. It
 reuses valid cached artifacts, downloads missing source artifacts when
@@ -168,11 +175,11 @@ model-execution plugin.
 
 `qwen25-vl-3b-floorplan-grpo` is trained to emit structured floorplan JSON:
 walls with nested openings followed by rooms that reference those walls. DAR's
-acceptance boundary for this material declaration is a complete, parseable
-instance of that declared JSON contract. JSON-to-SVG rendering and SVG
-validation are workflow-local deterministic tooling implemented outside DAR;
-they consume the model result after DAR has completed the generic
-sealed-artifact invocation.
+model-output admission boundary for this material declaration is a complete,
+parseable instance of that declared JSON contract. JSON-to-SVG rendering and
+SVG validation are workflow-local deterministic tooling implemented outside
+DAR; they produce and validate the separately named final SVG terminal
+artifact after DAR has completed the generic sealed-artifact invocation.
 
 ## Functional Requirements
 
@@ -331,10 +338,10 @@ preparation-capability resolution,
 cache hit/miss behavior, download policy, per-file pinning, conversion input and
 output validation, cache invalidation, and path redaction. One manually gated
 acceptance run shall prepare and compose the floorplan base GGUF, projector, and
-converted LoRA through llama.cpp with a sealed image, then validate the
-workflow's structured JSON terminal output. This acceptance run is not a unit
-test and must record only redacted artifact identities and verification
-outcomes.
+converted LoRA through llama.cpp with a sealed image, then admit the workflow's
+structured JSON model output and validate the resulting SVG terminal artifact.
+This acceptance run is not a unit test and must record only redacted artifact
+identities and verification outcomes.
 
 ## Completion Criteria
 

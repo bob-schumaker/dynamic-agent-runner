@@ -188,7 +188,7 @@ test-first; completion evidence is recorded under each task.
 
 ## M9 — Floorplan Successor Reconciliation
 
-- [ ] M9.1 [tests, RED] Restore the M6 production-source boundary: named
+- [x] M9.1 [tests, RED] Restore the M6 production-source boundary: named
   floorplan recipe, profile, and CLI preparation identities must not occur
   under `src/`, while a generic sealed multimodal package remains admissible.
   - Files/components: `tests/test_floorplan_cleanup.py`, generic package
@@ -196,14 +196,14 @@ test-first; completion evidence is recorded under each task.
   - Acceptance: the present source allowlist fails before implementation; no
     live model, download, converter, or MPS access occurs.
 
-- [ ] M9.2 [implementation, GREEN] Remove the remaining named static floorplan
+- [x] M9.2 [implementation, GREEN] Remove the remaining named static floorplan
   recipe, profile constructor, and `dar-package prepare --model` path; retain
   only generic package-bound material admission and runner binding.
   - Depends on: M9.1.
   - Acceptance: package locks are the sole material-selection authority and no
     compatibility fallback selects a named model or artifact set.
 
-- [ ] M9.3 [design/spec reconciliation] Define the authoritative floorplan
+- [x] M9.3 [design/spec reconciliation] Define the authoritative floorplan
   completion witness: admitted model-output JSON, final workflow SVG, or both
   as separately named stages. Set the matching sealed generation budget and
   update the successor, historical, and fixture contracts together.

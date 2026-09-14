@@ -19,7 +19,8 @@ warnings are pre-existing unregistered `live_matrix` pytest marks.
 
 ## Manual floorplan acceptance
 
-The isolated DAR host prepared the pinned floorplan recipe through:
+The following is historical evidence from the removed model-named preparation
+CLI; it is not a current DAR interface:
 
 ```text
 dar-package prepare --model qwen25-vl-3b-floorplan-grpo
@@ -37,11 +38,11 @@ JSON. The acceptance package and feature contract were revised accordingly;
 JSON-to-SVG rendering and SVG validation remain downstream workflow-local
 tooling.
 
-The direct llama.cpp adapter now forwards explicit `max_tokens`,
-`temperature`, and `stop` parameters. The floorplan binding uses a 16,384-token
-context, matching the documented multi-thousand-token JSON workload. A
-JSON-contract package registers, ingresses the sealed JPEG, and reaches the
-host execution boundary. The captured 4,096-token response and a subsequent
+The direct llama.cpp adapter then forwarded explicit `max_tokens`,
+`temperature`, and `stop` parameters. The historical floorplan binding used a
+16,384-token context. A JSON-contract package registered, ingressed the sealed
+JPEG, and reached the host execution boundary. The captured 4,096-token
+response and a subsequent
 8,192-token response were both unterminated JSON. A final run used the exact
 published system schema and user prompt, but was likewise invalid at character
 10,193. The remaining T5.2 failure is therefore model/inference quality, not

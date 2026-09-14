@@ -119,10 +119,11 @@ without providing physical locations or a preparation receipt.
    suite and configured formatting/lint gates.
 2. Run one manually authorized acceptance test with the pinned floorplan recipe:
    prepare/reuse the artifacts, compose llama.cpp with the base/projector/LoRA,
-   ingress one sealed image, execute the saved workflow, and validate its
-   structured JSON terminal result. JSON-to-SVG rendering and SVG validation
-   remain downstream workflow-local tooling. This is outside unit tests and
-   records only redacted identities and verification outcomes.
+   ingress one sealed image, execute the saved workflow, admit its structured
+   JSON model output, and validate the resulting SVG terminal artifact.
+   JSON-to-SVG rendering and SVG validation remain downstream workflow-local
+   tooling. This is outside unit tests and records only redacted identities and
+   verification outcomes.
 3. Verify no user-facing output, trace, workflow descriptor, or plugin guidance
    contains an artifact path, cache root, converter command, or opaque handoff
    identifier.
@@ -134,8 +135,8 @@ alone, and all deterministic and manual evidence required by the spec exists.
 
 ## Deferred Decisions
 
-- The exact public Python and CLI names remain implementation choices, provided
-  they preserve the `prepare logical-model` then `invoke saved-workflow` shape.
+- The exact public Python and CLI names remain implementation choices; package
+  material admission is package-bound and has no model-named preparation CLI.
 - Recipes beyond the fixed floorplan model require separately reviewed additions;
   Hub search is not a fallback catalog.
 - Converter sandboxing and arbitrary-model recipe authoring are outside this

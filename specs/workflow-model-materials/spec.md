@@ -452,6 +452,12 @@ recipes, and package-construction paths. The scenario's model lock, converter,
 renderer, fixtures, and acceptance runner belong only in the test harness. DAR
 must not construct a new package from a named domain adapter ID.
 
+The floorplan fixture is a test-harness package only. Its completion witness is
+explicitly staged: admit complete model-output JSON first, then render and
+validate the final SVG terminal artifact with sealed workflow-local assets.
+Its M9 successor descriptor budgets the JSON stage at 4,096 tokens per
+fragment, up to three continuations, and 16,384 total/effective-context tokens.
+
 A model-specific converter implementation is a workflow asset, even when it is
 not domain-specific. For example, the present Qwen image decoder and
 chat-template packer belong in the workflow package that locks that Qwen
