@@ -45,15 +45,17 @@ JPEG, and reached the host execution boundary. The captured 4,096-token
 response and a subsequent
 8,192-token response were both unterminated JSON. A final run used the exact
 published system schema and user prompt, but was likewise invalid at character
-10,193. The remaining T5.2 failure is therefore model/inference quality, not
+10,193. The historical T5.2 failure was therefore model/inference quality, not
 preparation, sealed ingress, context allocation, or prompt schema. The
-documented model workflow needs a model or inference-path correction outside
-this DAR-preparation slice.
+documented model workflow would have needed a model or inference-path correction
+outside this DAR-preparation slice.
 
-## Remaining release blockers
+## Historical outcome
 
-1. The documented model workflow needs a corrected model or inference path that
-   produces valid JSON in a manual acceptance run.
+This is not a current release blocker. The package-bound successor owns current
+material evidence in `../workflow-model-materials/tasks.md` M9.1--M9.6, and the
+separate completed MPS receipt gate is
+`../workflow-model-support-matrix/tasks.md` WMS3.3.
 
 ## Plugin regeneration
 

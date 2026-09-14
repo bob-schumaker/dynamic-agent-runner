@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `local-model-preparation`
-- Status: ready for implementation
+- Status: superseded historical implementation baseline; no active work
 - Owner: dynamic-agent-runner
 - Implementation plan: `plan.md`
 - Task list: `tasks.md`

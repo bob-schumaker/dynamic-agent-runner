@@ -81,7 +81,8 @@ current package-bound contract and its manual receipt.
 
 - [x] T5.1 [validation] Run every focused suite from S1–S4, then the full
   repository test suite and configured formatter/lint gates.
-- [ ] T5.2 [manual gate] After explicit authorization, prepare or reuse the
+- [ ] T5.2 [superseded historical record — do not execute] After explicit
+  authorization, prepare or reuse the
   pinned floorplan set, execute the saved workflow with one sealed image, admit
   its structured JSON model output, and validate the resulting SVG terminal
   artifact. JSON-to-SVG rendering and SVG validation are downstream
@@ -90,9 +91,14 @@ current package-bound contract and its manual receipt.
 - [x] T5.3 [validation] Inspect user-facing results, traces, workflow metadata,
   and generated plugin guidance for paths, cache roots, converter commands, and
   opaque handoff identifiers.
-- [ ] T5.4 [spec-maintenance] Record exact validation evidence, update feature
-  status, and prepare release/package artifacts only after every prior task is
-  complete.
+- [ ] T5.4 [superseded historical record — do not execute] Record exact
+  validation evidence, update feature status, and prepare release/package
+  artifacts only after every prior task is complete.
+
+T5.2 and T5.4 remain unchecked to preserve their historical non-completion;
+they are not open implementation or release work. The completed successor
+M9.1--M9.6 and WMS3.3 records are authoritative for current material and MPS
+acceptance evidence.
 
 ## Deferred
 

@@ -115,6 +115,11 @@ without providing physical locations or a preparation receipt.
 
 ## S5 — End-to-end evidence and release gate
 
+Historical only: do not execute this gate or use it as current release evidence.
+Its successor is the completed package-bound material reconciliation in
+`../workflow-model-materials/tasks.md` M9.1--M9.6 and the completed separate
+MPS receipt gate in `../workflow-model-support-matrix/tasks.md` WMS3.3.
+
 1. Run the focused fake-only suites from S1–S4, then the full repository test
    suite and configured formatting/lint gates.
 2. Run one manually authorized acceptance test with the pinned floorplan recipe:
@@ -130,8 +135,8 @@ without providing physical locations or a preparation receipt.
 4. Update `tasks.md`, validation evidence, and release/package artifacts only
    after every required check is green.
 
-Exit: the floorplan workflow executes through the logical model requirement
-alone, and all deterministic and manual evidence required by the spec exists.
+Historical exit: this was the former completion criterion. Current package-bound
+material and MPS evidence are owned by the successor tasks named above.
 
 ## Deferred Decisions
 
