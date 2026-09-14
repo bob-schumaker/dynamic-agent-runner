@@ -172,7 +172,7 @@ def floorplan_mps_completion_profile(policy: WorkflowPolicy) -> WorkflowSupportP
     return WorkflowSupportProfile(
         profile_id="floorplan-svg-mps-completion-v1",
         workflow_family="floorplan-svg",
-        required_adapter_capabilities=("structured_output",),
+        required_adapter_capabilities=("multimodal_input",),
         required_abi_capabilities=(descriptor.architecture_abi.abi_id,),
         required_provider_capabilities=("transformers-generate-v1",),
         required_host_capabilities=("mps",),

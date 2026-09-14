@@ -90,7 +90,7 @@ def _floorplan_matrix_profile(*, live: bool) -> WorkflowSupportProfile:
             "floorplan-svg-mps-completion-v1" if live else "floorplan-svg-synthetic-v1"
         ),
         workflow_family="floorplan-svg",
-        required_adapter_capabilities=("structured_output",),
+        required_adapter_capabilities=("multimodal_input",),
         required_abi_capabilities=(descriptor.architecture_abi.abi_id,),
         required_provider_capabilities=(lock.runner_contract.contract_id,),
         required_host_capabilities=("mps",) if live else (),
@@ -112,7 +112,7 @@ def _floorplan_matrix_candidate(
 ) -> WorkflowSupportCandidate:
     return WorkflowSupportCandidate(
         adapter_id="floorplan-fixture-runner",
-        adapter_capabilities=frozenset({"structured_output"}),
+        adapter_capabilities=frozenset({"multimodal_input"}),
         available_abi_capabilities=frozenset({"transformers-peft-generation-v1"}),
         provider_capabilities=provider_capabilities,
         host_capabilities=host_capabilities,

@@ -60,7 +60,7 @@ def _profile() -> WorkflowSupportProfile:
     return WorkflowSupportProfile(
         profile_id="floorplan-svg-mps-completion-v1",
         workflow_family="floorplan-svg",
-        required_adapter_capabilities=("structured_output",),
+        required_adapter_capabilities=("multimodal_input",),
         required_abi_capabilities=("transformers-peft-generation-v1",),
         required_provider_capabilities=("transformers-generate-v1",),
         required_host_capabilities=("mps",),
@@ -74,7 +74,7 @@ def _profile() -> WorkflowSupportProfile:
 def _candidate(*, authorization_granted: bool = True) -> WorkflowSupportCandidate:
     return WorkflowSupportCandidate(
         adapter_id="floorplan-fixture-runner",
-        adapter_capabilities=frozenset({"structured_output"}),
+        adapter_capabilities=frozenset({"multimodal_input"}),
         available_abi_capabilities=frozenset({"transformers-peft-generation-v1"}),
         provider_capabilities=frozenset({"transformers-generate-v1"}),
         host_capabilities=frozenset({"mps"}),
