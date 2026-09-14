@@ -1,6 +1,6 @@
 # Workflow Model Support Matrix Implementation Plan
 
-Status: Draft
+Status: Implemented through WMS4
 
 ## Spec Trace
 
@@ -108,7 +108,7 @@ Status meaning:
 | Provider names become proxy capabilities | false support claims | classify declared capability/material facts only |
 | Live probe leaks content | privacy breach | redacted fixed receipt schema; no raw payload persistence |
 | Fastmail package evidence is generalized | invalid compatibility claim | bind every receipt to package/material identity |
-| A candidate lacks an exact MLX package row | misleading support claim | retain `deferred` rows until that candidate records its own sealed package/material receipt; MLE6's existing row is non-transferable |
+| A candidate lacks an exact MLX package row | misleading support claim | retain `deferred` rows until that candidate records its own sealed package/material receipt; the MLE6, MLE7, and MLE8 rows are each non-transferable |
 | Floorplan evidence overstates portability | invalid model claim | bind profile and receipts to converter/material/validator/MPS facts |
 | Synthetic profiles call real collaborators | unintended side effect | install I/O and process blockers in every profile test |
 | A floorplan completion receipt overclaims worker cleanup | false live evidence | expose one generic scalar `worker_reaped` attestation after controller-confirmed cleanup; project it without worker internals |
@@ -140,10 +140,12 @@ evidence; do not expose child handles, PIDs, or runtime internals.
 
 ## Plan Approval
 
-- Status: WMS1 implementation complete; WMS2 readiness review complete.
-- Notes: WMS2 starts with one shared redacted execution-receipt extension, then
-  delivers six separate fully offline profiles. Synthetic Fastmail and MLE6
-  evidence cannot inherit a live mailbox or Darwin/MLX competency receipt.
-  The architecture-triad review required integrated workflow tests where
-  existing unit seams are disjoint; Ponytail retained only those existing fakes
-  and introduced no registry or provider abstraction.
+- Status: WMS1--WMS4 complete.
+- Notes: One shared redacted execution-receipt extension supports six separate
+  fully offline profiles. Synthetic Fastmail evidence cannot inherit a live
+  mailbox receipt, and the three package-bound MLE6, MLE7, and MLE8 Darwin/MLX
+  competency rows cannot transfer to a different package or material closure.
+  WMS3.3 records one authorized floorplan MPS receipt; Fastmail live evidence
+  remains absent. The architecture-triad review required integrated workflow
+  tests where existing unit seams are disjoint; Ponytail retained only those
+  existing fakes and introduced no registry or provider abstraction.

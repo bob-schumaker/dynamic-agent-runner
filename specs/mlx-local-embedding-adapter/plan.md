@@ -118,8 +118,8 @@ workflow, Darwin, and matrix sequence, but they do not share an ABI.
    never a fallback parser. It preserves the existing BERT executor only after
    fake tokenizer vectors prove the exact package-declared tokenizer semantics.
    Workflow-local E5 prefixes remain literal caller input, while package pooling
-   and normalization are declared in the descriptor. The first intended
-   material closure is `intfloat/multilingual-e5-small`.
+   and normalization are declared in the descriptor. Its first recorded material
+   closure is `intfloat/multilingual-e5-small`.
 2. MLE8 adds a new closed RoBERTa executor ABI with byte-level BPE. Its only
    tokenizer execution inputs are sealed `vocab.json` and `merges.txt`; a
    tokenizer implementation or `tokenizer.json` is provenance only. It owns
@@ -128,16 +128,16 @@ workflow, Darwin, and matrix sequence, but they do not share an ABI.
    and execution math rather than treating RoBERTa as a BERT descriptor
    variant. Before the package lock, a receiver-owned source-extraction
    provider must reject or remove only the exact approved source-only tensors;
-   it cannot broaden the execution header grammar. The first intended material
+   it cannot broaden the execution header grammar. Its first recorded material
    closure is `sentence-transformers/all-distilroberta-v1`.
 3. Each track locks a revision and license decision only in package-local
    artifacts, generates synthetic reference vectors locally with
    `trust_remote_code=False`, proves provider/index binding with fakes, then
-   waits for separate authorization for a Darwin competency run. No unit test
+   requires separate authorization for a Darwin competency run. No unit test
    downloads a model, imports MLX, or invokes an external tokenizer runtime.
 4. Each successful receipt produces a non-transferable package/material row.
-   Until then, the candidate is planned rather than supported; neither result
-   authorizes a different tokenizer, encoder, revision, or workflow package.
+   MLE7 and MLE8 now have those rows; neither authorizes a different tokenizer,
+   encoder, revision, or workflow package.
 
 Exit: each model is supported only by its own sealed package evidence and exact
 installed ABI; the generic workflow capability remains unchanged.

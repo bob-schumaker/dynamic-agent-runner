@@ -353,10 +353,10 @@ floorplan MPS evidence are published through the support-coverage report.
     data; and state that a future Fastmail run requires a new explicit
     authorization and redacted receipt.
   - Validation record: replace stale `not run` entries only where their named
-    WMS task tests now prove the corresponding acceptance criterion; retain
-    unexecuted MLE8 as unrecorded/deferred rather than claiming a third MLX
-    package row. The manual register must contain the recorded floorplan
-    receipt and explicit Fastmail absence, not an empty placeholder.
+    WMS task tests now prove the corresponding acceptance criterion; record
+    each package-bound MLE6, MLE7, and MLE8 receipt as non-transferable. The
+    manual register must contain the recorded floorplan receipt and explicit
+    Fastmail absence, not an empty placeholder.
   - Boundary: use the existing documentation and validation artifacts; no
     runtime report API, profile registry, model/provider invocation, or new
     live run is in scope.

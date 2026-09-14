@@ -3,9 +3,9 @@
 ## Metadata
 
 - Feature slug: `mlx-local-embedding-adapter`
-- Status: generic ABI/provider, one BERT/WordPiece package, one
-  SentencePiece-Unigram package, and the MLE8 RoBERTa ABI/executor
-  implemented; RoBERTa package evidence remains planned
+- Status: generic ABI/provider and three sealed workflow packages validated:
+  BERT/WordPiece (MLE6), SentencePiece-Unigram (MLE7), and RoBERTa
+  byte-level-BPE (MLE8)
 - Owner: dynamic-agent-runner local-model and embedding-capability boundaries
 - Plan: `plan.md`
 - Tasks: `tasks.md`
@@ -271,8 +271,9 @@ key, shape, dtype rule, and safetensors span; it may not accept arbitrary
 `transformers` configuration, model code, tokenizer callbacks, unknown tensors,
 or a generic transformer interpreter.
 
-`sentence-transformers/all-distilroberta-v1` is the first intended package
-conformance target. It is a six-layer RoBERTa encoder with byte-level BPE
+`sentence-transformers/all-distilroberta-v1` is the first recorded package
+conformance target for this ABI. It is a six-layer RoBERTa encoder with
+byte-level BPE
 `vocab.json`/`merges.txt` assets, 768-dimensional output, absolute positions,
 and LayerNorm epsilon `1e-5`. The ABI's tokenizer vectors must include leading
 space, punctuation, Unicode/byte behavior, special tokens, truncation, and
@@ -479,9 +480,10 @@ authoritative for snapshots and index-bundle behavior.
 - A sealed `intfloat/multilingual-e5-small` package can be admitted only by the
   registered SentencePiece-Unigram BERT ABI, and rejects a changed tokenizer,
   material closure, tokenizer grammar, or conformance fixture before MLX load.
-- A sealed `sentence-transformers/all-distilroberta-v1` package can be admitted
-  only by the registered RoBERTa ABI, and fake vectors prove byte-level BPE and
-  padding-index position-ID semantics before an authorized Darwin run.
+- The sealed `sentence-transformers/all-distilroberta-v1` package is admitted
+  only by the registered RoBERTa ABI; fake vectors prove byte-level BPE and
+  padding-index position-ID semantics, and its separately authorized Darwin
+  receipt proves the locked package's competency.
 
 ## Delivery Gate
 

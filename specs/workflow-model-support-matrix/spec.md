@@ -1,6 +1,6 @@
 # Workflow Model Support Matrix Specification
 
-Status: Draft
+Status: Implemented through WMS4
 Version: 0.1.0
 Owner: Repository maintainers
 Date: 2026-09-13

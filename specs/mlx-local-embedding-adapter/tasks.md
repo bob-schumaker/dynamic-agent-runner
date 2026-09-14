@@ -602,7 +602,7 @@
       grammar, RoBERTa tensor names/shapes/dtypes, padding-index position-ID
       derivation, LayerNorm epsilon, attention/activation/residual order,
       pooling, normalization, resource ceilings, and canonical contract digest.
-  - Spec: planned RoBERTa ABI, FR-2 and FR-3.
+  - Spec: RoBERTa ABI, FR-2 and FR-3.
   - Depends on: MLE6.6.
   - Acceptance: the descriptor cannot select a generic transformer interpreter,
     tokenizer code, unbounded merge/vocabulary asset, unknown tensor, or an

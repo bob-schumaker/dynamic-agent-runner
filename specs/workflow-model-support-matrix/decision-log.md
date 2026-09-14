@@ -27,7 +27,9 @@
 
 ## Drift Events
 
-- None.
+- 2026-09-13 — Reconciled stale draft/open status and MLE8 evidence claims.
+  — WMS1--WMS4 are complete, and the MLE8 package, fixture, Darwin receipt,
+  and non-transferable support row are recorded alongside MLE6 and MLE7.
 
 ## Gate History
 
@@ -35,4 +37,5 @@
 - Spec gate: waived by explicit request to create the artifact set.
 - Plan gate: waived by explicit request to create the artifact set.
 - Task gate: waived by explicit request to create the artifact set.
-- Validation gate: not applicable; no implementation was authorized.
+- Validation gate: passed; WMS1--WMS4 focused and full regression, lint, docs,
+  and changed-file checks are recorded in `validation.md`.

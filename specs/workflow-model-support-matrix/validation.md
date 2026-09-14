@@ -3,8 +3,8 @@
 Status: WMS1--WMS4 is complete. Deterministic profile coverage is recorded for
 Fastmail, embedding, floorplan, structured output, stateful context, and
 tool-pack composition. One floorplan MPS receipt is recorded; Fastmail live
-evidence remains absent. Two package-bound MLX embedding competency rows are
-recorded; MLE8 remains unrecorded and deferred.
+evidence remains absent. Three package-bound MLX embedding competency rows are
+recorded.
 
 ## Commands Run
 
@@ -20,6 +20,7 @@ recorded; MLE8 remains unrecorded and deferred.
 | `poetry run ruff check src tests` | pass | Full source and test lint after WMS1 implementation. |
 | MLE6 package-bound row | pass | `tests/test_mlx_gte_tiny_mle6_matrix.py` validates exact package/material/descriptor/capability/receipt binding and rejects changed package or material identity. |
 | MLE7 package-bound row | pass | `tests/test_mlx_multilingual_e5_small_mle7_matrix.py` validates exact package/material/descriptor/capability/receipt binding and rejects changed package or material identity. |
+| MLE8 package-bound row | pass | `tests/test_mlx_all_distilroberta_v1_mle8_matrix.py` validates exact package/material/descriptor/capability/receipt binding and rejects changed package or material identity. |
 | WMS3.3 floorplan MPS completion | pass | Explicitly authorized one-image MPS run completed one dispatch; JSON admission, SVG rendering/validation, bounded resource scalars, and confirmed worker reap are recorded in the closed receipt below. |
 | WMS3.3 focused regression | pass: 170 | `tests/test_workflow_model_support_matrix.py`, floorplan fixture/probe/script, generation worker, Transformers adapter, authoring profiles, and local preparation tests passed; `poetry run ruff check src tests scripts` passed. |
 | WMS4 focused profile regression | pass: 483 | The task-mapped Fastmail, embedding, floorplan, structured-output, stateful-context, tool-pack, matrix, and authorization suites passed with controlled collaborators only. |
@@ -52,16 +53,15 @@ material lock `79edaed8648cffb71972d0c8fcb3d18f100457d9cf46f0b58bc26fd16cc69cb8`
 and authorization reference
 `4519c2c2574ae800049fc79335a672f43c00803ee94884a0f0c83227ca7c9f07`.
 It contains no image/prompt/model JSON/SVG bytes, paths, process IDs, or worker
-handles. No live Fastmail run is recorded. The separate local-only MLE6 and
-MLE7 Darwin competency receipts are recorded respectively at
+handles. No live Fastmail run is recorded. The separate local-only MLE6, MLE7,
+and MLE8 Darwin competency receipts are recorded respectively at
 `tests/fixtures/mlx-gte-tiny/mle6-package/mle6.5-receipt.json` and
-`tests/fixtures/mlx-multilingual-e5-small/mle7-package/mle7.7-receipt.json`.
-Their static matrix rows are package-local beside each receipt. Future receipts
+`tests/fixtures/mlx-multilingual-e5-small/mle7-package/mle7.7-receipt.json`,
+and `tests/fixtures/mlx-all-distilroberta-v1/mle8-package/mle8.7-receipt.json`.
+Their static matrix rows are package-local beside each receipt. The MLE8 receipt
+records three 768-dimensional vectors with `7.674098014831543e-07` maximum
+absolute error against its locked fixture (threshold `0.005`). Future receipts
 must contain only the fields specified by FR-005.
-
-MLE8 has no package, material, fixture, or Darwin competency evidence. It is
-therefore an unrecorded deferred candidate, not a third MLX package row and not
-an extension of either recorded receipt.
 
 ## Residual Risks
 
