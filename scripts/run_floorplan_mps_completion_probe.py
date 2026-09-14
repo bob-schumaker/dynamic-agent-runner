@@ -88,9 +88,11 @@ def main(argv: list[str] | None = None) -> int:
                 arguments.state_root,
                 generation_execution_host_policy=host_policy,
             )
-            artifact = host.ingress_default_file(
+            artifact = host.ingress_file(
                 workflow_id=inspection.registration.workflow_id,
                 path=arguments.image,
+                role="source_image",
+                media_type="image/png",
                 now=datetime.now(UTC),
             )
             prepared = host.prepare(
