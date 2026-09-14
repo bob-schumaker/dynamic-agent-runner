@@ -37,6 +37,11 @@
   `2d0c80097f91a3d3a43aa75e6b3d327802daeed4ecbd0399ea8bf65546196ca4`.
   WMS5.4 must re-establish the same package/revision/binding relationship before
   any fresh live authorization is used.
+- 2026-09-13 — Reconciliation needs an explicit same-identity refresh boundary.
+  — The existing `register` operation correctly rejects a changed record under
+  an existing workflow ID as an alias collision. WMS5.5 may refresh only the
+  same workflow/package/revision after existing profile and MCP-binding
+  validation; it must not turn collision handling into general overwrite.
 
 ## Rejected Options
 

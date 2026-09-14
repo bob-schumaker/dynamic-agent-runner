@@ -1,8 +1,8 @@
 # Workflow Model Support Matrix Tasks
 
-Status: WMS1--WMS4 and WMS5.1--WMS5.2 are complete. WMS5.4 reconciles the
-observed owner-local registration/policy drift before WMS5.3 can record a live
-receipt.
+Status: WMS1--WMS4 and WMS5.1--WMS5.2 are complete. WMS5.5 adds the bounded
+same-package/revision registration refresh that WMS5.4 needs before WMS5.3 can
+record a live receipt.
 
 ## Prerequisites
 
@@ -442,7 +442,7 @@ receipt.
 - [ ] WMS5.4 [manual gate] Reconcile the owner-local Fastmail registration with
       its currently compiled immutable policy before allowing a live probe.
   - Spec: FR-004, FR-006, FR-011, AC-010.
-  - Depends on: WMS5.2.
+  - Depends on: WMS5.2, WMS5.5.
   - Evidence: read-only WMS5.2 inspection observed that registration
     `fastmail-inbox-triage-qwen-v4` maps to the intended sealed package ID but
     fails `saved package policy does not match`. This is a fail-closed static
@@ -461,6 +461,28 @@ receipt.
   - Validation: record only redacted registration, package, revision, policy,
     profile, and binding identities plus a successful post-reconciliation
     inspection. A failed reconciliation remains zero host-open/dispatch evidence.
+
+- [ ] WMS5.5 [tests, implementation] Add an explicit owner-only refresh for a
+      stale registration that preserves workflow, package, and revision identity.
+  - Spec: FR-012, AC-011.
+  - Files/components: `src/dynamic_agent_runner/workflow_host/registration.py`,
+    `src/dynamic_agent_runner/workflow_host/host.py`, existing host CLI surface,
+    and focused registration/host/CLI tests.
+  - Depends on: WMS5.2.
+  - RED: prove that the normal registration collision remains unchanged; an
+    explicit refresh succeeds only for the existing workflow ID with the same
+    package ID and revision digest after current profile/MCP binding validation.
+    A changed package ID, revision digest, unavailable binding, or stale profile
+    must leave the existing alias unmodified.
+  - GREEN: add only one explicit refresh operation and operator command. Reuse
+    the existing registration policy/profile/binding validation and private
+    record store. Do not accept package paths, source handles, a replacement
+    workflow ID, or a force flag.
+  - Boundary: no Fastmail dispatch, model loading, package reselection, or
+    arbitrary registration overwrite; MCP revalidation is the existing
+    configured-client check.
+  - Validation: focused registration, host, and CLI tests plus Ruff; then
+    WMS5.4 must perform the owner-approved live-state reconciliation separately.
 
 - [ ] WMS5.3 [manual gate] Record one Fastmail live receipt only after WMS5.2
       is green, the registered identity and reviewed read-only surface are

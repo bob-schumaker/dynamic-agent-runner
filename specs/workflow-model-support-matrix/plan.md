@@ -167,6 +167,12 @@ of that exact package/revision and reviewed binding. The probe must continue to
 fail closed; it must not reselect or substitute a package to make the command
 run.
 
+WMS5.5 supplies the missing explicit refresh boundary. It may update only the
+policy-derived registration facts for the already registered workflow ID,
+package ID, and revision digest, after existing profile and MCP binding
+revalidation. It must not reuse the ordinary collision path, accept a source
+path, select a different package, or become a general registration overwrite.
+
 ## Plan Approval
 
 - Status: WMS1--WMS4 and WMS5.1--WMS5.2 complete; WMS5.4 then WMS5.3 remain

@@ -70,6 +70,11 @@ required capabilities or locked materials.
   must revalidate the dynamic reviewed MCP surface before tool dispatch. It
   must not use one operator argument as both a workflow registration ID and
   package ID, or accept operator-supplied support facts.
+- [MUST] FR-012: An explicit owner-only reconciliation may refresh a stale
+  workflow registration only when its workflow ID, package ID, and revision
+  digest remain unchanged and the current configured profile and reviewed MCP
+  binding revalidate. It must fail closed rather than replace an alias with a
+  different package or revision.
 
 ## Non-Functional Requirements
 
@@ -164,6 +169,10 @@ reason codes; every other cell has one or more codes allowed by its status.
   static package/material and policy facts from the registered immutable state.
   An unknown workflow or changed static fact refuses before host opening; a
   stale dynamic reviewed surface refuses before tool dispatch.
+- AC-011: Given a stale Fastmail registration policy for the same cataloged
+  package and revision, when an owner requests reconciliation and current
+  profile/MCP binding revalidation succeeds, then the registration refreshes;
+  a different package or revision is rejected without altering the alias.
 
 ## Edge and Error Cases
 
