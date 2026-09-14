@@ -9,18 +9,16 @@
   telemetry, and terminal response shaping. CPU multiprocessing and Darwin
   Metal/MPS worker capability paths enforce containment and confirmed bounded
   reap before sealed-input ingress.
-- `workflow-model-support-matrix` is complete through WMS4; WMS5.1--WMS5.3 are
-  open to repair the Fastmail live probe. The verified owner-local registration
-  maps workflow `fastmail-inbox-triage-qwen-v4` to sealed package
-  `fastmail-inbox-triage-qwen`; the existing command wrongly conflates them in
-  `--package-name`. WMS5 makes the probe accept a workflow ID, derive sealed
-  identity/support facts through inspection, and remove operator-supplied
-  support facts before any fresh authorized attempt. Deterministic Fastmail,
-  embedding, floorplan, structured-output, stateful-context, and tool-pack
-  profiles have recorded coverage; one explicit floorplan MPS receipt is
-  recorded, while Fastmail live evidence remains absent. State-root paths,
-  targets, credentials, mailbox data, and session transcripts remain unrecorded.
-  Commit `49d69d1` records the repair slice.
+- `workflow-model-support-matrix` is complete through WMS5. The verified
+  owner-local registration maps workflow `fastmail-inbox-triage-qwen-v4` to its
+  distinct sealed package. The probe derives identity and support facts through
+  registered-state inspection, has no operator-supplied support facts, and
+  requires a current reviewed pinned MCP surface before its sole read-only
+  dispatch. Deterministic Fastmail, embedding, floorplan, structured-output,
+  stateful-context, and tool-pack profiles have recorded coverage; one explicit
+  floorplan MPS receipt and one redacted Fastmail live receipt are recorded.
+  State-root paths, targets, credentials, mailbox data, and session transcripts
+  remain unrecorded. Commits `73fc6e1` and `b0337dd` record completion.
 - `mlx-local-embedding-adapter` is complete through MLE8. MLE6 WordPiece,
   MLE7 SentencePiece-Unigram, and MLE8 RoBERTa byte-level-BPE each have a
   sealed package, local fixture, Darwin competency receipt, and non-transferable

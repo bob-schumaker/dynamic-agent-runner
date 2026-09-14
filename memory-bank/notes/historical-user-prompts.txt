@@ -712,6 +712,10 @@ refresh memory bank and commit
 
 ---
 
+make the matrix corpus internally consistent and commit, refresh memory-bank and commit
+
+---
+
 update docs to match current repo state
 
 ---

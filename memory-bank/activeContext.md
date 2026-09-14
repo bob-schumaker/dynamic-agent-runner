@@ -9,18 +9,15 @@
   terminal response shaping. CPU multiprocessing and Darwin Metal/MPS workers
   are gated by reviewed capabilities, enforceable containment, and confirmed
   bounded reap before sealed-input ingress.
-- `workflow-model-support-matrix` is complete through WMS4; WMS5.1--WMS5.3 are
-  open to repair the Fastmail live probe. Its deterministic Fastmail, embedding,
-  floorplan, structured-output, stateful-context, and tool-pack profiles are
-  documented with non-transferable receipts. The verified owner-local host
-  retains workflow `fastmail-inbox-triage-qwen-v4` mapped to sealed package
-  `fastmail-inbox-triage-qwen`; the current probe incorrectly requires one
-  `--package-name` value to serve as both identities. WMS5 replaces it with a
-  workflow-ID inspection path and removes operator-supplied support facts.
-  One authorized floorplan MPS receipt is recorded; Fastmail has no live receipt
-  until WMS5 and fresh explicit authorization complete. State-root paths,
-  targets, credentials, mailbox data, and session transcripts remain unrecorded.
-  Commit `49d69d1` records the repair slice.
+- `workflow-model-support-matrix` is complete through WMS5. Its deterministic
+  Fastmail, embedding, floorplan, structured-output, stateful-context, and
+  tool-pack profiles retain non-transferable evidence. WMS5 changed the
+  Fastmail probe to accept its registered workflow ID, derive sealed identity
+  before host composition, require a current reviewed pinned MCP surface, and
+  safely refresh only the same package/revision registration. One authorized
+  redacted read-only Fastmail receipt is recorded. State-root paths, targets,
+  credentials, mailbox data, and session transcripts remain unrecorded.
+  Commits `73fc6e1` and `b0337dd` record the receipt and consistent corpus.
 - `mlx-local-embedding-adapter` is complete through MLE8: each sealed MLE6
   WordPiece, MLE7 SentencePiece-Unigram, and MLE8 RoBERTa byte-level-BPE
   package has its own Darwin competency receipt and support row. No receipt
