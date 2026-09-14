@@ -439,7 +439,7 @@ record a live receipt.
     registration correctly refused with `saved package policy does not match`,
     before host opening, model loading, MCP access, or mailbox dispatch.
 
-- [ ] WMS5.4 [manual gate] Reconcile the owner-local Fastmail registration with
+- [x] WMS5.4 [manual gate] Reconcile the owner-local Fastmail registration with
       its currently compiled immutable policy before allowing a live probe.
   - Spec: FR-004, FR-006, FR-011, AC-010.
   - Depends on: WMS5.2, WMS5.5, WMS5.6, WMS5.8, WMS5.9.
@@ -461,6 +461,15 @@ record a live receipt.
   - Validation: record only redacted registration, package, revision, policy,
     profile, and binding identities plus a successful post-reconciliation
     inspection. A failed reconciliation remains zero host-open/dispatch evidence.
+  - Evidence (2026-09-13): the approved repair recreated the profile-bound OAuth
+    connection, attached only its authenticated observed peer identity, and
+    reviewed the existing read-only tool selection on that new pinned connection.
+    The same cataloged package and revision then refreshed under the current
+    compiled policy and current local principal. Post-reconciliation inspection
+    confirmed compiled-policy identity, MCP binding, and owner presence without
+    host opening, model loading, or Fastmail dispatch. Repository evidence
+    intentionally omits owner-local paths, opaque identifiers, endpoint, scope,
+    certificate, credentials, schemas, and mailbox data.
 
 - [x] WMS5.5 [tests, implementation] Add an explicit owner-only refresh for a
       stale registration that preserves workflow, package, and revision identity.
