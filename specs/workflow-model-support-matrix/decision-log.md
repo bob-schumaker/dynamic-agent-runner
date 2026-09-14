@@ -28,6 +28,11 @@
   compiled policy, and model profile without composing an MCP client; the
   configured host must therefore revalidate its reviewed MCP surface before
   tool dispatch rather than adding a duplicate probe validator.
+- 2026-09-13 — A stale registered policy is a manual reconciliation gate, not a
+  reason to weaken probe admission. — WMS5.2 read-only inspection returned
+  `saved package policy does not match` for the owner-local Fastmail workflow;
+  WMS5.4 must re-establish the same package/revision/binding relationship before
+  any fresh live authorization is used.
 
 ## Rejected Options
 

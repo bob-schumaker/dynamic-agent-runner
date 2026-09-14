@@ -160,9 +160,17 @@ only. Do not
 record the owner-local state root, target, credentials, mailbox content, or
 Codex session transcript in repository artifacts.
 
+The current owner-local registration must also pass this inspection before a
+live attempt. WMS5.2 observed `saved package policy does not match` for the
+registered Fastmail workflow, so WMS5.4 owns an owner-approved reconciliation
+of that exact package/revision and reviewed binding. The probe must continue to
+fail closed; it must not reselect or substitute a package to make the command
+run.
+
 ## Plan Approval
 
-- Status: WMS1--WMS4 complete; WMS5.1--WMS5.3 remain open.
+- Status: WMS1--WMS4 and WMS5.1--WMS5.2 complete; WMS5.4 then WMS5.3 remain
+  open.
 - Notes: One shared redacted execution-receipt extension supports six separate
   fully offline profiles. Synthetic Fastmail evidence cannot inherit a live
   mailbox receipt, and the three package-bound MLE6, MLE7, and MLE8 Darwin/MLX

@@ -1,7 +1,8 @@
 # Workflow Model Support Matrix Tasks
 
-Status: WMS1--WMS4 are complete. WMS5.1--WMS5.3 repair the Fastmail live-probe
-identity defect before any live receipt is attempted.
+Status: WMS1--WMS4 and WMS5.1--WMS5.2 are complete. WMS5.4 reconciles the
+observed owner-local registration/policy drift before WMS5.3 can record a live
+receipt.
 
 ## Prerequisites
 
@@ -381,7 +382,7 @@ identity defect before any live receipt is attempted.
 
 ## WMS5 — Fastmail Live-Probe Registration Identity Repair
 
-- [ ] WMS5.1 [tests, RED] Reproduce the owner-host registration shape in the
+- [x] WMS5.1 [tests, RED] Reproduce the owner-host registration shape in the
       Fastmail probe tests and prove that the probe admits only host-derived
       identity facts before opening a host or dispatching.
   - Spec: FR-004, FR-005, FR-011, AC-010.
@@ -406,8 +407,12 @@ identity defect before any live receipt is attempted.
   - Validation: `poetry run pytest tests/test_fastmail_support_probe_script.py
     tests/test_fastmail_live_probe.py -q` initially fails for the distinct
     identity fixture.
+  - Evidence (2026-09-13): the new distinct-ID inspection tests failed first
+    because the command exposed no `inspect_saved_workflow` seam and still
+    required `--support-facts`. After WMS5.2, the focused command, live-probe,
+    and matrix suites passed with 24 tests.
 
-- [ ] WMS5.2 [implementation, GREEN] Replace the Fastmail probe's ambiguous
+- [x] WMS5.2 [implementation, GREEN] Replace the Fastmail probe's ambiguous
       `--package-name` interface with `--workflow-id` and derive all support
       identity from `inspect_saved_workflow` before host composition.
   - Spec: FR-004, FR-005, FR-011, AC-010.
@@ -427,12 +432,37 @@ identity defect before any live receipt is attempted.
   - Validation: `poetry run pytest tests/test_fastmail_support_probe_script.py
     tests/test_fastmail_live_probe.py tests/test_workflow_model_support_matrix.py
     -q` and `poetry run ruff check scripts tests`.
+  - Evidence (2026-09-13): the command now accepts `--workflow-id`, removes
+    `--support-facts`, resolves registered identity before `LocalWorkflowHost.open`,
+    and derives its material identity from the sealed model lock. The focused
+    24-test suite and Ruff passed. A read-only inspection of the owner-local
+    registration correctly refused with `saved package policy does not match`,
+    before host opening, model loading, MCP access, or mailbox dispatch.
+
+- [ ] WMS5.4 [manual gate] Reconcile the owner-local Fastmail registration with
+      its currently compiled immutable policy before allowing a live probe.
+  - Spec: FR-004, FR-006, FR-011, AC-010.
+  - Depends on: WMS5.2.
+  - Evidence: read-only WMS5.2 inspection observed that registration
+    `fastmail-inbox-triage-qwen-v4` maps to the intended sealed package ID but
+    fails `saved package policy does not match`. This is a fail-closed static
+    admission result, not a lost configuration or authorization to substitute
+    a package.
+  - Manual gate: inspect the exact cataloged revision and owner-approved
+    registration/review procedure to identify the digest drift; then re-register
+    only that same sealed package/revision against its current compiled policy
+    and current reviewed binding. Re-inspect successfully before any live run.
+    Do not reselect a different model/package, write credentials, or dispatch
+    Fastmail as part of this task.
+  - Validation: record only redacted registration, package, revision, policy,
+    profile, and binding identities plus a successful post-reconciliation
+    inspection. A failed reconciliation remains zero host-open/dispatch evidence.
 
 - [ ] WMS5.3 [manual gate] Record one Fastmail live receipt only after WMS5.2
       is green, the registered identity and reviewed read-only surface are
       re-inspected, and a fresh explicit operator authorization is supplied.
   - Spec: FR-004, FR-005, FR-011, AC-004, AC-010.
-  - Depends on: WMS5.2.
+  - Depends on: WMS5.2, WMS5.4.
   - Manual gate: run exactly one bounded read-only candidate with the registered
     workflow ID, explicit opt-in, target, and authorization reference. Preserve
     only the fixed redacted receipt; do not commit a state-root path, target,

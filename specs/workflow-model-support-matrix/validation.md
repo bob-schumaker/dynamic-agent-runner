@@ -12,6 +12,8 @@ recorded.
 | Command | Result | Notes |
 | --- | --- | --- |
 | WMS5 readiness review | pass | Council and Ponytail reconciled the distinct workflow/package identities, corrected the focused test targets, and separated static inspection from the host's dynamic MCP-surface revalidation. |
+| WMS5.1--WMS5.2 focused regression | pass: 24 | `tests/test_fastmail_support_probe_script.py`, `tests/test_fastmail_live_probe.py`, and `tests/test_workflow_model_support_matrix.py` passed; script and focused tests passed Ruff. |
+| WMS5.2 owner-local inspection | blocked: `saved package policy does not match` | Read-only inspection of the registered Fastmail workflow refused before host opening, model loading, MCP access, or mailbox dispatch. WMS5.4 owns exact package/revision/binding reconciliation. |
 | WMS1 readiness review | pass | Closed classifier identity, reason-code, precedence, receipt-binding, and no-side-effect boundaries are specified; Council and Ponytail reviews require no further scope. |
 | WMS2 readiness review | pass | WMS2.0 establishes the shared receipt boundary. Every profile has an offline fixture/seam, non-execution proof, and focused validation route; synthetic Fastmail and MLE6 evidence remain distinct from live/mailbox and Darwin competency receipts. |
 | WMS2 readiness baseline | pass: 454 | Focused Fastmail, embedding, model-interface, session/overflow, web/workspace/subagent, authorization, and matrix suites passed. |
@@ -76,3 +78,6 @@ must contain only the fields specified by FR-005.
   verified owner-local registration uses distinct values; WMS5 must derive
   static identity through inspection and retain host revalidation of the dynamic
   MCP surface before a new explicitly authorized live attempt.
+- The owner-local Fastmail registration currently fails static policy
+  verification. WMS5.4 must reconcile that same sealed package/revision and
+  reviewed binding before a fresh authorization can permit WMS5.3.

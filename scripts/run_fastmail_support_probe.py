@@ -20,7 +20,13 @@ from dynamic_agent_runner.workflow_host.fastmail_live_probe import (
     FastmailLiveProbeRequest,
     run_fastmail_live_probe,
 )
-from dynamic_agent_runner.workflow_host.host import LocalWorkflowHost
+from dynamic_agent_runner.workflow_host.host import (
+    LocalWorkflowHost,
+    inspect_saved_workflow,
+)
+from dynamic_agent_runner.workflow_host.profiles import (
+    FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+)
 from dynamic_agent_runner.workflow_host.workflow_support_matrix import (
     MaterialIdentity,
     WorkflowSupportCandidate,
@@ -31,6 +37,9 @@ from dynamic_agent_runner.workflow_host.workflow_support_matrix import (
 _OPT_IN_ENV = "DAR_RUN_FASTMAIL_SUPPORT_PROBE"
 _PROFILE_ID = "fastmail-triage-live-v1"
 _PROMPT = "Triage the previous 24 hours of unread messages."
+_ADAPTER_CAPABILITIES = ("search_email", "tool_use")
+_ABI_CAPABILITIES = ("llama-cpp-function-calling-v1",)
+_PROVIDER_CAPABILITIES = ("fastmail.search_email.read.v1",)
 
 
 class FastmailSupportProbeCommandError(RuntimeError):
@@ -48,25 +57,12 @@ def main(argv: list[str] | None = None) -> int:
             )
         if arguments.profile != _PROFILE_ID:
             raise FastmailSupportProbeCommandError("Fastmail probe profile is invalid")
-        profile, candidate = _support_facts(arguments.support_facts)
-        if (
-            profile.material_identity is None
-            or arguments.package_name != profile.material_identity.package_id
-        ):
-            raise FastmailSupportProbeCommandError(
-                "Fastmail probe package identity is invalid"
-            )
-        request = FastmailLiveProbeRequest(
-            target=arguments.target,
-            authorization_reference=arguments.authorization_reference,
-            profile=profile,
-            candidate=candidate,
-        )
+        request = _request_from_inspection(arguments)
         host = LocalWorkflowHost.open(arguments.state_root)
         receipt = run_fastmail_live_probe(
             request,
             dispatch=lambda: host.invoke_saved(
-                package_name=arguments.package_name,
+                package_name=arguments.workflow_id,
                 prompt=_PROMPT,
                 workspace_files=(),
                 dry_run=False,
@@ -91,106 +87,82 @@ def main(argv: list[str] | None = None) -> int:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--state-root", required=True, type=Path)
-    parser.add_argument("--package-name", required=True)
+    parser.add_argument("--workflow-id", required=True)
     parser.add_argument("--target", required=True)
     parser.add_argument("--profile", required=True)
     parser.add_argument("--authorization-reference", required=True)
-    parser.add_argument("--support-facts", required=True, type=Path)
     parser.add_argument("--receipt", required=True, type=Path)
     return parser
 
 
-def _support_facts(
-    path: Path,
-) -> tuple[WorkflowSupportProfile, WorkflowSupportCandidate]:
+def _request_from_inspection(arguments: argparse.Namespace) -> FastmailLiveProbeRequest:
+    """Project one fixed Fastmail cell from immutable registered state."""
+
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(value, dict) or set(value) != {"candidate", "profile"}:
+        inspection = inspect_saved_workflow(
+            arguments.state_root, package_name=arguments.workflow_id
+        )
+        registration = inspection.registration
+        policy = inspection.policy
+        configured_profile = inspection.profile
+        if (
+            registration.workflow_id != arguments.workflow_id
+            or registration.package_id != policy.package_id
+            or registration.revision_digest != policy.revision_digest
+            or registration.policy_digest != policy.policy_digest
+            or registration.mcp_binding_id is None
+            or configured_profile.adapter_id != FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID
+            or len(policy.declared_tools) != 1
+            or policy.declared_tools[0].tool_id != "search_email"
+            or policy.declared_tools[0].side_effect != "read"
+            or policy.task_invocation.allowed_tool_ids != ("search_email",)
+            or policy.task_invocation.max_total_tool_calls != 1
+        ):
             raise ValueError
-        profile_value = value["profile"]
-        candidate_value = value["candidate"]
-        if not isinstance(profile_value, dict) or not isinstance(candidate_value, dict):
-            raise ValueError
+        material = _material_identity(registration.package_id, policy.model_materials)
         profile = WorkflowSupportProfile(
-            profile_id=_text(profile_value, "profile_id"),
-            workflow_family=_text(profile_value, "workflow_family"),
-            required_adapter_capabilities=_strings(
-                profile_value, "required_adapter_capabilities"
-            ),
-            required_abi_capabilities=_strings(
-                profile_value, "required_abi_capabilities"
-            ),
-            required_provider_capabilities=_strings(
-                profile_value, "required_provider_capabilities"
-            ),
-            required_host_capabilities=_strings(
-                profile_value, "required_host_capabilities"
-            ),
-            material_identity=_material(profile_value["material_identity"]),
-            execution_mode=_text(profile_value, "execution_mode"),
-            authorization_required=_bool(profile_value, "authorization_required"),
-            implemented=_bool(profile_value, "implemented"),
+            profile_id=_PROFILE_ID,
+            workflow_family="fastmail-triage",
+            required_adapter_capabilities=_ADAPTER_CAPABILITIES,
+            required_abi_capabilities=_ABI_CAPABILITIES,
+            required_provider_capabilities=_PROVIDER_CAPABILITIES,
+            required_host_capabilities=(),
+            material_identity=material,
+            execution_mode="live",
+            authorization_required=True,
+            implemented=True,
         )
         candidate = WorkflowSupportCandidate(
-            adapter_id=_text(candidate_value, "adapter_id"),
-            adapter_capabilities=frozenset(
-                _strings(candidate_value, "adapter_capabilities")
-            ),
-            available_abi_capabilities=frozenset(
-                _strings(candidate_value, "available_abi_capabilities")
-            ),
-            provider_capabilities=frozenset(
-                _strings(candidate_value, "provider_capabilities")
-            ),
-            host_capabilities=frozenset(_strings(candidate_value, "host_capabilities")),
-            material_identity=_material(candidate_value["material_identity"]),
-            authorization_granted=_bool(candidate_value, "authorization_granted"),
+            adapter_id=configured_profile.adapter_id,
+            adapter_capabilities=frozenset(_ADAPTER_CAPABILITIES),
+            available_abi_capabilities=frozenset(_ABI_CAPABILITIES),
+            provider_capabilities=frozenset(_PROVIDER_CAPABILITIES),
+            host_capabilities=frozenset(),
+            material_identity=material,
+            authorization_granted=True,
         )
-    except (KeyError, OSError, TypeError, ValueError) as error:
-        raise FastmailSupportProbeCommandError("support facts are invalid") from error
-    return profile, candidate
-
-
-def _material(value: object) -> MaterialIdentity | None:
-    if value is None:
-        return None
-    if not isinstance(value, dict) or set(value) != {
-        "artifact_digests",
-        "material_lock_digest",
-        "material_roles",
-        "package_id",
-    }:
-        raise ValueError
-    digests = value["artifact_digests"]
-    if not isinstance(digests, dict):
-        raise ValueError
-    return MaterialIdentity(
-        package_id=_text(value, "package_id"),
-        material_lock_digest=_text(value, "material_lock_digest"),
-        material_roles=_strings(value, "material_roles"),
-        artifact_digests={str(name): str(digest) for name, digest in digests.items()},
+    except (AttributeError, TypeError, ValueError) as error:
+        raise FastmailSupportProbeCommandError(
+            "registered Fastmail workflow is invalid"
+        ) from error
+    return FastmailLiveProbeRequest(
+        target=arguments.target,
+        authorization_reference=arguments.authorization_reference,
+        profile=profile,
+        candidate=candidate,
     )
 
 
-def _text(value: dict[str, object], name: str) -> str:
-    item = value[name]
-    if not isinstance(item, str):
+def _material_identity(package_id: str, lock: object) -> MaterialIdentity:
+    if lock is None:
         raise ValueError
-    return item
-
-
-def _strings(value: dict[str, object], name: str) -> tuple[str, ...]:
-    items = value[name]
-    if not isinstance(items, list):
-        raise ValueError
-    return tuple(items)
-
-
-def _bool(value: dict[str, object], name: str) -> bool:
-    item = value[name]
-    if not isinstance(item, bool):
-        raise ValueError
-    return item
+    sources = lock.sources
+    return MaterialIdentity(
+        package_id=package_id,
+        material_lock_digest=lock.digest,
+        material_roles=tuple(source.role for source in sources),
+        artifact_digests={source.role: source.sha256 for source in sources},
+    )
 
 
 if __name__ == "__main__":

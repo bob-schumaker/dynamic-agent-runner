@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -21,43 +21,39 @@ def command_module():
     return module
 
 
-def _facts() -> dict[str, object]:
-    material = {
-        "package_id": "fastmail-inbox-triage-qwen-v4",
-        "material_lock_digest": "a" * 64,
-        "material_roles": ["reviewed_search_email_surface", "weights"],
-        "artifact_digests": {"reviewed_search_email_surface": "b" * 64},
-    }
-    return {
-        "profile": {
-            "profile_id": "fastmail-triage-live-v1",
-            "workflow_family": "fastmail-triage",
-            "required_adapter_capabilities": ["search_email", "tool_use"],
-            "required_abi_capabilities": ["llama-cpp-function-calling-v1"],
-            "required_provider_capabilities": ["fastmail.search_email.read.v1"],
-            "required_host_capabilities": [],
-            "material_identity": material,
-            "execution_mode": "live",
-            "authorization_required": True,
-            "implemented": True,
-        },
-        "candidate": {
-            "adapter_id": "fastmail-triage-llama-cpp-adapter-v1",
-            "adapter_capabilities": ["search_email", "tool_use"],
-            "available_abi_capabilities": ["llama-cpp-function-calling-v1"],
-            "provider_capabilities": ["fastmail.search_email.read.v1"],
-            "host_capabilities": [],
-            "material_identity": material,
-            "authorization_granted": True,
-        },
-    }
+def _inspection(*, package_id: str = "fastmail-inbox-triage-qwen") -> object:
+    material = SimpleNamespace(
+        digest="a" * 64,
+        sources=(SimpleNamespace(role="weights", sha256="b" * 64),),
+    )
+    registration = SimpleNamespace(
+        workflow_id="fastmail-inbox-triage-qwen-v4",
+        package_id=package_id,
+        revision_digest="c" * 64,
+        policy_digest="d" * 64,
+        mcp_binding_id="binding-1",
+    )
+    policy = SimpleNamespace(
+        package_id=package_id,
+        revision_digest="c" * 64,
+        policy_digest="d" * 64,
+        model_materials=material,
+        declared_tools=(SimpleNamespace(tool_id="search_email", side_effect="read"),),
+        task_invocation=SimpleNamespace(
+            allowed_tool_ids=("search_email",), max_total_tool_calls=1
+        ),
+    )
+    profile = SimpleNamespace(
+        adapter_id="fastmail-triage-llama-cpp-adapter-v1",
+    )
+    return SimpleNamespace(registration=registration, policy=policy, profile=profile)
 
 
-def _arguments(tmp_path: Path, facts: Path, receipt: Path) -> list[str]:
+def _arguments(tmp_path: Path, receipt: Path) -> list[str]:
     return [
         "--state-root",
         str(tmp_path / "state"),
-        "--package-name",
+        "--workflow-id",
         "fastmail-inbox-triage-qwen-v4",
         "--target",
         "fastmail-primary",
@@ -65,54 +61,87 @@ def _arguments(tmp_path: Path, facts: Path, receipt: Path) -> list[str]:
         "fastmail-triage-live-v1",
         "--authorization-reference",
         "operator-20260913",
-        "--support-facts",
-        str(facts),
         "--receipt",
         str(receipt),
     ]
 
 
-def test_command_requires_opt_in_before_opening_a_host(
+def test_command_requires_opt_in_before_inspecting_or_opening_a_host(
     command_module, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    facts = tmp_path / "facts.json"
-    facts.write_text(json.dumps(_facts()), encoding="utf-8")
     receipt = tmp_path / "receipt.json"
     monkeypatch.delenv(command_module._OPT_IN_ENV, raising=False)
+    monkeypatch.setattr(
+        command_module,
+        "inspect_saved_workflow",
+        lambda *_args, **_kwargs: pytest.fail(
+            "workflow must not inspect without opt-in"
+        ),
+    )
     monkeypatch.setattr(
         command_module.LocalWorkflowHost,
         "open",
         lambda _root: pytest.fail("host must not open without opt-in"),
     )
 
-    assert command_module.main(_arguments(tmp_path, facts, receipt)) == 2
+    assert command_module.main(_arguments(tmp_path, receipt)) == 2
     assert not receipt.exists()
 
 
-def test_command_rejects_a_package_outside_the_admitted_material_identity(
+def test_command_rejects_an_unknown_workflow_before_opening_a_host(
     command_module, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    facts = tmp_path / "facts.json"
-    facts.write_text(json.dumps(_facts()), encoding="utf-8")
     receipt = tmp_path / "receipt.json"
-    arguments = _arguments(tmp_path, facts, receipt)
-    arguments[3] = "other-package"
     monkeypatch.setenv(command_module._OPT_IN_ENV, "1")
+    monkeypatch.setattr(
+        command_module,
+        "inspect_saved_workflow",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("unavailable")),
+    )
     monkeypatch.setattr(
         command_module.LocalWorkflowHost,
         "open",
-        lambda _root: pytest.fail("host must not open for another package"),
+        lambda _root: pytest.fail("host must not open for an unknown workflow"),
     )
 
-    assert command_module.main(arguments) == 2
+    assert command_module.main(_arguments(tmp_path, receipt)) == 2
     assert not receipt.exists()
 
 
-def test_command_runs_one_pre_admitted_saved_workflow_and_writes_redacted_receipt(
+def test_command_rejects_static_policy_mismatch_before_opening_a_host(
     command_module, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    facts = tmp_path / "facts.json"
-    facts.write_text(json.dumps(_facts()), encoding="utf-8")
+    receipt = tmp_path / "receipt.json"
+    inspected = _inspection()
+    inspected.policy.policy_digest = "e" * 64
+    monkeypatch.setenv(command_module._OPT_IN_ENV, "1")
+    monkeypatch.setattr(
+        command_module, "inspect_saved_workflow", lambda *_args, **_kwargs: inspected
+    )
+    monkeypatch.setattr(
+        command_module.LocalWorkflowHost,
+        "open",
+        lambda _root: pytest.fail("host must not open for stale policy facts"),
+    )
+
+    assert command_module.main(_arguments(tmp_path, receipt)) == 2
+    assert not receipt.exists()
+
+
+def test_command_rejects_the_removed_support_facts_argument(
+    command_module, tmp_path: Path
+) -> None:
+    receipt = tmp_path / "receipt.json"
+
+    with pytest.raises(SystemExit):
+        command_module.main(
+            [*_arguments(tmp_path, receipt), "--support-facts", "facts.json"]
+        )
+
+
+def test_command_runs_one_inspected_saved_workflow_and_writes_redacted_receipt(
+    command_module, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     receipt = tmp_path / "receipt.json"
     calls: list[dict[str, object]] = []
 
@@ -122,9 +151,14 @@ def test_command_runs_one_pre_admitted_saved_workflow_and_writes_redacted_receip
             return {"raw_mailbox": "must not be retained"}
 
     monkeypatch.setenv(command_module._OPT_IN_ENV, "1")
+    monkeypatch.setattr(
+        command_module,
+        "inspect_saved_workflow",
+        lambda *_args, **_kwargs: _inspection(),
+    )
     monkeypatch.setattr(command_module.LocalWorkflowHost, "open", lambda _root: Host())
 
-    assert command_module.main(_arguments(tmp_path, facts, receipt)) == 0
+    assert command_module.main(_arguments(tmp_path, receipt)) == 0
     assert len(calls) == 1
     assert calls[0]["package_name"] == "fastmail-inbox-triage-qwen-v4"
     assert calls[0]["prompt"] == "Triage the previous 24 hours of unread messages."
@@ -135,3 +169,4 @@ def test_command_runs_one_pre_admitted_saved_workflow_and_writes_redacted_receip
     assert "fastmail-primary" not in rendered
     assert "operator-20260913" not in rendered
     assert "must not be retained" not in rendered
+    assert "fastmail-inbox-triage-qwen" in rendered
