@@ -1,6 +1,6 @@
 # Workflow Model Support Matrix Implementation Plan
 
-Status: Implemented through WMS4; WMS5 Fastmail probe identity repair is open
+Status: Implemented through WMS5; one redacted Fastmail live receipt is recorded
 
 ## Spec Trace
 
@@ -175,15 +175,16 @@ path, select a different package, or become a general registration overwrite.
 
 ## Plan Approval
 
-- Status: WMS1--WMS4 and WMS5.1--WMS5.2 complete; WMS5.4 then WMS5.3 remain
-  open.
+- Status: WMS1--WMS5 complete, including WMS5.4 registration reconciliation
+  and one WMS5.3 redacted read-only Fastmail receipt.
 - Notes: One shared redacted execution-receipt extension supports six separate
   fully offline profiles. Synthetic Fastmail evidence cannot inherit a live
   mailbox receipt, and the three package-bound MLE6, MLE7, and MLE8 Darwin/MLX
   competency rows cannot transfer to a different package or material closure.
-  WMS3.3 records one authorized floorplan MPS receipt; Fastmail live evidence
-  remains absent because the current Fastmail command conflates the registered
-  workflow key with the sealed package ID. The architecture-triad review
+  WMS3.3 records one authorized floorplan MPS receipt; WMS5 records one
+  authorized Fastmail read-only receipt after deriving registered workflow
+  identity rather than conflating its key with the sealed package ID. The
+  architecture-triad review
   required integrated workflow
   tests where existing unit seams are disjoint; Ponytail retained only those
   existing fakes and introduced no registry or provider abstraction.

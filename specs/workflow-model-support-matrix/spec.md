@@ -1,6 +1,6 @@
 # Workflow Model Support Matrix Specification
 
-Status: Implemented through WMS4; WMS5 Fastmail probe identity repair is open
+Status: Implemented through WMS5; one redacted Fastmail live receipt is recorded
 Version: 0.1.0
 Owner: Repository maintainers
 Date: 2026-09-13

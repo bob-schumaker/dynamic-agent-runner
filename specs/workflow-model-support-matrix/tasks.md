@@ -634,8 +634,8 @@ and recorded one redacted live read-only receipt.
     architecture triad required the static registered-identity and dynamic MCP
     surface checks to remain distinct. Ponytail retained the existing
     inspection and host-invocation boundaries, rejecting a probe registry,
-    second surface validator, or a new test module. WMS5 is implementation-ready
-    with the corrected focused test targets and dispatch boundary.
+    second surface validator, or a new test module. WMS5 completed with the
+    corrected focused test targets and dispatch boundary.
 
 ## Checkpoints
 
@@ -645,8 +645,8 @@ and recorded one redacted live read-only receipt.
 - WMS3: human-gated Fastmail and floorplan receipt paths with fake authorization
   coverage.
 - WMS4: documented coverage and validation record.
-- WMS5: Fastmail probe derives registered workflow/package identity before a
-  newly authorized live receipt can be recorded.
+- WMS5: Fastmail probe derives registered workflow/package identity before its
+  authorized live receipt is recorded.
 
 ## Validation
 
