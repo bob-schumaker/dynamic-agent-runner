@@ -37,7 +37,10 @@ _OPT_IN_ENV = "DAR_RUN_FLOORPLAN_MPS_COMPLETION_PROBE"
 _PROMPT = (
     "Create a compact floorplan from the sealed image. Return only one JSON object "
     'with exactly the keys "walls" and "rooms"; both keys are mandatory. Use at most '
-    "8 wall segments and 6 rooms so the complete object fits in one response."
+    "8 wall segments and 6 rooms. Every wall must have exactly these keys: id, start, "
+    "end, thickness, curvature, openings. Use id (never wall_id); start and end are "
+    "two-integer axis-aligned points; curvature is 0; openings is a list of objects "
+    "with exactly type, center, width."
 )
 
 
