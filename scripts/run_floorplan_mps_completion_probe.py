@@ -20,6 +20,9 @@ from dynamic_agent_runner.workflow_host.floorplan_mps_completion_probe import (
 from dynamic_agent_runner.workflow_host.generation_worker_controllers import (
     darwin_mps_generation_execution_host_policy,
 )
+from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    validate_generation_budget_field,
+)
 from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
     LocalWorkflowHostError,
@@ -54,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
             raise FloorplanMpsCompletionProbeCommandError("floorplan policy is invalid")
         try:
             host_policy = darwin_mps_generation_execution_host_policy(
-                ceiling=descriptor.budget
+                ceiling=validate_generation_budget_field(descriptor)
             )
         except Exception:
             host_policy = None
