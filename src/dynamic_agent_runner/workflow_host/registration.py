@@ -151,7 +151,7 @@ class WorkflowRegistrationService:
         """Refresh one registered policy without changing its package revision."""
 
         existing = self.resolve(workflow_id)
-        if existing.owner != self._owner:
+        if existing.owner is not None and existing.owner != self._owner:
             raise WorkflowRegistrationError(
                 "workflow refresh owner does not match registration"
             )

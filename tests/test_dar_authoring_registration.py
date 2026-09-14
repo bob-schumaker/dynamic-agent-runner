@@ -387,6 +387,45 @@ def test_registration_refresh_requires_the_existing_package_and_revision(
     assert refreshed.revision_digest == first.revision_digest
     assert refreshed.policy_digest == refreshed_policy.policy_digest
     assert service.resolve("document-helper") == refreshed
+
+
+def test_registration_refresh_claims_only_a_legacy_ownerless_record(
+    tmp_path: Path,
+) -> None:
+    service = _service(tmp_path)
+    registration = service.register(
+        workflow_id="document-helper",
+        policy=_policy(),
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+    path = tmp_path / "registrations" / "registrations.json"
+    records = json.loads(path.read_text(encoding="utf-8"))
+    del records["registrations"]["document-helper"]["owner"]
+    path.write_text(json.dumps(records), encoding="utf-8")
+
+    refreshed = service.refresh(
+        workflow_id="document-helper",
+        policy=_policy(digest="d" * 64),
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+
+    assert refreshed.owner == "test-owner"
+    assert refreshed.package_id == registration.package_id
+    assert refreshed.revision_digest == registration.revision_digest
+
+    other_owner = WorkflowRegistrationService(
+        profiles=service._profiles,
+        configured_profile_id=service._configured_profile_id,
+        root=tmp_path / "registrations",
+        owner="other-owner",
+    )
+    with pytest.raises(WorkflowRegistrationError, match="owner"):
+        other_owner.refresh(
+            workflow_id="document-helper",
+            policy=_policy(digest="e" * 64),
+            capability_resolution=CapabilityResolution("eligible", ()),
+        )
+    assert service.resolve("document-helper") == refreshed
     with pytest.raises(WorkflowRegistrationError, match="alias collision"):
         service.register(
             workflow_id="document-helper",

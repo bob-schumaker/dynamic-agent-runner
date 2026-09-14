@@ -575,7 +575,7 @@ record a live receipt.
     tests/test_dar_authoring_cli.py -q` (66 passed), focused Ruff, and
     `git diff --check`.
 
-- [ ] WMS5.9 [tests, implementation] Allow an explicit refresh to claim only a
+- [x] WMS5.9 [tests, implementation] Allow an explicit refresh to claim only a
       legacy ownerless registration after all normal refresh validation passes.
   - Spec: FR-006, FR-012, AC-010, AC-011.
   - Depends on: WMS5.5, WMS5.8.
@@ -592,6 +592,13 @@ record a live receipt.
   - Validation: focused registration, host, and CLI tests plus Ruff; then rerun
     WMS5.4 with the explicit fresh surface snapshot. Repository evidence must
     remain redacted.
+  - Evidence (2026-09-13): only a missing legacy `owner` is eligible for the
+    existing refresh flow; its current principal is persisted only with the
+    already validated refreshed registration. Any nonempty different owner still
+    fails before an alias write. RED reproduced rejection of an ownerless
+    record. GREEN ran `poetry run pytest tests/test_dar_authoring_registration.py
+    tests/test_dar_authoring_host.py tests/test_dar_authoring_cli.py -q` (67
+    passed), focused Ruff, and `git diff --check`.
 
 - [ ] WMS5.3 [manual gate] Record one Fastmail live receipt only after WMS5.2
       is green, the registered identity and reviewed read-only surface are
