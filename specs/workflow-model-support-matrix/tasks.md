@@ -335,16 +335,41 @@ coverage is complete. WMS4.1 reporting remains open.
     The probe admitted model JSON, rendered and validated SVG, and emitted no
     source image, prompt, model JSON, SVG, path, PID, or worker-handle data.
 
-- [ ] WMS4.1 [docs/validation] Document the generated support report, all four
-      statuses, package non-transferability, and live-run authorization. Add a
-      matrix validation record with deterministic results and an empty manual
-      receipt section ready for future authorized evidence.
-  - Spec: FR-005, FR-007.
+- [ ] WMS4.1 [docs/validation] Publish the support-coverage report through the
+      existing authored Sphinx documentation, defining all four statuses,
+      package non-transferability, and per-run live authorization. Reconcile
+      the matrix validation record with observed deterministic results and the
+      existing authorized floorplan receipt; record that Fastmail has no live
+      receipt. Do not add a runtime report generator.
+  - Spec: FR-005, FR-007, NFR-003.
   - Files/components: `README.md`, `docs/files/validation-and-testing.rst`,
     `validation.md`.
   - Depends on: WMS3.3.
-  - Validation: full regression and doc build command discovered from existing
-    documentation workflow.
+  - Report content: explain `supported`, `not_applicable`, `blocked`, and
+    `deferred`; distinguish fixture, live, and unrecorded evidence; state that
+    an exact profile/package/material/descriptor receipt cannot establish
+    support for a different cell; identify WMS3.3's existing floorplan receipt
+    without reproducing its source image, prompt, JSON, SVG, paths, or process
+    data; and state that a future Fastmail run requires a new explicit
+    authorization and redacted receipt.
+  - Validation record: replace stale `not run` entries only where their named
+    WMS task tests now prove the corresponding acceptance criterion; retain
+    unexecuted MLE8 as unrecorded/deferred rather than claiming a third MLX
+    package row. The manual register must contain the recorded floorplan
+    receipt and explicit Fastmail absence, not an empty placeholder.
+  - Boundary: use the existing documentation and validation artifacts; no
+    runtime report API, profile registry, model/provider invocation, or new
+    live run is in scope.
+  - Validation: run the named focused matrix/profile suites, `poetry run pytest
+    -q`, `poetry run ruff check src tests`, and `make -C docs html`; regenerate
+    Sphinx source through the Makefile and do not hand-edit `docs/source/`.
+  - Review disposition (2026-09-13): reduced-independence sequential Council
+    architecture triad found the report, validation evidence, and manual
+    receipt register are distinct artifacts and must not be conflated. It
+    rejected stale empty-receipt language and unsupported MLX-row claims.
+    Ponytail retained only the existing authored documentation and validation
+    register, rejecting a runtime report generator or new reporting abstraction.
+    WMS4.1 is implementation-ready with the reconciled scope above.
 
 ## Checkpoints
 
