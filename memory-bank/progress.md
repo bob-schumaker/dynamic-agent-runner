@@ -9,11 +9,18 @@
   telemetry, and terminal response shaping. CPU multiprocessing and Darwin
   Metal/MPS worker capability paths enforce containment and confirmed bounded
   reap before sealed-input ingress.
-- `workflow-model-support-matrix` is complete through WMS4. Deterministic
-  Fastmail, embedding, floorplan, structured-output, stateful-context, and
-  tool-pack profiles have recorded coverage; one explicit floorplan MPS receipt
-  is recorded, while the Fastmail live receipt remains absent. Commit `287008d`
-  reconciles the matrix, MLX, and portfolio records.
+- `workflow-model-support-matrix` is complete through WMS4; WMS5.1--WMS5.3 are
+  open to repair the Fastmail live probe. The verified owner-local registration
+  maps workflow `fastmail-inbox-triage-qwen-v4` to sealed package
+  `fastmail-inbox-triage-qwen`; the existing command wrongly conflates them in
+  `--package-name`. WMS5 makes the probe accept a workflow ID, derive sealed
+  identity/support facts through inspection, and remove operator-supplied
+  support facts before any fresh authorized attempt. Deterministic Fastmail,
+  embedding, floorplan, structured-output, stateful-context, and tool-pack
+  profiles have recorded coverage; one explicit floorplan MPS receipt is
+  recorded, while Fastmail live evidence remains absent. State-root paths,
+  targets, credentials, mailbox data, and session transcripts remain unrecorded.
+  Commit `49d69d1` records the repair slice.
 - `mlx-local-embedding-adapter` is complete through MLE8. MLE6 WordPiece,
   MLE7 SentencePiece-Unigram, and MLE8 RoBERTa byte-level-BPE each have a
   sealed package, local fixture, Darwin competency receipt, and non-transferable
