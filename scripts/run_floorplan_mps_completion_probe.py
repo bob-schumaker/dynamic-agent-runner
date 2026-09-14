@@ -110,19 +110,25 @@ def main(argv: list[str] | None = None) -> int:
                 or debug.result is None
                 or diagnostic.terminal is None
                 or diagnostic.terminal.admitted is None
-                or len(fragments) != 1
-                or fragments[0].worker_reaped is not True
+                or len(diagnostic.terminal.repair_categories) != 2
+                or not fragments
+                or any(fragment.worker_reaped is not True for fragment in fragments)
             ):
                 raise FloorplanMpsCompletionProbeCommandError(
                     "floorplan completion evidence is unavailable"
                 )
-            fragment = fragments[0]
             return FloorplanMpsCompletionEvidence(
                 execution_descriptor_digest=descriptor.digest,
-                packed_context_tokens=fragment.packed_context_tokens,
-                aggregate_generated_tokens=fragment.generated_tokens,
-                aggregate_output_bytes=fragment.output_bytes,
-                worker_reaped=fragment.worker_reaped,
+                packed_context_tokens=sum(
+                    fragment.packed_context_tokens or 0 for fragment in fragments
+                ),
+                aggregate_generated_tokens=sum(
+                    fragment.generated_tokens or 0 for fragment in fragments
+                ),
+                aggregate_output_bytes=sum(
+                    fragment.output_bytes for fragment in fragments
+                ),
+                worker_reaped=True,
                 model_json_admitted=True,
                 terminal_svg_validated=True,
             )
