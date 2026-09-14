@@ -1,0 +1,30 @@
+{
+  "descriptor_digest": "52d897280404456873448f1cf794396f32c7bbb3994c9c6c759072c72290fedc",
+  "duration_ms": 145.704,
+  "fixture_digest": "d03d9799d23be315e91ede15251d950cd0aa02c81ae053047ed4ade2f8e35a4b",
+  "format_version": 1,
+  "limits": {
+    "max_aggregate_bytes": 1048576,
+    "max_conformance_fixture_bytes": 1048576,
+    "max_item_bytes": 65536,
+    "max_items": 16,
+    "max_memory_bytes": 134217728,
+    "max_safetensors_header_bytes": 1048576,
+    "max_tokenizer_bytes": 1048576,
+    "max_tokens": 512,
+    "max_vectors": 16,
+    "max_weights_bytes": 67108864
+  },
+  "material_lock_digest": "395dcdb691846ca314816036b9594e00f0a84987ad278435323cf740564c7970",
+  "max_abs_error": 0.00022599101066589355,
+  "max_rss_bytes": 180224000,
+  "mlx_version": "0.32.2",
+  "opaque_output_ids": [
+    "index-bundle-1",
+    "coverage-report-1"
+  ],
+  "package_id": "mlx-gte-tiny-embedding-v1",
+  "status": "passed",
+  "vector_count": 3,
+  "vector_dimension": 384
+}

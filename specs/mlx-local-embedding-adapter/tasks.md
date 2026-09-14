@@ -1,0 +1,759 @@
+# macOS Generalized MLX Embedding Execution Tasks
+
+## MLE0 — Retire the model-specific experiment from DAR runtime
+
+- [x] MLE0.1 [tests, RED] Add production-boundary tests proving DAR source and
+  distributable artifacts contain no named embedding model, repository,
+  revision, role table, fixed dimension, or model-specific loader identity.
+  - Evidence: `tests/test_embedding_model_cleanup.py` failed red before
+    production cleanup and now scans every production Python module.
+- [x] MLE0.2 [implementation] Replace the current model-named MLX adapter,
+  hard-coded material digest/roles, and public exports with generic descriptor
+  and ABI names; retain any named experiment only below `tests/` or manual
+  harness assets.
+  - Evidence: `MLXPreparedEmbeddingArtifacts` carries only generic execution
+    ABI, descriptor, and material identities; the model-named source helper and
+    its production-only tests are removed.
+- [x] MLE0.3 [tests, GREEN] Prove the experimental fixture cannot affect
+  production import, adapter selection, package construction, or provider
+  registration.
+  - Evidence: focused regressions passed; `poetry build` followed by a wheel
+    byte scan found no named experimental-model content; `poetry run pytest -q`
+    passed with 2,203 passed, 1 skipped, and 7 deselected on 2026-09-10.
+
+## MLE1 — Sealed generalized descriptor and ABI registry
+
+- [x] MLE1.1 [spec/design] Define ABI-neutral `execution-descriptor.json`, its
+  canonical digest, non-circular material-lock binding, and initial BERT-style
+  ABI identity (ID, version, contract digest) with one closed finite
+  `abi_fields` grammar.
+  - Acceptance: the descriptor has no executable code, model registry key,
+    source endpoint, path, device setting, runtime version, or provider
+    selector; tensor grammar is ABI-owned rather than descriptor-provided.
+- [x] MLE1.2 [tests, RED] Add fake canonical-byte and rejection vectors for
+  non-circular lock/descriptor construction, descriptor/lock mismatch, unknown
+  or wrong ABI ID/version/digest, ABI-schema mismatch, invalid roles/tensor
+  rules, invalid limits, malformed conformance records, and generic
+  source-or-preparation-output role closure.
+  - Acceptance: vectors cover exact nested keys; JSON integers rather than
+    booleans; distinct non-negative token IDs below vocabulary size; head-size
+    divisibility; token/position ordering; all byte and allocation ceilings;
+    literal fixture asset path, declaration, size, and digest; and missing,
+    extra, malformed, or wrong-shaped ABI-owned tensor entries before material,
+    framework, or MLX work. Vectors also prove output dimension equals hidden
+    size and each fixed BERT operation (embedding order, mask, attention,
+    LayerNorm, GELU, pooling, and normalization) has one interpretation.
+- [x] MLE1.3 [implementation] Resolve the exact ABI through a pure
+  receiver-installed validator registry, then parse, validate, and bind the
+  descriptor through generic model-material and embedding execution bindings.
+  The registry is architecture-ABI based and contains no named-model entries.
+- [x] MLE1.4 [tests, GREEN] Prove two distinct model descriptors accepted by
+  the same ABI remain isolated and that no model identity is compiled into DAR.
+  - Acceptance: the test fixtures alone name model materials; production
+    support remains the generic descriptor-validator/backend registry.
+
+## MLE2 — Direct adapter admission
+
+- [x] MLE2.1 [tests, RED] Add fake-only tests for dedicated factory/import
+  behavior, macOS-14+/arm64 lazy failure, exact MLX dependency admission,
+  descriptor/material rejection, and injected backend admission.
+  - Depends on: MLE1.4.
+- [x] MLE2.2 [implementation] Add generic sync/async factories with
+  package-owned errors and no generation-adapter change.
+- [x] MLE2.3 [tests, GREEN] Prove rejected platform, dependency, descriptor,
+  or material states make no backend/tokenizer/model call and preserve static
+  versus receiver-resolved capability metadata.
+
+## MLE3 — Generic BERT-style encoder
+
+- [x] MLE3.1 [tests, RED] Add fake-only parser-ceiling, tensor/tokenizer,
+  truncation, padding, pooling, materialization, normalization, bounds, order,
+  ID, finite-value, emptiness, and descriptor-defined dimension tests.
+  - Depends on: MLE2.3.
+- Evidence: `tests/test_mlx_bert_embedding_backend.py` uses a sealed
+  zero/nonzero safetensors fixture and a NumPy-backed MLX stand-in; 26 focused
+  tests cover all listed pre-execution and materialized-result paths without an
+  MLX import, model download, Metal, or network call.
+- [x] MLE3.2 [implementation] Implement the BERT-style ABI interpreter using
+  public `mlx.core` APIs and only verified descriptor/material inputs.
+  - Evidence: `BertEncoderMlxV1EmbeddingBackend` parses admitted WordPiece and
+    safetensors bytes, lazy-loads `mlx.core`, executes the fixed ABI math, and
+    returns only validated `EmbeddingBatchResult` values.
+- [x] MLE3.3 [tests, GREEN] Prove sync/async parity, conservative metadata,
+  redaction, and no MLX/Metal/network import or use in unit tests.
+  - Evidence: the BERT backend fake runtime covers ordered results, padding,
+    truncation, pooling, normalization, finite-value rejection, execution-error
+    redaction, and sync/async adapter parity. `tests/test_mlx_local_embedding.py`
+    retains static-versus-resolved conservative capability checks. These tests
+    inject a NumPy stand-in and never import MLX, use Metal, or make network
+    calls.
+
+## MLE4 — Manual arithmetic conformance
+
+- [x] MLE4.1 [manual] With explicit authorization, run one workflow-defined
+  descriptor against its synthetic reference fixture on a compatible Mac;
+  record redacted tolerance, shape, padding/truncation, duration, and memory
+  evidence only.
+  - Depends on: MLE1.4 and MLE3.3.
+  - Evidence (2026-09-11): the normal sandbox cannot expose Metal, but the
+    explicitly elevated Darwin/arm64 competency run completed with
+    `mlx==0.32.2`. The sealed generic synthetic descriptor
+    `a9b1…571f9` and fixture `aa87…63ed` produced a 2×2 finite result with
+    `max_abs_error: 0.0`, one padding token, four truncation tokens,
+    190.861 ms duration, and 71,450,624 bytes maximum RSS. No model material,
+    network, user text, or workflow output was used. The real run also exposed
+    and fixed the path-only `mlx.core.load` contract; admitted weights are now
+    held in a scoped temporary safetensors file and removed before return.
+
+## MLE5 — Workflow capability provider
+
+- [x] MLE5.0 [tests, RED/GREEN] Define and prove the generic private
+  embedding-limit projection from an admitted exact ABI descriptor, including
+  receiver tightening and no material/MLX/provider use during projection.
+  - Evidence: `EmbeddingLimitProjectorRegistry` dispatches only by the exact
+    descriptor ABI and returns `EmbeddingBatchLimits` before a provider is
+    resolved. The BERT MLX ABI projection validates only sealed descriptor
+    fields and maps item/byte/vector bounds without an artifact read or MLX
+    import; the existing embedding execution host ceiling remains the receiver
+    tightening boundary.
+- [x] MLE5.1 [tests, RED/GREEN] Add fake-only `embedding.execute.v1` provider and
+  descriptor/material-binding conformance tests.
+  - Depends on: MLE1.4, MLE4.1, and the approved embedding-index spec.
+  - Evidence: `test_generic_mlx_adapter_registers_only_through_exact_embedding_capability`
+    confirms the existing receiver-owned generic bridge: a sealed MLX adapter,
+    exact material binding, exact `embedding.execute.v1` contract, capability
+    selection, and bounded embedding execution compose without an MLX import or
+    model identity. The test was immediately green because the generic bridge
+    predates this adapter; no duplicate MLX-specific provider was added.
+- [x] MLE5.2 [implementation] Register one generic MLX ABI provider through
+  the capability catalog. The registration identifies only the capability and
+  ABI contract; it must not name, fetch, or select an embedding model.
+  - Evidence: `CapabilityCatalog` selects the receiver-private provider ID only
+    after exact contract/conformance admission, while
+    `LocalEmbeddingAdapterProvider` carries the sealed direct adapter into the
+    existing `EmbeddingProviderCatalog`. Both components are generic and do not
+    add an MLX-specific or model-specific public provider surface.
+- [x] MLE5.3 [tests, GREEN] Prove unavailable/changed providers fail before
+  model load, embedding execution, builder import, or artifact egress.
+  - Evidence: `tests/test_embedding_execution.py` rejects changed,
+    nondeterministic, and wrong-binding providers before their adapter is called;
+    the MLE5.1 composition test verifies the generic MLX path uses that same
+    catalog. The sealed-artifact callback tests retain unavailable-provider and
+    pre-egress coverage.
+
+## MLE6 — Sealed workflow onboarding
+
+- [x] MLE6.1 [approval/design] Produce a bounded approval packet for one
+      BERT-compatible embedding material closure: exact source revision and
+      file list, license decision, expected descriptor ABI, package ID, and
+      resource ceilings. Record the human decision in package-local artifacts;
+      do not put the model identity in DAR production source or configuration.
+  - Spec: Operational Completion Gate 1.
+  - Depends on: MLE5.3.
+  - Evidence: user approval on 2026-09-13 is recorded in
+    `tests/fixtures/mlx-gte-tiny/mle6-approval.md`. The closure remains local
+    internal conformance-only because upstream Hub metadata declares no license;
+    it does not authorize redistribution or independently authorize a live
+    material run.
+
+- [x] MLE6.2 [tests, RED/GREEN] Add package-admission tests for the selected
+      v2 `model-materials.json`, `bert-encoder-mlx-v3` descriptor, required
+      `embedding.execute.v1` capability, and synthetic document fixture.
+  - Spec: FR-2, FR-4, Operational Completion Gates 1 and 3.
+  - Depends on: MLE6.1.
+  - Validation: changed material, ABI, descriptor, or capability facts reject
+    before MLX import, model load, or artifact egress.
+  - Evidence: `tests/test_mlx_gte_tiny_mle6_package.py` was red before the
+    `tests/fixtures/mlx-gte-tiny/mle6-package/` artifacts existed and is green
+    after their v2 lock seals the approved ten-file closure, canonical descriptor
+    digest, capability declaration, and synthetic documents. It exercises only
+    parsers and pure validators; no model artifact, MLX import, or provider is
+    reached.
+
+- [x] MLE6.3 [manual fixture, RED/GREEN] Generate a package-bound synthetic
+      reference-vector fixture from the exact locked material closure using a
+      local trusted reference runtime with `trust_remote_code=False`. Add tests
+      that reject an altered fixture or reference/runtime identity.
+  - Spec: FR-5, Operational Completion Gate 2.
+  - Depends on: MLE6.2 and separate authorization to use the selected material.
+  - Evidence: canonical fixture digest, token/mask checks, and numeric tolerance
+    only; no user document, raw production vector, credential, or model output.
+  - Evidence: the verified cached closure generated
+    `tests/fixtures/mlx-gte-tiny/mle6-package/conformance-fixture.json` through
+    `tests/manual/generate_mlx_gte_tiny_mle6_conformance.py` with local-only
+    Transformers 5.16.1 and Torch 2.13.0. The fixture retains only synthetic
+    vector evidence and token/mask digests; its binding and altered-runtime
+    rejection are covered by `tests/test_mlx_gte_tiny_mle6_conformance.py`.
+
+- [x] MLE6.4 [tests, RED/GREEN] Run the selected sealed package through the
+      generic embedding/index workflow using injected MLX/provider facts. Prove
+      opaque index results and redacted receipts, including provider/material
+      mismatch rejection before execution.
+  - Spec: FR-3, FR-6, Operational Completion Gate 3.
+  - Depends on: MLE6.2 and MLE6.3.
+  - Validation: focused embedding execution, sealed-artifact callback, and
+    MLE6 fixture tests remain offline and fake-backed.
+  - Evidence: `tests/test_mlx_gte_tiny_mle6_execution.py` binds the selected
+    package's exact material and capability digests to the existing generic
+    provider/index path. It was immediately green because that generic bridge
+    already composes sealed bindings; no MLX import occurs. A changed material
+    digest rejects before the fake provider receives an execution call.
+
+- [x] MLE6.4a [bug, tests RED/GREEN] Repair the default MLX dependency probe
+      when `mlx.__version__` is absent but `mlx.core.__version__` carries the
+      installed version. Preserve lazy import and the exact `mlx==0.32.2` gate.
+  - Discovered: MLE6.5 preflight on 2026-09-13 found the installed 0.32.2
+    package exposes its version only from `mlx.core`, causing false dependency
+    rejection before material admission.
+  - Depends on: MLE6.4.
+  - Evidence: `test_mlx_dependency_probe_uses_core_version_when_top_level_lacks_one`
+    failed before the probe used `mlx.core.__version__`, then passed with the
+    existing lazy-admission regression suite.
+
+- [x] MLE6.4b [bug, tests RED/GREEN] Permit one bounded standard safetensors
+      `__metadata__` string mapping while preserving exact BERT tensor names,
+      shapes, dtypes, and contiguous data-span validation.
+  - Discovered: MLE6.5 preflight on 2026-09-13 reached the backend but rejected
+    the verified GTE Tiny header solely because it contains
+    `{"__metadata__":{"format":"pt"}}`.
+  - Depends on: MLE6.4a.
+  - Evidence: metadata-bearing fake safetensors was red before the reserved
+    string-only mapping was excluded from the tensor set, then green; malformed
+    metadata still rejects before the MLX loader is called.
+
+- [x] MLE6.4c [bug, tests RED/GREEN] Admit the optional BERT pooler tensor pair
+      only when its exact descriptor-derived dtype, shapes, and contiguous spans
+      validate; do not execute it or accept any other surplus tensor.
+  - Discovered: MLE6.5 preflight on 2026-09-13 found the verified GTE Tiny
+    closure includes the standard unused `pooler.dense.{weight,bias}` pair.
+  - Depends on: MLE6.4b.
+  - Evidence: a fake complete pair was red before admission and green after;
+    a malformed pooler shape rejects before the MLX loader is called.
+
+- [x] MLE6.4d [bug, tests RED/GREEN] Add a versioned closed BERT descriptor
+      grammar that permits only F32 LayerNorm affine tensors alongside a
+      declared F16 base dtype; retain the uniform v1 grammar unchanged.
+  - Discovered: MLE6.5 preflight on 2026-09-13 found the verified GTE Tiny
+    closure stores its 26 `*.LayerNorm.{weight,bias}` tensors as F32 while its
+    other encoder and optional pooler tensors are F16.
+  - Depends on: MLE6.4c.
+  - Evidence: v2 acceptance and incompatible precision-pattern rejection were
+    red before the closed v2 validator was added, then green with package
+    identity and generic execution-binding tests.
+
+- [x] MLE6.4e [bug, tests RED/GREEN] Pad every admitted BERT input to the
+      descriptor's exact `max_tokens` width, matching the sealed reference
+      tokenizer contract rather than the longest item in the invocation.
+  - Discovered: MLE6.5 real execution on 2026-09-13 reached conformance but
+    differed by up to `0.6290122419595718`; DAR emitted variable-width token
+    arrays while the locked CPU reference used `padding="max_length"` at 512.
+  - Depends on: MLE6.4d.
+  - Evidence: a descriptor width greater than the longest item was red before
+    the repair and green after; focused backend, descriptor, package, and
+    execution-binding suites pass.
+
+- [x] MLE6.4f [bug, tests RED/GREEN] Add a versioned closed tokenizer grammar
+      for lowercase accent-stripping BERT normalization and execute that exact
+      Unicode transform before WordPiece segmentation.
+  - Discovered: MLE6.5 real execution on 2026-09-13 proved empty and ASCII
+    token IDs match the reference, while `Café naïve` became unknown tokens
+    instead of the reference's accent-stripped WordPiece IDs.
+  - Depends on: MLE6.4e.
+  - Evidence: the closed v3 descriptor and Unicode WordPiece test were red
+    before implementation and green after; all three selected document token
+    IDs and attention masks exactly match their locked reference digests.
+
+- [x] MLE6.4g [bug, tests RED/GREEN] Apply the v2 closed F32 LayerNorm tensor
+      rule to its v3 tokenizer-normalization successor during safetensors
+      admission and memory accounting.
+  - Discovered: MLE6.5 rerun on 2026-09-13 admitted the v3 descriptor but
+    rejected its verified F32 LayerNorm header because the runtime predicate
+    named only v2.
+  - Depends on: MLE6.4f.
+  - Evidence: a v3 LayerNorm dtype assertion was red under the v2-only
+    predicate and green after the shared exact rule covered both ABIs.
+
+- [x] MLE6.4h [bug, manual RED/GREEN] Canonically order the competency
+      harness's private snapshot documents before opaque index validation.
+  - Discovered: MLE6.5 on 2026-09-13 passed real embedding conformance and
+    then rejected the intentionally listed `empty`, `ascii`, `unicode` inputs
+    because index snapshots require lexicographically sorted IDs.
+  - Depends on: MLE6.4g.
+  - Evidence: the manual gate failed at the opaque-index stage before sorting
+    and passed after canonical ordering without changing vector input order.
+
+- [x] MLE6.4i [bug, tests RED/GREEN] Keep the MLE6.3 locked-reference
+      regression aligned with the package's versioned v3 descriptor contract.
+  - Discovered: MLE6.6 focused validation on 2026-09-13 found the conformance
+    regression still instantiated the v1 validator after the package migrated
+    through the closed v2 and v3 extensions.
+  - Depends on: MLE6.4h.
+  - Evidence: the focused MLE6 conformance suite failed under the retired v1
+    validator and passed after asserting the exact v3 descriptor contract.
+
+- [x] MLE6.5 [manual competency gate] With explicit authorization, prepare the
+      exact sealed package on Darwin arm64 with `mlx==0.32.2`, run the MLX
+      embedding/index workflow, and compare against its locked reference
+      fixture. Retain only package/material/descriptor digests, limits,
+      duration, memory, vector count/dimension, opaque output IDs, and status.
+  - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
+  - Depends on: MLE6.4h.
+  - Evidence: `mle6.5-receipt.json` records Darwin arm64 `mlx==0.32.2`, the
+    exact v3 descriptor/material/fixture digests, 3×384 vectors, passed opaque
+    index artifacts, `0.00022599101066589355` maximum absolute error, bounded
+    limits, duration, and maximum RSS without retaining inputs or vectors.
+
+- [x] MLE6.6 [tests/docs] Add the exact successful package/material identity to
+      the workflow model support matrix, update MLX embedding status/validation,
+      and prove a different package or changed material cannot inherit the row.
+  - Spec: Operational Completion Gate 5.
+  - Depends on: MLE6.5.
+  - Validation: focused support-matrix tests, full pytest, Ruff, Markdown hooks,
+    and `git diff --check`.
+  - Evidence: the package-local machine-readable row binds its package ID,
+    material lock, descriptor/ABI, capability, and receipt SHA. Focused tests
+    reject a different package ID or changed material lock from inheriting it.
+
+## MLE7 — SentencePiece-Unigram BERT package expansion
+
+- [x] MLE7.0 [review] Reconcile the ABI, package, and workflow boundaries before
+      implementation.
+  - Council: Aristotle, Ada, and Feynman performed a reduced-independence
+    sequential architecture review on 2026-09-13. They required the plan to
+    distinguish the BERT arithmetic family from the tokenizer asset family;
+    make one sealed `sentencepiece.bpe.model` stream the only execution input;
+    specify finite binary-profile and resource rejection rather than admitting a
+    generic SentencePiece runtime; and preserve E5 prefixes as literal
+    workflow input. The published target configuration supports BERT arithmetic
+    reuse, but it does not establish tokenizer or package admission.
+  - Ponytail: accepted one v4-specific sealed-byte path sharing existing BERT
+    arithmetic. Rejected a generic SentencePiece dependency, parser/plugin
+    registry, model-name dispatch, tokenizer.json fallback, and DAR-owned E5
+    prompt policy.
+  - Superseded: local examination of the target's sealed tokenizer on
+    2026-09-13 found `trainer_spec.model_type == 1` (Unigram), not BPE (`2`).
+    The previous BPE review, descriptor, and decoder are invalid for the target
+    and must not be used as MLE7 completion evidence.
+  - Refreshed Council: Aristotle, Ada, and Feynman performed a
+    reduced-independence sequential architecture review on 2026-09-13. They
+    required the closed Unigram lattice to select maximum cumulative finite
+    score with stable ties; rejected filename-driven BPE inference; and
+    required every compiled-normalizer Darts transition to be structurally
+    bounded before weights are read. The model remains the sole sealed grammar
+    asset; no generic SentencePiece runtime, plugin, registry, or model-name
+    dispatch is admitted.
+  - Ponytail: use the standard library for Unicode plus one package-local trie
+    and Viterbi pass; do not add a tokenizer dependency, generic protobuf
+    framework, or alternate tokenizer input.
+  - Verdict: MLE7.1--MLE7.8 are implementation-ready in order. MLE7.4--MLE7.7
+    remain separately authorization-gated; this review authorizes neither
+    model retrieval nor local material use.
+  - Evidence: spec, plan, and task amendments below; reduced-independence
+    execution is advisory rather than independent parallel deliberation.
+
+- [x] MLE7.1 [spec/design] Register a new closed BERT successor ABI for the
+      exact SentencePiece-Unigram tokenizer grammar required by
+      `intfloat/multilingual-e5-small`; record its canonical identity/digest,
+      roles, tokenizer-byte and resource ceilings, special IDs, normalization,
+      boundary behavior, truncation, and padding semantics.
+  - Spec: planned `bert-encoder-mlx-v4` expansion, FR-2 and FR-3.
+  - Depends on: MLE6.6.
+  - Acceptance: it reuses BERT execution only after declaring a finite
+    tokenizer grammar; it accepts neither arbitrary SentencePiece models,
+    tokenizer packages/plugins, callbacks, remote code, nor an invocation path.
+    The only tokenizer execution role is a locked `sentencepiece.bpe.model`;
+    `tokenizer.json`, a fast tokenizer, and tokenizer metadata cannot supply an
+    alternate grammar. The registered grammar names every accepted ModelProto
+    wire field, rejects unknown/out-of-profile fields, bounds field count,
+    nesting, strings, and serialized bytes, and fixes normalizer ordering,
+    Unigram score/tie behavior, special-token sequence construction, and UTF-8 failure
+    handling. Its contract does not add, remove, or select E5 `query:` or
+    `passage:` prefixes; those are literal workflow input.
+  - Target fact: the immutable `sentencepiece.bpe.model` filename is retained
+    as a sealed role name, but its ModelProto declares `model_type == 1`
+    (Unigram). File naming must not select grammar semantics.
+  - Evidence: `bert-encoder-mlx-v4@5`, contract digest
+    `1db6568e50f14b1fd7752772573024e2da87518674cd78ba4f9c57cb84febb4f`,
+    and fake-only descriptor, compiled-normalizer, sealed Unigram admission,
+    Viterbi, unknown, and padding vectors in
+    `tests/test_mlx_embedding_abi.py` (2026-09-13). A local trusted oracle
+    agrees for width folding, whitespace, literal prefixes, English, and
+    Chinese; it is cross-check evidence, not unit-test infrastructure.
+
+- [x] MLE7.2 [tests, RED/GREEN] Add fake-only tokenizer admission and execution
+      vectors for valid SentencePiece-Unigram bytes plus malformed/truncated assets,
+      changed normalizer, unknown pieces, special IDs, leading/adjacent
+      whitespace, Unicode boundaries, truncation, and exact-width padding.
+  - Spec: FR-2, FR-3, FR-5.
+  - Depends on: MLE7.1.
+  - Files/components: `mlx_embedding_abi.py`, MLX embedding backend tests, and
+    sealed synthetic tokenizer fixtures.
+  - Validation: focused pytest remains offline and never imports MLX or a
+    SentencePiece runtime. Vectors also prove unknown ModelProto fields and
+    resource ceilings reject before weights/MLX work, and that literal E5
+    prefix bytes are not receiver-injected or rewritten.
+  - Evidence: synthetic ModelProto vectors cover closed field admission,
+    malformed/truncated assets, changed normalizer, byte fallback, bounded
+    Darts transitions, unknown pieces, special IDs, leading/adjacent
+    whitespace, Unicode normalization, literal `query:` bytes, truncation,
+    exact-width padding, and tokenizer ceiling rejection before weights or MLX
+    in `tests/test_mlx_embedding_abi.py` and
+    `tests/test_mlx_bert_embedding_backend.py` (2026-09-13).
+
+- [x] MLE7.3 [implementation] Implement only the registered tokenizer grammar
+      and bind it to the existing BERT arithmetic path; preserve v1--v3
+      WordPiece behavior and reject all unregistered tokenizer formats.
+  - Spec: planned BERT SentencePiece-Unigram ABI.
+  - Depends on: MLE7.2.
+  - Acceptance: use one v4-specific sealed-byte decoder/tokenizer path; do not
+    add a generic SentencePiece runtime, a tokenizer plugin registry, or a
+    model-name branch. Existing BERT tensor/arithmetic code remains shared only
+    after the v4 descriptor and tokenizer admission succeed.
+  - Evidence: the v4-only parser builds one sealed Unicode trie and performs
+    deterministic maximum-score Unigram Viterbi selection after strict
+    descriptor and ModelProto admission. v1--v3 retain their WordPiece path;
+    no tokenizer dependency, plugin registry, model-name branch, or alternate
+    tokenizer asset was added.
+
+- [x] MLE7.3a [implementation, RED/GREEN] Add one receiver-owned,
+      descriptor-bound safetensors preparation provider for the MLE7 source
+      `model.safetensors`: convert declared non-LayerNorm float32 tensors to
+      float16, preserve declared LayerNorm float32 tensors, write canonical
+      safetensors bytes, and bind its exact capability and transformation
+      digest in the material lock.
+  - Why: the exact cached MLE7 source weights are float32 (470,641,600 bytes),
+    while the registered v4 execution ABI fixes float16 weights with float32
+    LayerNorm. The existing generic material-admission boundary supports a
+    declared preparation operation but has no provider for this conversion.
+  - Depends on: MLE7.3.
+  - Acceptance: fake-only tests prove selected-provider identity, descriptor
+    binding, source/header/tensor/dtype rejection, deterministic output digest,
+    and pre-MLX failure on changed conversion facts. The provider exposes no
+    arbitrary source path, tensor policy, executable callback, or model-name
+    selection; its only execution selection is the sealed MLE7 descriptor.
+  - Followed by: MLE7.4 uses its declared output `weights` role rather than the
+    upstream float32 source role.
+  - Evidence: `mlx_v4_weight_preparation.py` supplies exactly one
+    v4-descriptor-bound receiver provider. It accepts only the declared
+    `source_weights` to `weights` operation, strictly admits an all-F32 source
+    safetensors header (including the optional all-or-nothing BERT pooler),
+    deterministically writes sorted canonical safetensors bytes with F16
+    non-LayerNorm data and retained F32 LayerNorm data, and imports no MLX
+    runtime. `tests/test_mlx_v4_weight_preparation.py` was RED at collection
+    before implementation; its fake-only vectors cover provider selection,
+    descriptor binding, operation/source/header/tensor/dtype rejection,
+    deterministic output, and material-admission capability/transformation
+    binding. Focused MLX/material suites: 102 passed; Ruff, format, and diff
+    checks passed.
+
+- [x] MLE7.3b [bug, tests RED/GREEN] Admit and discard only the standard unused
+      `embeddings.position_ids` int64 safetensors buffer when it has the exact
+      descriptor-derived `[1, max_positions]` shape and contiguous span.
+  - Discovered: the exact MLE7 source header contains that standard BERT buffer;
+    it is not part of the receiver's BERT execution tensor grammar and must not
+    reach the prepared `weights` output.
+  - Depends on: MLE7.3a.
+  - Acceptance: a fake source with the exact buffer is accepted and omits it
+    from canonical output; a changed name, dtype, shape, or span rejects before
+    conversion or MLX work. No other ancillary source tensor is admitted.
+  - Evidence: the source profile now admits exactly descriptor-derived
+    `embeddings.position_ids` as `[1, max_positions]` `I64`, validates its
+    contiguous span, and omits it from output. New fake-only RED/GREEN vectors
+    prove exact acceptance plus wrong dtype, shape, span, and extra-tensor
+    rejection. The cached MLE7 source was then transformed and verified against
+    the backend header grammar: source/output lock hashes match, no position-ID
+    tensor is emitted, and output is 235,368,292 bytes.
+
+- [x] MLE7.3c [bug, tests RED/GREEN] Preserve empty and whitespace-only
+      SentencePiece-Unigram input as no content pieces before special-token
+      framing.
+  - Discovered: the MLE7.7 trusted-tokenizer comparison found DAR emitted the
+    SentencePiece dummy-boundary token for an empty input (`[0, 6, 2, ...]`),
+    while the locked reference emits only `[0, 2, ...]`. The same reference
+    behavior applies to whitespace-only input.
+  - Depends on: MLE7.3.
+  - Acceptance: focused closed-tokenizer vectors prove empty and whitespace-only
+    values have no Unigram pieces and frame to CLS/SEP followed by padding;
+    non-empty tokenization remains unchanged.
+  - Evidence: the closed tokenizer now maps the normalized boundary-only form to
+    zero pieces before Viterbi selection. The focused test was RED with the
+    former dummy-boundary token, then GREEN for empty and whitespace-only
+    inputs, ordinary Unigram selection, and CLS/SEP/padding framing. The ABI,
+    backend, MLE7 fixture, and sealed-execution suites passed (75 tests).
+
+- [x] MLE7.4 [approval/package, tests RED/GREEN] With a recorded license and
+      material decision, create a package-local lock and exact descriptor for
+      `intfloat/multilingual-e5-small`; prove changed material, ABI, tokenizer,
+      descriptor, or capability facts reject before MLX import or egress.
+  - Spec: Operational Completion Gates 1 and 3.
+  - Depends on: MLE7.3a and explicit material-use authorization.
+  - Acceptance: execution maps only the sealed `sentencepiece.bpe.model` role
+    and weights role. The package lock also records the model, tokenizer, and
+    pooling metadata needed to establish provenance, but the descriptor fixes
+    pooling and normalization directly and has no model-name or prefix field.
+  - Evidence: `tests/fixtures/mlx-multilingual-e5-small/mle7-package/` locks
+    the MIT-approved revision `614241f622f53c4eeff9890bdc4f31cfecc418b3`,
+    eight source roles, the v4 descriptor, exact preparation capability and
+    transformation digest, and the verified prepared-weights digest. The
+    fake-only package suite was RED before artifacts existed, then proves
+    changed source-weight/tokenizer material, ABI/descriptor, and capability
+    facts fail before model execution. MLE7.5 subsequently replaces the
+    descriptor's temporary fixture declaration with the exact local reference
+    fixture digest and refreshes the lock's descriptor binding.
+
+- [x] MLE7.5 [manual fixture, RED/GREEN] Generate a synthetic reference fixture
+      from the exact locked MLE7 closure using a local trusted
+      `trust_remote_code=False` runtime; lock tokenizer IDs/masks and vector
+      tolerance without retaining user content or arbitrary model output.
+  - Spec: FR-5, Operational Completion Gate 2.
+  - Depends on: MLE7.4 and separate authorization.
+  - Acceptance: synthetic literal `query:` and `passage:` inputs, if used,
+    demonstrate workflow-supplied bytes rather than DAR prefix behavior.
+  - Evidence: local-only CPU `torch==2.13.0` and `transformers==5.16.1`
+    generation with `trust_remote_code=False` verified every locked source byte
+    before loading. The committed fixture binds its generator, runtime,
+    synthetic-document, token-ID/mask, and finite F32-vector evidence; its
+    three synthetic cases retain literal empty, `query:`, and `passage:` input
+    policies. The final fixture digest is bound into the v4 descriptor and its
+    material lock; no MLX import, model download, user content, or raw local
+    material is retained in the test suite.
+
+- [x] MLE7.5a [bug, tests RED/GREEN] Make the MLE7 reference fixture apply the
+      v4 descriptor's required L2 normalization after masked-mean pooling.
+  - Discovered: MLE7.7’s Metal run had equivalent encoder outputs only after
+    normalizing the fixture vectors; the committed unnormalized vectors had
+    norms 4.45--4.82 despite the descriptor’s `normalization: l2` field.
+  - Depends on: MLE7.5.
+  - Acceptance: fixture validation rejects non-unit vectors, the generator
+    applies exactly one finite nonzero L2 normalization to its float32 pooled
+    vector, and its package/lock bindings are refreshed from local locked
+    material before repeating the MLE7.7 gate.
+  - Evidence: the unit-norm assertion was RED against the former fixture, then
+    the authorized local trusted CPU generator regenerated its three synthetic
+    vectors with one finite nonzero L2 normalization. The fixture, descriptor,
+    and package-lock bindings are refreshed; the MLE7 fixture, sealed-execution,
+    ABI, and backend suites passed (75 tests).
+
+- [x] MLE7.6 [tests, RED/GREEN] Exercise the MLE7 package through
+      `embedding.execute.v1` and the sealed index path with injected facts;
+      prove opaque output and non-transferability before provider execution.
+  - Spec: FR-6, Operational Completion Gate 3.
+  - Depends on: MLE7.4 and MLE7.5.
+  - Evidence: `tests/test_mlx_multilingual_e5_small_mle7_execution.py` derives
+    all facts from the sealed MLE7 lock, descriptor, and requirements, then
+    executes exactly one synthetic item through the existing injected generic
+    embedding provider and opaque index path. The new composition vectors were
+    immediately GREEN because the receiver-owned generic bridge already admits
+    the exact v4 ABI. A changed material-lock binding rejects before provider
+    dispatch; no MLX import, source material I/O, network, or provider registry
+    change was needed.
+
+- [x] MLE7.7 [manual] With explicit authorization, run the locked MLE7 package
+      on Darwin arm64, compare its vectors to the fixture, and retain only the
+      redacted receipt fields required by the operational gate.
+  - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
+  - Depends on: MLE7.6.
+  - Evidence: the authorized local Darwin arm64 Metal run admitted the exact
+    sealed source closure and prepared-weights digest, ran all three synthetic
+    items, and passed the refreshed fixture with max absolute error
+    `0.000021585263311862946` (limit `0.005`) on MLX `0.32.2`. The committed
+    receipt retains only package/lock/descriptor/fixture identities, declared
+    limits, coarse resource/runtime facts, vector shape/count, opaque artifact
+    IDs, and pass status; it retains no model input, weights, vectors, host name,
+    or absolute local path.
+
+- [x] MLE7.8 [tests/docs] Add the successful MLE7 package/material receipt as
+      a non-transferable embedding support row and update validation status.
+  - Spec: Operational Completion Gate 5.
+  - Depends on: MLE7.7.
+  - Evidence: the package-local support row binds only the exact MLE7 package,
+    material lock, v4 descriptor/ABI, embedding capability, required execution
+    roles, and redacted MLE7.7 receipt digest. Focused RED/GREEN tests reject a
+    changed package or material identity, and both MLX and workflow support
+    matrix validation records distinguish this v4 row from MLE6 and all
+    unonboarded packages.
+
+## MLE8 — RoBERTa byte-level-BPE execution ABI
+
+- [x] MLE8.0 [review] Reconcile the separate RoBERTa ABI, source-closure, and
+      package boundaries before implementation.
+  - Council: Aristotle, Ada, and Feynman performed a reduced-independence
+    sequential architecture review on 2026-09-13. They required a separate
+    RoBERTa category rather than a BERT descriptor variant; one authoritative
+    `1e-5` LayerNorm rule; exact byte-BPE execution semantics; and a
+    descriptor-bound source-extraction decision for source-only tensors. The
+    published target metadata confirms a six-layer, 768-hidden, 12-head,
+    `type_vocab_size: 1`, padding-index-1 RoBERTa configuration and a
+    masked-LM source architecture, but it does not authorize a revision, model
+    download, raw material inspection, or package admission.
+  - Ponytail: accepted one dedicated closed ABI/backend and reuse of the
+    existing generic adapter, material-lock, synthetic-fixture, and matrix-row
+    seams. Rejected a generic transformer interpreter, `tokenizers` or
+    SentencePiece dependency, tokenizer/plugin registry, BERT refactor, model
+    name dispatch, and an arbitrary tensor-stripper.
+  - Verdict: MLE8.1--MLE8.8 are implementation-ready in order. MLE8.4--MLE8.7
+    remain separately authorization-gated; this review authorizes neither
+    model retrieval nor local material use.
+  - Evidence: spec, plan, and task amendments below; the deliberation was
+    advisory sequential fallback rather than independent parallel review.
+
+- [x] MLE8.1 [spec/design] Register a new closed `roberta-encoder-mlx-v1` ABI
+      for `sentence-transformers/all-distilroberta-v1`: exact byte-level BPE
+      grammar, RoBERTa tensor names/shapes/dtypes, padding-index position-ID
+      derivation, LayerNorm epsilon, attention/activation/residual order,
+      pooling, normalization, resource ceilings, and canonical contract digest.
+  - Spec: RoBERTa ABI, FR-2 and FR-3.
+  - Depends on: MLE6.6.
+  - Acceptance: the descriptor cannot select a generic transformer interpreter,
+    tokenizer code, unbounded merge/vocabulary asset, unknown tensor, or an
+    alternate position-ID rule. It declares only sealed `vocab.json` and
+    `merges.txt` as tokenizer execution inputs; `tokenizer.json`, fast-tokenizer
+    code, and configuration files are provenance only. The ABI fixes the GPT-2
+    byte-to-Unicode bijection, Unicode-category pre-tokenization, merge-rank and
+    tie behavior, `add_prefix_space: false` behavior, special-token framing,
+    UTF-8 failure handling, and finite vocabulary/merge/token ceilings. It
+  fixes the target-compatible padding index, RoBERTa position-ID derivation,
+  and `1e-5` LayerNorm epsilon rather than inheriting BERT's `1e-12` rule.
+  - Evidence (2026-09-13): `mlx_roberta_embedding_abi.py` registers the exact
+    identity and a pure finite descriptor validator. Its fake-only focused
+    tests admit the target-shaped descriptor and reject alternate tokenizer,
+    position-ID, epsilon, token-type, and executable-tokenizer facts without
+    material or MLX work.
+
+- [x] MLE8.2 [tests, RED/GREEN] Add fake-only ABI vectors for byte-level BPE
+      vocabulary/merge admission, Unicode byte and leading-space behavior,
+      special tokens, malformed merges, RoBERTa position IDs around padding,
+      tensor/header rejection, attention/pooling/normalization, and exact
+      conformance fixture binding.
+  - Spec: FR-2, FR-3, FR-5.
+  - Depends on: MLE8.1.
+  - Files/components: `mlx_embedding_abi.py`, a dedicated RoBERTa backend,
+    fake MLX tests, and sealed synthetic fixtures.
+  - Validation: tests do not import MLX, download model files, or invoke a
+    tokenizer package. They prove `tokenizer.json` and model configuration
+    cannot alter execution semantics, descriptor `1e-5` is used at embedding
+    and encoder LayerNorm sites, and no BERT ABI accepts RoBERTa facts.
+  - Evidence (2026-09-13): focused fake-only vectors cover sealed
+    `vocab.json`/`merges.txt` admission, malformed assets, leading spaces,
+    UTF-8 bytes, special framing, padding-derived positions, exact tensor
+    headers, BERT-ABI rejection, and each embedding/encoder `1e-5` LayerNorm
+    site. They do not import MLX or a tokenizer package.
+
+- [x] MLE8.3 [implementation] Implement the closed RoBERTa tokenizer and
+      executor behind the registry without changing BERT ABI behavior, generic
+      provider selection, or generation adapters.
+  - Spec: planned `roberta-encoder-mlx-v1` ABI.
+  - Depends on: MLE8.2.
+  - Evidence (2026-09-13): the separate receiver backend reads only the three
+    admitted roles, validates the exact safetensors closure before MLX loading,
+    executes the fixed RoBERTa arithmetic with a fake MLX surface, and projects
+    sealed limits to the generic embedding boundary. BERT and generation code
+    remain unchanged.
+
+- [x] MLE8.3a [implementation, RED/GREEN] Add one receiver-owned,
+      descriptor-bound source-extraction provider for the approved RoBERTa
+      source profile when its exact safetensors header contains source-only
+      position-ID or masked-LM tensors.
+  - Depends on: MLE8.3.
+  - Acceptance: fake-only source headers prove that the provider accepts only
+    the finite descriptor-derived source-only groups, validates their dtypes,
+    shapes, and spans, and writes canonical execution-only safetensors bytes.
+    Changed names, groups, dtypes, shapes, spans, or extra tensors reject before
+    MLX work. If the approved exact source header lacks a declared group, the
+    package records no preparation operation; the provider never becomes an
+    arbitrary filter, converter, path selector, or model-name branch.
+  - Evidence (2026-09-13): the dedicated provider accepts only the sealed
+    `source_weights` operation, the exact execution tensor closure, and either
+    complete or absent standard position-ID and masked-LM groups. Fake headers
+    prove partial groups, changed ancillary dtype, and extra tensors reject
+    before output; successful output is canonical execution-only safetensors.
+
+- [x] MLE8.3b [implementation, RED/GREEN] Extend the MLE8 source-only closure
+      with the complete standard `pooler.dense.{weight,bias}` pair exposed by
+      the authorized source revision, and remove it during canonical execution
+      weight preparation.
+  - Discovery: the approved revision's actual safetensors header has the
+    descriptor-derived F32 `[H,H]`/`[H]` pooler pair plus
+    `embeddings.position_ids`; it has no masked-LM tensors.
+  - Acceptance: accept either no pooler pair or exactly the complete pair with
+    descriptor-derived F32 shapes and contiguous spans. A partial, changed, or
+    extra pooler tensor rejects before output. The provider remains a finite
+    source-closure transformer, not an arbitrary tensor filter.
+  - Depends on: MLE8.3a.
+  - Evidence (2026-09-13): fake-only tests admit the complete pair and reject
+    a missing bias, changed shape, or changed span before canonical output.
+
+- [x] MLE8.3c [bug, tests RED/GREEN] Admit the exact standard Hugging Face
+      Tokenizers BPE merge-file header exposed by the authorized source while
+      retaining the closed accepted-header set.
+  - Discovered: the authorized MLE8 competency run reached tokenizer material
+    admission but rejected the Tokenizers-provenance v0.2 header before MLX
+    load.
+  - Depends on: MLE8.3b.
+  - Evidence (2026-09-13): a focused vector failed before admission allowed
+    that exact standard header, then passed with the plain v0.2 and exact
+    Tokenizers headers as the only accepted forms. The retry reached real MLX
+    execution successfully.
+
+- [x] MLE8.4 [approval/package, tests RED/GREEN] With a recorded license and
+      material decision, create the package-local lock and descriptor for
+      `sentence-transformers/all-distilroberta-v1`; reject changed roles,
+      weights, tokenizer, ABI, descriptor, and capability facts pre-execution.
+  - Spec: Operational Completion Gates 1 and 3.
+  - Depends on: MLE8.3a and explicit material-use authorization.
+  - Acceptance: record an explicit license/material decision, exact revision,
+    and every source role. Bind any required MLE8.3a prepared execution output
+    rather than allowing source-only tensors into the execution role. The
+    descriptor declares masked-mean pooling and L2 normalization only when the
+    locked sentence-transformer closure requires them; modules/configuration
+    files remain provenance rather than runtime selectors.
+  - Evidence (2026-09-13): approved Apache-2.0 revision
+    `842eaed40bee4d61673a81c92d5689a8fed7a09f` is sealed in the package
+    fixture. The actual source header's position-ID and pooler closure is
+    canonically prepared to the locked execution artifact; fake package tests
+    reject changed material hashes and ABI identity before material I/O.
+
+- [x] MLE8.5 [manual fixture, RED/GREEN] Generate and bind synthetic local
+      reference vectors for the exact MLE8 closure with `trust_remote_code=False`,
+      including byte-level tokenizer IDs/masks and padding-position vectors.
+  - Spec: FR-5, Operational Completion Gate 2.
+  - Depends on: MLE8.4 and separate authorization.
+  - Acceptance: if the descriptor requires L2 normalization, the fixture
+    validates finite unit vectors after exactly one declared normalization;
+    token/mask evidence distinguishes RoBERTa padding-position derivation from
+    BERT's positional sequence.
+  - Evidence (2026-09-13): the locked local-only CPU runtime generated vectors
+    for empty, leading-space, and UTF-8 cases with `trust_remote_code=False`.
+    The package fixture binds generator/runtime/document digests, token/mask
+    digests, finite unit vectors, and the updated descriptor digest.
+
+- [x] MLE8.6 [tests, RED/GREEN] Run the MLE8 package through generic embedding
+      execution and index-artifact paths with injected facts; prove changed
+      package/material facts reject before execution and no MLE7 evidence
+      transfers to this ABI.
+  - Spec: FR-6, Operational Completion Gate 3.
+  - Depends on: MLE8.4 and MLE8.5.
+  - Evidence (2026-09-13): the fake-only MLE8 execution test derives this
+    package's own RoBERTa binding, runs it through the existing generic
+    embedding and opaque-index paths, and rejects a changed material lock
+    before provider entry. It imports neither MLX nor MLE7 fixture evidence.
+
+- [x] MLE8.7 [manual] With explicit authorization, run the locked MLE8 package
+      on Darwin arm64 and retain a redacted package-bound competency receipt.
+  - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
+  - Depends on: MLE8.6.
+  - Evidence (2026-09-13): the authorized local-only Darwin/arm64 run used
+    `mlx==0.32.2` and the locked source/prepared artifacts. Its package-local
+    receipt records only bound digests, limits, resource/duration evidence,
+    opaque output IDs, and conformance metrics: three 768-dimensional vectors
+    with `7.674098014831543e-07` maximum absolute error against the locked
+    fixture (threshold `0.005`).
+
+- [x] MLE8.8 [tests/docs] Add the successful MLE8 package/material receipt as
+      a non-transferable embedding support row and update validation status.
+  - Spec: Operational Completion Gate 5.
+  - Depends on: MLE8.7.
+  - Evidence (2026-09-13): the support-row tests bind this package's exact
+    material lock, RoBERTa ABI, descriptor, `embedding.execute.v1` requirement,
+    and MLE8.7 receipt digest. A changed package ID or source hash cannot
+    inherit the supported Darwin MLX row.

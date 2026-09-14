@@ -7,9 +7,18 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+import yaml
 
 
 from dynamic_agent_runner.workflow_host.catalog import PackageCatalog  # noqa: E402
+from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
+    BUILTIN_CAPABILITY_CONTRACTS,
+    CapabilityCatalog,
+    CapabilityProvider,
+    CapabilityRequirement,
+    CapabilityRequirements,
+    ProviderAvailability,
+)
 from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
 )  # noqa: E402
@@ -26,6 +35,8 @@ from dynamic_agent_runner.workflow_host.registration import WorkflowRegistration
 from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager  # noqa: E402
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 from dynamic_agent_runner.workflow_host.workspace_ingress import (  # noqa: E402
+    MaterializedWorkspaceBinaryArtifact,
+    MaterializedWorkspaceImageArtifact,
     MaterializedWorkspaceInputArtifact,
 )
 
@@ -78,9 +89,102 @@ class _MaterializingArtifactVerifier(_ArtifactVerifier):
         )
 
 
-def _prepared_service(tmp_path: Path):
+class _ImageMaterializingArtifactVerifier(_ArtifactVerifier):
+    def materialize_image(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceImageArtifact:
+        self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceImageArtifact(
+            artifact_id, "sha256:" + "b" * 64, "source_image", "image/png", b"image"
+        )
+
+
+class _BinaryMaterializingArtifactVerifier(_ArtifactVerifier):
+    def materialize_binary(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceBinaryArtifact:
+        self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceBinaryArtifact(
+            artifact_id,
+            "sha256:" + "c" * 64,
+            "source_binary",
+            "application/octet-stream",
+            b"binary",
+        )
+
+
+def _capability_catalog(*, available: bool) -> CapabilityCatalog:
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+    providers = (
+        CapabilityProvider(
+            "private-test-provider",
+            contract,
+            availability=(
+                ProviderAvailability.AVAILABLE
+                if available
+                else ProviderAvailability.DISABLED
+            ),
+            conformance_passed=True,
+            conformance_vector_ids=frozenset(
+                {
+                    "requested_features",
+                    "output_integrity",
+                    "resource_limits",
+                    "redacted_failure",
+                }
+            ),
+        ),
+    )
+    return CapabilityCatalog((contract,), providers)
+
+
+def _prepared_service(
+    tmp_path: Path,
+    *,
+    capability_catalog: CapabilityCatalog | None = None,
+    with_capability_requirements: bool = False,
+):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
+    if with_capability_requirements:
+        contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+        requirement = CapabilityRequirement(
+            contract.capability_id,
+            contract.contract_version,
+            contract.contract_digest,
+            ("multimodal",),
+        )
+        requirements = CapabilityRequirements((requirement,))
+        descriptor = source / "workflow-descriptor.yaml"
+        value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+        value["dar_runtime"]["required_version"] = "0.1.18"
+        value["capability_requirements"] = {
+            "format_version": 1,
+            "required_capabilities": [requirement.to_mapping()],
+            "capability_requirements_digest": requirements.digest,
+            "bindings": {},
+        }
+        descriptor.write_text(yaml.safe_dump(value), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
         allowed_root=source.parent, store=store
@@ -91,7 +195,7 @@ def _prepared_service(tmp_path: Path):
             source_handle, now=NOW
         )
     )
-    policy = compile_workflow_policy(revision)
+    policy = compile_workflow_policy(revision, capability_catalog=capability_catalog)
     profiles = LocalModelProfileControlPlane(store=store)
     profile = profiles.create(
         model_id="local-model-v1",
@@ -114,7 +218,10 @@ def _prepared_service(tmp_path: Path):
     )
     return (
         WorkflowInvocationPreparationService(
-            registrations=registrations, catalog=catalog, store=store
+            registrations=registrations,
+            catalog=catalog,
+            store=store,
+            capability_catalog=capability_catalog,
         ),
         registrations,
         registration,
@@ -173,6 +280,29 @@ def test_preparation_seals_only_verified_opaque_workspace_artifact_ids(
     ]
 
 
+def test_preparation_rejects_unsatisfied_requirement_before_artifact_verification(
+    tmp_path: Path,
+) -> None:
+    service, _, _, _, _ = _prepared_service(
+        tmp_path,
+        capability_catalog=_capability_catalog(available=True),
+        with_capability_requirements=True,
+    )
+    verifier = _ArtifactVerifier()
+    service._artifact_verifier = verifier
+    service._capability_catalog = _capability_catalog(available=False)
+
+    with pytest.raises(PreparedWorkflowInputError, match="registration"):
+        service.prepare(
+            workflow_id="document-helper",
+            prompt="Answer this request.",
+            workspace_artifact_ids=("v1.artifact",),
+            now=NOW,
+        )
+
+    assert verifier.calls == []
+
+
 def test_preparation_rejects_unverified_or_duplicate_workspace_artifact_ids(
     tmp_path: Path,
 ) -> None:
@@ -224,6 +354,65 @@ def test_preparation_materializes_only_verified_private_artifacts(
             workspace_artifact_ids=("v1.artifact", "v1.artifact"),
             now=NOW,
         )
+
+
+def test_preparation_materializes_sealed_images_only_through_image_boundary(
+    tmp_path: Path,
+) -> None:
+    _, registrations, registration, _, _ = _prepared_service(tmp_path)
+    verifier = _ImageMaterializingArtifactVerifier()
+    service = WorkflowInvocationPreparationService(
+        registrations=registrations,
+        catalog=PackageCatalog(tmp_path / "catalog"),
+        store=PrivateStateStore(tmp_path / "state"),
+        artifact_verifier=verifier,
+    )
+    prepared = service.prepare(
+        workflow_id="document-helper",
+        prompt="Answer this request.",
+        workspace_artifact_ids=("v1.artifact",),
+        now=NOW,
+    )
+    sealed = service.load(
+        prepared.prepared_input_id, registration=registration, now=NOW
+    )
+
+    images = service.materialize_workspace_images(
+        sealed, registration=registration, now=NOW
+    )
+
+    assert images == (
+        MaterializedWorkspaceImageArtifact(
+            "v1.artifact", "sha256:" + "b" * 64, "source_image", "image/png", b"image"
+        ),
+    )
+
+
+def test_preparation_materializes_sealed_binaries_only_for_host_tools(
+    tmp_path: Path,
+) -> None:
+    _, registrations, registration, _, _ = _prepared_service(tmp_path)
+    service = WorkflowInvocationPreparationService(
+        registrations=registrations,
+        catalog=PackageCatalog(tmp_path / "catalog"),
+        store=PrivateStateStore(tmp_path / "state"),
+        artifact_verifier=_BinaryMaterializingArtifactVerifier(),
+    )
+    prepared = service.prepare(
+        workflow_id="document-helper",
+        prompt="Answer.",
+        workspace_artifact_ids=("v1.artifact",),
+        now=NOW,
+    )
+    sealed = service.load(
+        prepared.prepared_input_id, registration=registration, now=NOW
+    )
+
+    binaries = service.materialize_workspace_binaries(
+        sealed, registration=registration, now=NOW
+    )
+
+    assert binaries[0].content == b"binary"
 
 
 def test_preparation_rejects_raw_structured_input_and_oversized_context(

@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import argparse
 from contextlib import ExitStack, contextmanager
+from dataclasses import replace
 from datetime import UTC, datetime
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -87,6 +89,26 @@ _ORIGINAL_SCENARIO_IDS = (
     / "tests"
     / "fixtures"
     / "m4-4-original-scenario-ids.json"
+)
+_RUNTIME_RELEASE_VERIFIER = (
+    Path(__file__).resolve().with_name("validate_agent_engineering_runtime_release.py")
+)
+
+
+def _load_runtime_release_verifier() -> tuple[type[tuple], Callable[..., object]]:
+    spec = importlib.util.spec_from_file_location(
+        "m44_runtime_release_verifier", _RUNTIME_RELEASE_VERIFIER
+    )
+    if spec is None or spec.loader is None:
+        raise HarnessError("DAR runtime release verifier is unavailable")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module.RuntimeReleaseReceipt, module.validate_runtime_release_contract
+
+
+RuntimeReleaseReceipt, validate_runtime_release_contract = (
+    _load_runtime_release_verifier()
 )
 
 
@@ -322,6 +344,159 @@ def write_manifest_evidence(
     return destination
 
 
+_REPLAY_IDENTITY_FIELDS = (
+    "scenario_contract_version",
+    "checker_version",
+    "harness_policy_digest",
+    "executable_identity",
+    "plugin_identity",
+    "skill_identity",
+    "dar_runtime_version",
+    "dar_runtime_wheel_filename",
+    "dar_runtime_wheel_metadata_digest",
+    "dar_runtime_release_descriptor_digest",
+    "dar_runtime_payload_selector_list_digest",
+    "controller_fixture_digest",
+    "expected_status",
+    "observed_status",
+    "terminal_phase",
+)
+
+
+def compare_manifest_evidence(
+    *,
+    direct_aggregate: Path,
+    generated_aggregate: Path,
+    frozen_baseline_tree_digest: str,
+    timeout_seconds: int,
+    destination: Path,
+) -> Path:
+    """Compare two complete replays without treating timings as behavioral parity."""
+
+    if not _is_digest(frozen_baseline_tree_digest):
+        raise HarnessError("frozen baseline tree digest is invalid")
+    if not isinstance(timeout_seconds, int) or timeout_seconds <= 0:
+        raise HarnessError("replay timeout is invalid")
+    if not destination.is_absolute() or destination.exists():
+        raise HarnessError("comparison destination must be fresh and absolute")
+
+    direct = _load_replay_aggregate(direct_aggregate)
+    generated = _load_replay_aggregate(generated_aggregate)
+    if (
+        direct["coverage_digest"] != generated["coverage_digest"]
+        or direct["scenario_plan_digest"] != generated["scenario_plan_digest"]
+    ):
+        raise HarnessError("replay inputs differ")
+    direct_records = _load_replay_records(direct_aggregate, direct)
+    generated_records = _load_replay_records(generated_aggregate, generated)
+    if set(direct_records) != set(generated_records):
+        raise HarnessError("replay scenario sets differ")
+    for scenario_id in sorted(direct_records):
+        direct_record = direct_records[scenario_id]
+        generated_record = generated_records[scenario_id]
+        if any(
+            direct_record[field] != generated_record[field]
+            for field in _REPLAY_IDENTITY_FIELDS
+        ):
+            raise HarnessError("replay identities differ")
+        if (
+            direct_record.get("failure_reason") is not None
+            or generated_record.get("failure_reason") is not None
+        ):
+            raise HarnessError("replay contains a harness failure")
+
+    comparison = {
+        "format_version": "m4.4-replay-comparison-v1",
+        "direct_aggregate_digest": _digest_file(direct_aggregate),
+        "generated_aggregate_digest": _digest_file(generated_aggregate),
+        "coverage_digest": direct["coverage_digest"],
+        "scenario_plan_digest": direct["scenario_plan_digest"],
+        "frozen_baseline_tree_digest": frozen_baseline_tree_digest,
+        "timeout_seconds": timeout_seconds,
+        "scenario_count": len(direct_records),
+        "direct_actor_duration_ms": direct["actor_duration_ms"],
+        "generated_actor_duration_ms": generated["actor_duration_ms"],
+        "observed_statuses_match": True,
+    }
+    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    destination.write_text(
+        json.dumps(comparison, sort_keys=True, separators=(",", ":")), encoding="utf-8"
+    )
+    os.chmod(destination, 0o600)
+    return destination
+
+
+def _load_replay_aggregate(path: Path) -> dict[str, object]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise HarnessError("replay aggregate is unavailable") from error
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "format_version",
+            "coverage_digest",
+            "scenario_plan_digest",
+            "records",
+            "actor_duration_ms",
+        }
+        or value["format_version"] != "m4.4-external-evidence-v1"
+        or not _is_digest(value["coverage_digest"])
+        or not _is_digest(value["scenario_plan_digest"])
+        or not isinstance(value["records"], list)
+        or not isinstance(value["actor_duration_ms"], int)
+        or value["actor_duration_ms"] < 0
+    ):
+        raise HarnessError("replay aggregate is invalid")
+    return value
+
+
+def _load_replay_records(
+    aggregate_path: Path, aggregate: Mapping[str, object]
+) -> dict[str, dict[str, object]]:
+    values: dict[str, dict[str, object]] = {}
+    records = aggregate["records"]
+    assert isinstance(records, list)
+    for entry in records:
+        if (
+            not isinstance(entry, dict)
+            or set(entry)
+            != {"scenario_id", "observed_status", "record_digest", "actor_duration_ms"}
+            or not isinstance(entry["scenario_id"], str)
+            or not isinstance(entry["observed_status"], str)
+            or not _is_digest(entry["record_digest"])
+            or not isinstance(entry["actor_duration_ms"], int)
+            or entry["actor_duration_ms"] < 0
+            or entry["scenario_id"] in values
+        ):
+            raise HarnessError("replay aggregate records are invalid")
+        record_path = (
+            aggregate_path.parent / entry["scenario_id"] / "author-then-run.json"
+        )
+        try:
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise HarnessError("replay record is unavailable") from error
+        if (
+            not isinstance(record, dict)
+            or _digest_file(record_path) != entry["record_digest"]
+            or record.get("scenario_id") != entry["scenario_id"]
+            or record.get("observed_status") != entry["observed_status"]
+        ):
+            raise HarnessError("replay record is invalid")
+        values[entry["scenario_id"]] = record
+    return values
+
+
+def _is_digest(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the complete manifest-defined clean-Codex M4.4 acceptance replay."""
 
@@ -447,12 +622,14 @@ def run_manifest(
     plugin_root: Path,
     wheel: Path,
     materials: Path,
+    runtime_release_descriptor: Path,
     model_id: str,
     base_url: str,
     reviewer_id: str | None,
     reviewer_decision: str,
     codex_executable: str,
     timeout: int,
+    runtime_selector_plugin_root: Path | None = None,
     plugin_surface: str = "generated-root",
     progress_file: Path | None = None,
 ) -> Path:
@@ -472,6 +649,11 @@ def run_manifest(
     )
     sources = _scenario_sources(scenario_roots)
     _verify_fixture_contracts(plan, sources)
+    runtime_release = _runtime_release_receipt(
+        descriptor=runtime_release_descriptor,
+        generated_plugin_root=runtime_selector_plugin_root or plugin_root,
+        wheel=wheel,
+    )
     _write_progress_event(
         progress_file,
         {"event": "run_started", "scenario_count": len(plan.entries)},
@@ -505,7 +687,9 @@ def run_manifest(
             codex_executable=codex_executable,
             timeout=timeout,
             plugin_surface=plugin_surface,
+            runtime_release=runtime_release,
         )
+        record = _bind_runtime_release(record, runtime_release)
         records_list.append(record)
         _write_progress_event(
             progress_file,
@@ -551,6 +735,43 @@ def _write_progress_event(
     os.chmod(progress_file, 0o600)
 
 
+def _runtime_release_receipt(
+    *, descriptor: Path, generated_plugin_root: Path, wheel: Path
+) -> RuntimeReleaseReceipt:
+    """Verify the fixed DAR runtime selector before starting either actor."""
+
+    source_plugin_root = descriptor.parent.parent
+    return validate_runtime_release_contract(
+        project_file=Path(__file__).resolve().parents[1] / "pyproject.toml",
+        descriptor_file=descriptor,
+        wheel_file=wheel,
+        payload_roots=(
+            source_plugin_root / "payload",
+            generated_plugin_root / "references" / "modules",
+        ),
+        plugin_manifest_files=(
+            source_plugin_root / ".codex-plugin" / "plugin.json",
+            generated_plugin_root / ".codex-plugin" / "plugin.json",
+        ),
+    )
+
+
+def _bind_runtime_release(
+    record: AuthorThenRunEvidence,
+    runtime_release: RuntimeReleaseReceipt,
+) -> AuthorThenRunEvidence:
+    """Attach the verified runtime selector identities to one redacted record."""
+
+    return replace(
+        record,
+        dar_runtime_version=runtime_release.runtime_version,
+        dar_runtime_wheel_filename=runtime_release.wheel_filename,
+        dar_runtime_wheel_metadata_digest=runtime_release.wheel_metadata_sha256,
+        dar_runtime_release_descriptor_digest=runtime_release.descriptor_sha256,
+        dar_runtime_payload_selector_list_digest=runtime_release.selector_list_sha256,
+    )
+
+
 def run_scenario(
     *,
     scenario: Path,
@@ -570,6 +791,7 @@ def run_scenario(
     codex_executable: str,
     timeout: int,
     plugin_surface: str = "generated-root",
+    runtime_release: RuntimeReleaseReceipt | None = None,
 ) -> AuthorThenRunEvidence:
     """Run one author turn and, for the positive case, one independent run turn."""
 
@@ -703,6 +925,7 @@ def run_scenario(
                         package_name,
                         contract.expected_status,
                         artifact_roles=contract.required_artifact_roles,
+                        guardrails=_declared_guardrails(fixtures.fixture_ids),
                     ),
                     author_workspace,
                     build_clean_codex_environment(
@@ -721,6 +944,7 @@ def run_scenario(
                     ),
                     timeout,
                 )
+                _write_debug_transcript(package_name, "author", author_result.stdout)
                 author_duration_ms = _actor_duration_ms(author_started)
                 if contract.expected_status in {
                     "expected_capability_unavailable",
@@ -915,6 +1139,7 @@ def _pass_evidence(
         ),
         timeout,
     )
+    _write_debug_transcript(package_name, "invocation", run_result.stdout)
     invocation_duration_ms = _actor_duration_ms(invocation_started)
     invoked = _receipt(run_result.stdout, "completed")
     if (
@@ -1000,12 +1225,27 @@ def _pass_evidence(
         invocation_event_trace=_event_trace(run_result.stdout, prefix="invocation"),
         **provenance,
     )
-    validate_m44_evidence(
-        contract,
-        result,
-        available_gates=_controller_available_gates(),
-        available_host_fixtures=available_host_fixtures,
-    )
+    try:
+        validate_m44_evidence(
+            contract,
+            result,
+            available_gates=_controller_available_gates(),
+            available_host_fixtures=available_host_fixtures,
+        )
+    except M44ScenarioError:
+        return _failure(
+            contract,
+            "invocation",
+            wheel,
+            material_set_id,
+            (author_duration_ms, invocation_duration_ms),
+            output_id,
+            plugin_identity,
+            provenance=provenance,
+            author_result=author_result,
+            invocation_result=run_result,
+            failure_reason="scenario_evidence_validation_failed",
+        )
     return result
 
 
@@ -1191,6 +1431,20 @@ def _validate_manifest_records(
         raise HarnessError("external evidence records are invalid")
     if any(not record.actor_durations_ms for record in records):
         raise HarnessError("external evidence records lack actor durations")
+    runtime_identities = {
+        (
+            record.dar_runtime_version,
+            record.dar_runtime_wheel_filename,
+            record.dar_runtime_wheel_metadata_digest,
+            record.dar_runtime_release_descriptor_digest,
+            record.dar_runtime_payload_selector_list_digest,
+        )
+        for record in records
+    }
+    if len(runtime_identities) != 1 or None in next(iter(runtime_identities)):
+        raise HarnessError(
+            "external evidence records have inconsistent runtime identities"
+        )
 
 
 def _scenario_sources(scenario_roots: tuple[Path, ...]) -> dict[str, Path]:
@@ -1291,6 +1545,7 @@ def _author_request(
     expected_status: str,
     *,
     artifact_roles: tuple[str, ...] = (),
+    guardrails: tuple[tuple[str, str], ...] = (),
 ) -> str:
     suffix = (
         "This requires unavailable multi-agent/subagent capability; report capability_unavailable and do not create a package."
@@ -1303,19 +1558,83 @@ def _author_request(
         if artifact_roles
         else ""
     )
+    artifact_body_guidance = (
+        " For mail_send, set the mail_send body argument source to "
+        f"artifact_role:{artifact_roles[0]} with authority false."
+        if artifact_roles and "email" in author_prompt.lower()
+        else ""
+    )
     operation_guidance = (
         " This is an approved email-send operation: use the reviewed write-MCP "
-        "template with its sole mail_send tool; do not choose the no-tool starter."
-        if "email_body" in artifact_roles and "email" in author_prompt.lower()
+        "template at references/dar-authoring-write-mcp-template/ with its sole "
+        "mail_send tool; do not choose the no-tool starter."
+        if "email" in author_prompt.lower()
+        else ""
+    )
+    skill_bundle_guidance = (
+        " This is a package-local skill workflow: use the reviewed skill-bundle "
+        "template at references/dar-authoring-skill-bundle-template/. Copy its "
+        "complete package bundle, replace its package_id with the requested package "
+        "name in both YAML files, and use DAR-controlled authoring writes for all "
+        "five template files rather than shell copying. Preserve skill_bundle_dir: "
+        "skill-bundle and the skill-bundle/skills/review-guide/SKILL.md binding; "
+        "do not construct its graph from scratch. The clean host permits only "
+        "project-authoring-materials, create-authored-package, "
+        "write-authored-package-file, and finalize-authored-package; do not call "
+        "`dar-package version` or any other probe."
+        if "package-local skill" in author_prompt.lower()
+        else ""
+    )
+    no_tool_guidance = (
+        " This is a bounded no-tool workflow: use the canonical no-tool template "
+        "at references/dar-authoring-templates/; do not construct its graph from "
+        "scratch."
+        if "document-summary" in author_prompt.lower()
+        else ""
+    )
+    read_only_mcp_guidance = (
+        " This is a read-only MCP workflow: use the reviewed read-only MCP template "
+        "at references/dar-authoring-read-only-mcp-template/; do not construct its "
+        "graph from scratch."
+        if any(
+            workflow in author_prompt.lower()
+            for workflow in ("mailbox-triage", "oauth reconnect")
+        )
+        else ""
+    )
+    structured_review_guidance = (
+        " This is a structured single-model review: start from the canonical no-tool "
+        "template at references/dar-authoring-templates/, then declare the matching "
+        "review_result terminal output contract with its required message field in "
+        "both package files."
+        if "structured single-model review" in author_prompt.lower()
+        else ""
+    )
+    guardrail_guidance = (
+        " Declared caller-owned guardrails: "
+        + ", ".join(f"{guardrail_id} ({phase})" for guardrail_id, phase in guardrails)
+        + "; declare them exactly and do not implement a handler."
+        if guardrails
         else ""
     )
     return (
         f"{author_prompt}\n\nUse the installed agent-engineering agent-development "
         f"skill to author a DAR workflow. The declared material_set_id is "
         f"`{material_set_id}` and the requested package name is `{package_name}`. "
-        f"{artifact_guidance}{operation_guidance} "
+        f"{artifact_guidance}{artifact_body_guidance}{operation_guidance}{skill_bundle_guidance}{no_tool_guidance}{read_only_mcp_guidance}{structured_review_guidance}{guardrail_guidance} "
         f"{suffix}"
     )
+
+
+def _declared_guardrails(fixture_ids: tuple[str, ...]) -> tuple[tuple[str, str], ...]:
+    """Expose only fixture-declared guardrail identities to the author actor."""
+
+    declarations: list[tuple[str, str]] = []
+    if "input-guardrail-registry" in fixture_ids:
+        declarations.append(("require_input", "input"))
+    if "tool-input-guardrail-registry" in fixture_ids:
+        declarations.append(("require_tool_input", "tool_input"))
+    return tuple(declarations)
 
 
 def _run_request(package_name: str, run_prompt: str, *, requires_approval: bool) -> str:
@@ -1374,6 +1693,17 @@ def _decision_summary(output: str, *, prefix: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(labels))
 
 
+def _write_debug_transcript(package_name: str, actor: str, output: str) -> None:
+    """Write raw actor output only when an explicit private debug sink is set."""
+
+    root = os.environ.get("DAR_M44_DEBUG_TRANSCRIPT_DIRECTORY")
+    if not root:
+        return
+    destination = Path(root)
+    destination.mkdir(mode=0o700, parents=True, exist_ok=True)
+    (destination / f"{package_name}-{actor}.jsonl").write_text(output, encoding="utf-8")
+
+
 def _event_trace(output: str, *, prefix: str) -> tuple[str, ...]:
     """Return an ordered, content-free actor event trace for post-mortems."""
 
@@ -1428,10 +1758,12 @@ def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
         "plugin_root",
         "wheel",
         "materials",
+        "runtime_release_descriptor",
         "evidence_directory",
     ):
         parser.add_argument(f"--{name.replace('_', '-')}", type=Path, required=True)
     parser.add_argument("--scenario-root", type=Path, action="append", required=True)
+    parser.add_argument("--runtime-selector-plugin-root", type=Path)
     parser.add_argument("--reviewer-id")
     parser.add_argument(
         "--reviewer-decision", choices=("pending", "approved"), default="pending"

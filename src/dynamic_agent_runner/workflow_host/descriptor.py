@@ -6,11 +6,52 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Mapping, Sequence
 
+import yaml
+
 from dynamic_agent_runner.models import RuntimeNode
+from dynamic_agent_runner.workflow_host.capabilities import (
+    CapabilityError,
+    CapabilityRequirements,
+)
+from dynamic_agent_runner.workflow_host.locked_inference import (
+    InferenceRoles,
+    LockedInferenceError,
+    parse_inference_roles,
+)
+
+
+_CAPABILITY_REQUIREMENTS_MIN_DAR_VERSION = (0, 1, 18)
 
 
 class WorkflowDescriptorError(ValueError):
     """Raised when a package descriptor exceeds the current wrapper gate."""
+
+
+def load_descriptor_yaml(value: bytes) -> Mapping[str, Any]:
+    """Load descriptor YAML while rejecting duplicate keys before conversion."""
+
+    class DuplicateKeyLoader(yaml.SafeLoader):
+        pass
+
+    def construct_mapping(
+        loader: yaml.SafeLoader, node: yaml.MappingNode, deep: bool = False
+    ) -> dict[object, object]:
+        mapping: dict[object, object] = {}
+        for key_node, value_node in node.value:
+            key = loader.construct_object(key_node, deep=deep)
+            if key in mapping:
+                raise WorkflowDescriptorError("descriptor contains duplicate YAML keys")
+            mapping[key] = loader.construct_object(value_node, deep=deep)
+        return mapping
+
+    DuplicateKeyLoader.add_constructor(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_mapping
+    )
+    try:
+        loaded = yaml.load(value, Loader=DuplicateKeyLoader)
+    except yaml.YAMLError as error:
+        raise WorkflowDescriptorError("descriptor YAML is invalid") from error
+    return _mapping(loaded, "descriptor")
 
 
 @dataclass(frozen=True)
@@ -65,6 +106,62 @@ class DeclaredTool:
 
 
 @dataclass(frozen=True)
+class DeclaredLocalTool:
+    """One package-owned deterministic tool asset with finite sealed I/O limits."""
+
+    tool_id: str
+    asset_path: str
+    accepted_artifact_role: str
+    max_input_bytes: int
+    max_output_bytes: int
+    timeout_seconds: int
+
+
+@dataclass(frozen=True)
+class DeclaredArtifactTool:
+    """One reviewed tool that may receive a sealed opaque artifact."""
+
+    tool_id: str
+    reviewed_package_name: str
+    accepted_artifact_role: str
+    max_result_bytes: int
+
+
+@dataclass(frozen=True)
+class DeclaredTerminalOutputValidator:
+    """One package-owned post-processing validator for shaped terminal output."""
+
+    asset_path: str
+    max_output_bytes: int
+    timeout_seconds: int
+    asset_digest: str | None = None
+
+
+@dataclass(frozen=True)
+class DeclaredTerminalOutputProcessor:
+    """One fixed package asset in the private terminal-output chain."""
+
+    asset_path: str
+    max_output_bytes: int
+    timeout_seconds: int
+    asset_digest: str | None = None
+
+
+@dataclass(frozen=True)
+class DeclaredInputConverter:
+    """One sealed package asset that packs invocation bytes for one runner."""
+
+    converter_id: str
+    converter_contract_version: str
+    compatible_runner_contract_id: str
+    entrypoint: str
+    asset_digest: str
+    max_input_bytes: int
+    max_output_bytes: int
+    timeout_seconds: int
+
+
+@dataclass(frozen=True)
 class WorkflowDescriptor:
     """The immutable authoring-to-runtime handoff for a bounded task workflow."""
 
@@ -79,6 +176,14 @@ class WorkflowDescriptor:
     declared_tools: tuple[DeclaredTool, ...]
     output_schema_ref: str
     limits: WorkflowLimits
+    declared_local_tools: tuple[DeclaredLocalTool, ...] = ()
+    declared_artifact_tools: tuple[DeclaredArtifactTool, ...] = ()
+    terminal_output_validator: DeclaredTerminalOutputValidator | None = None
+    terminal_output_processors: tuple[DeclaredTerminalOutputProcessor, ...] = ()
+    input_converter: DeclaredInputConverter | None = None
+    capability_requirements: CapabilityRequirements | None = None
+    capability_requirements_digest: str | None = None
+    inference_roles: InferenceRoles | None = None
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> WorkflowDescriptor:
@@ -88,20 +193,39 @@ class WorkflowDescriptor:
         if mapping.get("format_version") != 1:
             raise WorkflowDescriptorError("format_version must be 1")
         declared_skill_ids = _parse_declared_skill_ids(mapping.get("skills"))
-        declared_tools = _parse_declared_tools(mapping.get("tools"))
+        declared_tools, declared_local_tools, declared_artifact_tools = (
+            _parse_declared_tools(mapping.get("tools"))
+        )
         runtime = _mapping(mapping.get("dar_runtime"), "dar_runtime")
         if runtime.get("distribution") != "dynamic-agent-runner":
             raise WorkflowDescriptorError("dar_runtime.distribution is invalid")
+        capability_requirements = _parse_capability_requirements(
+            mapping.get("capability_requirements"), runtime.get("required_version")
+        )
+        inference_roles = _parse_inference_roles(mapping.get("inference_roles"))
+        if inference_roles is not None and capability_requirements is None:
+            raise WorkflowDescriptorError("locked inference requires capabilities")
         input_contract = _parse_input_contract(mapping.get("input_contract"))
         workspace = _parse_workspace_contract(mapping.get("workspace"))
         task = _parse_task_invocation(mapping.get("task_invocation"))
-        if task.allowed_tool_ids != tuple(tool.tool_id for tool in declared_tools):
+        declared_tool_ids = tuple(
+            tool.tool_id
+            for tool in (
+                *declared_tools,
+                *declared_local_tools,
+                *declared_artifact_tools,
+            )
+        )
+        if task.allowed_tool_ids != declared_tool_ids:
             raise WorkflowDescriptorError(
                 "task_invocation.allowed_tool_ids must exactly match declared tools"
             )
         _validate_side_effect_contract(declared_tools, task)
         output = _mapping(mapping.get("output"), "output")
         output_schema_ref = _text(output.get("schema_ref"), "output.schema_ref")
+        terminal_output_validator = _parse_terminal_output_validator(output)
+        terminal_output_processors = _parse_terminal_output_processors(output)
+        input_converter = _parse_input_converter(mapping.get("input_converter"))
         if output_schema_ref != task.terminal_output_schema_ref:
             raise WorkflowDescriptorError(
                 "output.schema_ref must match task_invocation.terminal_output_schema_ref"
@@ -124,6 +248,18 @@ class WorkflowDescriptor:
             declared_tools=declared_tools,
             output_schema_ref=output_schema_ref,
             limits=WorkflowLimits(_positive_int(limits.get("max_steps"), "max_steps")),
+            declared_local_tools=declared_local_tools,
+            declared_artifact_tools=declared_artifact_tools,
+            terminal_output_validator=terminal_output_validator,
+            terminal_output_processors=terminal_output_processors,
+            input_converter=input_converter,
+            capability_requirements=capability_requirements,
+            capability_requirements_digest=(
+                capability_requirements.digest
+                if capability_requirements is not None
+                else None
+            ),
+            inference_roles=inference_roles,
         )
 
 
@@ -132,7 +268,14 @@ def validate_no_tool_runtime_nodes(
 ) -> None:
     """Reject a graph whose tool exposure escapes its task-specific declaration."""
 
-    declared = {tool.tool_id for tool in descriptor.declared_tools}
+    declared = {
+        tool.tool_id
+        for tool in (
+            *descriptor.declared_tools,
+            *descriptor.declared_local_tools,
+            *descriptor.declared_artifact_tools,
+        )
+    }
     if not declared and descriptor.task_invocation.max_total_tool_calls != 0:
         raise WorkflowDescriptorError(
             "no-tool descriptor must set max_total_tool_calls to 0"
@@ -152,9 +295,15 @@ def validate_runtime_tool_contract(
 ) -> None:
     """Require runtime tool definitions to exactly match the descriptor."""
 
-    if tuple(tool.id for tool in runtime_tools) != tuple(
-        tool.tool_id for tool in descriptor.declared_tools
-    ):
+    expected = tuple(
+        tool.tool_id
+        for tool in (
+            *descriptor.declared_tools,
+            *descriptor.declared_local_tools,
+            *descriptor.declared_artifact_tools,
+        )
+    )
+    if tuple(tool.id for tool in runtime_tools) != expected:
         raise WorkflowDescriptorError(
             "runtime tools must exactly match descriptor tools"
         )
@@ -291,18 +440,147 @@ def _parse_task_invocation(value: object) -> TaskInvocation:
     )
 
 
-def _parse_declared_tools(value: object) -> tuple[DeclaredTool, ...]:
+def _parse_terminal_output_validator(
+    output: Mapping[str, Any],
+) -> DeclaredTerminalOutputValidator | None:
+    value = output.get("validator")
+    if value is None:
+        return None
+    validator = _mapping(value, "output.validator")
+    if set(validator) not in (
+        {"asset_path", "max_output_bytes", "timeout_seconds"},
+        {"asset_path", "max_output_bytes", "timeout_seconds", "asset_digest"},
+    ):
+        raise WorkflowDescriptorError("output validator is invalid")
+    asset_path = _text(validator.get("asset_path"), "output.validator.asset_path")
+    if asset_path.startswith("/") or ".." in asset_path.split("/"):
+        raise WorkflowDescriptorError(
+            "output validator asset_path must be package-relative"
+        )
+    return DeclaredTerminalOutputValidator(
+        asset_path=asset_path,
+        max_output_bytes=_positive_int(
+            validator.get("max_output_bytes"), "output.validator.max_output_bytes"
+        ),
+        timeout_seconds=_positive_int(
+            validator.get("timeout_seconds"), "output.validator.timeout_seconds"
+        ),
+        asset_digest=_optional_digest(validator.get("asset_digest")),
+    )
+
+
+def _parse_terminal_output_processors(
+    output: Mapping[str, Any],
+) -> tuple[DeclaredTerminalOutputProcessor, ...]:
+    value = output.get("processors", [])
+    if not isinstance(value, list) or not value:
+        return ()
+    processors = []
+    for raw in value:
+        processor = _mapping(raw, "output processor")
+        if set(processor) not in (
+            {"asset_path", "max_output_bytes", "timeout_seconds"},
+            {"asset_path", "max_output_bytes", "timeout_seconds", "asset_digest"},
+        ):
+            raise WorkflowDescriptorError("output processor is invalid")
+        asset_path = _text(processor.get("asset_path"), "output processor.asset_path")
+        if asset_path.startswith("/") or ".." in asset_path.split("/"):
+            raise WorkflowDescriptorError(
+                "output processor asset_path must be package-relative"
+            )
+        processors.append(
+            DeclaredTerminalOutputProcessor(
+                asset_path=asset_path,
+                max_output_bytes=_positive_int(
+                    processor.get("max_output_bytes"),
+                    "output processor.max_output_bytes",
+                ),
+                timeout_seconds=_positive_int(
+                    processor.get("timeout_seconds"), "output processor.timeout_seconds"
+                ),
+                asset_digest=_optional_digest(processor.get("asset_digest")),
+            )
+        )
+    return tuple(processors)
+
+
+def _parse_input_converter(value: object) -> DeclaredInputConverter | None:
+    if value is None:
+        return None
+    converter = _mapping(value, "input converter")
+    if set(converter) != {
+        "converter_id",
+        "converter_contract_version",
+        "compatible_runner_contract_id",
+        "entrypoint",
+        "asset_digest",
+        "declared_resource_limits",
+    }:
+        raise WorkflowDescriptorError("input converter is invalid")
+    entrypoint = _text(converter.get("entrypoint"), "input converter.entrypoint")
+    if entrypoint.startswith("/") or ".." in entrypoint.split("/"):
+        raise WorkflowDescriptorError("input converter is invalid")
+    if converter.get("converter_contract_version") != "v1":
+        raise WorkflowDescriptorError("input converter is invalid")
+    if converter.get("compatible_runner_contract_id") != "transformers-generate-v1":
+        raise WorkflowDescriptorError("input converter is invalid")
+    digest = converter.get("asset_digest")
+    if not _is_digest(digest):
+        raise WorkflowDescriptorError("input converter is invalid")
+    limits = _mapping(
+        converter.get("declared_resource_limits"), "input converter limits"
+    )
+    if set(limits) != {"max_input_bytes", "max_output_bytes", "timeout_seconds"}:
+        raise WorkflowDescriptorError("input converter is invalid")
+    return DeclaredInputConverter(
+        converter_id=_text(
+            converter.get("converter_id"), "input converter.converter_id"
+        ),
+        converter_contract_version="v1",
+        compatible_runner_contract_id="transformers-generate-v1",
+        entrypoint=entrypoint,
+        asset_digest=digest,
+        max_input_bytes=_positive_int(
+            limits.get("max_input_bytes"), "input converter.max_input_bytes"
+        ),
+        max_output_bytes=_positive_int(
+            limits.get("max_output_bytes"), "input converter.max_output_bytes"
+        ),
+        timeout_seconds=_positive_int(
+            limits.get("timeout_seconds"), "input converter.timeout_seconds"
+        ),
+    )
+
+
+def _parse_declared_tools(
+    value: object,
+) -> tuple[
+    tuple[DeclaredTool, ...],
+    tuple[DeclaredLocalTool, ...],
+    tuple[DeclaredArtifactTool, ...],
+]:
     if not isinstance(value, list):
         raise WorkflowDescriptorError("tools must be a list")
     tools: list[DeclaredTool] = []
+    local_tools: list[DeclaredLocalTool] = []
+    artifact_tools: list[DeclaredArtifactTool] = []
     seen: set[str] = set()
     for raw_tool in value:
         mapping = _mapping(raw_tool, "tools entry")
         tool_id = _text(mapping.get("id"), "tool.id")
         if tool_id in seen:
             raise WorkflowDescriptorError("declared tool ids must be unique")
-        if mapping.get("kind") != "mcp":
-            raise WorkflowDescriptorError("declared tool kind must be mcp")
+        kind = mapping.get("kind")
+        if kind == "local":
+            local_tools.append(_parse_local_tool(mapping, tool_id))
+            seen.add(tool_id)
+            continue
+        if kind == "artifact":
+            artifact_tools.append(_parse_artifact_tool(mapping, tool_id))
+            seen.add(tool_id)
+            continue
+        if kind != "mcp":
+            raise WorkflowDescriptorError("declared tool kind is invalid")
         side_effect = mapping.get("side_effect")
         if side_effect not in {"read", "write", "delete"}:
             raise WorkflowDescriptorError("declared MCP tool side_effect is invalid")
@@ -324,7 +602,69 @@ def _parse_declared_tools(value: object) -> tuple[DeclaredTool, ...]:
             )
         )
         seen.add(tool_id)
-    return tuple(tools)
+    return tuple(tools), tuple(local_tools), tuple(artifact_tools)
+
+
+def _parse_local_tool(mapping: Mapping[str, Any], tool_id: str) -> DeclaredLocalTool:
+    if set(mapping) != {
+        "id",
+        "kind",
+        "asset_path",
+        "accepted_artifact_role",
+        "max_input_bytes",
+        "max_output_bytes",
+        "timeout_seconds",
+    }:
+        raise WorkflowDescriptorError("declared local tool is invalid")
+    asset_path = _text(mapping.get("asset_path"), "tool.asset_path")
+    if asset_path.startswith("/") or ".." in asset_path.split("/"):
+        raise WorkflowDescriptorError("local tool asset_path must be package-relative")
+    return DeclaredLocalTool(
+        tool_id=tool_id,
+        asset_path=asset_path,
+        accepted_artifact_role=_text(
+            mapping.get("accepted_artifact_role"), "tool.accepted_artifact_role"
+        ),
+        max_input_bytes=_positive_int(
+            mapping.get("max_input_bytes"), "tool.max_input_bytes"
+        ),
+        max_output_bytes=_positive_int(
+            mapping.get("max_output_bytes"), "tool.max_output_bytes"
+        ),
+        timeout_seconds=_positive_int(
+            mapping.get("timeout_seconds"), "tool.timeout_seconds"
+        ),
+    )
+
+
+def _parse_artifact_tool(
+    mapping: Mapping[str, Any], tool_id: str
+) -> DeclaredArtifactTool:
+    if set(mapping) != {
+        "id",
+        "kind",
+        "reviewed_package_name",
+        "accepted_artifact_role",
+        "max_result_bytes",
+    }:
+        raise WorkflowDescriptorError("declared artifact tool is invalid")
+    accepted_artifact_role = _text(
+        mapping.get("accepted_artifact_role"), "tool.accepted_artifact_role"
+    )
+    if accepted_artifact_role != "opaque_binary_artifact":
+        raise WorkflowDescriptorError(
+            "artifact tools require opaque_binary_artifact input"
+        )
+    return DeclaredArtifactTool(
+        tool_id=tool_id,
+        reviewed_package_name=_text(
+            mapping.get("reviewed_package_name"), "tool.reviewed_package_name"
+        ),
+        accepted_artifact_role=accepted_artifact_role,
+        max_result_bytes=_positive_int(
+            mapping.get("max_result_bytes"), "tool.max_result_bytes"
+        ),
+    )
 
 
 def _parse_argument_sources(
@@ -412,6 +752,43 @@ def _mapping(value: object, name: str) -> Mapping[str, Any]:
     return value
 
 
+def _parse_capability_requirements(
+    value: object, required_dar_version: object
+) -> CapabilityRequirements | None:
+    if value is None:
+        return None
+    if not _supports_capability_requirements(required_dar_version):
+        raise WorkflowDescriptorError(
+            "dar_runtime.required_version does not support capability requirements"
+        )
+    try:
+        return CapabilityRequirements.from_mapping(value)
+    except CapabilityError as error:
+        raise WorkflowDescriptorError("capability requirements are invalid") from error
+
+
+def _parse_inference_roles(value: object) -> InferenceRoles | None:
+    if value is None:
+        return None
+    try:
+        return parse_inference_roles(value)
+    except LockedInferenceError as error:
+        raise WorkflowDescriptorError("inference roles are invalid") from error
+
+
+def _supports_capability_requirements(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    parts = value.split(".")
+    if len(parts) != 3 or any(
+        not part.isascii() or not part.isdigit() for part in parts
+    ):
+        return False
+    return (
+        tuple(int(part) for part in parts) >= _CAPABILITY_REQUIREMENTS_MIN_DAR_VERSION
+    )
+
+
 def _text(value: object, name: str) -> str:
     if not isinstance(value, str) or not value:
         raise WorkflowDescriptorError(f"{name} must be a non-empty string")
@@ -421,6 +798,22 @@ def _text(value: object, name: str) -> str:
 def _positive_int(value: object, name: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise WorkflowDescriptorError(f"{name} must be a positive integer")
+    return value
+
+
+def _is_digest(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _optional_digest(value: object) -> str | None:
+    if value is None:
+        return None
+    if not _is_digest(value):
+        raise WorkflowDescriptorError("output asset digest is invalid")
     return value
 
 

@@ -1,0 +1,19 @@
+{
+  "bindings": {
+    "runner": {
+      "capability_id": "embedding.execute.v1"
+    }
+  },
+  "capability_requirements_digest": "01d77b2e4f446c71a631a4cfa3747532f5809e77c755dd5a0322761fc6897e81",
+  "format_version": 1,
+  "required_capabilities": [
+    {
+      "capability_id": "embedding.execute.v1",
+      "contract_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "contract_version": "1",
+      "required_features": [
+        "deterministic"
+      ]
+    }
+  ]
+}

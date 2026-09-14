@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import builtins
 import sys
+import threading
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -627,6 +628,136 @@ def test_qwen3_async_helper_owns_native_envelope_codec_for_pinned_model(
 
     assert adapter.capabilities["tool_calling"] is True
     assert response.tool_calls[0].name == "lookup"
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("tool_choice", ["auto", "required", "none"])
+def test_qwen3_helper_rejects_unsupported_tool_choice_before_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    asynchronous: bool,
+    tool_choice: str,
+) -> None:
+    from dynamic_agent_runner import (
+        PINNED_QWEN3_MLX_MODEL_ID,
+        MLXLocalModelConfig,
+        create_qwen3_mlx_local_adapter,
+        create_qwen3_mlx_local_async_adapter,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    generation_calls: list[object] = []
+
+    def generate(*_args: object, **_kwargs: object) -> str:
+        generation_calls.append(object())
+        return "must not generate"
+
+    monkeypatch.setitem(sys.modules, "mlx_lm", SimpleNamespace(generate=generate))
+    factory = (
+        create_qwen3_mlx_local_async_adapter
+        if asynchronous
+        else create_qwen3_mlx_local_adapter
+    )
+    adapter = factory(
+        MLXLocalModelConfig(
+            model_aliases=("qwen3",),
+            model_path=model_path,
+            expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+        ),
+        model=object(),
+        tokenizer=FakeQwen3Tokenizer(),
+        platform_system=lambda: "Darwin",
+    )
+    request = replace(tool_request(), tool_choice=tool_choice)
+
+    with pytest.raises(ModelExecutionError, match="omitted DAR tool_choice"):
+        if asynchronous:
+            asyncio.run(adapter.create_response(request))
+        else:
+            adapter.create_response(request)
+
+    assert generation_calls == []
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_qwen3_helper_serializes_concurrent_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    asynchronous: bool,
+) -> None:
+    from dynamic_agent_runner import (
+        PINNED_QWEN3_MLX_MODEL_ID,
+        MLXLocalModelConfig,
+        create_qwen3_mlx_local_adapter,
+        create_qwen3_mlx_local_async_adapter,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    started = threading.Event()
+    release = threading.Event()
+    active = 0
+    max_active = 0
+    active_lock = threading.Lock()
+
+    def generate(*_args: object, **_kwargs: object) -> str:
+        nonlocal active, max_active
+        with active_lock:
+            active += 1
+            max_active = max(max_active, active)
+            started.set()
+        release.wait(timeout=1)
+        with active_lock:
+            active -= 1
+        return "done"
+
+    monkeypatch.setitem(sys.modules, "mlx_lm", SimpleNamespace(generate=generate))
+    factory = (
+        create_qwen3_mlx_local_async_adapter
+        if asynchronous
+        else create_qwen3_mlx_local_adapter
+    )
+    adapter = factory(
+        MLXLocalModelConfig(
+            model_aliases=("qwen3",),
+            model_path=model_path,
+            expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+        ),
+        model=object(),
+        tokenizer=FakeQwen3Tokenizer(),
+        platform_system=lambda: "Darwin",
+    )
+
+    if asynchronous:
+
+        async def run() -> list[object]:
+            first = asyncio.create_task(adapter.create_response(tool_request()))
+            await asyncio.to_thread(started.wait, 1)
+            second = asyncio.create_task(adapter.create_response(tool_request()))
+            await asyncio.sleep(0.05)
+            release.set()
+            return await asyncio.gather(first, second)
+
+        responses = asyncio.run(run())
+    else:
+        responses: list[object] = []
+
+        def respond() -> None:
+            responses.append(adapter.create_response(tool_request()))
+
+        first = threading.Thread(target=respond)
+        second = threading.Thread(target=respond)
+        first.start()
+        assert started.wait(timeout=1)
+        second.start()
+        second.join(timeout=0.05)
+        release.set()
+        first.join(timeout=1)
+        second.join(timeout=1)
+
+    assert len(responses) == 2
+    assert max_active == 1
 
 
 @pytest.mark.parametrize(

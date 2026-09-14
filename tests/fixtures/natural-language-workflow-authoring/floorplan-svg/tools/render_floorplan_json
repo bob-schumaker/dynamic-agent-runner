@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""Render the observed floorplan JSON contract without inferring topology."""
+
+import base64
+import json
+import sys
+
+
+def invalid() -> None:
+    raise ValueError("floorplan JSON is invalid")
+
+
+def point(value: object) -> tuple[int, int]:
+    if not isinstance(value, list) or len(value) != 2 or not all(
+        isinstance(item, int) and not isinstance(item, bool) for item in value
+    ):
+        invalid()
+    return value[0], value[1]
+
+
+def main() -> None:
+    try:
+        document = json.loads(sys.stdin.buffer.read())
+        if not isinstance(document, dict) or set(document) != {"walls", "rooms"}:
+            invalid()
+        walls = document["walls"]
+        rooms = document["rooms"]
+        if not isinstance(walls, list) or not isinstance(rooms, list):
+            invalid()
+        rendered: list[str] = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">']
+        for wall in walls:
+            if not isinstance(wall, dict) or set(wall) != {
+                "id", "start", "end", "thickness", "curvature", "openings"
+            }:
+                invalid()
+            if not isinstance(wall["id"], str) or not wall["id"]:
+                invalid()
+            x1, y1 = point(wall["start"])
+            x2, y2 = point(wall["end"])
+            thickness = wall["thickness"]
+            if not isinstance(thickness, int) or thickness <= 0 or wall["curvature"] != 0:
+                invalid()
+            if (x1 == x2) == (y1 == y2) or not isinstance(wall["openings"], list):
+                invalid()
+            rendered.append(
+                f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="black" stroke-width="{thickness}"/>'
+            )
+            for opening in wall["openings"]:
+                if not isinstance(opening, dict) or set(opening) != {"type", "center", "width"}:
+                    invalid()
+                if opening["type"] not in {"door", "window"} or not all(
+                    isinstance(opening[key], int) and opening[key] > 0
+                    for key in ("center", "width")
+                ):
+                    invalid()
+                half = opening["width"] // 2
+                if y1 == y2:
+                    rendered.append(f'<line x1="{opening["center"] - half}" y1="{y1}" x2="{opening["center"] + half}" y2="{y1}" stroke="white" stroke-width="{thickness + 2}"/>')
+                else:
+                    rendered.append(f'<line x1="{x1}" y1="{opening["center"] - half}" x2="{x1}" y2="{opening["center"] + half}" stroke="white" stroke-width="{thickness + 2}"/>')
+        rendered.append("</svg>")
+        output = "".join(rendered).encode()
+        print(json.dumps({"status": "accepted", "output_base64": base64.b64encode(output).decode(), "repair_report": {"category": "none"}}, separators=(",", ":")))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        print('{"status":"rejected"}')
+
+
+if __name__ == "__main__":
+    main()

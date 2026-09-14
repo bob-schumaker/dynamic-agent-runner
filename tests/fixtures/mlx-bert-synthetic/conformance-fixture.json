@@ -1,0 +1,38 @@
+{
+  "expected_vectors": [
+    {
+      "id": "padded",
+      "vector": [
+        1.0,
+        -1.0
+      ]
+    },
+    {
+      "id": "truncated",
+      "vector": [
+        1.0,
+        -1.0
+      ]
+    }
+  ],
+  "format_version": 1,
+  "max_error": 1e-05,
+  "padding": {
+    "item_id": "padded",
+    "padding_tokens": 1
+  },
+  "texts": [
+    {
+      "id": "padded",
+      "text": "alpha"
+    },
+    {
+      "id": "truncated",
+      "text": "alpha beta gamma delta"
+    }
+  ],
+  "truncation": {
+    "item_id": "truncated",
+    "token_count": 4
+  }
+}

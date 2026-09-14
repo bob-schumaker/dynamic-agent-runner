@@ -1,0 +1,17 @@
+{
+  "documents": [
+    {
+      "id": "empty",
+      "text": ""
+    },
+    {
+      "id": "query",
+      "text": "query: multilingual retrieval"
+    },
+    {
+      "id": "passage",
+      "text": "passage: Caf\u00e9 na\u00efve \u2014 \u4f60\u597d"
+    }
+  ],
+  "format_version": 1
+}

@@ -1,0 +1,17 @@
+{
+  "documents": [
+    {
+      "id": "empty",
+      "text": ""
+    },
+    {
+      "id": "ascii",
+      "text": "The quick brown fox jumps over the lazy dog."
+    },
+    {
+      "id": "unicode",
+      "text": "Caf\u00e9 na\u00efve \u2014 punctuation!"
+    }
+  ],
+  "format_version": 1
+}

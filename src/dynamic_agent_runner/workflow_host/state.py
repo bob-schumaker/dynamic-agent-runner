@@ -112,6 +112,26 @@ class PrivateStateStore:
         self._require_active(record, now)
         return record
 
+    def load_state(
+        self,
+        handle: str,
+        *,
+        expected_kind: str,
+        owner: str,
+        expected_state: str,
+        now: datetime,
+    ) -> OpaqueRecord:
+        """Load one unexpired record in one explicit authenticated state."""
+
+        _require_state(expected_state)
+        record = self._validated_record(handle, owner=owner)
+        if record.kind != expected_kind:
+            raise OpaqueRecordError("opaque record kind does not match")
+        self._require_unexpired(record, now)
+        if record.state != expected_state:
+            raise OpaqueRecordError(f"opaque record is {record.state}")
+        return record
+
     def active_records(
         self, *, kind: str, owner: str, now: datetime
     ) -> tuple[tuple[str, OpaqueRecord], ...]:
@@ -139,13 +159,16 @@ class PrivateStateStore:
         return tuple(active)
 
     def revoke(self, handle: str, *, owner: str, now: datetime) -> None:
-        """Irreversibly revoke an active record owned by the caller."""
+        """Irreversibly revoke an active or reserved record owned by the caller."""
 
         with self._mutation_lock():
             records = self._read_records()
-            self._active_record(
-                handle, expected_kind=None, owner=owner, now=now, records=records
+            record = self._validated_record_from_records(
+                handle, owner=owner, records=records
             )
+            self._require_unexpired(record, now)
+            if record.state not in {"active", "reserved"}:
+                raise OpaqueRecordError(f"opaque record is {record.state}")
             self._change_state_in_records(records, handle, "revoked")
 
     def consume(
@@ -168,6 +191,41 @@ class PrivateStateStore:
                 records=records,
             )
             self._change_state_in_records(records, handle, "consumed")
+            return record
+
+    def transition(
+        self,
+        handle: str,
+        *,
+        expected_kind: str,
+        owner: str,
+        expected_state: str,
+        new_state: str,
+        now: datetime,
+    ) -> OpaqueRecord:
+        """Atomically transition one unexpired record through an allowed edge."""
+
+        _require_state(expected_state)
+        _require_state(new_state)
+        if (expected_state, new_state) not in {
+            ("active", "reserved"),
+            ("active", "consumed"),
+            ("active", "revoked"),
+            ("reserved", "consumed"),
+            ("reserved", "revoked"),
+        }:
+            raise OpaqueRecordError("opaque record transition is invalid")
+        with self._mutation_lock():
+            records = self._read_records()
+            record = self._validated_record_from_records(
+                handle, owner=owner, records=records
+            )
+            if record.kind != expected_kind:
+                raise OpaqueRecordError("opaque record kind does not match")
+            self._require_unexpired(record, now)
+            if record.state != expected_state:
+                raise OpaqueRecordError(f"opaque record is {record.state}")
+            self._change_state_in_records(records, handle, new_state)
             return record
 
     def consume_and_issue(
@@ -283,10 +341,13 @@ class PrivateStateStore:
             os.close(descriptor)
 
     def _require_active(self, record: OpaqueRecord, now: datetime) -> None:
-        if record.expires_at <= _as_utc(now, "now"):
-            raise OpaqueRecordError("opaque record has expired")
+        self._require_unexpired(record, now)
         if record.state != "active":
             raise OpaqueRecordError(f"opaque record is {record.state}")
+
+    def _require_unexpired(self, record: OpaqueRecord, now: datetime) -> None:
+        if record.expires_at <= _as_utc(now, "now"):
+            raise OpaqueRecordError("opaque record has expired")
 
     def _new_handle(self) -> str:
         token = secrets.token_urlsafe(32)
@@ -412,7 +473,7 @@ def _to_record(raw_record: Mapping[str, Any]) -> OpaqueRecord:
     payload = _canonical_payload(raw_record["payload"])
     if raw_record["payload_digest"] != _digest(payload):
         raise OpaqueRecordError("opaque record integrity check failed")
-    if raw_record["state"] not in {"active", "revoked", "consumed"}:
+    if raw_record["state"] not in {"active", "reserved", "revoked", "consumed"}:
         raise OpaqueRecordError("opaque record integrity check failed")
     return OpaqueRecord(
         kind=_required_text(raw_record["kind"], "kind"),
@@ -428,6 +489,11 @@ def _to_record(raw_record: Mapping[str, Any]) -> OpaqueRecord:
 def _require_nonempty(value: str, name: str) -> None:
     if not isinstance(value, str) or not value:
         raise OpaqueRecordError(f"{name} must be a non-empty string")
+
+
+def _require_state(value: str) -> None:
+    if value not in {"active", "reserved", "revoked", "consumed"}:
+        raise OpaqueRecordError("opaque record state is invalid")
 
 
 def _required_text(value: object, name: str) -> str:

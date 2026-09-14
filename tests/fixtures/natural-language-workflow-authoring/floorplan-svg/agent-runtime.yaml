@@ -1,0 +1,51 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: floorplan-from-image
+name: Floorplan from Image
+description: Generate one SVG floorplan from one sealed image.
+entrypoint: answer_request
+mermaid_diagram: agent-graph.mmd
+packaging:
+  mode: hybrid_bundle
+runtime:
+  execution_policy:
+    autonomy_level: assistive
+    allowed_execution_modes: [sequential_fallback]
+    external_backend_allowed: false
+    max_iterations: 1
+    max_steps: 2
+    model: qwen25-vl-3b-floorplan-grpo
+metadata:
+  patterns_present: [basic-reasoning-agent]
+  participant_groups: []
+  modes: []
+  phases: []
+  roles: []
+extensions: {}
+skills: []
+tools: []
+nodes:
+  - id: answer_request
+    kind: llm_step
+    label: Generate structured floorplan
+    model: qwen25-vl-3b-floorplan-grpo
+    model_parameters:
+      max_tokens: 16384
+      max_continuations: 3
+    response_format: {type: json_object}
+    prompt:
+      system: >-
+        You are a floor plan vectorization expert. Extract wall, door, window
+        geometry from floor plan images into structured JSON. Output ONLY valid
+        JSON with this schema:
+        {{"walls":[{{"id":"wall_N","start":[x,y],"end":[x,y],"thickness":T,"curvature":0,"openings":[{{"type":"door"|"window","center":D,"width":W}}]}}],"rooms":[{{"label":"room_type","walls":["wall_N",...]}}]}}.
+        Coordinates normalized so longer image edge = 1024.
+      user_template: "{prompt}"
+      input_vars: [prompt]
+edges: []
+output_contracts:
+  - id: svg_floorplan
+    required_fields: [message]
+validation:
+  package_checks:
+    - Every node id is unique.

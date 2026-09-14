@@ -1,0 +1,105 @@
+{
+  "execution_descriptor": {
+    "filename": "execution-descriptor.json",
+    "sha256": "52d897280404456873448f1cf794396f32c7bbb3994c9c6c759072c72290fedc"
+  },
+  "format_version": 2,
+  "logical_model_id": "mlx-gte-tiny-embedding-v1",
+  "preparation": [],
+  "runner_contract": {
+    "id": "mlx-embedding-v1",
+    "version": "1"
+  },
+  "sources": [
+    {
+      "filename": "config.json",
+      "group": "encoder",
+      "repository": "TaylorAI/gte-tiny",
+      "revision": "4cc5e73d86a67c601897257b467187234aa3bca3",
+      "role": "bert_config",
+      "sha256": "d3e8bc1261c0933b87dfaa12e984e311158a723c5593a0a57f9558f2a8262e3c",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "modules.json",
+      "group": "sentence_transformer",
+      "repository": "TaylorAI/gte-tiny",
+      "revision": "4cc5e73d86a67c601897257b467187234aa3bca3",
+      "role": "modules_manifest",
+      "sha256": "8f4b264b80206c830bebbdcae377e137925650a433b689343a63bdc9b3145460",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "1_Pooling/config.json",
+      "group": "sentence_transformer",
+      "repository": "TaylorAI/gte-tiny",
+      "revision": "4cc5e73d86a67c601897257b467187234aa3bca3",
+      "role": "pooling_config",
+      "sha256": "4be450dde3b0273bb9787637cfbd28fe04a7ba6ab9d36ac48e92b11e350ffc23",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "sentence_bert_config.json",
+      "group": "sentence_transformer",
+      "repository": "TaylorAI/gte-tiny",
+      "revision": "4cc5e73d86a67c601897257b467187234aa3bca3",
+      "role": "sentence_transformer_config",
+      "sha256": "ec8e29d6dcb61b611b7d3fdd2982c4524e6ad985959fa7194eacfb655a8d0d51",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "tokenizer.json",
+      "group": "tokenizer",
+      "repository": "TaylorAI/gte-tiny",
+      "revision": "4cc5e73d86a67c601897257b467187234aa3bca3",
+      "role": "tokenizer",
+      "sha256": "da0e79933b9ed51798a3ae27893d3c5fa4a201126cef75586296df9b4d2c62a0",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "added_tokens.json",
+      "group": "tokenizer",
+      "repository": "TaylorAI/gte-tiny",
+      "revision": "4cc5e73d86a67c601897257b467187234aa3bca3",
+      "role": "tokenizer_added_tokens",
+      "sha256": "909e96cb32d92ce728a01bc99850cbba26196d74115c17ebeb019275412588f2",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "tokenizer_config.json",
+      "group": "tokenizer",
+      "repository": "TaylorAI/gte-tiny",
+      "revision": "4cc5e73d86a67c601897257b467187234aa3bca3",
+      "role": "tokenizer_config",
+      "sha256": "69033fe64b478a07aa521133752d2772a9dc7b823bc2a7bb5b8944def1c9c5fd",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "special_tokens_map.json",
+      "group": "tokenizer",
+      "repository": "TaylorAI/gte-tiny",
+      "revision": "4cc5e73d86a67c601897257b467187234aa3bca3",
+      "role": "tokenizer_special_tokens",
+      "sha256": "cb63d0cbbf45160dc9cd786a257759593b798ae0c72957011016dbc3972df4e4",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "vocab.txt",
+      "group": "tokenizer",
+      "repository": "TaylorAI/gte-tiny",
+      "revision": "4cc5e73d86a67c601897257b467187234aa3bca3",
+      "role": "tokenizer_vocab",
+      "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "model.safetensors",
+      "group": "encoder",
+      "repository": "TaylorAI/gte-tiny",
+      "revision": "4cc5e73d86a67c601897257b467187234aa3bca3",
+      "role": "weights",
+      "sha256": "41282c37ddd19dbf7352fca3bafd3d187baffacd7231f3f0cd69b7525630e08d",
+      "source_type": "huggingface_file"
+    }
+  ]
+}

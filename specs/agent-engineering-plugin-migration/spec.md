@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: Transfer complete; successor clean-Codex acceptance pending
+- Status: Transfer complete; successor clean-Codex acceptance accepted
 - Owner: dynamic-agent-runner
 - Governing transfer plan: `../ai-environment-roschuma/work-items/plans/dar-plugin-skill-ownership-migration-plan.md`
 - Successor plugin: `plugins/agent-engineering`
@@ -16,6 +16,17 @@ plugin-acceptance framework. Scoped DAR capability-model changes are authorized
 only to compile declared deferred runtime needs into explicit host requirements;
 they do not add scratch, session, subagent, retrieval, embedding, or resume
 execution behavior.
+
+### Release Boundary
+
+The Agent Engineering plugin and the `dynamic-agent-runner` distribution are
+separately versioned and separately releasable. A plugin release changes
+skills, routing, metadata, or marketplace packaging; it does not require a DAR
+build, publication, or version change. A DAR release changes the runtime
+package and, only when its runtime-selector payload changes, the explicit
+runtime pin `V`; it does not require a plugin release. Compatibility validation
+checks declared payload selectors against DAR `V`, not either artifact's
+release cadence or version number.
 
 - Source corpus revision: `6d43f44568dd82b778668f9392148083283d5676`
 - DAR baseline revision: `1212667975af529a57b19604af13ed57ec0a0c9a`
@@ -157,17 +168,30 @@ release metadata. It must preserve the public manifest and branding assets, and
 must reject any undeclared support-file ownership rather than making source
 support files implicitly model-visible.
 
-DAR runtime release linkage is separate from plugin versioning. Each release
-preparation run carries one explicit PEP 440 runtime version `V` in the
+DAR runtime compatibility is separate from plugin versioning. A plugin-only
+guidance, routing, metadata, or marketplace release may change the plugin
+version while retaining an already-compatible runtime `V` (or carrying no
+runtime selector); it must not require a DAR source-version change, a new DAR
+wheel, DAR publication, or a matching DAR release number. It must leave DAR's
+project version, runtime release descriptor, and sealed runtime-selector
+payload unchanged. Conversely, a DAR release may change `V`, its wheel, and
+its selector payload without a plugin-version or marketplace-metadata change.
+`V` is a payload compatibility pin, never a derived plugin version, a
+synchronized release number, or a requirement to ship the two artifacts
+together. These are two independently releasable artifacts, not paired
+releases.
+
+When a release-preparation run creates or changes a runtime-version-bearing
+payload, it carries one explicit PEP 440 runtime version `V` in the
 source-owned `.codex-plugin/dar-runtime-release.json` descriptor. That
 descriptor and `pyproject.toml`'s `dynamic-agent-runner` version are updated
-together for the release target; the built wheel metadata is the post-build
+together for that DAR release target; the built wheel metadata is the post-build
 authority. The built wheel metadata, the release descriptor, every
 runtime-version-bearing generated payload field (including workflow
 `required_version` values), and every payload-owned fallback `uv run`
-launcher selector must equal `V`. The plugin distribution version remains
-independent. Clean-Codex acceptance uses its controller-provided
-`dar-package` directly and never resolves the release wheel through `uv`.
+launcher selector must equal `V`. Clean-Codex acceptance uses its
+controller-provided `dar-package` directly and never resolves the release wheel
+through `uv`.
 
 The release verifier records the authoritative descriptor digest, `V`, wheel
 filename and metadata digest, generated payload digest, and selector-list
@@ -215,6 +239,35 @@ This proves the externally observable contract of a clean successor-only Codex
 environment; it does not claim access to unobservable model reasoning or a
 private “skill loaded” event.
 
+## Accepted Successor Evidence
+
+On 2026-09-11, the separately authorized direct-baseline and generated-root
+replays each completed the closed 23-scenario manifest with no harness failures:
+11 `pending_human_review`, 10 `expected_capability_unavailable`, and 2
+`expected_refusal` results. Their coverage digest was
+`506d58ebac68cc77905e07bc63cfe5726a5758adef991644fc3e4ed901609b57`; their
+scenario-plan digest was
+`63bf0f56ef63e63a35766b4698fb7ac356f418d7717e97e1b235f2f7dd1be60c`.
+
+The redacted comparison bound the frozen direct baseline tree digest
+`9ad3164305d64b2b99ef70f3580a345cfac61b6a9d94dd1cda3f4e9089dc1b8c`, the
+300-second actor timeout, and matching per-scenario protected identities. Its
+direct and generated aggregate digests were respectively
+`592315228c8aec65afd0d44dfac25989142e86e4f0d92eb459f408e5b6f5d60a` and
+`6c796e684e0717eda1dc785198c49eaf06d58fcdfb5d8c68ed48d1074dbdc6ee`.
+Observed actor durations were 1,450,784 ms and 1,620,574 ms; duration is
+recorded, not treated as behavioral parity.
+
+The review also verified public interface parity with the focused generated-tree
+test and the generated-root receipt set: manifest
+`1d8c3a6d6eeded7b5a0e0d674d4718fd916fd9f004b3ea64f8e6a4d75aec1a04`, payload
+`2bca5a11de909e578fc45212cfb2cf45fc5a5d445b394d1480025e7f90688466`, release
+metadata `33cd726a4dbd109008f8bf041f75e0ce44d04eba314f5a00841fcba109570e26`,
+router authority `8693422fec8f2b6de3c1f29f2aa139577e15dea9e7535113ee7cc7e1b6e59c54`,
+and source map `9c146b7f2ef77805828f2392b55cb40654984b487e3f45ac9c8df05f8c5e3bfb`.
+This accepts the migration gate only. It neither authorizes source cleanup nor
+publishes or installs a new plugin or DAR release.
+
 Ordinary tests run the full scenario lifecycle through deterministic fake model,
 tool, connection, approval, and host collaborators for every manifest entry;
 they make no network or live-Codex call. A separately authorized external
@@ -228,6 +281,5 @@ finalization before registration rejects their declared missing host
 capability. This is boundary evidence only, not support for those deferred
 features.
 
-Until this gate passes, `agent-engineering` is the only marketplace successor,
-but the migration record must not claim successor clean-Codex author-then-run
-acceptance.
+`agent-engineering` is the only marketplace successor. This accepted migration
+record does not itself authorize source cleanup, publication, or installation.

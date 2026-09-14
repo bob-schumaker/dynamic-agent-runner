@@ -221,6 +221,20 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Require both Council deliberation and Ponytail review for every
   `review-to-readiness` and `deliver-ready-item` workflow; report their
   conclusions before declaring the artifact ready.
+- Distinguish the DAR runtime version pin from the Agent Engineering plugin
+  version; update DAR-owned pins and `pyproject.toml` together, never
+  hand-edit `poetry.lock` for a version reset.
+- Keep DAR workflow authoring user-facing: ask only for an output contract
+  that cannot be inferred, and keep manifests, material-set IDs, and host
+  receipts internal.
+- Do not add authoring-model configuration or lifecycle to DAR; Agent
+  Engineering proposes canonical workflow artifacts while DAR validates, binds,
+  and registers them internally.
+- Keep DAR generic: workflow-local tooling owns domain semantics such as SVG
+  validation; DAR provides only the approved sandbox, sealed artifacts, limits,
+  tracing, and registration. Agent Engineering identifies unmet tooling and
+  writes repository guidance, never executable local-tool code; after the
+  converter-plugin isolation gate, it may create only sealed converter assets.
 
 ---
 

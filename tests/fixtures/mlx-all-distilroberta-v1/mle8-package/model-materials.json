@@ -1,0 +1,103 @@
+{
+  "execution_descriptor": {
+    "filename": "execution-descriptor.json",
+    "sha256": "741c566a26f604d7db84136da2764019301b9d411d18bd0fac47998e2b532c5a"
+  },
+  "format_version": 2,
+  "logical_model_id": "mlx-all-distilroberta-v1-embedding-v1",
+  "preparation": [
+    {
+      "capability_id": "mlx.embedding.roberta.weights.prepare.v1",
+      "contract_digest": "2f2dd1b94f64b7972a65adca5fe574f299e3e1983f4a1400f933ad9e6f43ae54",
+      "contract_version": "1",
+      "inputs": [
+        "source_weights"
+      ],
+      "output": {
+        "filename": "model.safetensors",
+        "group": "weights",
+        "role": "weights",
+        "sha256": "9b4b94537873a2bf20017063cc3c040ca47def825d6a6a63e4c55fdbfb9d3d74"
+      },
+      "transformation_digest": "698ed30bee9759a46def227456bc8b25169a1e884279370f141101b7d1d1ea00"
+    }
+  ],
+  "runner_contract": {
+    "id": "mlx-embedding-v1",
+    "version": "1"
+  },
+  "sources": [
+    {
+      "filename": "merges.txt",
+      "group": "tokenizer",
+      "repository": "sentence-transformers/all-distilroberta-v1",
+      "revision": "842eaed40bee4d61673a81c92d5689a8fed7a09f",
+      "role": "merges",
+      "sha256": "fe36cab26d4f4421ed725e10a2e9ddb7f799449c603a96e7f29b5a3c82a95862",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "modules.json",
+      "group": "sentence_transformer",
+      "repository": "sentence-transformers/all-distilroberta-v1",
+      "revision": "842eaed40bee4d61673a81c92d5689a8fed7a09f",
+      "role": "modules_manifest",
+      "sha256": "84e40c8e006c9b1d6c122e02cba9b02458120b5fb0c87b746c41e0207cf642cf",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "1_Pooling/config.json",
+      "group": "sentence_transformer",
+      "repository": "sentence-transformers/all-distilroberta-v1",
+      "revision": "842eaed40bee4d61673a81c92d5689a8fed7a09f",
+      "role": "pooling_config",
+      "sha256": "a37f83ada23e7887be6b88f4998927dbeac0038af301553c7cd5461413bf1a56",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "config.json",
+      "group": "encoder",
+      "repository": "sentence-transformers/all-distilroberta-v1",
+      "revision": "842eaed40bee4d61673a81c92d5689a8fed7a09f",
+      "role": "roberta_config",
+      "sha256": "6f9efb40bd192274dd2e6f43c326cd4571cbefe647f4a274e83073be4f13f928",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "model.safetensors",
+      "group": "encoder",
+      "repository": "sentence-transformers/all-distilroberta-v1",
+      "revision": "842eaed40bee4d61673a81c92d5689a8fed7a09f",
+      "role": "source_weights",
+      "sha256": "3c739fad12f3f12428a677cfcc73391a5860a8bad0ff7a971fd67e6065201fc2",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "tokenizer_config.json",
+      "group": "tokenizer",
+      "repository": "sentence-transformers/all-distilroberta-v1",
+      "revision": "842eaed40bee4d61673a81c92d5689a8fed7a09f",
+      "role": "tokenizer_config",
+      "sha256": "5066b57002ab15418f3472aa53a8b083878f84050e8153ba62b9d40e10651a4c",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "special_tokens_map.json",
+      "group": "tokenizer",
+      "repository": "sentence-transformers/all-distilroberta-v1",
+      "revision": "842eaed40bee4d61673a81c92d5689a8fed7a09f",
+      "role": "tokenizer_special_tokens",
+      "sha256": "378eb3bf733eb16e65792d7e3fda5b8a4631387ca04d2015199c4d4f22ae554d",
+      "source_type": "huggingface_file"
+    },
+    {
+      "filename": "vocab.json",
+      "group": "tokenizer",
+      "repository": "sentence-transformers/all-distilroberta-v1",
+      "revision": "842eaed40bee4d61673a81c92d5689a8fed7a09f",
+      "role": "vocab",
+      "sha256": "ed19656ea1707df69134c4af35c8ceda2cc9860bf2c3495026153a133670ab5e",
+      "source_type": "huggingface_file"
+    }
+  ]
+}

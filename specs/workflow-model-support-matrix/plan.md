@@ -1,0 +1,188 @@
+# Workflow Model Support Matrix Implementation Plan
+
+Status: Implemented through WMS5; one redacted Fastmail live receipt is recorded
+
+## Spec Trace
+
+- Spec: `spec.md`
+- Discovery: `discovery.md`
+- Related contracts: `../model-interface-parity/spec.md`,
+  `../fastmail-inbox-triage/spec.md`, and
+  `../workflow-embedding-index-artifacts/spec.md`
+
+## Technical Summary
+
+Add a package-owned declarative profile and classifier layer over existing
+adapter, provider, sealed-material, host-capability, session/context, and
+tool-pack facts. Run safe synthetic fixtures through it in pytest. Add separate
+gated Fastmail and floorplan entry points that consume eligible classified rows
+and emit only redacted receipts.
+
+## Architecture and Data Flow
+
+```text
+workflow profile + package/material lock + adapter/provider facts + host facts
+                                  |
+                                  v
+                         support-cell classifier
+                         |        |          |
+                         v        v          v
+                    supported  blocked  not_applicable/deferred
+                         |
+          +--------------+----------------+
+          |                               |
+          v                               v
+synthetic fake-only profiles      authorized Fastmail/floorplan probes
+          |                               |
+          +---------------+---------------+
+                          v
+                    redacted receipt
+```
+
+The classifier must inspect only declared facts and immutable package/material
+identity before selecting an execution route. Synthetic profiles are distinct
+from production package evidence. Live evidence is package-digest bound and
+cannot be generalized to another model/material closure.
+
+## Initial Profile Catalog
+
+| Profile | Execution mode | Required facts | Evidence boundary |
+| --- | --- | --- | --- |
+| Fastmail triage | synthetic; separately authorized live read-only | tool use, reviewed read-only surface, exact package lock | no mailbox content or OAuth data |
+| Embedding/index | synthetic | matching sealed embedding material and admitted ABI/provider | injected documents/provider only |
+| Floorplan SVG | deterministic fixture; separately authorized MPS completion | exact converter, material closure, validator, bounded runner, eligible MPS policy | source fixture and redacted receipt only |
+| Structured output after tool use | synthetic | tool use and declared JSON/schema output capability | controlled schemas/results only |
+| Stateful context | synthetic | session/context preparation and bounded overflow retry | redacted selection/classification only |
+| Tool-pack composition | synthetic | descriptor packing, approval, injected web/workspace/subagent collaborators | no external clients or child processes |
+
+## Affected Areas
+
+- `src/dynamic_agent_runner/` — new generic support-profile, classification,
+  and receipt types plus a narrow runner entry point where existing patterns
+  place it.
+- `tests/` — fake profile/classifier, sealed-material mismatch, fixture, and
+  redaction coverage.
+- `scripts/` — operator-gated receipt runner, if the existing live-matrix
+  command cannot safely host workflow-level profiles.
+- `README.md`, `docs/files/validation-and-testing.rst` — supported test modes
+  and explicit non-portability semantics.
+
+## Contracts
+
+WMS1 defines these pure types in one internal classifier module after existing
+capability-report types are inspected:
+
+- `WorkflowSupportProfile`: profile ID, workflow family, required adapter, ABI,
+  provider, and host facts, material roles/identity, permitted mode,
+  authorization class, and canonical digest.
+- `WorkflowSupportCell`: profile/adapter/environment identity, one status,
+  ordered reason codes, and no execution side effects.
+- `WorkflowSupportReceipt`: redacted execution evidence bound to the profile and
+  exact package/material descriptors. WMS1 validates the data shape only;
+  WMS3 owns rendering and live entry points.
+
+Status meaning:
+
+| Status | Meaning | May execute? |
+| --- | --- | --- |
+| `supported` | All declared requirements are present and the profile is eligible. | Synthetic: yes; live: only after authorization. |
+| `not_applicable` | The adapter intentionally cannot meet a workflow requirement. | No. |
+| `blocked` | A required local fact, reviewed surface, host capability, provider, or material is unavailable. | No. |
+| `deferred` | A required implementation/profile is not delivered yet. | No. |
+
+## Verification Strategy
+
+| Requirement | Test/Check | Command |
+| --- | --- | --- |
+| FR-001/FR-002 | profile validation and pure classification tests | `poetry run pytest tests/test_workflow_model_support_matrix.py -q` |
+| FR-003 | fake-only Fastmail and embedding fixture tests | `poetry run pytest tests/test_workflow_model_support_matrix.py tests/test_dar_authoring_mcp_tools.py tests/test_dar_authoring_runner.py tests/test_fastmail_triage_report.py tests/test_mlx_gte_tiny_mle6_execution.py tests/test_embedding_execution.py -q` |
+| FR-004/FR-005 | authorization and redacted-receipt tests with fakes | `poetry run pytest tests/test_workflow_model_support_matrix.py -q` |
+| FR-006/FR-007 | binding/non-transferability and regression tests | `poetry run pytest tests/test_workflow_model_support_matrix.py tests/test_model_interface_matrix.py -q` |
+| FR-008--FR-010 | profile fixture and no-external-I/O tests | `poetry run pytest tests/test_workflow_model_support_matrix.py tests/test_floorplan_svg_fixture.py tests/test_model_interface_matrix.py tests/test_agent_sessions.py tests/test_executor.py tests/test_registry.py tests/test_subagents.py tests/test_dar_authoring_authorized_tools.py -q` |
+| All | full regression and lint | `poetry run pytest -q && poetry run ruff check src tests` |
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Provider names become proxy capabilities | false support claims | classify declared capability/material facts only |
+| Live probe leaks content | privacy breach | redacted fixed receipt schema; no raw payload persistence |
+| Fastmail package evidence is generalized | invalid compatibility claim | bind every receipt to package/material identity |
+| A candidate lacks an exact MLX package row | misleading support claim | retain `deferred` rows until that candidate records its own sealed package/material receipt; the MLE6, MLE7, and MLE8 rows are each non-transferable |
+| Floorplan evidence overstates portability | invalid model claim | bind profile and receipts to converter/material/validator/MPS facts |
+| Synthetic profiles call real collaborators | unintended side effect | install I/O and process blockers in every profile test |
+| A floorplan completion receipt overclaims worker cleanup | false live evidence | expose one generic scalar `worker_reaped` attestation after controller-confirmed cleanup; project it without worker internals |
+| Fastmail registration and package identities differ | live probe cannot admit the real host state | accept a workflow ID only; inspect the registered immutable state and derive package/material/support facts before host opening |
+
+## WMS3.3 Floorplan Completion Slice
+
+Implement one narrow `floorplan_mps_completion_probe` boundary and one
+operator-gated script. Reuse the support classifier, generic MPS worker
+controller, registered package revision, compiled policy, and existing sealed
+workflow-local JSON-admission/render/SVG-validator chain. Do not share the
+Fastmail profile parser, accept operator-supplied support facts, add a probe
+registry, or add a floorplan-named host configuration path.
+
+The probe derives its profile and all sealed identity facts from the registered
+revision/policy, classifies before host opening/worker construction, runs exactly
+one sealed image only after explicit authorization, and renders the fixed
+redacted receipt defined by the spec. Extend the generic worker result with the
+minimum scalar cleanup attestation needed to preserve controller-confirmed reap
+evidence; do not expose child handles, PIDs, or runtime internals.
+
+## Rejected Alternatives
+
+- Run every workflow against every adapter unconditionally — invalid because
+  adapters and sealed packages do not share capabilities or material formats.
+- Extend S1--S6 with Fastmail/MCP — rejected because that suite is deliberately
+  harmless and offline.
+- Add a live test to every workflow profile — rejected because most profiles
+  have deterministic injected seams and no live external behavior to authorize.
+
+## WMS5 Fastmail Probe Identity Repair
+
+WMS5 repaired the narrow operator probe. It replaced the ambiguous
+`--package-name` input with `--workflow-id`, resolves that key through
+`inspect_saved_workflow`, and derives the profile, registered package ID,
+revision, material identity, and policy facts from immutable registered state.
+It removed `--support-facts`, which could only self-consistently echo operator
+input and could not establish admission. A reviewed MCP surface remains dynamic,
+so the configured host revalidates it immediately before tool dispatch rather
+than treating static inspection as current-surface validation.
+
+The focused tests reproduced the supported shape: workflow ID
+`fastmail-inbox-triage-qwen-v4` resolves to sealed package ID
+`fastmail-inbox-triage-qwen`. They prove that a missing workflow, an
+inconsistent derived registration/policy, or a stale reviewed surface refuses
+before host opening or tool dispatch as applicable. The route retains explicit
+opt-in, target, and authorization-reference inputs; it records their digests
+only. Do not
+record the owner-local state root, target, credentials, mailbox content, or
+Codex session transcript in repository artifacts.
+
+Before the live attempt, WMS5.2 observed `saved package policy does not match`
+for the registered Fastmail workflow. WMS5.4 then reconciled that exact
+package/revision and reviewed binding. The probe continues to fail closed and
+does not reselect or substitute a package to make the command run.
+
+WMS5.5 supplied the explicit refresh boundary. It updates only the
+policy-derived registration facts for the already registered workflow ID,
+package ID, and revision digest, after existing profile and MCP binding
+revalidation. It does not reuse the ordinary collision path, accept a source
+path, select a different package, or become a general registration overwrite.
+
+## Plan Approval
+
+- Status: WMS1--WMS5 complete, including WMS5.4 registration reconciliation
+  and one WMS5.3 redacted read-only Fastmail receipt.
+- Notes: One shared redacted execution-receipt extension supports six separate
+  fully offline profiles. Synthetic Fastmail evidence cannot inherit a live
+  mailbox receipt, and the three package-bound MLE6, MLE7, and MLE8 Darwin/MLX
+  competency rows cannot transfer to a different package or material closure.
+  WMS3.3 records one authorized floorplan MPS receipt; WMS5 records one
+  authorized Fastmail read-only receipt after deriving registered workflow
+  identity rather than conflating its key with the sealed package ID. The
+  architecture-triad review
+  required integrated workflow
+  tests where existing unit seams are disjoint; Ponytail retained only those
+  existing fakes and introduced no registry or provider abstraction.

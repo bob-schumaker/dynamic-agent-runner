@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -104,6 +105,35 @@ def test_staging_copies_selected_package_and_validates_dar(tmp_path: Path) -> No
     assert (staged.root / "agent-runtime.yaml").read_text(encoding="utf-8") == (
         source / "agent-runtime.yaml"
     ).read_text(encoding="utf-8")
+
+
+def test_staging_marks_declared_terminal_output_processors_executable(
+    tmp_path: Path,
+) -> None:
+    source = _source_package(tmp_path)
+    processor = source / "tools" / "capture-output"
+    processor.parent.mkdir()
+    processor.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    source_descriptor = source / "workflow-descriptor.yaml"
+    source_descriptor.write_text(
+        source_descriptor.read_text(encoding="utf-8").replace(
+            "output:\n  schema_ref: final_answer\n",
+            "output:\n"
+            "  schema_ref: final_answer\n"
+            "  processors:\n"
+            "    - asset_path: tools/capture-output\n"
+            "      max_output_bytes: 512\n"
+            "      timeout_seconds: 1\n",
+        ),
+        encoding="utf-8",
+    )
+    handle, store = _selection(tmp_path, source)
+
+    staged = PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
+        handle, now=NOW
+    )
+
+    assert (staged.root / "tools" / "capture-output").stat().st_mode & stat.S_IXUSR
 
 
 def test_staging_writes_a_canonical_content_manifest(tmp_path: Path) -> None:

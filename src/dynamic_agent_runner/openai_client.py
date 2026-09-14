@@ -233,6 +233,7 @@ class ModelResponse:
     tool_calls: tuple[ModelToolCall, ...] = ()
     response_id: str | None = None
     raw: Any = None
+    metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

@@ -3383,6 +3383,44 @@ def test_llama_cpp_local_adapter_resolves_model_and_normalizes_chat_response(
     ]
 
 
+def test_llama_cpp_local_adapter_forwards_supported_generation_parameters(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        create_llama_cpp_local_adapter,
+    )
+    from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+    backend = _FakeLlamaCppBackend()
+    adapter = create_llama_cpp_local_adapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+            expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+        ),
+        backend=backend,
+    )
+
+    adapter.create_response(
+        build_openai_request(
+            model="llama-local-chat",
+            messages=[OpenAIMessage("user", "Hello")],
+            max_tokens=256,
+            temperature=0,
+            stop=["</svg>"],
+            unsupported_parameter="ignored",
+        )
+    )
+
+    assert backend.calls[0]["max_tokens"] == 256
+    assert backend.calls[0]["temperature"] == 0
+    assert backend.calls[0]["stop"] == ["</svg>"]
+    assert "unsupported_parameter" not in backend.calls[0]
+
+
 def test_llama_cpp_local_adapter_offline_policy_blocks_download(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

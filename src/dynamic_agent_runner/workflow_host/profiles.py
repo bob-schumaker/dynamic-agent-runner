@@ -33,9 +33,13 @@ from dynamic_agent_runner.workflow_host.fastmail_triage_model import (
     FASTMAIL_TRIAGE_MODEL_ALIAS,
     create_fastmail_triage_llama_cpp_adapter as _create_fastmail_triage_llama_cpp_adapter,
 )
-
+from dynamic_agent_runner.workflow_host.model_execution_binding import (
+    ModelExecutionBinding,
+)
 
 FASTMAIL_TRIAGE_MODEL_ID = "Qwen/Qwen2.5-3B-Instruct-GGUF"
+PREPARED_TRANSFORMERS_ADAPTER_ID = "transformers-peft-adapter-v1"
+PREPARED_TRANSFORMERS_RUNNER_ID = "transformers-peft-v1"
 
 
 class LocalModelProfileError(ValueError):
@@ -44,6 +48,7 @@ class LocalModelProfileError(ValueError):
 
 _PROFILE_REQUIREMENT_CAPABILITIES = {
     "local-general-model": frozenset({"text_generation"}),
+    "local-multimodal-model-v1": frozenset({"text_generation", "multimodal_input"}),
     "general-language-model-v1": frozenset({"text_generation"}),
 }
 
@@ -72,6 +77,7 @@ class LocalModelProfile:
     base_url: str | None
     profile_requirement: str
     capabilities: frozenset[str]
+    runner_id: str
     profile_digest: str
 
 
@@ -161,11 +167,14 @@ class LocalModelProfileControlPlane:
         _nonempty(model_id, "model_id")
         _nonempty(execution_model_id, "execution_model_id")
         _nonempty(profile_requirement, "profile_requirement")
+        runner_id = payload.get("runner_id", _runner_id_for_adapter(adapter_id))
+        _nonempty(runner_id, "runner_id")
         if adapter_id == "strict-local-adapter-v1":
             _validate_loopback_base_url(base_url)
         elif adapter_id in {
             "apple-foundation-models-adapter-v1",
             FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+            PREPARED_TRANSFORMERS_ADAPTER_ID,
         }:
             if base_url is not None:
                 raise LocalModelProfileError("local model profile is invalid")
@@ -182,14 +191,27 @@ class LocalModelProfileControlPlane:
             profile_requirement=profile_requirement,
             capabilities=capabilities,
         )
-        if not isinstance(profile_digest, str) or profile_digest != _profile_digest(
+        expected_digest = _profile_digest(
             adapter_id=adapter_id,
             model_id=model_id,
             execution_model_id=execution_model_id,
             base_url=base_url,
             profile_requirement=profile_requirement,
             capabilities=capabilities,
-        ):
+            runner_id=runner_id,
+        )
+        legacy_digest = _profile_digest(
+            adapter_id=adapter_id,
+            model_id=model_id,
+            execution_model_id=execution_model_id,
+            base_url=base_url,
+            profile_requirement=profile_requirement,
+            capabilities=capabilities,
+        )
+        if not isinstance(profile_digest, str) or profile_digest not in {
+            expected_digest,
+            legacy_digest if "runner_id" not in payload else "",
+        }:
             raise LocalModelProfileError("local model profile is invalid")
         return LocalModelProfile(
             profile_id,
@@ -199,6 +221,7 @@ class LocalModelProfileControlPlane:
             base_url,
             profile_requirement,
             capabilities,
+            runner_id,
             profile_digest,
         )
 
@@ -228,6 +251,33 @@ class LocalModelProfileControlPlane:
             capabilities={"text_generation"},
         )
 
+    def create_prepared_transformers(
+        self,
+        *,
+        binding: ModelExecutionBinding,
+        profile_requirement: str,
+    ) -> LocalModelProfile:
+        """Persist the closed generic Transformers+PEFT profile for one binding."""
+
+        if (
+            not isinstance(binding, ModelExecutionBinding)
+            or binding.runner_contract_id != "transformers-generate-v1"
+            or binding.runner_contract_version != "1"
+            or binding.execution_abi_id != "transformers-peft-generation-v1"
+            or binding.execution_abi_version != "1"
+            or profile_requirement != "local-multimodal-model-v1"
+        ):
+            raise LocalModelProfileError("prepared transformers binding is invalid")
+        return self._issue(
+            model_id=binding.logical_model_id,
+            execution_model_id=binding.logical_model_id,
+            adapter_id=PREPARED_TRANSFORMERS_ADAPTER_ID,
+            base_url=None,
+            profile_requirement=profile_requirement,
+            capabilities={"text_generation", "multimodal_input"},
+            runner_id=PREPARED_TRANSFORMERS_RUNNER_ID,
+        )
+
     def _issue(
         self,
         *,
@@ -237,6 +287,7 @@ class LocalModelProfileControlPlane:
         base_url: str | None,
         profile_requirement: str,
         capabilities: Iterable[str],
+        runner_id: str | None = None,
     ) -> LocalModelProfile:
         capability_set = frozenset(capabilities)
         if not capability_set or any(
@@ -248,6 +299,8 @@ class LocalModelProfileControlPlane:
             profile_requirement=profile_requirement,
             capabilities=capability_set,
         )
+        runner_id = runner_id or _runner_id_for_adapter(adapter_id)
+        _nonempty(runner_id, "runner_id")
         profile_digest = _profile_digest(
             adapter_id=adapter_id,
             model_id=model_id,
@@ -255,6 +308,7 @@ class LocalModelProfileControlPlane:
             base_url=base_url,
             profile_requirement=profile_requirement,
             capabilities=capability_set,
+            runner_id=runner_id,
         )
         handle = self._store.issue(
             kind="local_model_profile",
@@ -266,6 +320,7 @@ class LocalModelProfileControlPlane:
                 "base_url": base_url,
                 "profile_requirement": profile_requirement,
                 "capabilities": sorted(capability_set),
+                "runner_id": runner_id,
                 "profile_digest": profile_digest,
             },
             expires_at=datetime.max.replace(tzinfo=UTC),
@@ -279,6 +334,7 @@ class LocalModelProfileControlPlane:
             base_url,
             profile_requirement,
             capability_set,
+            runner_id,
             profile_digest,
         )
 
@@ -388,6 +444,7 @@ def _profile_digest(
     base_url: str | None,
     profile_requirement: str,
     capabilities: frozenset[str],
+    runner_id: str | None = None,
 ) -> str:
     return hashlib.sha256(
         json.dumps(
@@ -399,6 +456,7 @@ def _profile_digest(
                 "base_url_identity": _base_url_identity(base_url),
                 "profile_requirement": profile_requirement,
                 "capabilities": sorted(capabilities),
+                **({"runner_id": runner_id} if runner_id is not None else {}),
             },
             sort_keys=True,
             separators=(",", ":"),
@@ -431,8 +489,12 @@ def _validate_profile_contract(
         "strict-local-adapter-v1",
         "apple-foundation-models-adapter-v1",
         FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
+        PREPARED_TRANSFORMERS_ADAPTER_ID,
     }:
-        if profile_requirement != "local-general-model":
+        if profile_requirement not in {
+            "local-general-model",
+            "local-multimodal-model-v1",
+        }:
             raise LocalModelProfileError("local model profile is invalid")
         return
     if (
@@ -440,6 +502,18 @@ def _validate_profile_contract(
         or profile_requirement != "general-language-model-v1"
     ):
         raise LocalModelProfileError("local model profile is invalid")
+
+
+def _runner_id_for_adapter(adapter_id: object) -> str:
+    """Return the fixed internal runner name for a legacy profile adapter."""
+
+    return {
+        "strict-local-adapter-v1": "local-openai-endpoint-v1",
+        "apple-foundation-models-adapter-v1": "apple-foundation-models-v1",
+        FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID: "llama-cpp-v1",
+        PREPARED_TRANSFORMERS_ADAPTER_ID: PREPARED_TRANSFORMERS_RUNNER_ID,
+        "hosted-openai-adapter-v1": "hosted-openai-v1",
+    }.get(adapter_id, "")
 
 
 def _is_loopback_host(hostname: str) -> bool:

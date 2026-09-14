@@ -67,6 +67,39 @@ class MaterializedWorkspaceInputArtifact:
     content: str
 
 
+@dataclass(frozen=True)
+class MaterializedWorkspaceImageArtifact:
+    """Hash-verified image bytes available only to an approved vision adapter."""
+
+    artifact_id: str
+    content_hash: str
+    role: str
+    media_type: str
+    content: bytes
+
+
+@dataclass(frozen=True)
+class MaterializedWorkspaceBinaryArtifact:
+    """Hash-verified bytes available only to a host-local tool binding."""
+
+    artifact_id: str
+    content_hash: str
+    role: str
+    media_type: str
+    content: bytes
+
+
+@dataclass(frozen=True)
+class OpaqueBinaryArtifactReference:
+    """Verified opaque-artifact metadata safe to bind to a host-owned tool."""
+
+    artifact_id: str
+    content_hash: str
+    byte_count: int
+    role: str
+    media_type: str
+
+
 class WorkspaceIngressService:
     """Copy trusted caller files into fresh, registration-bound private workspaces."""
 
@@ -221,6 +254,83 @@ class WorkspaceIngressService:
             artifact.content_hash,
             artifact.role,
             text,
+        )
+
+    def materialize_image(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceImageArtifact:
+        """Read one sealed image after rechecking its registration and hash."""
+
+        artifact = self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        if not artifact.media_type.startswith("image/"):
+            raise WorkspaceIngressError("workspace image content is unavailable")
+        return MaterializedWorkspaceImageArtifact(
+            artifact.artifact_id,
+            artifact.content_hash,
+            artifact.role,
+            artifact.media_type,
+            _read_verified_private_content(artifact),
+        )
+
+    def materialize_binary(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceBinaryArtifact:
+        """Read one sealed binary only for a host-local tool binding."""
+
+        artifact = self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceBinaryArtifact(
+            artifact.artifact_id,
+            artifact.content_hash,
+            artifact.role,
+            artifact.media_type,
+            _read_verified_private_content(artifact),
+        )
+
+    def opaque_binary_reference(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> OpaqueBinaryArtifactReference:
+        """Return sealed opaque-artifact metadata without a caller path or bytes."""
+
+        artifact = self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        if artifact.role != "opaque_binary_artifact":
+            raise WorkspaceIngressError("opaque binary artifact is unavailable")
+        _read_verified_private_content(artifact)
+        return OpaqueBinaryArtifactReference(
+            artifact.artifact_id,
+            artifact.content_hash,
+            artifact.byte_count,
+            artifact.role,
+            artifact.media_type,
         )
 
 

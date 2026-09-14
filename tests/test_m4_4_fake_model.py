@@ -29,6 +29,18 @@ def test_fake_model_returns_text_without_a_declared_tool() -> None:
     assert response["choices"][0]["message"]["content"] == "summary"
 
 
+def test_fake_model_returns_the_declared_review_graph_route() -> None:
+    module = _fixture_module()
+
+    response = module._fake_response(
+        json.dumps(
+            {"input": [{"role": "user", "content": "Review Complete the request."}]}
+        ).encode()
+    )
+
+    assert response["choices"][0]["message"]["content"] == "proceed"
+
+
 def test_fake_model_calls_the_first_declared_zero_argument_tool() -> None:
     module = _fixture_module()
 
@@ -57,6 +69,46 @@ def test_fake_model_calls_the_first_declared_zero_argument_tool() -> None:
         "arguments": "{}",
     }
     assert response["output"][0]["type"] == "function_call"
+
+
+def test_fake_model_selects_only_a_declared_m44_fixture_tool() -> None:
+    module = _fixture_module()
+
+    response = module._fake_response(
+        json.dumps(
+            {
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "erase_everything",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {},
+                                "required": [],
+                            },
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "list_unread",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {},
+                                "required": [],
+                            },
+                        },
+                    },
+                ]
+            }
+        ).encode()
+    )
+
+    assert (
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"]
+        == "list_unread"
+    )
 
 
 def test_fake_model_calls_declared_tool_with_deterministic_required_arguments() -> None:
@@ -169,6 +221,40 @@ def test_fake_model_uses_declared_email_body_artifact_provenance() -> None:
     envelope = json.loads(arguments["provenance_envelope"])
     assert envelope["arguments"]["body"] == "controller fixture input\n"
     assert envelope["sources"]["body"] == {"kind": "artifact", "ref": "email_body"}
+
+
+def test_fake_model_uses_any_declared_artifact_role_for_body_provenance() -> None:
+    module = _fixture_module()
+    prompt = "Send the email to fixture@example.test using the declared vendor-ticket artifact."
+
+    response = module._fake_response(
+        json.dumps(
+            {
+                "input": [{"role": "user", "content": prompt}],
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "mail_send",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "provenance_envelope": {"type": "string"}
+                                },
+                                "required": ["provenance_envelope"],
+                            },
+                        },
+                    }
+                ],
+            }
+        ).encode()
+    )
+
+    arguments = json.loads(
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"]
+    )
+    envelope = json.loads(arguments["provenance_envelope"])
+    assert envelope["sources"]["body"] == {"kind": "artifact", "ref": "vendor-ticket"}
 
 
 def test_fake_model_streams_a_declared_tool_call() -> None:

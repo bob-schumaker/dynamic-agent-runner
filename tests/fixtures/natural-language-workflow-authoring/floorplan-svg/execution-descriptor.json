@@ -1,0 +1,34 @@
+{
+  "abi_fields": {
+    "generation_budget": {
+      "max_continuations": 3,
+      "max_effective_context_tokens": 16384,
+      "max_memory_bytes": 30150672384,
+      "max_new_tokens_per_fragment": 4096,
+      "max_runtime_milliseconds": 360000,
+      "max_total_generated_tokens": 16384,
+      "max_total_output_bytes": 32768
+    }
+  },
+  "architecture_abi": {
+    "contract_digest": "572b21f33b158466c1fee84d34a12770b91b62d9f031551e0d212aec9b8491d6",
+    "id": "transformers-peft-generation-v1",
+    "version": "1"
+  },
+  "format_version": 1,
+  "material_roles": [
+    "adapter_config",
+    "adapter_weights",
+    "base_chat_template",
+    "base_config",
+    "base_generation_config",
+    "base_weight_1",
+    "base_weight_2",
+    "base_weight_index",
+    "processor_config",
+    "processor_merges",
+    "processor_tokenizer",
+    "processor_tokenizer_config",
+    "processor_vocab"
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "abi_fields": {
+    "conformance": {
+      "fixture_filename": "conformance-fixture.json",
+      "fixture_sha256": "b61251f8fe093d86ccb8b22b9a3398d978bc9c3b5995b9dca698c1471d63b262",
+      "max_error": 0.005,
+      "metric": "max_abs",
+      "precision": "float32"
+    },
+    "encoder": {
+      "attention_heads": 12,
+      "dtype": "float32",
+      "hidden_size": 768,
+      "intermediate_size": 3072,
+      "layer_norm_epsilon": 1e-05,
+      "layers": 6,
+      "max_positions": 514,
+      "position_ids": "roberta-padding-index-v1",
+      "tensor_layout": "roberta-encoder-safetensors-v1",
+      "type_vocab_size": 1,
+      "vocab_size": 50265,
+      "weights_role": "weights"
+    },
+    "limits": {
+      "max_aggregate_bytes": 1048576,
+      "max_conformance_fixture_bytes": 16777216,
+      "max_item_bytes": 65536,
+      "max_items": 16,
+      "max_memory_bytes": 536870912,
+      "max_safetensors_header_bytes": 16777216,
+      "max_tokenizer_bytes": 16777216,
+      "max_tokens": 512,
+      "max_vectors": 16,
+      "max_weights_bytes": 536870912
+    },
+    "normalization": "l2",
+    "pooling": "masked_mean",
+    "tokenizer": {
+      "add_prefix_space": false,
+      "format": "roberta-byte-level-bpe-v1",
+      "merges_role": "merges",
+      "pre_tokenizer": "gpt2-byte-level-v1",
+      "special_token_ids": {
+        "bos": 0,
+        "eos": 2,
+        "mask": 50264,
+        "pad": 1,
+        "unk": 3
+      },
+      "truncation": "longest-first",
+      "vocab_role": "vocab"
+    }
+  },
+  "architecture_abi": {
+    "contract_digest": "7770aa3d61b26984d2e549f99092459935d0237f67cae2e8b176c0516ce04391",
+    "id": "roberta-encoder-mlx-v1",
+    "version": "1"
+  },
+  "format_version": 1,
+  "material_roles": [
+    "merges",
+    "vocab",
+    "weights"
+  ]
+}

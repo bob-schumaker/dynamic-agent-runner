@@ -257,6 +257,17 @@
   concrete local GGUF model asset. Neither layer should replace the existing
   llama.cpp adapter contract or take ownership of model downloads, server
   lifecycle, or execution.
+- Model-generation resource budgets belong at the generic converter-capable
+  model-adapter boundary, not in modality, model-family, or concrete adapter
+  contracts. Worker-capable registrations bind exactly one parent-only factory
+  and a reviewed runner/device controller; cancellation-capable registrations
+  bind neither factory nor worker controller. Admit a worker only with
+  enforceable bootstrap/generation containment and bounded reap confirmation;
+  otherwise reject before sealed-input ingress. The fixed worker entry point
+  accepts only a bounded typed descriptor with verified identities and opaque
+  controller-issued handles—never paths, callables, imports, loader code, host
+  model objects, or device handles. The parent closes frame admission, discards
+  private candidate state, confirms cleanup/reap, then releases reservations.
 
 ## Boundaries and Unknowns
 

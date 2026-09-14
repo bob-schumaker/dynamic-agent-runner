@@ -17,6 +17,9 @@ from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
     configure_local_host,
 )
+from dynamic_agent_runner.workflow_host.workflow_authoring_registration import (
+    ReadyAuthoredWorkflow,
+)
 from dynamic_agent_runner.workflow_host.cli import main as workflow_host_main
 
 
@@ -353,6 +356,193 @@ def test_authoring_commands_use_only_opaque_host_resources(
         "package_id": "package-1",
         "status": "finalized",
     }
+
+
+def test_register_authored_workflow_accepts_only_a_closed_stdin_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Host:
+        def register_authored_workflow(self, **kwargs: object) -> ReadyAuthoredWorkflow:
+            contract = kwargs["contract"]
+            definition = kwargs["definition"]
+            assert contract.workflow_name == "document-summary"
+            assert definition.package_artifacts == {
+                "agent-design.md": "# Design\n",
+                "agent-graph.mmd": "graph TD\n",
+                "agent-runtime.yaml": "runtime: local\n",
+                "workflow-descriptor.yaml": "format_version: 1\n",
+            }
+            return ReadyAuthoredWorkflow(
+                workflow_name="document-summary",
+                input_contract="one text input",
+                output_contract="text",
+                invocation="dar-package invoke --package-name document-summary --prompt-stdin",
+            )
+
+    monkeypatch.setattr(dar_package_cli.LocalWorkflowHost, "open", lambda _root: Host())
+    stdout = StringIO()
+    stderr = StringIO()
+    request = {
+        "format_version": 1,
+        "contract": {
+            "workflow_name": "document-summary",
+            "model_id": "local-model",
+            "adapter_id": "strict-local-adapter-v1",
+            "input_kind": "text",
+            "output_contract": "text",
+            "required_capabilities": ["text_generation"],
+        },
+        "definition": {
+            "workflow_name": "document-summary",
+            "model_id": "local-model",
+            "adapter_id": "strict-local-adapter-v1",
+            "input_kind": "text",
+            "output_contract": "text",
+            "required_capabilities": ["text_generation"],
+            "package_artifacts": {
+                "agent-design.md": "# Design\n",
+                "agent-graph.mmd": "graph TD\n",
+                "agent-runtime.yaml": "runtime: local\n",
+                "workflow-descriptor.yaml": "format_version: 1\n",
+            },
+        },
+    }
+
+    assert (
+        dar_package_cli.main(
+            ["register-authored-workflow", "--definition-stdin"],
+            stdin=StringIO(json.dumps(request)),
+            stdout=stdout,
+            stderr=stderr,
+        )
+        == 0
+    )
+    assert json.loads(stdout.getvalue()) == {
+        "format_version": 1,
+        "input_contract": "one text input",
+        "invocation": "dar-package invoke --package-name document-summary --prompt-stdin",
+        "output_contract": "text",
+        "status": "ready",
+        "workflow_name": "document-summary",
+    }
+    assert stderr.getvalue() == ""
+
+
+def test_register_authored_workflow_creates_a_saved_workflow_for_dry_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    state_root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    monkeypatch.setenv("DAR_AUTHORING_STATE_ROOT", str(state_root))
+    configure_local_host(
+        root=state_root,
+        package_root=package_root,
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    artifacts = {
+        path.name: path.read_text(encoding="utf-8").replace("0.2.1", "0.1.18")
+        for path in TEMPLATE_ROOT.iterdir()
+    }
+    request = {
+        "format_version": 1,
+        "contract": {
+            "workflow_name": "document-summary",
+            "model_id": "local-model",
+            "adapter_id": "strict-local-adapter-v1",
+            "input_kind": "text",
+            "output_contract": "text",
+            "required_capabilities": ["text_generation"],
+        },
+        "definition": {
+            "workflow_name": "document-summary",
+            "model_id": "local-model",
+            "adapter_id": "strict-local-adapter-v1",
+            "input_kind": "text",
+            "output_contract": "text",
+            "required_capabilities": ["text_generation"],
+            "package_artifacts": artifacts,
+        },
+    }
+    stdout = StringIO()
+    stderr = StringIO()
+
+    assert (
+        dar_package_cli.main(
+            ["register-authored-workflow", "--definition-stdin"],
+            stdin=StringIO(json.dumps(request)),
+            stdout=stdout,
+            stderr=stderr,
+        )
+        == 0
+    )
+    assert json.loads(stdout.getvalue())["status"] == "ready"
+    assert stderr.getvalue() == ""
+
+    stdout = StringIO()
+    assert (
+        dar_package_cli.main(
+            [
+                "invoke",
+                "--package-name",
+                "document-summary",
+                "--prompt-stdin",
+                "--dry-run",
+            ],
+            stdin=StringIO("Summarize this document."),
+            stdout=stdout,
+            stderr=stderr,
+        )
+        == 0
+    )
+    assert json.loads(stdout.getvalue())["status"] == "completed"
+    assert stderr.getvalue() == ""
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"format_version": 1, "contract": {}, "definition": {}},
+        {
+            "format_version": 1,
+            "contract": {"path": "/private/workflow"},
+            "definition": {},
+        },
+        {
+            "format_version": 1,
+            "contract": {},
+            "definition": {"executable_tool_code": "#!/bin/sh"},
+        },
+    ],
+)
+def test_register_authored_workflow_rejects_unclosed_requests(
+    monkeypatch: pytest.MonkeyPatch, payload: dict[str, object]
+) -> None:
+    class Host:
+        def register_authored_workflow(self, **_kwargs: object) -> None:
+            raise AssertionError("invalid request must not reach the host")
+
+    monkeypatch.setattr(dar_package_cli.LocalWorkflowHost, "open", lambda _root: Host())
+    stdout = StringIO()
+    stderr = StringIO()
+
+    assert (
+        dar_package_cli.main(
+            ["register-authored-workflow", "--definition-stdin"],
+            stdin=StringIO(json.dumps(payload)),
+            stdout=stdout,
+            stderr=stderr,
+        )
+        == 2
+    )
+    assert stdout.getvalue() == ""
+    assert json.loads(stderr.getvalue()) == {
+        "error_code": "usage",
+        "format_version": 1,
+        "status": "error",
+    }
+    assert "/private/workflow" not in stderr.getvalue()
 
 
 @pytest.mark.parametrize(
@@ -761,7 +951,7 @@ def test_invoke_dry_run_returns_a_resolved_registration_receipt(
     assert stderr.getvalue() == ""
 
 
-def test_invoke_passes_workspace_files_only_to_saved_host_composition(
+def test_invoke_passes_a_floorplan_image_to_saved_host_composition(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class Host:
@@ -771,7 +961,7 @@ def test_invoke_passes_workspace_files_only_to_saved_host_composition(
             workspace_files: tuple[Path, ...],
             **_kwargs: object,
         ) -> object:
-            assert workspace_files == (Path("/private/input/document.txt"),)
+            assert workspace_files == (Path("/private/input/floorplan.png"),)
             return type(
                 "Result",
                 (),
@@ -791,12 +981,12 @@ def test_invoke_passes_workspace_files_only_to_saved_host_composition(
             [
                 "invoke",
                 "--package-name",
-                "document-summary",
+                "floorplan-from-image",
                 "--prompt-stdin",
                 "--workspace-file",
-                "/private/input/document.txt",
+                "/private/input/floorplan.png",
             ],
-            stdin=StringIO("Summarize this document."),
+            stdin=StringIO("Turn this image into a floorplan."),
             stdout=stdout,
             stderr=stderr,
         )

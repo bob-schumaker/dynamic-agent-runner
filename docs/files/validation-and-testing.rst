@@ -73,6 +73,31 @@ intentional:
 The test is opt-in, uses an isolated temporary Codex home, and does not run as
 part of the normal unit suite.
 
+.. header2:: Workflow model support coverage
+
+The workflow model-support matrix evaluates one exact workflow profile, adapter,
+host, and sealed material closure. It is not a model ranking or a portability
+claim for similarly named packages.
+
+``supported`` means every declared capability, host fact, and sealed identity
+matches. A synthetic fixture may execute, while a live route still needs a
+separate per-run authorization. ``not_applicable`` means the adapter
+intentionally lacks a required workflow capability. ``blocked`` means a
+required material, ABI, provider, host fact, or authorization is absent or
+mismatched. ``deferred`` means the required profile is not implemented. The
+last three states never execute.
+
+Each receipt binds its profile digest, adapter identity, package/material lock,
+and every required descriptor or converter digest. Evidence for one cell cannot
+establish support for another adapter, package revision, material closure, or
+host. Synthetic Fastmail, embedding, structured-output, stateful-context, and
+tool-pack rows use controlled local collaborators. The floorplan MPS completion
+route is separately operator-gated and emits only bounded redacted evidence.
+
+One authorized floorplan receipt is recorded. No Fastmail live receipt is
+recorded; a future Fastmail probe requires a new explicit authorization and its
+own redacted receipt.
+
 .. header2:: Manually gated live model-interface matrix
 
 The deterministic and live matrices share one controlled S1--S6 tool catalog.

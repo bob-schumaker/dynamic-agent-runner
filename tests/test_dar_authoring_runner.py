@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+import asyncio
+from dataclasses import asdict, dataclass, replace
+from hashlib import sha256
 import json
 import shutil
 import socket
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Barrier
 
@@ -24,6 +27,15 @@ from dynamic_agent_runner.openai_client import (  # noqa: E402
 )
 
 from dynamic_agent_runner.workflow_host.catalog import PackageCatalog  # noqa: E402
+from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
+    BUILTIN_CAPABILITY_CONTRACTS,
+    CapabilityCatalog,
+    CapabilityContract,
+    CapabilityProvider,
+    CapabilityRequirement,
+    CapabilityRequirements,
+    ProviderAvailability,
+)
 from dynamic_agent_runner.workflow_host.action_ledger import WorkflowActionLedger  # noqa: E402
 from dynamic_agent_runner.workflow_host.approvals import WorkflowApprovalStore  # noqa: E402
 from dynamic_agent_runner.workflow_host.authorized_tools import (  # noqa: E402
@@ -52,15 +64,44 @@ from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControl
 from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID,
 )
+from dynamic_agent_runner.workflow_host.model_execution_binding import (  # noqa: E402
+    ModelExecutionBinding,
+    ModelRunnerProvider,
+    ModelRunnerRegistry,
+)
+from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
+    DeclaredArtifactTool,
+    DeclaredLocalTool,
+    DeclaredTerminalOutputProcessor,
+    DeclaredTerminalOutputValidator,
+)
+from dynamic_agent_runner.workflow_host.execution_descriptors import (  # noqa: E402
+    ExecutionDescriptor,
+    ExecutionDescriptorAbi,
+    ExecutionDescriptorValidatorRegistry,
+)
+from dynamic_agent_runner.workflow_host.generation_resource_budgets import (  # noqa: E402
+    GenerationBudgetDescriptorValidator,
+    GenerationExecutionHostPolicy,
+    GenerationResourceBudget,
+)
+from dynamic_agent_runner.workflow_host.host import LocalWorkflowHost  # noqa: E402
+from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa: E402
+    ReviewedToolPackageBinding,
+    ReviewedToolPackageControlPlane,
+)
 from dynamic_agent_runner.workflow_host.registration import WorkflowRegistrationService  # noqa: E402
 from dynamic_agent_runner.workflow_host.runner import (  # noqa: E402
     RunDarWorkflowError,
     RunDarWorkflowRequest,
+    TerminalProcessorDiagnostic,
     WorkflowRunner,
 )
 from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager  # noqa: E402
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 from dynamic_agent_runner.workflow_host.workspace_ingress import (  # noqa: E402
+    MaterializedWorkspaceBinaryArtifact,
+    MaterializedWorkspaceImageArtifact,
     MaterializedWorkspaceInputArtifact,
 )
 import dynamic_agent_runner.workflow_host.runner as workflow_runner_module  # noqa: E402
@@ -122,6 +163,230 @@ class ArtifactVerifier:
         ):
             raise ValueError("unexpected artifact")
         return object()
+
+
+class VisionArtifactVerifier:
+    def load(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> object:
+        if (
+            artifact_id != "v1.source-image"
+            or workflow_id != "document-helper"
+            or not registration_digest
+        ):
+            raise ValueError("unexpected artifact")
+        return object()
+
+    def materialize_image(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceImageArtifact:
+        self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceImageArtifact(
+            artifact_id,
+            "sha256:" + "c" * 64,
+            "source_image",
+            "image/png",
+            b"sealed-image-bytes",
+        )
+
+
+class ConverterArtifactVerifier(VisionArtifactVerifier):
+    def materialize_binary(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceBinaryArtifact:
+        self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceBinaryArtifact(
+            artifact_id,
+            "sha256:" + "f" * 64,
+            "source_image",
+            "image/png",
+            b"sealed-image-bytes",
+        )
+
+
+class BinaryArtifactVerifier(ArtifactVerifier):
+    def materialize_binary(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceBinaryArtifact:
+        self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceBinaryArtifact(
+            artifact_id,
+            "sha256:" + "d" * 64,
+            "source_binary",
+            "application/octet-stream",
+            b"sealed binary",
+        )
+
+
+class OpaqueBinaryArtifactVerifier(ArtifactVerifier):
+    def materialize_binary(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceBinaryArtifact:
+        self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceBinaryArtifact(
+            artifact_id,
+            "sha256:" + "e" * 64,
+            "opaque_binary_artifact",
+            "application/octet-stream",
+            b"sealed network capture",
+        )
+
+
+class ReviewedPacketExecutor:
+    def __init__(self, binding: ReviewedToolPackageBinding) -> None:
+        self.binding = binding
+        self.references: list[object] = []
+
+    def execute(self, *, tool_id: str, artifact: object, reader: object) -> object:
+        assert tool_id == "packet_summary"
+        self.references.append(artifact)
+        return {"packet_count": len(reader.read(artifact))}  # type: ignore[attr-defined]
+
+
+class VisionFakeAdapter(OpenAIClientAdapter):
+    """Test-local adapter that records only DAR's sealed image handoff."""
+
+    def __init__(
+        self,
+        client: FakeClient,
+        *,
+        model: str,
+        adapter_id: str,
+        json_mode: bool = False,
+    ) -> None:
+        super().__init__(
+            client,
+            models=(model,),
+            is_local=True,
+            execution_profile_adapter_id=adapter_id,
+            model_id_mapping={model: model},
+        )
+        self._json_mode = json_mode
+        self.bound_images: list[tuple[bytes, str]] = []
+        self.cleared = 0
+        self._debug_fragment_recorder: object | None = None
+        self.debug_error: BaseException | None = None
+
+    @property
+    def capabilities(self) -> dict[str, bool]:
+        return {
+            "text_generation": True,
+            "multimodal_input": True,
+            "json_mode": self._json_mode,
+        }
+
+    def bind_sealed_image(self, *, content: bytes, media_type: str) -> None:
+        self.bound_images.append((content, media_type))
+
+    def clear_sealed_image(self) -> None:
+        self.cleared += 1
+
+    def set_debug_fragment_recorder(self, recorder: object | None) -> None:
+        self._debug_fragment_recorder = recorder
+
+    def create_response(self, request: object) -> ModelResponse:
+        response = super().create_response(request)  # type: ignore[arg-type]
+        recorder = self._debug_fragment_recorder
+        if callable(recorder) and isinstance(response.content, str):
+            recorder(
+                type(
+                    "GeneratedFragment",
+                    (),
+                    {
+                        "content": response.content,
+                        "exhausted": False,
+                        "generated_tokens": len(response.content),
+                    },
+                )()
+            )
+        if self.debug_error is not None:
+            raise self.debug_error
+        return response
+
+
+class ConverterFakeAdapter(VisionFakeAdapter):
+    """Test-local adapter that records only the converter payload handoff."""
+
+    def __init__(
+        self,
+        client: FakeClient,
+        *,
+        model: str,
+        adapter_id: str,
+        json_mode: bool = False,
+    ) -> None:
+        super().__init__(
+            client, model=model, adapter_id=adapter_id, json_mode=json_mode
+        )
+        self.bound_payloads: list[bytes] = []
+        self.bound_converters: list[tuple[Path, object]] = []
+        self.converter_error: Exception | None = None
+        self.payload_cleared = 0
+        self.bound_generation_budgets: list[tuple[object, str, object]] = []
+        self.input_converter_contract_id = "transformers-generate-v1"
+
+    def bind_generation_budget(
+        self, *, descriptor: object, material_lock_digest: str, host_policy: object
+    ) -> None:
+        self.bound_generation_budgets.append(
+            (descriptor, material_lock_digest, host_policy)
+        )
+
+    def bind_input_converter(self, *, package_root: Path, converter: object) -> None:
+        if self.converter_error is not None:
+            raise self.converter_error
+        self.bound_converters.append((package_root, converter))
+
+    def bind_sealed_payload(self, *, content: bytes) -> None:
+        self.bound_payloads.append(content)
+
+    def clear_sealed_payload(self) -> None:
+        self.payload_cleared += 1
 
 
 class MemorySecretStore:
@@ -270,6 +535,19 @@ def _runner(
     package_model: str = "local-model",
     terminal_required_field: str = "message",
     artifact_verifier: object | None = None,
+    vision: bool = False,
+    input_converter: bool = False,
+    local_asset: bool = False,
+    local_tool_executor: object | None = None,
+    terminal_validator: bool = False,
+    response_format: dict[str, object] | None = None,
+    json_mode: bool = False,
+    response_content: str = "completed locally",
+    reviewed_tool_packages: ReviewedToolPackageControlPlane | None = None,
+    reviewed_artifact_tool_executors: object | None = None,
+    capability_catalog: CapabilityCatalog | None = None,
+    with_capability_requirements: bool = False,
+    v2_converter_budget: bool = True,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -277,12 +555,67 @@ def _runner(
     runtime = yaml.safe_load(runtime_path.read_text(encoding="utf-8"))
     runtime["runtime"]["execution_policy"]["model"] = package_model
     runtime["nodes"][0]["model"] = package_model
+    if response_format is not None:
+        runtime["nodes"][0]["response_format"] = response_format
     runtime["output_contracts"][0]["required_fields"] = [terminal_required_field]
     runtime_path.write_text(yaml.safe_dump(runtime), encoding="utf-8")
-    if hosted:
+    if local_asset or terminal_validator:
+        asset = source / "tools" / "inspect"
+        asset.parent.mkdir()
+        asset.write_text("placeholder", encoding="utf-8")
+    if hosted or vision or input_converter or with_capability_requirements:
         descriptor_path = source / "workflow-descriptor.yaml"
         descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
-        descriptor["model"]["profile_requirement"] = "general-language-model-v1"
+        if hosted:
+            descriptor["model"]["profile_requirement"] = "general-language-model-v1"
+        if vision:
+            descriptor["model"]["profile_requirement"] = "local-multimodal-model-v1"
+            descriptor["workspace"]["accepted_input_types"] = ["image/png"]
+            descriptor["task_invocation"]["allowed_artifact_roles"] = ["source_image"]
+        if input_converter:
+            converter = source / "assets" / "qwen_converter.py"
+            converter.parent.mkdir()
+            converter.write_text("trusted fixture", encoding="utf-8")
+            descriptor["input_converter"] = {
+                "converter_id": "qwen25-vl-3b-grpo-input-v1",
+                "converter_contract_version": "v1",
+                "compatible_runner_contract_id": "transformers-generate-v1",
+                "entrypoint": "assets/qwen_converter.py",
+                "asset_digest": sha256(converter.read_bytes()).hexdigest(),
+                "declared_resource_limits": {
+                    "max_input_bytes": 8 * 1024 * 1024,
+                    "max_output_bytes": 32 * 1024 * 1024,
+                    "timeout_seconds": 1,
+                },
+            }
+        if with_capability_requirements:
+            contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+            requirement = CapabilityRequirement(
+                contract.capability_id,
+                contract.contract_version,
+                contract.contract_digest,
+                ("multimodal",),
+            )
+            requirements = CapabilityRequirements((requirement,))
+            descriptor["dar_runtime"]["required_version"] = "0.1.18"
+            descriptor["capability_requirements"] = {
+                "format_version": 1,
+                "required_capabilities": [requirement.to_mapping()],
+                "capability_requirements_digest": requirements.digest,
+                "bindings": {},
+            }
+        descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
+    v2_fixture = _v2_converter_budget_fixture(
+        source, enabled=input_converter and v2_converter_budget
+    )
+    if terminal_validator:
+        descriptor_path = source / "workflow-descriptor.yaml"
+        descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+        descriptor["output"]["validator"] = {
+            "asset_path": "tools/inspect",
+            "max_output_bytes": 512,
+            "timeout_seconds": 1,
+        }
         descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
@@ -294,7 +627,19 @@ def _runner(
             source_handle, now=NOW
         )
     )
-    policy = compile_workflow_policy(revision)
+    (
+        effective_capability_catalog,
+        descriptor_validators,
+        model_runner_registry,
+        generation_execution_host_policy,
+    ) = _v2_runtime_dependencies(
+        v2_fixture, fallback_capability_catalog=capability_catalog
+    )
+    policy = compile_workflow_policy(
+        revision,
+        capability_catalog=effective_capability_catalog,
+        descriptor_validators=descriptor_validators,
+    )
     profiles = LocalModelProfileControlPlane(store=store)
     profile = (
         profiles.create_hosted_openai(
@@ -304,22 +649,31 @@ def _runner(
         )
         if hosted
         else profiles.create(
-            model_id="local-model-v1",
+            model_id=package_model if vision else "local-model-v1",
             adapter_id="strict-local-adapter-v1",
             base_url="http://127.0.0.1:11434/v1",
-            capabilities={"text_generation"},
+            execution_model_id=package_model if vision else "local-model",
+            profile_requirement=(
+                "local-multimodal-model-v1" if vision else "local-general-model"
+            ),
+            capabilities=(
+                {"text_generation", "multimodal_input"}
+                if vision
+                else {"text_generation"}
+            ),
         )
     )
     registrations = WorkflowRegistrationService(
         profiles=profiles,
         configured_profile_id=profile.profile_id,
         root=tmp_path / "registrations",
+        model_recipe_digest_provider=lambda _profile: "a" * 64,
     )
     registration = registrations.register(
         workflow_id="document-helper",
         policy=policy,
         capability_resolution=resolve_capabilities(
-            policy, available_capabilities={"text_generation"}
+            policy, available_capabilities=profile.capabilities
         ),
     )
     if active_apple_profile:
@@ -329,56 +683,1114 @@ def _runner(
         catalog=catalog,
         store=store,
         artifact_verifier=artifact_verifier,  # type: ignore[arg-type]
+        capability_catalog=effective_capability_catalog,
+        descriptor_validators=descriptor_validators,
     )
     client = (
-        AsyncFakeClient("completed locally")
+        AsyncFakeClient(response_content)
         if async_adapter
-        else FakeClient("completed locally")
+        else FakeClient(response_content)
     )
     adapter = (
-        AsyncOpenAIClientAdapter(
-            client,
-            models=["local-model", "local-model-v1"],
-            is_local=local,
-            model_id_mapping={"local-model": "local-model-v1"},
-            execution_profile_adapter_id=(
-                configured_adapter_id
-                or (
-                    "apple-foundation-models-adapter-v1"
-                    if active_apple_profile
-                    else profile.adapter_id
-                )
-            ),
+        (
+            ConverterFakeAdapter(
+                client,
+                model=profile.execution_model_id,
+                adapter_id=profile.adapter_id,
+                json_mode=json_mode,
+            )
+            if input_converter
+            else VisionFakeAdapter(
+                client,
+                model=profile.execution_model_id,
+                adapter_id=profile.adapter_id,
+                json_mode=json_mode,
+            )
         )
-        if async_adapter
-        else OpenAIClientAdapter(
-            client,
-            models=["local-model", "local-model-v1"],
-            is_local=local,
-            model_id_mapping={"local-model": "local-model-v1"},
-            execution_profile_adapter_id=(
-                configured_adapter_id
-                or (
-                    "apple-foundation-models-adapter-v1"
-                    if active_apple_profile
-                    else profile.adapter_id
-                )
-            ),
+        if vision
+        else (
+            AsyncOpenAIClientAdapter(
+                client,
+                models=["local-model", "local-model-v1"],
+                is_local=local,
+                model_id_mapping={"local-model": "local-model-v1"},
+                execution_profile_adapter_id=(
+                    configured_adapter_id
+                    or (
+                        "apple-foundation-models-adapter-v1"
+                        if active_apple_profile
+                        else profile.adapter_id
+                    )
+                ),
+            )
+            if async_adapter
+            else OpenAIClientAdapter(
+                client,
+                models=["local-model", "local-model-v1"],
+                is_local=local,
+                model_id_mapping={"local-model": "local-model-v1"},
+                execution_profile_adapter_id=(
+                    configured_adapter_id
+                    or (
+                        "apple-foundation-models-adapter-v1"
+                        if active_apple_profile
+                        else profile.adapter_id
+                    )
+                ),
+            )
         )
     )
+    runner = WorkflowRunner(
+        registrations=registrations,
+        catalog=catalog,
+        preparation=preparation,
+        model_adapter=adapter,
+        configured_profile=profiles.load(active_profile_id or profile.profile_id),
+        local_tool_executor=local_tool_executor,  # type: ignore[arg-type]
+        reviewed_tool_packages=reviewed_tool_packages,
+        reviewed_artifact_tool_executors=reviewed_artifact_tool_executors,  # type: ignore[arg-type]
+        terminal_diagnostic_store=store,
+        terminal_diagnostic_owner="test-local-user",
+        capability_catalog=effective_capability_catalog,
+        model_runner_registry=model_runner_registry,
+        descriptor_validators=descriptor_validators,
+        generation_execution_host_policy=generation_execution_host_policy,
+    )
+    _configure_legacy_generation_budget_fixture(runner, v2_fixture)
     return (
-        WorkflowRunner(
-            registrations=registrations,
-            catalog=catalog,
-            preparation=preparation,
-            model_adapter=adapter,
-            configured_profile=profiles.load(active_profile_id or profile.profile_id),
-        ),
+        runner,
         preparation,
         registration,
         revision,
         client,
     )
+
+
+@dataclass(frozen=True)
+class _V2ConverterBudgetFixture:
+    capability_catalog: CapabilityCatalog
+    descriptor_validators: ExecutionDescriptorValidatorRegistry
+    model_runner_registry: ModelRunnerRegistry
+    host_policy: GenerationExecutionHostPolicy
+
+
+def _v2_runtime_dependencies(
+    fixture: _V2ConverterBudgetFixture | None,
+    *,
+    fallback_capability_catalog: CapabilityCatalog | None,
+) -> tuple[
+    CapabilityCatalog | None,
+    ExecutionDescriptorValidatorRegistry | None,
+    ModelRunnerRegistry | None,
+    GenerationExecutionHostPolicy | None,
+]:
+    if fixture is None:
+        return fallback_capability_catalog, None, None, None
+    return (
+        fixture.capability_catalog,
+        fixture.descriptor_validators,
+        fixture.model_runner_registry,
+        fixture.host_policy,
+    )
+
+
+def _v2_converter_budget_fixture(
+    source: Path, *, enabled: bool
+) -> _V2ConverterBudgetFixture | None:
+    if not enabled:
+        return None
+    return _install_v2_converter_budget_fixture(source)
+
+
+def _install_v2_converter_budget_fixture(source: Path) -> _V2ConverterBudgetFixture:
+    budget = GenerationResourceBudget(
+        max_new_tokens_per_fragment=4,
+        max_continuations=1,
+        max_total_generated_tokens=8,
+        max_total_output_bytes=64,
+        max_effective_context_tokens=8,
+        max_runtime_milliseconds=1_000,
+        max_memory_bytes=1_024,
+    )
+    abi = ExecutionDescriptorAbi("test-generation-v1", "1", "a" * 64)
+    execution_descriptor = ExecutionDescriptor(
+        abi,
+        ("weights",),
+        {"generation_budget": asdict(budget)},
+    )
+    runner_contract = CapabilityContract("model.execution.test.v1", "1", "b" * 64, ())
+    converter_contract = CapabilityContract(
+        "model.converter.test.v1", "1", "c" * 64, ()
+    )
+    requirements = CapabilityRequirements(
+        (
+            CapabilityRequirement(
+                converter_contract.capability_id,
+                converter_contract.contract_version,
+                converter_contract.contract_digest,
+                (),
+            ),
+            CapabilityRequirement(
+                runner_contract.capability_id,
+                runner_contract.contract_version,
+                runner_contract.contract_digest,
+                (),
+            ),
+        ),
+        {
+            "converter": converter_contract.capability_id,
+            "runner": runner_contract.capability_id,
+        },
+    )
+    descriptor_path = source / "workflow-descriptor.yaml"
+    descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+    descriptor["dar_runtime"]["required_version"] = "0.1.18"
+    descriptor["capability_requirements"] = {
+        "format_version": 1,
+        "required_capabilities": [
+            requirement.to_mapping()
+            for requirement in requirements.required_capabilities
+        ],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {
+            name: {"capability_id": capability_id}
+            for name, capability_id in requirements.bindings.items()
+        },
+    }
+    descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
+    (source / "execution-descriptor.json").write_bytes(
+        execution_descriptor.canonical_bytes
+    )
+    (source / "model-materials.json").write_text(
+        json.dumps(
+            {
+                "format_version": 2,
+                "logical_model_id": "qwen25-vl-3b-floorplan-grpo",
+                "runner_contract": {"id": "transformers-generate-v1", "version": "1"},
+                "execution_descriptor": {
+                    "filename": "execution-descriptor.json",
+                    "sha256": execution_descriptor.digest,
+                },
+                "sources": [
+                    {
+                        "role": "weights",
+                        "group": "base",
+                        "source_type": "huggingface_file",
+                        "repository": "example/qwen",
+                        "revision": "a" * 40,
+                        "filename": "weights.safetensors",
+                        "sha256": "d" * 64,
+                    }
+                ],
+                "preparation": [],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+    capability_catalog = CapabilityCatalog(
+        (converter_contract, runner_contract),
+        (
+            CapabilityProvider(
+                "test-converter-provider", converter_contract, conformance_passed=True
+            ),
+            CapabilityProvider(
+                "test-runner-provider", runner_contract, conformance_passed=True
+            ),
+        ),
+    )
+
+    class ReservationProvider:
+        def reserve(self, _request: object) -> object:
+            return object()
+
+    return _V2ConverterBudgetFixture(
+        capability_catalog,
+        ExecutionDescriptorValidatorRegistry(
+            (GenerationBudgetDescriptorValidator(abi),)
+        ),
+        ModelRunnerRegistry(
+            (
+                ModelRunnerProvider(
+                    "test-runner-provider",
+                    runner_contract,
+                    (),
+                    ((abi.abi_id, abi.version, abi.contract_digest),),
+                ),
+            )
+        ),
+        GenerationExecutionHostPolicy(budget, "cpu", ReservationProvider()),
+    )
+
+
+def _configure_legacy_generation_budget_fixture(
+    runner: WorkflowRunner, v2_fixture: _V2ConverterBudgetFixture | None
+) -> None:
+    if v2_fixture is None:
+        _configure_generation_budget_fixture(runner)
+
+
+def _configure_generation_budget_fixture(runner: WorkflowRunner) -> None:
+    adapter = runner._model_adapter
+    if not isinstance(adapter, ConverterFakeAdapter):
+        return
+    budget = GenerationResourceBudget(
+        max_new_tokens_per_fragment=4,
+        max_continuations=1,
+        max_total_generated_tokens=8,
+        max_total_output_bytes=64,
+        max_effective_context_tokens=8,
+        max_runtime_milliseconds=1_000,
+        max_memory_bytes=1_024,
+    )
+
+    class Provider:
+        def reserve(self, _request: object) -> object:
+            return object()
+
+    descriptor = ExecutionDescriptor(
+        ExecutionDescriptorAbi("test-generation-v1", "1", "a" * 64),
+        ("weights",),
+        {"generation_budget": budget.__dict__},
+    )
+    binding = ModelExecutionBinding(
+        "test-model",
+        "test-runner-v1",
+        "1",
+        None,
+        None,
+        "b" * 64,
+        "c" * 64,
+        "test-runner-v1",
+        "1",
+        "d" * 64,
+    )
+    original_preflight = runner._preflight
+
+    def preflight(workflow_id: str):
+        registration, package_root, policy, terminal_output_contract = (
+            original_preflight(workflow_id)
+        )
+        return (
+            registration,
+            package_root,
+            replace(
+                policy,
+                execution_descriptor=descriptor,
+                model_execution_binding=binding,
+            ),
+            terminal_output_contract,
+        )
+
+    runner._preflight = preflight  # type: ignore[method-assign]
+    runner._validate_model_execution_binding = lambda _policy: None  # type: ignore[method-assign]
+    runner._generation_execution_host_policy = GenerationExecutionHostPolicy(
+        budget, "cpu", Provider()
+    )
+
+
+def test_runner_rejects_an_image_workflow_for_a_text_only_profile(
+    tmp_path: Path,
+) -> None:
+    runner, _, registration, _, _ = _runner(tmp_path)
+
+    with pytest.raises(RunDarWorkflowError, match="multimodal"):
+        runner.validate_artifact_capability(
+            workflow_id=registration.workflow_id,
+            input_kind="image_artifact",
+        )
+
+
+def test_runner_rejects_a_locked_runner_before_sealed_input_loading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner, preparation, registration, revision, _ = _runner(tmp_path)
+    binding = ModelExecutionBinding(
+        "example",
+        "llama-cpp-v1",
+        "1",
+        "llama-cpp-text-v1",
+        "1",
+        "a" * 64,
+        "b" * 64,
+        "model.execution.test.v1",
+        "1",
+        "c" * 64,
+    )
+    policy = replace(
+        compile_workflow_policy(revision),
+        model_execution_binding=binding,
+    )
+    monkeypatch.setattr(
+        runner,
+        "_preflight",
+        lambda _workflow_id: (registration, revision.package_root, policy, {}),
+    )
+    monkeypatch.setattr(
+        preparation,
+        "load",
+        lambda *_args, **_kwargs: pytest.fail("sealed input was loaded"),
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="model runner"):
+        runner.run(
+            RunDarWorkflowRequest(registration.workflow_id, "prepared-input"), now=NOW
+        )
+
+
+def test_runner_rejects_unsatisfied_requirement_before_artifact_materialization(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class CountingVerifier(ArtifactVerifier):
+        def __init__(self) -> None:
+            self.loads = 0
+
+        def load(self, *args: object, **kwargs: object) -> object:
+            self.loads += 1
+            return super().load(*args, **kwargs)  # type: ignore[arg-type]
+
+    verifier = CountingVerifier()
+    runner, preparation, registration, revision, client = _runner(
+        tmp_path, artifact_verifier=verifier
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Answer me.",
+        workspace_artifact_ids=("v1.workspace-artifact",),
+        now=NOW,
+    )
+    loads_before_run = verifier.loads
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+    requirement = CapabilityRequirement(
+        contract.capability_id,
+        contract.contract_version,
+        contract.contract_digest,
+        ("multimodal",),
+    )
+    requirements = CapabilityRequirements((requirement,))
+    descriptor_path = revision.package_root / "workflow-descriptor.yaml"
+    revision.package_root.chmod(0o700)
+    descriptor_path.chmod(0o600)
+    descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+    descriptor["dar_runtime"]["required_version"] = "0.1.18"
+    descriptor["capability_requirements"] = {
+        "format_version": 1,
+        "required_capabilities": [requirement.to_mapping()],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {},
+    }
+    descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
+    monkeypatch.setattr(
+        subprocess,
+        "Popen",
+        lambda *_args, **_kwargs: pytest.fail("subprocess creation was called"),
+    )
+    monkeypatch.setattr(
+        socket,
+        "create_connection",
+        lambda *_args, **_kwargs: pytest.fail("network access was called"),
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="registered workflow run failed"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    assert verifier.loads == loads_before_run
+    assert client.responses.calls == []
+
+
+def test_runner_rejects_provider_reselection_before_model_execution(
+    tmp_path: Path,
+) -> None:
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+
+    def provider(provider_id: str) -> CapabilityProvider:
+        return CapabilityProvider(
+            provider_id,
+            contract,
+            conformance_passed=True,
+            conformance_vector_ids=frozenset(
+                {
+                    "requested_features",
+                    "output_integrity",
+                    "resource_limits",
+                    "redacted_failure",
+                }
+            ),
+        )
+
+    first = provider("private-provider-a")
+    second = provider("private-provider-b")
+    original_catalog = CapabilityCatalog((contract,), (first, second))
+    runner, preparation, registration, _, client = _runner(
+        tmp_path,
+        capability_catalog=original_catalog,
+        with_capability_requirements=True,
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Answer me.",
+        now=NOW,
+    )
+    runner._capability_catalog = CapabilityCatalog((contract,), (second, first))
+
+    with pytest.raises(RunDarWorkflowError, match="capability requirements"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    assert client.responses.calls == []
+
+
+def test_runner_rejects_provider_becoming_unavailable_before_model_execution(
+    tmp_path: Path,
+) -> None:
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+    provider = CapabilityProvider(
+        "private-provider-a",
+        contract,
+        conformance_passed=True,
+        conformance_vector_ids=frozenset(
+            {
+                "requested_features",
+                "output_integrity",
+                "resource_limits",
+                "redacted_failure",
+            }
+        ),
+    )
+    available = True
+    catalog = CapabilityCatalog(
+        (contract,),
+        (provider,),
+        availability_provider=lambda _provider: (
+            ProviderAvailability.AVAILABLE
+            if available
+            else ProviderAvailability.DISABLED
+        ),
+    )
+    runner, preparation, registration, _, client = _runner(
+        tmp_path,
+        capability_catalog=catalog,
+        with_capability_requirements=True,
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Answer me.",
+        now=NOW,
+    )
+    available = False
+
+    with pytest.raises(RunDarWorkflowError, match="registered workflow run failed"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    assert client.responses.calls == []
+
+
+def test_runner_rejects_provider_becoming_unavailable_before_converter_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+    provider = CapabilityProvider(
+        "private-provider-a",
+        contract,
+        conformance_passed=True,
+        conformance_vector_ids=frozenset(
+            {
+                "requested_features",
+                "output_integrity",
+                "resource_limits",
+                "redacted_failure",
+            }
+        ),
+    )
+    available = True
+    catalog = CapabilityCatalog(
+        (contract,),
+        (provider,),
+        availability_provider=lambda _provider: (
+            ProviderAvailability.AVAILABLE
+            if available
+            else ProviderAvailability.DISABLED
+        ),
+    )
+    runner, preparation, registration, _, client = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+        v2_converter_budget=False,
+        capability_catalog=catalog,
+        with_capability_requirements=True,
+    )
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    monkeypatch.setattr(
+        adapter,
+        "bind_input_converter",
+        lambda **_kwargs: pytest.fail("converter load was called"),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+    available = False
+
+    with pytest.raises(RunDarWorkflowError, match="registered workflow run failed"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    assert client.responses.calls == []
+
+
+def test_legacy_package_does_not_invoke_capability_catalog(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    catalog = CapabilityCatalog((), ())
+    monkeypatch.setattr(
+        catalog,
+        "resolve",
+        lambda _requirements: pytest.fail("capability catalog was used"),
+    )
+    runner, preparation, registration, _, client = _runner(
+        tmp_path, capability_catalog=catalog
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Answer me.",
+        now=NOW,
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": registration.workflow_id,
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    assert result.status == "completed"
+    assert len(client.responses.calls) == 1
+
+
+def test_runner_binds_a_declared_local_tool_to_sealed_binary_input(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, revision, _ = _runner(
+        tmp_path,
+        artifact_verifier=BinaryArtifactVerifier(),
+        local_asset=True,
+        local_tool_executor=lambda _command, input_bytes, _timeout: (
+            b'{"byte_count":' + str(len(input_bytes)).encode() + b"}"
+        ),
+    )
+    policy = compile_workflow_policy(revision)
+    policy = replace(
+        policy,
+        declared_local_tools=(
+            DeclaredLocalTool(
+                tool_id="inspect",
+                asset_path="tools/inspect",
+                accepted_artifact_role="source_binary",
+                max_input_bytes=1024,
+                max_output_bytes=1024,
+                timeout_seconds=1,
+            ),
+        ),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Inspect it.",
+        workspace_artifact_ids=("v1.workspace-artifact",),
+        now=NOW,
+    )
+    sealed = preparation.load(
+        prepared.prepared_input_id, registration=registration, now=NOW
+    )
+    registry = runner._tool_registry(  # type: ignore[attr-defined]
+        policy,
+        registration,
+        package_root=revision.package_root,
+        sealed=sealed,
+        run_id="test-run",
+        now=NOW,
+    )
+
+    result = registry.invoke_tool("inspect", {})
+
+    assert result.success is True
+    assert result.output == {"byte_count": len(b"sealed binary")}
+
+
+def test_runner_postprocesses_terminal_output_with_declared_validator(
+    tmp_path: Path,
+) -> None:
+    observed: list[bytes] = []
+    runner, _, _, revision, _ = _runner(
+        tmp_path,
+        local_asset=True,
+        local_tool_executor=lambda _command, content, _timeout: (
+            observed.append(content) or b'{"valid":true}'
+        ),
+    )
+    policy = replace(
+        compile_workflow_policy(revision),
+        terminal_output_validator=DeclaredTerminalOutputValidator(
+            asset_path="tools/inspect",
+            max_output_bytes=512,
+            timeout_seconds=1,
+        ),
+    )
+
+    runner._validate_terminal_output(  # type: ignore[attr-defined]
+        policy=policy,
+        package_root=revision.package_root,
+        output={"message": "<svg/>"},
+    )
+
+    assert observed == [b"<svg/>"]
+
+
+def test_runner_passes_terminal_bytes_only_between_declared_processors(
+    tmp_path: Path,
+) -> None:
+    observed: list[bytes] = []
+    responses = iter(
+        (
+            b'{"status":"accepted","output_base64":"eyJyb29tcyI6W119",'
+            b'"repair_report":{"category":"none"}}',
+            b'{"status":"accepted","output_base64":"PHN2Zy8+",'
+            b'"repair_report":{"category":"none"}}',
+        )
+    )
+    runner, _, _, revision, _ = _runner(
+        tmp_path,
+        local_asset=True,
+        local_tool_executor=lambda _command, content, _timeout: (
+            observed.append(content) or next(responses)
+        ),
+    )
+    policy = replace(
+        compile_workflow_policy(revision),
+        terminal_output_processors=(
+            DeclaredTerminalOutputProcessor("tools/inspect", 512, 1),
+            DeclaredTerminalOutputProcessor("tools/inspect", 512, 1),
+        ),
+    )
+
+    result = runner._process_terminal_output(  # type: ignore[attr-defined]
+        policy=policy,
+        package_root=revision.package_root,
+        value='{"rooms":[]}',
+        run_id="processor-run",
+        now=NOW,
+    )
+
+    assert result == "<svg/>"
+    assert observed == [b'{"rooms":[]}', b'{"rooms":[]}']
+    diagnostic = runner.terminal_processor_diagnostic("processor-run", now=NOW)
+    assert diagnostic.original == b'{"rooms":[]}'
+    assert diagnostic.admitted == b"<svg/>"
+    assert diagnostic.repair_categories == ("none", "none")
+    assert diagnostic.original_digest != diagnostic.admitted_digest
+
+
+def test_runner_rejects_a_terminal_processor_envelope_without_bounded_output(
+    tmp_path: Path,
+) -> None:
+    runner, _, _, revision, _ = _runner(
+        tmp_path,
+        local_asset=True,
+        local_tool_executor=lambda _command, _content, _timeout: (
+            b'{"status":"accepted"}'
+        ),
+    )
+    policy = replace(
+        compile_workflow_policy(revision),
+        terminal_output_processors=(
+            DeclaredTerminalOutputProcessor("tools/inspect", 512, 1),
+        ),
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="terminal output processing failed"):
+        runner._process_terminal_output(  # type: ignore[attr-defined]
+            policy=policy,
+            package_root=revision.package_root,
+            value='{"rooms":[]}',
+            run_id="rejected-processor-run",
+            now=NOW,
+        )
+
+    diagnostic = runner.terminal_processor_diagnostic("rejected-processor-run", now=NOW)
+    assert diagnostic.original == b'{"rooms":[]}'
+    assert diagnostic.admitted is None
+    assert diagnostic.repair_categories == ()
+
+
+def test_runner_retains_and_loads_debug_fragments_for_the_local_owner(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.runner import _DebugDiagnosticCollector
+
+    runner, _, _, _, _ = _runner(tmp_path)
+    collector = _DebugDiagnosticCollector("debug-run-1")
+    collector.set_run_id("workflow-run-1")
+
+    class Generated:
+        content = '{"walls":['
+        exhausted = True
+        generated_tokens = 3
+        packed_context_tokens = 3
+        elapsed_milliseconds = 42
+        stop_classification = "completed"
+        runner_max_new_tokens = 65_536
+        backend_max_new_tokens = 65_536
+
+    collector.record_fragment(Generated())
+    runner._retain_debug_diagnostic(  # type: ignore[attr-defined]
+        collector, outcome="failed", now=NOW
+    )
+
+    diagnostic = runner.debug_diagnostic("debug-run-1", now=NOW)
+
+    assert diagnostic.diagnostic_id == "debug-run-1"
+    assert diagnostic.run_id == "workflow-run-1"
+    assert diagnostic.outcome == "failed"
+    assert not hasattr(diagnostic.fragments[0], "content")
+    assert diagnostic.fragments[0].fragment_index == 0
+    assert diagnostic.fragments[0].exhausted is True
+    assert diagnostic.fragments[0].generated_tokens == 3
+    assert diagnostic.fragments[0].output_bytes == len(b'{"walls":[')
+    assert diagnostic.fragments[0].packed_context_tokens == 3
+    assert diagnostic.fragments[0].elapsed_milliseconds == 42
+    assert diagnostic.fragments[0].stop_classification == "completed"
+    assert diagnostic.terminal is None
+    assert diagnostic.retention_limited is False
+
+
+def test_debug_run_retains_fragments_without_exposing_them_normally(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, client = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+        response_format={"type": "json_object"},
+        json_mode=True,
+        response_content='{"message":"debug-only completion"}',
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    debug = runner.run_debug(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": registration.workflow_id,
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    diagnostic = runner.debug_diagnostic(debug.diagnostic_id, now=NOW)
+    assert debug.status == "completed"
+    assert debug.result is not None
+    assert diagnostic.outcome == "completed"
+    assert [
+        (
+            fragment.fragment_index,
+            fragment.exhausted,
+            fragment.generated_tokens,
+            fragment.output_bytes,
+        )
+        for fragment in diagnostic.fragments
+    ] == [(0, False, 35, len(b'{"message":"debug-only completion"}'))]
+    assert "debug-only completion" not in repr(diagnostic)
+    records = runner._terminal_diagnostic_store.active_records(  # type: ignore[attr-defined]
+        kind="debug_workflow_diagnostic", owner="test-local-user", now=NOW
+    )
+    assert "debug-only completion" not in repr(records[0][1].payload)
+    assert debug.diagnostic_id not in repr(debug.result)
+    assert "debug-only completion" not in repr(runner.traces())
+    assert "debug-only completion" not in repr(client.responses.calls)
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    assert adapter._debug_fragment_recorder is None
+
+
+def test_debug_run_retains_post_generation_failure_without_trace_leakage(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+        response_content='{"malformed":',
+    )
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    adapter.debug_error = TimeoutError("debug-only completion")
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    debug = runner.run_debug(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": registration.workflow_id,
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    diagnostic = runner.debug_diagnostic(debug.diagnostic_id, now=NOW)
+    assert debug.status == diagnostic.outcome == "failed"
+    assert not hasattr(diagnostic.fragments[0], "content")
+    assert diagnostic.fragments[0].output_bytes == len(b'{"malformed":')
+    assert "malformed" not in repr(runner.traces())
+    assert debug.diagnostic_id not in repr(runner.traces())
+
+
+def test_debug_run_retains_post_generation_cancellation(tmp_path: Path) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+        response_content='{"cancelled":true}',
+    )
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    adapter.debug_error = asyncio.CancelledError()
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        runner.run_debug(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    records = runner._terminal_diagnostic_store.active_records(  # type: ignore[attr-defined]
+        kind="debug_workflow_diagnostic", owner="test-local-user", now=NOW
+    )
+    diagnostic_id = records[0][1].payload["diagnostic_id"]
+    diagnostic = runner.debug_diagnostic(diagnostic_id, now=NOW)
+    assert diagnostic.outcome == "cancelled"
+    assert not hasattr(diagnostic.fragments[0], "content")
+    assert diagnostic.fragments[0].output_bytes == len(b'{"cancelled":true}')
+
+
+def test_debug_diagnostic_is_revoked_for_its_local_owner(tmp_path: Path) -> None:
+    from dynamic_agent_runner.workflow_host.runner import _DebugDiagnosticCollector
+
+    runner, _, _, _, _ = _runner(tmp_path)
+    collector = _DebugDiagnosticCollector("debug-run-1")
+    runner._retain_debug_diagnostic(  # type: ignore[attr-defined]
+        collector, outcome="failed", now=NOW
+    )
+
+    runner.delete_debug_diagnostic("debug-run-1", now=NOW)
+
+    with pytest.raises(RunDarWorkflowError, match="debug diagnostic is unavailable"):
+        runner.debug_diagnostic("debug-run-1", now=NOW)
+
+
+def test_debug_diagnostic_expires_after_its_retention_window(tmp_path: Path) -> None:
+    from dynamic_agent_runner.workflow_host.runner import _DebugDiagnosticCollector
+
+    runner, _, _, _, _ = _runner(tmp_path)
+    runner._retain_debug_diagnostic(  # type: ignore[attr-defined]
+        _DebugDiagnosticCollector("debug-run-1"), outcome="failed", now=NOW
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="debug diagnostic is unavailable"):
+        runner.debug_diagnostic("debug-run-1", now=NOW + timedelta(days=8))
+
+
+def test_debug_diagnostic_marks_aggregate_retention_limit(tmp_path: Path) -> None:
+    from dynamic_agent_runner.workflow_host.runner import (
+        _DebugDiagnosticCollector,
+        _MAX_DEBUG_DIAGNOSTIC_BYTES,
+    )
+
+    collector = _DebugDiagnosticCollector("debug-run-1")
+
+    class Generated:
+        content = "x" * _MAX_DEBUG_DIAGNOSTIC_BYTES
+        exhausted = False
+        generated_tokens = None
+
+    collector.record_fragment(Generated())
+    collector.record_terminal(
+        TerminalProcessorDiagnostic(
+            original=b"terminal",
+            original_digest="a" * 64,
+            admitted=None,
+            admitted_digest=None,
+            repair_categories=(),
+        )
+    )
+
+    assert len(collector.fragments) == 1
+    assert collector.terminal is not None
+    assert collector.retention_limited is False
+
+
+def test_local_host_exposes_only_the_debug_diagnostic_surface() -> None:
+    class FakeRunner:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        def run_debug(self, request: object, **_kwargs: object) -> str:
+            self.calls.append(("run", request))
+            return "debug-result"
+
+        def debug_diagnostic(self, diagnostic_id: str, **_kwargs: object) -> str:
+            self.calls.append(("load", diagnostic_id))
+            return "diagnostic"
+
+        def delete_debug_diagnostic(
+            self, diagnostic_id: str, **_kwargs: object
+        ) -> None:
+            self.calls.append(("delete", diagnostic_id))
+
+    host = object.__new__(LocalWorkflowHost)
+    runner = FakeRunner()
+    host._runner = runner  # type: ignore[attr-defined]
+    host._ensure_mcp_client_for_workflow = lambda _workflow_id: None  # type: ignore[method-assign]
+
+    assert (
+        host.run_debug(  # type: ignore[arg-type]
+            workflow_id="workflow-1", prepared_input_id="prepared-1", now=NOW
+        )
+        == "debug-result"
+    )
+    assert host.debug_diagnostic("diagnostic-1", now=NOW) == "diagnostic"
+    host.delete_debug_diagnostic("diagnostic-1", now=NOW)
+
+    assert [kind for kind, _ in runner.calls] == ["run", "load", "delete"]
+
+
+def test_runner_binds_reviewed_tool_to_an_opaque_binary_artifact(
+    tmp_path: Path,
+) -> None:
+    binding = ReviewedToolPackageBinding(
+        binding_id="network-review-1",
+        binding_digest="a" * 64,
+        allowed_tool_ids=("packet_summary",),
+        artifact_aware_tool_ids=("packet_summary",),
+    )
+    packages = ReviewedToolPackageControlPlane(
+        store=PrivateStateStore(tmp_path / "reviewed"), owner="local-user"
+    )
+    packages.create(package_name="network-tools", binding=binding)
+    executor = ReviewedPacketExecutor(binding)
+    runner, preparation, registration, revision, _ = _runner(
+        tmp_path,
+        artifact_verifier=OpaqueBinaryArtifactVerifier(),
+        reviewed_tool_packages=packages,
+        reviewed_artifact_tool_executors={"network-tools": executor},
+    )
+    policy = replace(
+        compile_workflow_policy(revision),
+        declared_artifact_tools=(
+            DeclaredArtifactTool(
+                tool_id="packet_summary",
+                reviewed_package_name="network-tools",
+                accepted_artifact_role="opaque_binary_artifact",
+                max_result_bytes=1024,
+            ),
+        ),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Inspect it.",
+        workspace_artifact_ids=("v1.workspace-artifact",),
+        now=NOW,
+    )
+    sealed = preparation.load(
+        prepared.prepared_input_id, registration=registration, now=NOW
+    )
+
+    registry = runner._tool_registry(  # type: ignore[attr-defined]
+        policy,
+        registration,
+        package_root=revision.package_root,
+        sealed=sealed,
+        run_id="test-run",
+        now=NOW,
+    )
+
+    result = registry.invoke_tool("packet_summary", {})
+
+    assert result.success is True
+    assert result.output == {"packet_count": len(b"sealed network capture")}
+    assert len(executor.references) == 1
 
 
 def _approval_runner(
@@ -1221,6 +2633,379 @@ def test_runner_never_sends_a_sealed_workspace_artifact_to_the_model_or_trace(
     assert "private document body" not in model_request
     assert "v1.workspace-artifact" not in trace
     assert "private document body" not in trace
+
+
+def test_runner_delivers_one_declared_sealed_image_only_to_the_vision_adapter(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, client = _runner(
+        tmp_path,
+        vision=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=VisionArtifactVerifier(),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": registration.workflow_id,
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    adapter = runner._model_adapter
+    assert isinstance(adapter, VisionFakeAdapter)
+    assert result.output == {"message": "completed locally"}
+    assert adapter.bound_images == [(b"sealed-image-bytes", "image/png")]
+    assert adapter.cleared == 1
+    assert "sealed-image-bytes" not in repr(client.responses.calls)
+    assert "v1.source-image" not in repr(runner.traces())
+
+
+def test_runner_delivers_converter_payload_without_media_type_routing(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, client = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+        v2_converter_budget=True,
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": registration.workflow_id,
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    assert result.output == {"message": "completed locally"}
+    assert len(adapter.bound_converters) == 1
+    assert len(adapter.bound_generation_budgets) == 1
+    assert adapter.bound_converters[0][1].converter_id == "qwen25-vl-3b-grpo-input-v1"
+    assert adapter.bound_payloads == [b"sealed-image-bytes"]
+    assert adapter.bound_images == []
+    assert adapter.payload_cleared == 1
+    assert "sealed-image-bytes" not in repr(client.responses.calls)
+    assert "v1.source-image" not in repr(runner.traces())
+
+
+def test_runner_rejects_converter_without_budget_before_sealed_input_loading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+        v2_converter_budget=True,
+    )
+    preflight = runner._preflight
+
+    def without_generation_budget(workflow_id: str):
+        registration, package_root, policy, terminal_output_contract = preflight(
+            workflow_id
+        )
+        return (
+            registration,
+            package_root,
+            replace(policy, execution_descriptor=None),
+            terminal_output_contract,
+        )
+
+    runner._preflight = without_generation_budget  # type: ignore[method-assign]
+    load_calls: list[object] = []
+
+    def load(**_kwargs: object) -> object:
+        load_calls.append(object())
+        raise AssertionError("sealed input must not be loaded")
+
+    monkeypatch.setattr(
+        preparation,
+        "load",
+        load,
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="generation budget"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": "unloaded-input",
+                }
+            ),
+            now=NOW,
+        )
+
+    assert load_calls == []
+
+
+def test_runner_rejects_declared_json_before_binding_sealed_payload(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+        response_format={"type": "json_object"},
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="lacks json_mode"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    assert adapter.bound_converters == []
+    assert adapter.bound_payloads == []
+    assert adapter.payload_cleared == 0
+    assert "Create a floorplan." not in repr(runner.traces())
+    assert "sealed-image-bytes" not in repr(runner.traces())
+
+
+def test_runner_defers_worker_converter_loading_to_the_adapter(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+    )
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    worker_payloads: list[tuple[Path, object, bytes]] = []
+
+    def bind_worker_converter_payload(
+        *, package_root: Path, converter: object, content: bytes
+    ) -> None:
+        worker_payloads.append((package_root, converter, content))
+
+    adapter.bind_worker_converter_payload = bind_worker_converter_payload  # type: ignore[attr-defined]
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": registration.workflow_id,
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    assert result.output == {"message": "completed locally"}
+    assert len(worker_payloads) == 1
+    assert worker_payloads[0][1].converter_id == "qwen25-vl-3b-grpo-input-v1"
+    assert worker_payloads[0][2] == b"sealed-image-bytes"
+    assert adapter.bound_converters == []
+    assert adapter.bound_payloads == []
+
+
+def test_runner_redacts_converter_package_load_failure(tmp_path: Path) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+    )
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    adapter.converter_error = ValueError("package path leaked")
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="sealed converter package"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    assert adapter.bound_payloads == []
+    assert adapter.payload_cleared == 0
+    assert "package path leaked" not in repr(runner.traces())
+    assert runner.traces()[-1].status == "failed"
+
+
+@pytest.mark.parametrize("failure", [RuntimeError("worker failed"), TimeoutError()])
+def test_runner_clears_converter_payload_and_redacts_worker_failures(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failure: Exception
+) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+    )
+    monkeypatch.setattr(
+        workflow_runner_module,
+        "run_agent_workflow",
+        lambda **_kwargs: (_ for _ in ()).throw(failure),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="DAR workflow execution failed"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    assert adapter.payload_cleared == 1
+    assert "sealed-image-bytes" not in repr(runner.traces())
+    assert runner.traces()[-1].status == "failed"
+
+
+def test_runner_clears_converter_payload_and_records_cancellation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        input_converter=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=ConverterArtifactVerifier(),
+    )
+    monkeypatch.setattr(
+        workflow_runner_module,
+        "run_agent_workflow",
+        lambda **_kwargs: (_ for _ in ()).throw(asyncio.CancelledError()),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": registration.workflow_id,
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    adapter = runner._model_adapter
+    assert isinstance(adapter, ConverterFakeAdapter)
+    assert adapter.payload_cleared == 1
+    assert runner.traces()[-1].status == "failed"
+
+
+def test_floorplan_run_validates_shaped_terminal_output_after_image_delivery(
+    tmp_path: Path,
+) -> None:
+    validated: list[bytes] = []
+    runner, preparation, registration, _, _ = _runner(
+        tmp_path,
+        vision=True,
+        terminal_validator=True,
+        package_model="qwen25-vl-3b-floorplan-grpo",
+        artifact_verifier=VisionArtifactVerifier(),
+        response_content='<svg xmlns="http://www.w3.org/2000/svg"/>',
+        local_tool_executor=lambda _command, content, _timeout: (
+            validated.append(content)
+            or (
+                b'{"valid":true}' if content.startswith(b"<svg") else b'{"valid":false}'
+            )
+        ),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Create a floorplan.",
+        workspace_artifact_ids=("v1.source-image",),
+        now=NOW,
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": registration.workflow_id,
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    assert result.output == {"message": '<svg xmlns="http://www.w3.org/2000/svg"/>'}
+    assert validated == [b'<svg xmlns="http://www.w3.org/2000/svg"/>']
 
 
 def test_runner_rejects_terminal_output_that_misses_registered_contract_field(

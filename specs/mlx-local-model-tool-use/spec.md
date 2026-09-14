@@ -5,7 +5,7 @@
 - Feature slug: `mlx-local-model-tool-use`
 - Mode: guided
 - Artifact type: authoritative SDD follow-up specification
-- Status: M6.1–M6.3 delivered; M6.4 owned-codec source delivery in progress
+- Status: delivered
 - Parent feature: `specs/mlx-local-model-adapter/spec.md`
 - Related feature specs:
   - `specs/model-interface-parity/spec.md`
@@ -114,6 +114,12 @@ equal to the pinned artifact identity. They support only omitted DAR
 Generic MLX factories remain text-only, and no model-family-name detection,
 profile registry, tool dispatch, approval behavior, or alternate artifact is
 added.
+
+The dated manual-local competency outcome is recorded in
+[`validation.md`](validation.md). It qualifies only the recorded host, exact
+verified model bytes, runtime, settings, and bounded recording tool; it does
+not broaden the built-in capability, enable generic MLX tool use, or constitute
+pytest, CI, or release evidence.
 
 ### Superseded upstream-parser-only codec-profile activation
 

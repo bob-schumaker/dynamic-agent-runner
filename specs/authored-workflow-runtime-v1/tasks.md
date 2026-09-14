@@ -12,10 +12,11 @@ or G4 for file-backed arguments. The separate OAuth O extension is owned by
 A capability cannot be implemented or advertised as live before its applicable
 gate passes.
 
-The successor's full clean-Codex acceptance is pending work owned by
+The successor's full clean-Codex acceptance is accepted work owned by
 [`agent-engineering-plugin-migration/spec.md`](../agent-engineering-plugin-migration/spec.md)
 and its `tasks.md`; it supersedes neither the implemented v1 runtime contract
-nor this record's historical evidence.
+nor this record's historical evidence, and it does not authorize a new plugin
+or DAR package publication.
 
 ## Historical Direction Change: Skills-Only CLI Control Plane
 

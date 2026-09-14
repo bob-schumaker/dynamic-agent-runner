@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import shutil
+import stat
+import json
+from hashlib import sha256
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -11,6 +14,23 @@ import yaml
 
 
 from dynamic_agent_runner.workflow_host.catalog import PackageCatalog  # noqa: E402
+from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
+    BUILTIN_CAPABILITY_CONTRACTS,
+    CapabilityCatalog,
+    CapabilityContract,
+    CapabilityProvider,
+    CapabilityRequirement,
+    CapabilityRequirements,
+)
+from dynamic_agent_runner.workflow_host.model_materials import (  # noqa: E402
+    parse_model_dependency_lock,
+)
+from dynamic_agent_runner.workflow_host.execution_descriptors import (  # noqa: E402
+    ExecutionDescriptorAbi,
+    ExecutionDescriptorValidatorRegistry,
+    parse_execution_descriptor,
+)
+import dynamic_agent_runner.workflow_host.policy as policy_module  # noqa: E402
 from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
 )  # noqa: E402
@@ -36,20 +56,54 @@ TEMPLATE_ROOT = (
 )
 
 
-def _catalog_revision(
+def _catalog_revision(  # noqa: C901
     tmp_path: Path,
     *,
     package_id: str | None = None,
     with_read_only_mcp_tool: bool = False,
     with_side_effecting_mcp_tool: bool = False,
+    with_local_tool: bool = False,
     package_skill_id: str | None = None,
     package_skill_bundled_path: str | None = None,
     enable_package_skill_source_resolution: bool = True,
     terminal_output_schema_ref: str | None = None,
     deferred_capability: str | None = None,
+    input_converter_asset: bytes | None = None,
+    input_converter_digest: str | None = None,
+    capability_requirements: dict[str, object] | None = None,
+    model_materials: dict[str, object] | None = None,
+    execution_descriptor: dict[str, object] | None = None,
+    model_material_sets: dict[str, object] | None = None,
+    inference_roles: dict[str, object] | None = None,
+    inference_role_assets: dict[str, bytes] | None = None,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
+    if model_materials is not None:
+        (source / "model-materials.json").write_text(
+            json.dumps(model_materials, sort_keys=True, separators=(",", ":")),
+            encoding="utf-8",
+        )
+    if execution_descriptor is not None:
+        (source / "execution-descriptor.json").write_text(
+            json.dumps(execution_descriptor, sort_keys=True, separators=(",", ":")),
+            encoding="utf-8",
+        )
+    if model_material_sets is not None:
+        (source / "model-material-sets.json").write_text(
+            json.dumps(model_material_sets, sort_keys=True, separators=(",", ":")),
+            encoding="utf-8",
+        )
+    if inference_roles is not None:
+        descriptor = source / "workflow-descriptor.yaml"
+        descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+        descriptor_value["inference_roles"] = inference_roles
+        descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
+    if inference_role_assets is not None:
+        for path, content in inference_role_assets.items():
+            asset = source / path
+            asset.parent.mkdir(parents=True, exist_ok=True)
+            asset.write_bytes(content)
     if package_id is not None:
         descriptor = source / "workflow-descriptor.yaml"
         descriptor.write_text(
@@ -157,6 +211,50 @@ def _catalog_revision(
         ]
         runtime_value["nodes"][0]["available_tools"] = ["mail_send"]
         runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
+    if with_local_tool:
+        descriptor = source / "workflow-descriptor.yaml"
+        descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+        descriptor_value["tools"] = [
+            {
+                "id": "inspect_binary",
+                "kind": "local",
+                "asset_path": "tools/inspect_binary",
+                "accepted_artifact_role": "source_binary",
+                "max_input_bytes": 1024,
+                "max_output_bytes": 1024,
+                "timeout_seconds": 1,
+            }
+        ]
+        descriptor_value["task_invocation"].update(
+            {
+                "allowed_tool_ids": ["inspect_binary"],
+                "allowed_artifact_roles": ["source_binary"],
+                "max_total_tool_calls": 1,
+            }
+        )
+        descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
+        runtime = source / "agent-runtime.yaml"
+        runtime_value = yaml.safe_load(runtime.read_text(encoding="utf-8"))
+        runtime_value["tools"] = [
+            {
+                "id": "inspect_binary",
+                "label": "Inspect binary",
+                "tool_type": "external_api",
+                "description_for_llm": "Inspect the sealed binary.",
+                "adapter": "host.local",
+                "input_schema": {"type": "object", "properties": {}},
+                "side_effect": "read",
+                "approval_required": False,
+                "timeout": "runtime_default",
+                "retry_policy": "none",
+                "failure_behavior": "error",
+            }
+        ]
+        runtime_value["nodes"][0]["available_tools"] = ["inspect_binary"]
+        runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
+        asset = source / "tools" / "inspect_binary"
+        asset.parent.mkdir()
+        asset.write_text("placeholder", encoding="utf-8")
     if package_skill_id is not None:
         descriptor = source / "workflow-descriptor.yaml"
         descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
@@ -198,6 +296,27 @@ def _catalog_revision(
         )
         descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
         runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
+    if input_converter_asset is not None:
+        converter = source / "converters" / "qwen_floorplan.py"
+        converter.parent.mkdir()
+        converter.write_bytes(input_converter_asset)
+        descriptor = source / "workflow-descriptor.yaml"
+        descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+        descriptor_value["input_converter"] = {
+            "converter_id": "qwen-floorplan-input-v1",
+            "converter_contract_version": "v1",
+            "compatible_runner_contract_id": "transformers-generate-v1",
+            "entrypoint": "converters/qwen_floorplan.py",
+            "asset_digest": input_converter_digest
+            or sha256(input_converter_asset).hexdigest(),
+            "declared_resource_limits": {
+                "max_input_bytes": 8 * 1024 * 1024,
+                "max_output_bytes": 1024,
+                "timeout_seconds": 30,
+            },
+        }
+        descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
+    _set_capability_requirements(source, capability_requirements)
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
         allowed_root=source.parent, store=store
@@ -206,6 +325,18 @@ def _catalog_revision(
         source_handle, now=NOW
     )
     return PackageCatalog(tmp_path / "catalog").import_staged(staged)
+
+
+def _set_capability_requirements(
+    source: Path, requirements: dict[str, object] | None
+) -> None:
+    if requirements is None:
+        return
+    descriptor = source / "workflow-descriptor.yaml"
+    descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+    descriptor_value["dar_runtime"]["required_version"] = "0.1.18"
+    descriptor_value["capability_requirements"] = requirements
+    descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
 
 
 def _declare_deferred_runtime_capability(
@@ -277,6 +408,699 @@ def test_policy_compiles_a_cataloged_no_tool_package(tmp_path: Path) -> None:
     assert len(policy.policy_digest) == 64
     assert policy.required_capabilities == frozenset({"text_generation"})
     assert policy.workspace.accepted_input_types == ("text/plain",)
+
+
+def test_policy_binds_the_canonical_capability_requirements_digest(
+    tmp_path: Path,
+) -> None:
+    requirements = CapabilityRequirements()
+    policy = compile_workflow_policy(
+        _catalog_revision(
+            tmp_path,
+            capability_requirements={
+                "format_version": 1,
+                "required_capabilities": [],
+                "capability_requirements_digest": requirements.digest,
+                "bindings": {},
+            },
+        )
+    )
+
+    assert policy.capability_requirements == requirements
+    assert policy.capability_requirements_digest == requirements.digest
+    assert policy.policy_digest
+
+
+def test_policy_binds_the_canonical_model_materials_digest(tmp_path: Path) -> None:
+    materials = {
+        "format_version": 1,
+        "logical_model_id": "local-model",
+        "runner_contract": {"id": "llama-cpp-v1", "version": "1"},
+        "loader_profile_contract": {"id": "llama-cpp-text-v1", "version": "1"},
+        "sources": [
+            {
+                "role": "base_model",
+                "group": "base",
+                "source_type": "huggingface_file",
+                "repository": "example-org/example-model",
+                "revision": "a" * 40,
+                "filename": "model.gguf",
+                "sha256": "b" * 64,
+            }
+        ],
+        "preparation": [],
+    }
+    lock = parse_model_dependency_lock(materials)
+    contract = CapabilityContract("model.execution.test.v1", "1", "c" * 64, ())
+    requirements = CapabilityRequirements(
+        (CapabilityRequirement(contract.capability_id, "1", "c" * 64, ()),),
+        {"runner": contract.capability_id},
+    )
+
+    policy = compile_workflow_policy(
+        _catalog_revision(
+            tmp_path,
+            model_materials=materials,
+            capability_requirements={
+                "format_version": 1,
+                "required_capabilities": [
+                    requirements.required_capabilities[0].to_mapping()
+                ],
+                "capability_requirements_digest": requirements.digest,
+                "bindings": {"runner": {"capability_id": contract.capability_id}},
+            },
+        ),
+        capability_catalog=CapabilityCatalog(
+            (contract,),
+            (
+                CapabilityProvider(
+                    "private-test-provider", contract, conformance_passed=True
+                ),
+            ),
+        ),
+    )
+
+    assert policy.model_materials == lock
+    assert policy.model_materials_digest == lock.digest
+
+
+def test_policy_binds_named_material_sets_to_locked_inference_roles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    lock = {
+        "format_version": 1,
+        "logical_model_id": "local-model",
+        "runner_contract": {"id": "llama-cpp-v1", "version": "1"},
+        "loader_profile_contract": {"id": "llama-cpp-text-v1", "version": "1"},
+        "sources": [
+            {
+                "role": "base_model",
+                "group": "base",
+                "source_type": "huggingface_file",
+                "repository": "example/model",
+                "revision": "a" * 40,
+                "filename": "model.gguf",
+                "sha256": "b" * 64,
+            }
+        ],
+        "preparation": [],
+    }
+    runner = CapabilityContract("model.execution.test.v1", "1", "c" * 64, ())
+    generate = CapabilityContract("model.generate.v1", "1", "d" * 64, ("structured",))
+    requirements = CapabilityRequirements(
+        (
+            CapabilityRequirement(runner.capability_id, "1", "c" * 64, ()),
+            CapabilityRequirement(
+                generate.capability_id, "1", "d" * 64, ("structured",)
+            ),
+        ),
+        {"runner": runner.capability_id},
+    )
+    instruction = b"sealed instruction"
+    schema = b'{"max_depth":2,"max_items":1,"properties":{"value":{"max_string_bytes":16,"type":"string"}},"required":["value"],"type":"object"}'
+    assets = {
+        "assets/instruction.txt": instruction,
+        "assets/request.json": schema,
+        "assets/response.json": schema,
+    }
+    inference_roles = {
+        "format_version": 1,
+        "roles": [
+            {
+                "role": "suggest",
+                "material_role": "suggest",
+                "capability_id": "model.generate.v1",
+                "instruction_asset": {
+                    "path": "assets/instruction.txt",
+                    "sha256": sha256(instruction).hexdigest(),
+                },
+                "request_schema_asset": {
+                    "path": "assets/request.json",
+                    "sha256": sha256(schema).hexdigest(),
+                },
+                "response_schema_asset": {
+                    "path": "assets/response.json",
+                    "sha256": sha256(schema).hexdigest(),
+                },
+                "authorized_asset_digests": ["d" * 64],
+                "limits": {
+                    "max_calls": 1,
+                    "max_input_bytes": 1,
+                    "max_output_bytes": 1,
+                    "timeout_milliseconds": 1,
+                    "max_concurrency": 1,
+                },
+            }
+        ],
+    }
+    revision = _catalog_revision(
+        tmp_path,
+        model_material_sets={
+            "format_version": 1,
+            "material_sets": [{"role": "suggest", "model_materials": lock}],
+        },
+        inference_roles=inference_roles,
+        inference_role_assets=assets,
+        capability_requirements={
+            "format_version": 1,
+            "required_capabilities": [
+                item.to_mapping() for item in requirements.required_capabilities
+            ],
+            "capability_requirements_digest": requirements.digest,
+            "bindings": {"runner": {"capability_id": runner.capability_id}},
+        },
+    )
+    catalog = CapabilityCatalog(
+        (runner, generate),
+        (
+            CapabilityProvider("private-runner", runner, conformance_passed=True),
+            CapabilityProvider(
+                "private-generate",
+                generate,
+                conformance_passed=True,
+                conformance_vector_ids=frozenset(
+                    {
+                        "bounded_io",
+                        "deadline",
+                        "structured_value",
+                        "redacted_failure",
+                    }
+                ),
+            ),
+        ),
+    )
+    policy = compile_workflow_policy(revision, capability_catalog=catalog)
+
+    assert policy.model_materials is None
+    assert policy.model_material_sets is not None
+    assert policy.inference_roles_digest == policy.inference_roles.digest
+    assert policy.locked_inference_bindings[0].role == "suggest"
+
+    revision.package_root.chmod(0o700)
+    asset = revision.package_root / "assets" / "request.json"
+    asset.chmod(0o600)
+    asset.write_bytes(b"tampered")
+    monkeypatch.setattr(
+        policy_module,
+        "load_agent_package_workflow",
+        lambda _path: pytest.fail("runtime manifest was loaded"),
+    )
+
+    with pytest.raises(PolicyCompilationError, match="locked inference binding"):
+        compile_workflow_policy(
+            revision,
+            capability_catalog=catalog,
+        )
+
+    asset.write_bytes(schema)
+    material_sets_path = revision.package_root / "model-material-sets.json"
+    material_sets_path.chmod(0o600)
+    material_sets = json.loads(material_sets_path.read_text(encoding="utf-8"))
+    material_sets["material_sets"][0]["role"] = "other"
+    material_sets_path.write_text(
+        json.dumps(material_sets, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PolicyCompilationError, match="locked inference binding"):
+        compile_workflow_policy(
+            revision,
+            capability_catalog=catalog,
+        )
+
+
+def test_policy_derives_embedding_binding_before_workflow_import(
+    tmp_path: Path,
+) -> None:
+    materials = {
+        "format_version": 1,
+        "logical_model_id": "local-embedding-model",
+        "runner_contract": {"id": "llama-cpp-v1", "version": "1"},
+        "loader_profile_contract": {"id": "llama-cpp-embedding-v1", "version": "1"},
+        "sources": [
+            {
+                "role": "base_model",
+                "group": "base",
+                "source_type": "huggingface_file",
+                "repository": "example-org/example-model",
+                "revision": "a" * 40,
+                "filename": "model.gguf",
+                "sha256": "b" * 64,
+            }
+        ],
+        "preparation": [],
+    }
+    embedding = CapabilityContract(
+        "embedding.execute.v1", "1", "a" * 64, ("deterministic",)
+    )
+    runner = CapabilityContract("model.execution.test.v1", "1", "c" * 64, ())
+    requirements = CapabilityRequirements(
+        (
+            CapabilityRequirement(
+                embedding.capability_id,
+                embedding.contract_version,
+                embedding.contract_digest,
+                ("deterministic",),
+            ),
+            CapabilityRequirement(
+                runner.capability_id,
+                runner.contract_version,
+                runner.contract_digest,
+                (),
+            ),
+        ),
+        {"runner": runner.capability_id},
+    )
+
+    policy = compile_workflow_policy(
+        _catalog_revision(
+            tmp_path,
+            model_materials=materials,
+            capability_requirements={
+                "format_version": 1,
+                "required_capabilities": [
+                    item.to_mapping() for item in requirements.required_capabilities
+                ],
+                "capability_requirements_digest": requirements.digest,
+                "bindings": {"runner": {"capability_id": runner.capability_id}},
+            },
+        ),
+        capability_catalog=CapabilityCatalog(
+            (embedding, runner),
+            (
+                CapabilityProvider(
+                    "embedding-provider", embedding, conformance_passed=True
+                ),
+                CapabilityProvider("runner-provider", runner, conformance_passed=True),
+            ),
+        ),
+    )
+
+    assert policy.embedding_execution_binding is not None
+    assert (
+        policy.embedding_execution_binding.material_lock_digest
+        == policy.model_materials_digest
+    )
+    assert policy.embedding_execution_binding_digest
+
+
+def test_unavailable_embedding_fails_before_import_or_model_admission(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    embedding = CapabilityContract(
+        "embedding.execute.v1", "1", "a" * 64, ("deterministic",)
+    )
+    requirement = CapabilityRequirement(
+        embedding.capability_id,
+        embedding.contract_version,
+        embedding.contract_digest,
+        ("deterministic",),
+    )
+    requirements = CapabilityRequirements((requirement,))
+    revision = _catalog_revision(
+        tmp_path,
+        capability_requirements={
+            "format_version": 1,
+            "required_capabilities": [requirement.to_mapping()],
+            "capability_requirements_digest": requirements.digest,
+            "bindings": {},
+        },
+    )
+    monkeypatch.setattr(
+        policy_module,
+        "load_agent_package_workflow",
+        lambda _path: pytest.fail("runtime manifest was loaded"),
+    )
+    monkeypatch.setattr(
+        policy_module,
+        "_load_model_materials",
+        lambda _root: pytest.fail("model material admission was attempted"),
+    )
+
+    with pytest.raises(PolicyCompilationError, match="capability"):
+        compile_workflow_policy(
+            revision, capability_catalog=CapabilityCatalog((embedding,), ())
+        )
+
+
+def test_model_materials_require_a_declared_runner_capability_binding(
+    tmp_path: Path,
+) -> None:
+    materials = {
+        "format_version": 1,
+        "logical_model_id": "local-model",
+        "runner_contract": {"id": "llama-cpp-v1", "version": "1"},
+        "loader_profile_contract": {"id": "llama-cpp-text-v1", "version": "1"},
+        "sources": [
+            {
+                "role": "base_model",
+                "group": "base",
+                "source_type": "huggingface_file",
+                "repository": "example-org/example-model",
+                "revision": "a" * 40,
+                "filename": "model.gguf",
+                "sha256": "b" * 64,
+            }
+        ],
+        "preparation": [],
+    }
+
+    with pytest.raises(PolicyCompilationError, match="runner capability"):
+        compile_workflow_policy(_catalog_revision(tmp_path, model_materials=materials))
+
+
+def test_model_material_lock_change_changes_the_policy_digest(tmp_path: Path) -> None:
+    materials = {
+        "format_version": 1,
+        "logical_model_id": "local-model",
+        "runner_contract": {"id": "llama-cpp-v1", "version": "1"},
+        "loader_profile_contract": {"id": "llama-cpp-text-v1", "version": "1"},
+        "sources": [
+            {
+                "role": "base_model",
+                "group": "base",
+                "source_type": "huggingface_file",
+                "repository": "example-org/example-model",
+                "revision": "a" * 40,
+                "filename": "model.gguf",
+                "sha256": "b" * 64,
+            }
+        ],
+        "preparation": [],
+    }
+    contract = CapabilityContract("model.execution.test.v1", "1", "c" * 64, ())
+    requirements = CapabilityRequirements(
+        (CapabilityRequirement(contract.capability_id, "1", "c" * 64, ()),),
+        {"runner": contract.capability_id},
+    )
+    declared_requirements = {
+        "format_version": 1,
+        "required_capabilities": [requirements.required_capabilities[0].to_mapping()],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {"runner": {"capability_id": contract.capability_id}},
+    }
+    catalog = CapabilityCatalog(
+        (contract,),
+        (
+            CapabilityProvider(
+                "private-test-provider", contract, conformance_passed=True
+            ),
+        ),
+    )
+    first_root = tmp_path / "first"
+    second_root = tmp_path / "second"
+    first_root.mkdir()
+    second_root.mkdir()
+    first = compile_workflow_policy(
+        _catalog_revision(
+            first_root,
+            model_materials=materials,
+            capability_requirements=declared_requirements,
+        ),
+        capability_catalog=catalog,
+    )
+    changed = {
+        **materials,
+        "sources": [{**materials["sources"][0], "sha256": "d" * 64}],
+    }
+    second = compile_workflow_policy(
+        _catalog_revision(
+            second_root,
+            model_materials=changed,
+            capability_requirements=declared_requirements,
+        ),
+        capability_catalog=catalog,
+    )
+
+    assert first.model_materials_digest != second.model_materials_digest
+    assert first.policy_digest != second.policy_digest
+
+
+def test_v2_material_lock_requires_its_exact_descriptor_before_runtime_load(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    execution_descriptor = {
+        "format_version": 1,
+        "architecture_abi": {
+            "id": "bert-encoder-v1",
+            "version": "1",
+            "contract_digest": "d" * 64,
+        },
+        "material_roles": ["tokenizer", "weights"],
+        "abi_fields": {},
+    }
+    descriptor = parse_execution_descriptor(execution_descriptor)
+    materials = {
+        "format_version": 2,
+        "logical_model_id": "example-embedding",
+        "runner_contract": {"id": "mlx-embedding-v1", "version": "1"},
+        "execution_descriptor": {
+            "filename": "execution-descriptor.json",
+            "sha256": descriptor.digest,
+        },
+        "sources": [
+            {
+                "role": "tokenizer",
+                "group": "base",
+                "source_type": "huggingface_file",
+                "repository": "example-org/example-model",
+                "revision": "a" * 40,
+                "filename": "tokenizer.json",
+                "sha256": "b" * 64,
+            },
+            {
+                "role": "weights",
+                "group": "base",
+                "source_type": "huggingface_file",
+                "repository": "example-org/example-model",
+                "revision": "a" * 40,
+                "filename": "weights.safetensors",
+                "sha256": "c" * 64,
+            },
+        ],
+        "preparation": [],
+    }
+    contract = CapabilityContract("model.execution.test.v1", "1", "e" * 64, ())
+    requirements = CapabilityRequirements(
+        (CapabilityRequirement(contract.capability_id, "1", "e" * 64, ()),),
+        {"runner": contract.capability_id},
+    )
+    declared_requirements = {
+        "format_version": 1,
+        "required_capabilities": [requirements.required_capabilities[0].to_mapping()],
+        "capability_requirements_digest": requirements.digest,
+        "bindings": {"runner": {"capability_id": contract.capability_id}},
+    }
+    catalog = CapabilityCatalog(
+        (contract,),
+        (CapabilityProvider("private-provider", contract, conformance_passed=True),),
+    )
+
+    class _Validator:
+        identity = ExecutionDescriptorAbi("bert-encoder-v1", "1", "d" * 64)
+
+        def validate(self, _descriptor) -> None:
+            return None
+
+    revision = _catalog_revision(
+        tmp_path,
+        model_materials=materials,
+        execution_descriptor=execution_descriptor,
+        capability_requirements=declared_requirements,
+    )
+    runtime_loads: list[object] = []
+    with monkeypatch.context() as patched:
+        patched.setattr(
+            policy_module,
+            "load_agent_package_workflow",
+            lambda *args: runtime_loads.append(args),
+        )
+        with pytest.raises(PolicyCompilationError, match="model execution binding"):
+            compile_workflow_policy(revision, capability_catalog=catalog)
+    assert runtime_loads == []
+
+    policy = compile_workflow_policy(
+        revision,
+        capability_catalog=catalog,
+        descriptor_validators=ExecutionDescriptorValidatorRegistry((_Validator(),)),
+    )
+
+    assert policy.model_execution_binding is not None
+    assert (
+        policy.model_execution_binding.execution_descriptor_digest == descriptor.digest
+    )
+
+    with pytest.raises(PackageStagingError, match="model-material lock"):
+        _catalog_revision(
+            tmp_path / "missing",
+            model_materials=materials,
+            capability_requirements=declared_requirements,
+        )
+
+
+def test_unsatisfied_exact_requirement_fails_before_runtime_manifest_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+    requirements = CapabilityRequirements(
+        required_capabilities=(
+            CapabilityRequirement(
+                contract.capability_id,
+                contract.contract_version,
+                contract.contract_digest,
+                ("multimodal",),
+            ),
+        )
+    )
+    revision = _catalog_revision(
+        tmp_path,
+        capability_requirements={
+            "format_version": 1,
+            "required_capabilities": [
+                {
+                    "capability_id": contract.capability_id,
+                    "contract_version": contract.contract_version,
+                    "contract_digest": contract.contract_digest,
+                    "required_features": ["multimodal"],
+                }
+            ],
+            "capability_requirements_digest": requirements.digest,
+            "bindings": {},
+        },
+    )
+    monkeypatch.setattr(
+        policy_module,
+        "load_agent_package_workflow",
+        lambda _path: pytest.fail("runtime manifest was loaded"),
+    )
+
+    with pytest.raises(PolicyCompilationError, match="capability"):
+        compile_workflow_policy(
+            revision, capability_catalog=CapabilityCatalog((contract,), ())
+        )
+
+
+def test_unsatisfied_exact_requirement_fails_before_converter_asset_access(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+    requirement = CapabilityRequirement(
+        contract.capability_id,
+        contract.contract_version,
+        contract.contract_digest,
+        ("multimodal",),
+    )
+    requirements = CapabilityRequirements((requirement,))
+    revision = _catalog_revision(
+        tmp_path,
+        input_converter_asset=b"converter sentinel",
+        capability_requirements={
+            "format_version": 1,
+            "required_capabilities": [requirement.to_mapping()],
+            "capability_requirements_digest": requirements.digest,
+            "bindings": {},
+        },
+    )
+    monkeypatch.setattr(
+        policy_module,
+        "_validate_input_converter_asset",
+        lambda **_kwargs: pytest.fail("converter asset was accessed"),
+    )
+    monkeypatch.setattr(
+        policy_module,
+        "load_agent_package_workflow",
+        lambda _path: pytest.fail("runtime manifest was loaded"),
+    )
+
+    with pytest.raises(PolicyCompilationError, match="capability"):
+        compile_workflow_policy(
+            revision, capability_catalog=CapabilityCatalog((contract,), ())
+        )
+
+
+def test_unsatisfied_exact_requirement_fails_before_local_asset_access(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+    requirement = CapabilityRequirement(
+        contract.capability_id,
+        contract.contract_version,
+        contract.contract_digest,
+        ("multimodal",),
+    )
+    requirements = CapabilityRequirements((requirement,))
+    revision = _catalog_revision(
+        tmp_path,
+        with_local_tool=True,
+        capability_requirements={
+            "format_version": 1,
+            "required_capabilities": [requirement.to_mapping()],
+            "capability_requirements_digest": requirements.digest,
+            "bindings": {},
+        },
+    )
+    monkeypatch.setattr(
+        policy_module,
+        "_validate_local_tool_assets",
+        lambda **_kwargs: pytest.fail("local asset was accessed"),
+    )
+    monkeypatch.setattr(
+        policy_module,
+        "load_agent_package_workflow",
+        lambda _path: pytest.fail("runtime manifest was loaded"),
+    )
+
+    with pytest.raises(PolicyCompilationError, match="capability"):
+        compile_workflow_policy(
+            revision, capability_catalog=CapabilityCatalog((contract,), ())
+        )
+
+
+@pytest.mark.parametrize("failure", ("malformed", "digest", "binding"))
+def test_invalid_requirement_is_rejected_during_descriptor_only_staging(
+    tmp_path: Path, failure: str
+) -> None:
+    contract = BUILTIN_CAPABILITY_CONTRACTS[0]
+    requirement = CapabilityRequirement(
+        contract.capability_id,
+        contract.contract_version,
+        contract.contract_digest,
+        ("multimodal",),
+    )
+    requirements = CapabilityRequirements((requirement,))
+    declared_requirement = requirement.to_mapping()
+    declared_digest = requirements.digest
+    bindings: dict[str, object] = {}
+    if failure == "malformed":
+        declared_requirement["unexpected"] = "value"
+    elif failure == "digest":
+        declared_digest = "0" * 64
+    else:
+        bindings = {"runner": {"capability_id": "unknown-capability"}}
+    with pytest.raises(PackageStagingError, match="descriptor"):
+        _catalog_revision(
+            tmp_path,
+            input_converter_asset=b"converter sentinel",
+            capability_requirements={
+                "format_version": 1,
+                "required_capabilities": [declared_requirement],
+                "capability_requirements_digest": declared_digest,
+                "bindings": bindings,
+            },
+        )
+
+
+def test_policy_stages_a_declared_local_tool_as_an_executable_asset(
+    tmp_path: Path,
+) -> None:
+    revision = _catalog_revision(tmp_path, with_local_tool=True)
+
+    policy = compile_workflow_policy(revision)
+
+    asset = revision.package_root / "tools" / "inspect_binary"
+    assert policy.declared_local_tools[0].tool_id == "inspect_binary"
+    assert asset.stat().st_mode & stat.S_IXUSR
 
 
 def test_policy_compiles_descriptor_declared_package_skill(tmp_path: Path) -> None:
@@ -478,4 +1302,30 @@ def test_policy_rejects_unknown_registered_terminal_output_contract(
     )
 
     with pytest.raises(PolicyCompilationError, match="terminal output contract"):
+        compile_workflow_policy(revision)
+
+
+def test_policy_binds_the_exact_staged_input_converter_asset(tmp_path: Path) -> None:
+    revision = _catalog_revision(
+        tmp_path, input_converter_asset=b"def pack():\n    return {}\n"
+    )
+
+    policy = compile_workflow_policy(revision)
+
+    assert policy.input_converter is not None
+    assert policy.input_converter.converter_id == "qwen-floorplan-input-v1"
+    assert (
+        policy.input_converter.compatible_runner_contract_id
+        == "transformers-generate-v1"
+    )
+
+
+def test_policy_rejects_a_stale_input_converter_asset_digest(tmp_path: Path) -> None:
+    revision = _catalog_revision(
+        tmp_path,
+        input_converter_asset=b"def pack():\n    return {}\n",
+        input_converter_digest="a" * 64,
+    )
+
+    with pytest.raises(PolicyCompilationError, match="cataloged package policy"):
         compile_workflow_policy(revision)

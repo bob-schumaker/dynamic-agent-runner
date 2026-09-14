@@ -3,6 +3,35 @@
 
 ## Current Focus
 
+- `model-generation-resource-budgets` is implemented and validated through
+  T5.13. The generic converter-capable adapter owns sealed-input binding,
+  budget resolution, lifecycle/admission, accounting, redacted telemetry, and
+  terminal response shaping. CPU multiprocessing and Darwin Metal/MPS workers
+  are gated by reviewed capabilities, enforceable containment, and confirmed
+  bounded reap before sealed-input ingress.
+- Release publication is not yet authorized. The checked-out runtime version is
+  `0.1.18`; converter-plugin T5.6 has a verified local package build but still
+  requires an explicit unreleased PEP 440 version and publish target before any
+  publication attempt.
+- `workflow-model-support-matrix` is complete through WMS5. Its deterministic
+  Fastmail, embedding, floorplan, structured-output, stateful-context, and
+  tool-pack profiles retain non-transferable evidence. WMS5 changed the
+  Fastmail probe to accept its registered workflow ID, derive sealed identity
+  before host composition, require a current reviewed pinned MCP surface, and
+  safely refresh only the same package/revision registration. One authorized
+  redacted read-only Fastmail receipt is recorded. State-root paths, targets,
+  credentials, mailbox data, and session transcripts remain unrecorded.
+  Commit `73fc6e1` records the receipt; `0c8f474` reconciles the matrix's
+  validation, index, plan, and decision history with that completion.
+- `workflow-model-materials` is complete through M10. M9 retains the generic
+  sealed floorplan successor boundary and M10 supplies generic prepared
+  Transformers host composition; the separately authorized WMS3.3 gate is the
+  sole MPS acceptance evidence. `local-model-preparation` is a superseded
+  historical baseline, not open release work.
+- `mlx-local-embedding-adapter` is complete through MLE8: each sealed MLE6
+  WordPiece, MLE7 SentencePiece-Unigram, and MLE8 RoBERTa byte-level-BPE
+  package has its own Darwin competency receipt and support row. No receipt
+  transfers to another package, revision, ABI, or material closure.
 - `fastmail-inbox-triage` is implemented and accepted through the registered
   direct-llama.cpp/Qwen v4 package. Its owner-authorized read-only acceptance
   produced a contract-valid `needs_review` report with one `needs_reply` item,
@@ -663,6 +692,9 @@
   - `specs/pyinstaller-packaging-support/spec.md`
   - `specs/persistent-agent-sessions/spec.md`
   - `specs/model-event-streaming/spec.md`
+  - `specs/model-generation-resource-budgets/spec.md`
+  - `specs/mlx-local-embedding-adapter/spec.md`
+  - `specs/workflow-model-support-matrix/spec.md`
 - Implementation-ready feature packages:
   - `specs/apple-foundation-model-adapter/`
 - Deferred implementation follow-ups:
@@ -687,6 +719,9 @@
   requires a current reviewed-surface receipt and separate human dispatch
   authorization; an eligible-Mac preflight applies only when the Apple profile
   is selected and never grants dispatch authority.
+- No workflow-model-support implementation is pending. A future Fastmail live
+  probe requires its own explicit authorization and redacted receipt; it must
+  not inherit the floorplan MPS or any MLX package evidence.
 - Before planning interpreter implementation, resolve the five remaining
   clarification items and run backend prototypes/benchmarks. Keep executable
   adapters caller-provided and descriptor frontmatter non-executable.

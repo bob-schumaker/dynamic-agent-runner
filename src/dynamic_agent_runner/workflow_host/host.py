@@ -9,7 +9,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Sequence
+import platform
+from typing import Any, Sequence
+from typing import Mapping
 
 from dynamic_agent_runner.apple_foundation_models import (
     AppleFoundationModelConfig,
@@ -64,6 +66,36 @@ from dynamic_agent_runner.workflow_host.mcp_surfaces import (
     MCPSurfaceSnapshotControlPlane,
     MCPSurfaceSnapshotError,
 )
+from dynamic_agent_runner.workflow_host.local_tools import (
+    execute_macos_sandbox_exec,
+)
+from dynamic_agent_runner.workflow_host.local_model_runners import (
+    LocalModelRunner,
+    LocalModelRunnerCatalog,
+)
+from dynamic_agent_runner.workflow_host.model_execution_binding import (
+    ModelExecutionBinding,
+    ModelRunnerProvider,
+    ModelRunnerRegistry,
+)
+from dynamic_agent_runner.workflow_host.model_materials import (
+    ModelDependencyLock,
+    parse_model_dependency_lock,
+)
+from dynamic_agent_runner.local_model_preparation import (
+    LocalModelPreparationCatalog,
+    LocalModelPreparationService,
+    PreparedArtifactSet,
+    prepared_transformers_peft_recipe,
+)
+from dynamic_agent_runner.workflow_host.artifact_tools import (
+    ReviewedArtifactToolExecutor,
+)
+from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
+    ReviewedToolPackage,
+    ReviewedToolPackageBinding,
+    ReviewedToolPackageControlPlane,
+)
 from dynamic_agent_runner.workflow_host.oauth import (
     OAuthAuthorizationService,
     OAuthClientConfiguration,
@@ -89,6 +121,34 @@ from dynamic_agent_runner.workflow_host.package_export import (
 )
 from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
+)
+from dynamic_agent_runner.workflow_host.capabilities import (
+    CapabilityCatalog,
+    CapabilityProvider,
+)
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorValidatorRegistry,
+)
+from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
+    GenerationBudgetDescriptorValidator,
+    GenerationExecutionHostPolicy,
+)
+from dynamic_agent_runner.workflow_host.embedding_execution import (
+    EmbeddingExecutionService,
+    EmbeddingLimitProjectorRegistry,
+)
+from dynamic_agent_runner.workflow_host.embedding_sealed_artifact_callback import (
+    EmbeddingSealedArtifactCallbackResolver,
+)
+from dynamic_agent_runner.workflow_host.locked_inference_execution import (
+    LockedInferenceHostLimits,
+)
+from dynamic_agent_runner.workflow_host.locked_inference_provider_registry import (
+    LockedInferenceProviderRegistry,
+)
+from dynamic_agent_runner.workflow_host.locked_inference_sealed_artifact_callback import (
+    LockedInferenceExecutionFactory,
+    LockedInferenceSealedArtifactCallbackResolver,
 )
 from dynamic_agent_runner.workflow_host.policy import (
     PolicyCompilationError,
@@ -120,11 +180,26 @@ from dynamic_agent_runner.workflow_host.registration import (
     WorkflowRegistrationService,
 )
 from dynamic_agent_runner.workflow_host.runner import (
+    DebugRunWorkflowResult,
+    DebugWorkflowDiagnostic,
     DryRunDarWorkflowResult,
     RedactedRunTrace,
     RunDarWorkflowRequest,
     RunDarWorkflowResult,
     WorkflowRunner,
+)
+from dynamic_agent_runner.workflow_host.sealed_artifact_preparation import (
+    SealedArtifactInputPreparationService,
+)
+from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
+    SealedArtifactHandleService,
+    SealedArtifactOutputHandleService,
+)
+from dynamic_agent_runner.workflow_host.sealed_artifact_workflow_runner import (
+    SealedArtifactCallbackResolver,
+    SealedArtifactInvocation,
+    SealedArtifactInvocationResult,
+    SealedArtifactWorkflowRunner,
 )
 from dynamic_agent_runner.workflow_host.staging import (
     PrivatePackageStager,
@@ -137,6 +212,14 @@ from dynamic_agent_runner.workflow_host.workspace_ingress import (
     WorkspaceIngressService,
     WorkspaceInputArtifact,
 )
+from dynamic_agent_runner.workflow_host.workflow_authoring_registration import (
+    AuthoringContractError,
+    CanonicalWorkflowContract,
+    DeclarativeWorkflowDefinition,
+    ReadyAuthoredWorkflow,
+    UnavailableAuthoredWorkflow,
+    validate_definition,
+)
 from dynamic_agent_runner.errors import ModelExecutionError
 
 
@@ -146,6 +229,7 @@ _AUTHORING_MATERIAL_MAX_MEMBERS = 16
 _AUTHORING_MATERIAL_TTL = timedelta(hours=1)
 _AUTHORING_OUTPUT_MAX_FILE_BYTES = 1024 * 1024
 _AUTHORING_OUTPUT_TTL = timedelta(hours=1)
+_SEALED_ARTIFACT_OUTPUT_TTL = timedelta(minutes=5)
 
 
 class LocalWorkflowHostError(ValueError):
@@ -160,7 +244,16 @@ class DiscoveredOAuthSetupError(LocalWorkflowHostError):
         super().__init__(status)
 
 
-def _create_model_adapter(profile: LocalModelProfile):
+def _create_model_adapter(
+    profile: LocalModelProfile,
+    *,
+    resolve_prepared_set: Callable[[], object] | None = None,
+    runners: LocalModelRunnerCatalog | None = None,
+    generation_worker_factory: object | None = None,
+    generation_worker_controller: object | None = None,
+):
+    if (generation_worker_factory is None) != (generation_worker_controller is None):
+        raise LocalWorkflowHostError("generation worker is unavailable")
     if profile.adapter_id == "strict-local-adapter-v1":
         return create_local_adapter(profile)
     if profile.adapter_id == "apple-foundation-models-adapter-v1":
@@ -169,9 +262,136 @@ def _create_model_adapter(profile: LocalModelProfile):
         )
     if profile.adapter_id == FASTMAIL_TRIAGE_LLAMA_CPP_ADAPTER_ID:
         return create_fastmail_triage_llama_cpp_adapter(profile)
+    if profile.runner_id == "transformers-peft-v1":
+        if resolve_prepared_set is None:
+            raise LocalWorkflowHostError("local model preparation is unavailable")
+        from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+            DeferredTransformersPeftSingleImageAdapter,
+        )
+
+        adapter = DeferredTransformersPeftSingleImageAdapter(
+            model_id=profile.model_id,
+            adapter_id=profile.adapter_id,
+            resolve_prepared_set=resolve_prepared_set,  # type: ignore[arg-type]
+        )
+        if generation_worker_factory is not None:
+            from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+                TRANSFORMERS_GENERATE_CAPABILITY,
+            )
+
+            adapter.bind_generation_worker(
+                factory=generation_worker_factory,
+                controller=generation_worker_controller,
+                capability=TRANSFORMERS_GENERATE_CAPABILITY,
+            )
+        return adapter
     if profile.adapter_id == "hosted-openai-adapter-v1":
         return create_hosted_openai_adapter(profile)
+    if resolve_prepared_set is not None and runners is not None:
+        return runners.create_adapter(profile, resolve_prepared_set)  # type: ignore[arg-type]
     raise LocalWorkflowHostError("configured execution profile is unavailable")
+
+
+def _dar_owned_generation_worker_pair(
+    *, store: PrivateStateStore, owner: str
+) -> tuple[object, object]:
+    """Build the CPU-gated generic worker pair for DAR's Transformers runner."""
+
+    try:
+        from dynamic_agent_runner.workflow_host.generation_worker_assets import (
+            GenerationWorkerAssetHandleService,
+        )
+        from dynamic_agent_runner.workflow_host.generation_worker_child_runtime import (
+            GenerationWorkerCoLocatedRuntimeFactory,
+        )
+        from dynamic_agent_runner.workflow_host.generation_worker_controllers import (
+            TorchMpsGenerationWorkerRuntime,
+            machine_generation_worker_controllers,
+        )
+        from dynamic_agent_runner.workflow_host.generation_worker_factory import (
+            GenerationWorkerCoLocatedFactoryBuilder,
+        )
+        from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+            TRANSFORMERS_GENERATE_CAPABILITY,
+            TransformersPeftGenerationWorkerRuntimeFactory,
+        )
+
+        asset_handles = GenerationWorkerAssetHandleService(store=store, owner=owner)
+        factory = GenerationWorkerCoLocatedFactoryBuilder(
+            capability=TRANSFORMERS_GENERATE_CAPABILITY,
+            asset_handles=asset_handles,
+        )
+        worker_runtime = GenerationWorkerCoLocatedRuntimeFactory(
+            asset_handles=asset_handles,
+            runner_runtime_factory=TransformersPeftGenerationWorkerRuntimeFactory(),
+        )
+        metal_runtime = (
+            TorchMpsGenerationWorkerRuntime(
+                asset_handles=asset_handles, worker_runtime=worker_runtime
+            )
+            if platform.system() == "Darwin"
+            else None
+        )
+        controller = machine_generation_worker_controllers(
+            runner_id=TRANSFORMERS_GENERATE_CAPABILITY.runner_id,
+            asset_handles=asset_handles,
+            worker_runtime=worker_runtime,
+            metal_runtime=metal_runtime,
+        )
+    except Exception as error:  # noqa: BLE001 - machine capabilities are optional.
+        raise LocalWorkflowHostError("generation worker is unavailable") from error
+    return factory, controller
+
+
+def _dar_owned_transformers_generation_bindings() -> tuple[
+    CapabilityCatalog, ExecutionDescriptorValidatorRegistry, ModelRunnerRegistry
+]:
+    """Return exact receiver registrations for DAR's Transformers worker ABI."""
+
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TRANSFORMERS_GENERATE_CONVERTER_CONTRACT,
+        TRANSFORMERS_GENERATE_MODEL_EXECUTION_CONTRACT,
+        TRANSFORMERS_PEFT_GENERATION_V1_ABI,
+    )
+
+    runner_contract = TRANSFORMERS_GENERATE_MODEL_EXECUTION_CONTRACT
+    converter_contract = TRANSFORMERS_GENERATE_CONVERTER_CONTRACT
+    return (
+        CapabilityCatalog(
+            (converter_contract, runner_contract),
+            (
+                CapabilityProvider(
+                    "dar-transformers-generate-converter-v1",
+                    converter_contract,
+                    conformance_passed=True,
+                ),
+                CapabilityProvider(
+                    "dar-transformers-generate-runner-v1",
+                    runner_contract,
+                    conformance_passed=True,
+                ),
+            ),
+        ),
+        ExecutionDescriptorValidatorRegistry(
+            (GenerationBudgetDescriptorValidator(TRANSFORMERS_PEFT_GENERATION_V1_ABI),)
+        ),
+        ModelRunnerRegistry(
+            (
+                ModelRunnerProvider(
+                    "dar-transformers-generate-runner-v1",
+                    runner_contract,
+                    (),
+                    (
+                        (
+                            TRANSFORMERS_PEFT_GENERATION_V1_ABI.abi_id,
+                            TRANSFORMERS_PEFT_GENERATION_V1_ABI.version,
+                            TRANSFORMERS_PEFT_GENERATION_V1_ABI.contract_digest,
+                        ),
+                    ),
+                ),
+            )
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -204,6 +424,15 @@ class SavedWorkflowDryRunResult:
 
 
 @dataclass(frozen=True)
+class SavedWorkflowInspection:
+    """Immutable registered workflow facts available before host composition."""
+
+    registration: WorkflowRegistration
+    policy: Any
+    profile: LocalModelProfile
+
+
+@dataclass(frozen=True)
 class LocalWorkflowHostConfiguration:
     """Private setup record for one OS-user local workflow host."""
 
@@ -212,6 +441,46 @@ class LocalWorkflowHostConfiguration:
     workspace_input_root: Path | None = None
     workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES
     mcp_client_configuration: MCPClientConfiguration | None = None
+
+
+def inspect_saved_workflow(root: Path, *, package_name: str) -> SavedWorkflowInspection:
+    """Load one registered immutable package policy without opening a host."""
+
+    _validate_root(root)
+    if not isinstance(package_name, str) or not package_name:
+        raise LocalWorkflowHostError("saved package is unavailable")
+    try:
+        configuration = _read_configuration(root)
+        store = PrivateStateStore(root)
+        profiles = LocalModelProfileControlPlane(store=store)
+        profile = profiles.load(configuration.profile_id)
+        registrations = WorkflowRegistrationService(
+            profiles=profiles,
+            configured_profile_id=profile.profile_id,
+            root=root / "registrations",
+        )
+        registration = registrations.resolve(package_name)
+        revision = PackageCatalog(root / "catalog").revision(
+            registration.package_id, registration.revision_digest
+        )
+        capability_catalog, descriptor_validators, _ = (
+            _dar_owned_transformers_generation_bindings()
+        )
+        policy = compile_workflow_policy(
+            revision,
+            capability_catalog=capability_catalog,
+            descriptor_validators=descriptor_validators,
+        )
+    except (
+        LocalModelProfileError,
+        WorkflowRegistrationError,
+        PackageCatalogError,
+        PolicyCompilationError,
+    ) as error:
+        raise LocalWorkflowHostError("saved package is unavailable") from error
+    if policy.policy_digest != registration.policy_digest:
+        raise LocalWorkflowHostError("saved package policy does not match")
+    return SavedWorkflowInspection(registration, policy, profile)
 
 
 def configure_local_host(
@@ -280,6 +549,63 @@ def configure_apple_local_host(
     )
     _write_configuration(root, configuration)
     return configuration
+
+
+def configure_prepared_transformers_host(
+    *,
+    root: Path,
+    package_root: Path,
+    binding: ModelExecutionBinding,
+    lock: ModelDependencyLock,
+    profile_requirement: str,
+    workspace_input_root: Path | None = None,
+    workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES,
+) -> LocalWorkflowHostConfiguration:
+    """Configure one generic sealed Transformers+PEFT host profile."""
+
+    _validate_root(root)
+    _validate_package_root(package_root)
+    if workspace_input_root is not None:
+        _validate_workspace_input_root(workspace_input_root)
+    _validate_workspace_input_max_bytes(workspace_input_max_bytes)
+    try:
+        recipe = prepared_transformers_peft_recipe(lock=lock, binding=binding)
+        profile = LocalModelProfileControlPlane(
+            store=PrivateStateStore(root)
+        ).create_prepared_transformers(
+            binding=binding, profile_requirement=profile_requirement
+        )
+    except Exception as error:  # noqa: BLE001 - sealed inputs stay redacted.
+        raise LocalWorkflowHostError(
+            "prepared transformers binding is unavailable"
+        ) from error
+    _write_prepared_transformers_configuration(
+        root=root, binding=binding, lock=lock, recipe_digest=recipe.recipe_digest
+    )
+    configuration = LocalWorkflowHostConfiguration(
+        package_root,
+        profile.profile_id,
+        workspace_input_root,
+        workspace_input_max_bytes,
+    )
+    _write_configuration(root, configuration)
+    return configuration
+
+
+def prepare_configured_transformers_materials(*, root: Path, authorized: bool) -> str:
+    """Prepare the configured sealed Transformers materials through host cache policy."""
+
+    configuration = _read_configuration(root)
+    profile = LocalModelProfileControlPlane(store=PrivateStateStore(root)).load(
+        configuration.profile_id
+    )
+    service, _ = _prepared_transformers_service(root=root, profile=profile)
+    return service.prepare(
+        model_id=profile.model_id,
+        adapter_id=profile.adapter_id,
+        runner_id=profile.runner_id,
+        authorized=authorized,
+    ).status
 
 
 def configure_fastmail_triage_llama_cpp_host(
@@ -616,6 +942,7 @@ class LocalWorkflowHost:
         catalog: PackageCatalog,
         registrations: WorkflowRegistrationService,
         preparation: WorkflowInvocationPreparationService,
+        profile: LocalModelProfile,
         runner: WorkflowRunner,
         workspace_ingress: WorkspaceIngressService | None,
         authoring_materials: AuthoringMaterialService,
@@ -623,6 +950,12 @@ class LocalWorkflowHost:
         mcp_client: MCPConnectionClient | None = None,
         mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
         mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
+        reviewed_tool_packages: ReviewedToolPackageControlPlane,
+        capability_catalog: CapabilityCatalog | None = None,
+        descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
+        sealed_artifact_preparation: SealedArtifactInputPreparationService
+        | None = None,
+        sealed_artifact_runner: SealedArtifactWorkflowRunner | None = None,
     ) -> None:
         self._configuration = configuration
         self._sources = sources
@@ -630,6 +963,7 @@ class LocalWorkflowHost:
         self._catalog = catalog
         self._registrations = registrations
         self._preparation = preparation
+        self._profile = profile
         self._runner = runner
         self._workspace_ingress = workspace_ingress
         self._authoring_materials = authoring_materials
@@ -637,6 +971,11 @@ class LocalWorkflowHost:
         self._mcp_client = mcp_client
         self._mcp_surfaces = mcp_surfaces
         self._mcp_bindings = mcp_bindings
+        self._reviewed_tool_packages = reviewed_tool_packages
+        self._capability_catalog = capability_catalog
+        self._descriptor_validators = descriptor_validators
+        self._sealed_artifact_preparation = sealed_artifact_preparation
+        self._sealed_artifact_runner = sealed_artifact_runner
 
     @classmethod
     def open(
@@ -646,20 +985,101 @@ class LocalWorkflowHost:
         mcp_client_factory: Callable[[MCPClientConfiguration], MCPConnectionClient]
         | None = None,
         mcp_connections: MCPConnectionControlPlane | None = None,
+        reviewed_artifact_tool_executors: Mapping[str, ReviewedArtifactToolExecutor]
+        | None = None,
+        local_model_runners: Sequence[LocalModelRunner] = (),
+        model_runner_registry: ModelRunnerRegistry | None = None,
+        capability_catalog: CapabilityCatalog | None = None,
+        descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
+        sealed_artifact_callback_resolver: SealedArtifactCallbackResolver | None = None,
+        embedding_execution: EmbeddingExecutionService | None = None,
+        embedding_limit_projectors: EmbeddingLimitProjectorRegistry | None = None,
+        locked_inference_provider_registry: LockedInferenceProviderRegistry
+        | None = None,
+        locked_inference_host_limits: LockedInferenceHostLimits | None = None,
+        generation_execution_host_policy: GenerationExecutionHostPolicy | None = None,
     ) -> LocalWorkflowHost:
         """Open a configured local host for the current OS user."""
 
         _validate_root(root)
+        (
+            default_capability_catalog,
+            default_descriptor_validators,
+            default_model_runner_registry,
+        ) = _dar_owned_transformers_generation_bindings()
+        capability_catalog = capability_catalog or default_capability_catalog
+        descriptor_validators = descriptor_validators or default_descriptor_validators
+        model_runner_registry = model_runner_registry or default_model_runner_registry
+        if (embedding_execution is None) != (embedding_limit_projectors is None) or (
+            embedding_execution is not None
+            and (
+                capability_catalog is None
+                or sealed_artifact_callback_resolver is not None
+            )
+        ):
+            raise LocalWorkflowHostError(
+                "embedding execution configuration is unavailable"
+            )
+        if (locked_inference_provider_registry is None) != (
+            locked_inference_host_limits is None
+        ) or (
+            locked_inference_provider_registry is not None
+            and (
+                capability_catalog is None
+                or sealed_artifact_callback_resolver is not None
+                or embedding_execution is not None
+            )
+        ):
+            raise LocalWorkflowHostError(
+                "locked inference configuration is unavailable"
+            )
+        if locked_inference_provider_registry is not None:
+            sealed_artifact_callback_resolver = (
+                LockedInferenceSealedArtifactCallbackResolver(
+                    execution_factory=LockedInferenceExecutionFactory(
+                        capability_catalog=capability_catalog,
+                        provider_registry=locked_inference_provider_registry,
+                        host_limits=locked_inference_host_limits,
+                    )
+                )
+            )
+        elif embedding_execution is not None:
+            sealed_artifact_callback_resolver = EmbeddingSealedArtifactCallbackResolver(
+                execution=embedding_execution,
+                limit_projectors=embedding_limit_projectors,
+            )
         configuration = _read_configuration(root)
         store = PrivateStateStore(root)
         profiles = LocalModelProfileControlPlane(store=store)
         profile = profiles.load(configuration.profile_id)
+        prepared_transformers: (
+            tuple[LocalModelPreparationService, PreparedArtifactSet] | None
+        ) = None
+        if profile.runner_id == "transformers-peft-v1":
+            prepared_transformers = _prepared_transformers_service(
+                root=root, profile=profile
+            )
+        generation_worker_factory: object | None = None
+        generation_worker_controller: object | None = None
+        if (
+            generation_execution_host_policy is not None
+            and profile.runner_id == "transformers-peft-v1"
+        ):
+            generation_worker_factory, generation_worker_controller = (
+                _dar_owned_generation_worker_pair(
+                    store=store,
+                    owner=InstallationIdentityProvider().principal,
+                )
+            )
         connections = mcp_connections or MCPConnectionControlPlane(
             store=store, profiles=profiles
         )
         surfaces = MCPSurfaceSnapshotControlPlane(store=store, connections=connections)
         mcp_bindings = MCPWorkflowCapabilityBindingControlPlane(
             store=store, surfaces=surfaces
+        )
+        reviewed_tool_packages = ReviewedToolPackageControlPlane(
+            store=store, owner=InstallationIdentityProvider().principal
         )
         if mcp_client_factory is None:
             mcp_client = _mcp_client(
@@ -674,6 +1094,13 @@ class LocalWorkflowHost:
             profiles=profiles,
             configured_profile_id=profile.profile_id,
             root=root / "registrations",
+            model_recipe_digest_provider=(
+                lambda _: (
+                    prepared_transformers[1].recipe_digest
+                    if prepared_transformers is not None
+                    else None
+                )
+            ),
             mcp_bindings=mcp_bindings if mcp_client is not None else None,
             mcp_client=mcp_client,
             mcp_surfaces=surfaces if mcp_client is not None else None,
@@ -686,6 +1113,40 @@ class LocalWorkflowHost:
             catalog=catalog,
             store=store,
             artifact_verifier=workspace_ingress,
+            capability_catalog=capability_catalog,
+            descriptor_validators=descriptor_validators,
+        )
+        sealed_handles = SealedArtifactHandleService(
+            store=store, owner=InstallationIdentityProvider().principal
+        )
+        sealed_outputs = SealedArtifactOutputHandleService(
+            store=store, owner=InstallationIdentityProvider().principal
+        )
+        sealed_preparation = (
+            SealedArtifactInputPreparationService(
+                registrations=registrations,
+                catalog=catalog,
+                handles=sealed_handles,
+                capability_catalog=capability_catalog or CapabilityCatalog((), ()),
+                descriptor_validators=descriptor_validators,
+                callback_resolver=sealed_artifact_callback_resolver,
+            )
+            if sealed_artifact_callback_resolver is not None
+            else None
+        )
+        sealed_runner = (
+            SealedArtifactWorkflowRunner(
+                registrations=registrations,
+                catalog=catalog,
+                handles=sealed_handles,
+                outputs=sealed_outputs,
+                callback_resolver=sealed_artifact_callback_resolver,
+                capability_catalog=capability_catalog,
+                descriptor_validators=descriptor_validators,
+                output_ttl=_SEALED_ARTIFACT_OUTPUT_TTL,
+            )
+            if sealed_artifact_callback_resolver is not None
+            else None
         )
         return cls(
             configuration=configuration,
@@ -700,11 +1161,28 @@ class LocalWorkflowHost:
             catalog=catalog,
             registrations=registrations,
             preparation=preparation,
+            profile=profile,
             runner=WorkflowRunner(
                 registrations=registrations,
                 catalog=catalog,
                 preparation=preparation,
-                model_adapter=_create_model_adapter(profile),
+                model_adapter=_create_model_adapter(
+                    profile,
+                    resolve_prepared_set=(
+                        lambda: (
+                            prepared_transformers[0].resolve(
+                                model_id=profile.model_id,
+                                adapter_id=profile.adapter_id,
+                                runner_id=profile.runner_id,
+                            )
+                            if prepared_transformers is not None
+                            else None
+                        )
+                    ),
+                    runners=LocalModelRunnerCatalog(local_model_runners),
+                    generation_worker_factory=generation_worker_factory,
+                    generation_worker_controller=generation_worker_controller,
+                ),
                 configured_profile=profile,
                 mcp_bindings=mcp_bindings if mcp_client is not None else None,
                 mcp_client=mcp_client,
@@ -720,6 +1198,15 @@ class LocalWorkflowHost:
                 approval_store=WorkflowApprovalStore(
                     store=store, owner=InstallationIdentityProvider().principal
                 ),
+                local_tool_executor=execute_macos_sandbox_exec,
+                reviewed_tool_packages=reviewed_tool_packages,
+                reviewed_artifact_tool_executors=reviewed_artifact_tool_executors,
+                terminal_diagnostic_store=store,
+                terminal_diagnostic_owner=InstallationIdentityProvider().principal,
+                capability_catalog=capability_catalog,
+                model_runner_registry=model_runner_registry,
+                descriptor_validators=descriptor_validators,
+                generation_execution_host_policy=generation_execution_host_policy,
             ),
             workspace_ingress=workspace_ingress,
             authoring_materials=AuthoringMaterialService(
@@ -739,6 +1226,11 @@ class LocalWorkflowHost:
             mcp_client=mcp_client,
             mcp_surfaces=surfaces if mcp_client is not None else None,
             mcp_bindings=mcp_bindings if mcp_client is not None else None,
+            reviewed_tool_packages=reviewed_tool_packages,
+            capability_catalog=capability_catalog,
+            descriptor_validators=descriptor_validators,
+            sealed_artifact_preparation=sealed_preparation,
+            sealed_artifact_runner=sealed_runner,
         )
 
     def select_package(self, path: Path, *, now: datetime) -> str:
@@ -747,6 +1239,89 @@ class LocalWorkflowHost:
         if path.suffix.lower() == ".zip":
             return self._sources.select_zip(path, now=now)
         return self._sources.select_directory(path, now=now)
+
+    def configure_reviewed_tool_package(
+        self, *, package_name: str, binding: ReviewedToolPackageBinding
+    ) -> ReviewedToolPackage:
+        """Persist one host-reviewed package name without discovery or fallback."""
+
+        return self._reviewed_tool_packages.create(
+            package_name=package_name, binding=binding
+        )
+
+    def register_authored_workflow(
+        self,
+        *,
+        contract: CanonicalWorkflowContract,
+        definition: DeclarativeWorkflowDefinition,
+        now: datetime,
+    ) -> ReadyAuthoredWorkflow | UnavailableAuthoredWorkflow:
+        """Compose one validated closed authoring request into a saved workflow."""
+
+        try:
+            validate_definition(contract=contract, definition=definition)
+        except AuthoringContractError:
+            return UnavailableAuthoredWorkflow(
+                capability="authoring_contract",
+                requirement="the workflow definition does not match the requested contract",
+            )
+        try:
+            material = json.dumps(
+                {
+                    "workflow_name": contract.workflow_name,
+                    "model_id": contract.model_id,
+                    "adapter_id": contract.adapter_id,
+                    "input_kind": contract.input_kind,
+                    "output_contract": contract.output_contract,
+                    "required_capabilities": contract.required_capabilities,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            receipt = self.issue_authoring_materials(
+                materials=(
+                    AuthoringMaterialInput(
+                        role="canonical_workflow_contract",
+                        content=material,
+                        disposition="distributable",
+                    ),
+                ),
+                now=now,
+            )
+            output = self.create_authored_package(
+                package_name=contract.workflow_name, now=now
+            )
+            for relative_path, content in definition.package_artifacts.items():
+                self.write_authored_package_file(
+                    output_id=output.output_id,
+                    relative_path=relative_path,
+                    content=content,
+                    now=now,
+                )
+            _validation, source_handle = self.finalize_and_select_authored_output(
+                output_id=output.output_id,
+                material_set_id=receipt.material_set_id,
+                now=now,
+            )
+            self.register(
+                workflow_id=contract.workflow_name,
+                package_source_handle=source_handle,
+                now=now,
+            )
+            return ReadyAuthoredWorkflow(
+                workflow_name=contract.workflow_name,
+                input_contract=_authored_input_contract(contract.input_kind),
+                output_contract=contract.output_contract,
+                invocation=(
+                    "dar-package invoke --package-name "
+                    f"{contract.workflow_name} --prompt-stdin"
+                ),
+            )
+        except Exception:  # noqa: BLE001 - preserve the façade's redacted boundary.
+            return UnavailableAuthoredWorkflow(
+                capability="authoring_registration",
+                requirement="the authored workflow could not be registered",
+            )
 
     def select_authored_package(self, package_name: str, *, now: datetime) -> str:
         """Select one configured-root authored package by its user-facing name."""
@@ -974,7 +1549,11 @@ class LocalWorkflowHost:
         revision = self._catalog.import_staged(
             self._stager.stage(package_source_handle, now=now)
         )
-        policy = compile_workflow_policy(revision)
+        policy = compile_workflow_policy(
+            revision,
+            capability_catalog=self._capability_catalog,
+            descriptor_validators=self._descriptor_validators,
+        )
         self._ensure_mcp_client(policy_requires_mcp=True)
         if self._mcp_client is None or self._mcp_bindings is None:
             raise LocalWorkflowHostError("MCP client is not configured")
@@ -1000,15 +1579,84 @@ class LocalWorkflowHost:
         revision = self._catalog.import_staged(
             self._stager.stage(package_source_handle, now=now)
         )
-        policy = compile_workflow_policy(revision)
+        policy = compile_workflow_policy(
+            revision,
+            capability_catalog=self._capability_catalog,
+            descriptor_validators=self._descriptor_validators,
+        )
         self._ensure_mcp_client(policy_requires_mcp=bool(policy.declared_tools))
+        profile = self._registrations.configured_profile()
         return self._registrations.register(
             workflow_id=workflow_id,
             policy=policy,
             capability_resolution=resolve_capabilities(
                 policy,
                 available_capabilities={
-                    "text_generation",
+                    *profile.capabilities,
+                    *(
+                        {"local_tool_sandbox"}
+                        if self._runner.local_tool_execution_available
+                        else set()
+                    ),
+                    *(
+                        {"mcp_read_only", "mcp_side_effects"}
+                        if self._mcp_client is not None
+                        else set()
+                    ),
+                },
+            ),
+            mcp_binding_id=mcp_binding_id,
+        )
+
+    def refresh_saved_registration(
+        self, *, workflow_id: str, mcp_snapshot_id: str | None = None
+    ) -> WorkflowRegistration:
+        """Refresh one saved registration from its immutable catalog revision."""
+
+        registration = self._registrations.resolve(workflow_id)
+        revision = self._catalog.revision(
+            registration.package_id, registration.revision_digest
+        )
+        policy = compile_workflow_policy(
+            revision,
+            capability_catalog=self._capability_catalog,
+            descriptor_validators=self._descriptor_validators,
+        )
+        self._ensure_mcp_client(policy_requires_mcp=bool(policy.declared_tools))
+        profile = self._registrations.configured_profile()
+        mcp_binding_id = registration.mcp_binding_id
+        if policy.declared_tools:
+            if (
+                mcp_binding_id is None
+                or self._mcp_bindings is None
+                or self._mcp_client is None
+            ):
+                raise LocalWorkflowHostError("MCP client is not configured")
+            try:
+                snapshot_id = mcp_snapshot_id
+                if snapshot_id is None:
+                    snapshot_id = self._mcp_bindings.load(mcp_binding_id).snapshot_id
+                mcp_binding_id = self._mcp_bindings.bind(
+                    policy=policy,
+                    snapshot_id=snapshot_id,
+                    client=self._mcp_client,
+                ).binding_id
+            except MCPWorkflowCapabilityBindingError as error:
+                raise LocalWorkflowHostError(
+                    "MCP package binding is unavailable"
+                ) from error
+        return self._registrations.refresh(
+            workflow_id=workflow_id,
+            policy=policy,
+            capability_resolution=resolve_capabilities(
+                policy,
+                available_capabilities={
+                    *profile.capabilities,
+                    *(
+                        {"local_tool_sandbox"}
+                        if self._runner.local_tool_execution_available
+                        else set()
+                    ),
                     *(
                         {"mcp_read_only", "mcp_side_effects"}
                         if self._mcp_client is not None
@@ -1036,6 +1684,48 @@ class LocalWorkflowHost:
             now=now,
         )
 
+    def prepare_sealed_artifact_input(
+        self,
+        *,
+        workflow_id: str,
+        invocation_id: str,
+        role: str,
+        media_type: str,
+        schema_digest: str | None,
+        content: bytes,
+        expires_at: datetime,
+        now: datetime,
+    ):
+        """Seal one declared artifact input for an enabled sealed receiver."""
+
+        if self._sealed_artifact_preparation is None:
+            raise LocalWorkflowHostError("sealed artifact runner is unavailable")
+        return self._sealed_artifact_preparation.prepare(
+            workflow_id=workflow_id,
+            receiver_id=InstallationIdentityProvider().principal,
+            invocation_id=invocation_id,
+            role=role,
+            media_type=media_type,
+            schema_digest=schema_digest,
+            content=content,
+            expires_at=expires_at,
+            now=now,
+        )
+
+    def run_sealed_artifact(
+        self, invocation: SealedArtifactInvocation, *, now: datetime
+    ) -> SealedArtifactInvocationResult:
+        """Run one enabled sealed-artifact invocation through the host composition."""
+
+        if self._sealed_artifact_runner is None:
+            raise LocalWorkflowHostError("sealed artifact runner is unavailable")
+        try:
+            return self._sealed_artifact_runner.run(invocation, now=now)
+        except Exception as error:
+            raise LocalWorkflowHostError(
+                "sealed artifact runner is unavailable"
+            ) from error
+
     def invoke_saved(
         self,
         *,
@@ -1058,8 +1748,21 @@ class LocalWorkflowHost:
             raise LocalWorkflowHostError("dry run cannot accept workspace files")
         try:
             registration = self._registrations.resolve(package_name)
+            revision = self._catalog.revision(
+                registration.package_id, registration.revision_digest
+            )
+            policy = compile_workflow_policy(
+                revision,
+                capability_catalog=self._capability_catalog,
+                descriptor_validators=self._descriptor_validators,
+            )
         except WorkflowRegistrationError as error:
             raise LocalWorkflowHostError("saved package is unavailable") from error
+        except (PackageCatalogError, PolicyCompilationError) as error:
+            raise LocalWorkflowHostError("saved package is unavailable") from error
+        if policy.policy_digest != registration.policy_digest:
+            raise LocalWorkflowHostError("saved package policy does not match")
+        self._revalidate_capability_providers(registration, policy)
         artifact_ids = tuple(workspace_artifact_ids) or tuple(
             self.ingress_default_file(
                 workflow_id=registration.workflow_id, path=path, now=now
@@ -1112,7 +1815,11 @@ class LocalWorkflowHost:
             revision = self._catalog.revision(
                 registration.package_id, registration.revision_digest
             )
-            policy = compile_workflow_policy(revision)
+            policy = compile_workflow_policy(
+                revision,
+                capability_catalog=self._capability_catalog,
+                descriptor_validators=self._descriptor_validators,
+            )
         except (
             WorkflowRegistrationError,
             PackageCatalogError,
@@ -1123,6 +1830,7 @@ class LocalWorkflowHost:
             ) from error
         if policy.policy_digest != registration.policy_digest:
             raise LocalWorkflowHostError("workflow registration policy does not match")
+        self._revalidate_capability_providers(registration, policy)
         try:
             return self._workspace_ingress.ingress(
                 source_path=path,
@@ -1155,7 +1863,11 @@ class LocalWorkflowHost:
             revision = self._catalog.revision(
                 registration.package_id, registration.revision_digest
             )
-            policy = compile_workflow_policy(revision)
+            policy = compile_workflow_policy(
+                revision,
+                capability_catalog=self._capability_catalog,
+                descriptor_validators=self._descriptor_validators,
+            )
         except (
             WorkflowRegistrationError,
             PackageCatalogError,
@@ -1166,6 +1878,7 @@ class LocalWorkflowHost:
             ) from error
         if policy.policy_digest != registration.policy_digest:
             raise LocalWorkflowHostError("workflow registration policy does not match")
+        self._revalidate_capability_providers(registration, policy)
         roles = policy.task_invocation.allowed_artifact_roles
         media_types = policy.workspace.accepted_input_types
         if len(roles) != 1 or len(media_types) != 1:
@@ -1179,6 +1892,23 @@ class LocalWorkflowHost:
             media_type=media_types[0],
             now=now,
         )
+
+    def _revalidate_capability_providers(self, registration: Any, policy: Any) -> None:
+        if (
+            self._capability_catalog is not None
+            and policy.selected_capability_provider_ids
+            and (
+                registration.selected_capability_provider_ids
+                != policy.selected_capability_provider_ids
+                or self._capability_catalog.revalidate(
+                    registration.selected_capability_provider_ids
+                ).status
+                != "eligible"
+            )
+        ):
+            raise LocalWorkflowHostError(
+                "package capability requirements are unavailable"
+            )
 
     def dry_run(
         self, *, workflow_id: str, prepared_input_id: str, now: datetime
@@ -1206,6 +1936,37 @@ class LocalWorkflowHost:
             approval_broker=approval_broker,
             guardrail_registry=guardrail_registry,
         )
+
+    def run_debug(
+        self,
+        *,
+        workflow_id: str,
+        prepared_input_id: str,
+        now: datetime,
+        approval_broker: LocalActionApprovalBroker | None = None,
+        guardrail_registry: InMemoryGuardrailRegistry | None = None,
+    ) -> DebugRunWorkflowResult:
+        """Run one sealed workflow with authenticated local diagnostics."""
+
+        self._ensure_mcp_client_for_workflow(workflow_id)
+        return self._runner.run_debug(
+            _request(workflow_id, prepared_input_id),
+            now=now,
+            approval_broker=approval_broker,
+            guardrail_registry=guardrail_registry,
+        )
+
+    def debug_diagnostic(
+        self, diagnostic_id: str, *, now: datetime
+    ) -> DebugWorkflowDiagnostic:
+        """Return one current-principal debug diagnostic by its opaque identifier."""
+
+        return self._runner.debug_diagnostic(diagnostic_id, now=now)
+
+    def delete_debug_diagnostic(self, diagnostic_id: str, *, now: datetime) -> None:
+        """Revoke one current-principal debug diagnostic."""
+
+        self._runner.delete_debug_diagnostic(diagnostic_id, now=now)
 
     def run_traces(self) -> tuple[RedactedRunTrace, ...]:
         """Return redaction-safe traces for completed or failed local runs."""
@@ -1254,6 +2015,71 @@ def _request(workflow_id: str, prepared_input_id: str) -> RunDarWorkflowRequest:
 
 def _configuration_path(root: Path) -> Path:
     return root / "host.json"
+
+
+def _prepared_transformers_configuration_path(root: Path) -> Path:
+    return root / "prepared-transformers.json"
+
+
+def _write_prepared_transformers_configuration(
+    *,
+    root: Path,
+    binding: ModelExecutionBinding,
+    lock: ModelDependencyLock,
+    recipe_digest: str,
+) -> None:
+    destination = _prepared_transformers_configuration_path(root)
+    temporary = destination.with_suffix(".tmp")
+    temporary.write_text(
+        json.dumps(
+            {
+                "binding": binding.__dict__,
+                "lock": json.loads(lock.canonical_bytes),
+                "recipe_digest": recipe_digest,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, destination)
+
+
+def _prepared_transformers_service(
+    *, root: Path, profile: LocalModelProfile
+) -> tuple[LocalModelPreparationService, PreparedArtifactSet]:
+    try:
+        value = json.loads(
+            _prepared_transformers_configuration_path(root).read_text(encoding="utf-8")
+        )
+        binding = ModelExecutionBinding(**value["binding"])
+        lock = parse_model_dependency_lock(value["lock"])
+        recipe = prepared_transformers_peft_recipe(lock=lock, binding=binding)
+        if (
+            profile.model_id != binding.logical_model_id
+            or profile.adapter_id != recipe.adapter_id
+            or profile.runner_id != recipe.runner_id
+            or value["recipe_digest"] != recipe.recipe_digest
+        ):
+            raise ValueError
+    except Exception as error:  # noqa: BLE001 - private setup remains redacted.
+        raise LocalWorkflowHostError(
+            "prepared transformers binding is unavailable"
+        ) from error
+    service = LocalModelPreparationService(
+        catalog=LocalModelPreparationCatalog((recipe,)),
+        cache_root=root / "model-materials",
+        approved_cache_roots=(Path.home() / ".cache" / "huggingface" / "hub",),
+    )
+    try:
+        return service, service.resolve(
+            model_id=profile.model_id,
+            adapter_id=profile.adapter_id,
+            runner_id=profile.runner_id,
+        )
+    except Exception:
+        return service, PreparedArtifactSet(recipe=recipe, paths={})
 
 
 def _read_configuration(root: Path) -> LocalWorkflowHostConfiguration:
@@ -1386,6 +2212,12 @@ def _validate_root(path: Path) -> None:
     if not path.is_absolute() or "." in path.parts or ".." in path.parts:
         raise LocalWorkflowHostError("host root must be an absolute canonical path")
     path.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+
+def _authored_input_contract(input_kind: str) -> str:
+    if input_kind == "image_artifact":
+        return "one image artifact"
+    return input_kind.replace("_", " ")
 
 
 def _validate_package_root(path: Path) -> None:

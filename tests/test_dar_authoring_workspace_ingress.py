@@ -209,3 +209,145 @@ def test_materialize_rechecks_the_private_artifact_content_hash(tmp_path: Path) 
             registration_digest="a" * 64,
             now=NOW,
         )
+
+
+def test_materialize_image_returns_verified_bytes_without_a_workspace_path(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "input" / "floorplan.png"
+    source.parent.mkdir()
+    source.write_bytes(b"png bytes")
+    (tmp_path / "private-workspaces").mkdir(mode=0o700)
+    service = _service(tmp_path)
+    policy = WorkspaceIngressPolicy(
+        workflow_id="floorplan-from-image",
+        registration_digest="b" * 64,
+        accepted_roles=("source_image",),
+        accepted_media_types=("image/png",),
+    )
+    artifact = service.ingress(
+        source_path=source,
+        role="source_image",
+        media_type="image/png",
+        policy=policy,
+        now=NOW,
+    )
+
+    image = service.materialize_image(
+        artifact.artifact_id,
+        workflow_id="floorplan-from-image",
+        registration_digest="b" * 64,
+        now=NOW,
+    )
+
+    assert image.content == b"png bytes"
+    assert image.media_type == "image/png"
+    assert not hasattr(image, "content_path")
+    assert str(source) not in repr(image)
+
+
+def test_opaque_binary_reference_exposes_bounded_metadata_without_content_or_path(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "input" / "capture.bin"
+    source.parent.mkdir()
+    source.write_bytes(b"opaque packet bytes")
+    (tmp_path / "private-workspaces").mkdir(mode=0o700)
+    service = _service(tmp_path)
+    policy = WorkspaceIngressPolicy(
+        workflow_id="packet-analysis",
+        registration_digest="b" * 64,
+        accepted_roles=("opaque_binary_artifact",),
+        accepted_media_types=("application/octet-stream",),
+    )
+    artifact = service.ingress(
+        source_path=source,
+        role="opaque_binary_artifact",
+        media_type="application/octet-stream",
+        policy=policy,
+        now=NOW,
+    )
+
+    opaque = service.opaque_binary_reference(
+        artifact.artifact_id,
+        workflow_id="packet-analysis",
+        registration_digest="b" * 64,
+        now=NOW,
+    )
+
+    assert opaque.artifact_id == artifact.artifact_id
+    assert opaque.byte_count == len(b"opaque packet bytes")
+    assert opaque.role == "opaque_binary_artifact"
+    assert not hasattr(opaque, "content")
+    assert not hasattr(opaque, "content_path")
+    assert str(source) not in repr(opaque)
+
+
+def test_opaque_binary_reference_rejects_changed_sealed_content(tmp_path: Path) -> None:
+    source = tmp_path / "input" / "capture.bin"
+    source.parent.mkdir()
+    source.write_bytes(b"original bytes")
+    (tmp_path / "private-workspaces").mkdir(mode=0o700)
+    service = _service(tmp_path)
+    policy = WorkspaceIngressPolicy(
+        workflow_id="packet-analysis",
+        registration_digest="b" * 64,
+        accepted_roles=("opaque_binary_artifact",),
+        accepted_media_types=("application/octet-stream",),
+    )
+    artifact = service.ingress(
+        source_path=source,
+        role="opaque_binary_artifact",
+        media_type="application/octet-stream",
+        policy=policy,
+        now=NOW,
+    )
+    sealed = service.load(
+        artifact.artifact_id,
+        workflow_id="packet-analysis",
+        registration_digest="b" * 64,
+        now=NOW,
+    )
+    sealed.content_path.write_bytes(b"changed bytes!")
+
+    with pytest.raises(WorkspaceIngressError, match="does not match"):
+        service.opaque_binary_reference(
+            artifact.artifact_id,
+            workflow_id="packet-analysis",
+            registration_digest="b" * 64,
+            now=NOW,
+        )
+
+
+def test_materialize_binary_returns_verified_bytes_for_host_local_tools(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "input" / "input.bin"
+    source.parent.mkdir()
+    source.write_bytes(b"sealed bytes")
+    (tmp_path / "private-workspaces").mkdir(mode=0o700)
+    service = _service(tmp_path)
+    policy = WorkspaceIngressPolicy(
+        workflow_id="binary-tool-workflow",
+        registration_digest="c" * 64,
+        accepted_roles=("source_binary",),
+        accepted_media_types=("application/octet-stream",),
+    )
+    artifact = service.ingress(
+        source_path=source,
+        role="source_binary",
+        media_type="application/octet-stream",
+        policy=policy,
+        now=NOW,
+    )
+
+    materialized = service.materialize_binary(
+        artifact.artifact_id,
+        workflow_id="binary-tool-workflow",
+        registration_digest="c" * 64,
+        now=NOW,
+    )
+
+    assert materialized.content == b"sealed bytes"
+    assert materialized.role == "source_binary"
+    assert not hasattr(materialized, "content_path")

@@ -20,6 +20,10 @@ from dynamic_agent_runner.workflow_host.host import (
 )
 from dynamic_agent_runner.workflow_host.package_controller import proxy_package_command
 from dynamic_agent_runner.workflow_host.runner import RunDarWorkflowError
+from dynamic_agent_runner.workflow_host.workflow_authoring_registration import (
+    CanonicalWorkflowContract,
+    DeclarativeWorkflowDefinition,
+)
 
 
 def main(
@@ -62,6 +66,14 @@ def main(
     if arguments[0] == "select-package":
         return _select_package(
             arguments[1:], stdout=stdout, stderr=stderr, host_opener=host_opener
+        )
+    if arguments[0] == "register-authored-workflow":
+        return _register_authored_workflow(
+            arguments[1:],
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            host_opener=host_opener,
         )
     if arguments[0] in _AUTHORING_COMMANDS:
         return _authoring(
@@ -118,6 +130,104 @@ def _select_package(
         },
     )
     return 0
+
+
+def _register_authored_workflow(
+    arguments: Sequence[str],
+    *,
+    stdin: TextIO,
+    stdout: TextIO,
+    stderr: TextIO,
+    host_opener: Callable[[Path], LocalWorkflowHost],
+) -> int:
+    try:
+        parser = _ArgumentParser(add_help=False)
+        parser.add_argument("--definition-stdin", action="store_true")
+        args = parser.parse_args(arguments)
+        if not args.definition_stdin:
+            raise ValueError("registration request must be supplied on stdin")
+        contract, definition = _parse_authored_workflow_request(stdin.read())
+    except (TypeError, ValueError, json.JSONDecodeError):
+        _write(stderr, _error("usage"))
+        return 2
+    try:
+        result = host_opener(_default_state_root()).register_authored_workflow(
+            contract=contract,
+            definition=definition,
+            now=datetime.now(UTC),
+        )
+    except Exception:  # noqa: BLE001 - receipt intentionally hides host details.
+        _write(stderr, _error("internal"))
+        return 1
+    _write(stdout, {"format_version": 1, **result.to_mapping()})
+    return 0
+
+
+def _parse_authored_workflow_request(
+    content: str,
+) -> tuple[CanonicalWorkflowContract, DeclarativeWorkflowDefinition]:
+    value = json.loads(content)
+    if not isinstance(value, dict) or set(value) != {
+        "format_version",
+        "contract",
+        "definition",
+    }:
+        raise ValueError("authored workflow request is invalid")
+    if value["format_version"] != 1:
+        raise ValueError("authored workflow request format is invalid")
+    contract = _contract_from_mapping(value["contract"])
+    definition = _definition_from_mapping(value["definition"])
+    return contract, definition
+
+
+def _contract_from_mapping(value: object) -> CanonicalWorkflowContract:
+    if not isinstance(value, dict) or set(value) != {
+        "workflow_name",
+        "model_id",
+        "adapter_id",
+        "input_kind",
+        "output_contract",
+        "required_capabilities",
+    }:
+        raise ValueError("authoring contract is invalid")
+    capabilities = value["required_capabilities"]
+    if not isinstance(capabilities, list):
+        raise ValueError("authoring contract is invalid")
+    return CanonicalWorkflowContract(
+        workflow_name=value["workflow_name"],
+        model_id=value["model_id"],
+        adapter_id=value["adapter_id"],
+        input_kind=value["input_kind"],
+        output_contract=value["output_contract"],
+        required_capabilities=tuple(capabilities),
+    )
+
+
+def _definition_from_mapping(value: object) -> DeclarativeWorkflowDefinition:
+    if not isinstance(value, dict) or set(value) != {
+        "workflow_name",
+        "model_id",
+        "adapter_id",
+        "input_kind",
+        "output_contract",
+        "required_capabilities",
+        "package_artifacts",
+    }:
+        raise ValueError("authoring definition is invalid")
+    capabilities = value["required_capabilities"]
+    if not isinstance(capabilities, list) or not isinstance(
+        value["package_artifacts"], dict
+    ):
+        raise ValueError("authoring definition is invalid")
+    return DeclarativeWorkflowDefinition(
+        workflow_name=value["workflow_name"],
+        model_id=value["model_id"],
+        adapter_id=value["adapter_id"],
+        input_kind=value["input_kind"],
+        output_contract=value["output_contract"],
+        required_capabilities=tuple(capabilities),
+        package_artifacts=value["package_artifacts"],
+    )
 
 
 def _invoke(

@@ -17,6 +17,9 @@ from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     create_hosted_openai_adapter,
     create_local_adapter,
 )
+from dynamic_agent_runner.workflow_host.model_execution_binding import (  # noqa: E402
+    ModelExecutionBinding,
+)
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 from dynamic_agent_runner.errors import ModelExecutionError  # noqa: E402
 
@@ -96,6 +99,41 @@ def test_human_control_plane_creates_immutable_hosted_profile(
     assert loaded.profile_requirement == "general-language-model-v1"
     assert loaded.capabilities == frozenset({"text_generation"})
     assert len(loaded.profile_digest) == 64
+
+
+def test_control_plane_derives_prepared_transformers_profile_from_binding(
+    tmp_path: Path,
+) -> None:
+    binding = ModelExecutionBinding(
+        logical_model_id="sealed-model-v1",
+        runner_contract_id="transformers-generate-v1",
+        runner_contract_version="1",
+        loader_profile_contract_id=None,
+        loader_profile_contract_version=None,
+        material_lock_digest="a" * 64,
+        capability_requirements_digest="b" * 64,
+        runner_capability_id="model.execution.transformers-generate.v1",
+        runner_capability_version="1",
+        runner_capability_digest="c" * 64,
+        execution_descriptor_digest="d" * 64,
+        execution_abi_id="transformers-peft-generation-v1",
+        execution_abi_version="1",
+        execution_abi_contract_digest="e" * 64,
+    )
+
+    profile = LocalModelProfileControlPlane(
+        store=PrivateStateStore(tmp_path / "state")
+    ).create_prepared_transformers(
+        binding=binding,
+        profile_requirement="local-multimodal-model-v1",
+    )
+
+    assert profile.model_id == binding.logical_model_id
+    assert profile.execution_model_id == binding.logical_model_id
+    assert profile.adapter_id == "transformers-peft-adapter-v1"
+    assert profile.runner_id == "transformers-peft-v1"
+    assert profile.base_url is None
+    assert profile.capabilities == frozenset({"text_generation", "multimodal_input"})
 
 
 def test_control_plane_creates_pinned_fastmail_llama_cpp_profile(

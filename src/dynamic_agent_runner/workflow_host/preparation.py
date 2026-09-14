@@ -10,6 +10,10 @@ from dynamic_agent_runner.workflow_host.catalog import (
     PackageCatalog,
     PackageCatalogError,
 )
+from dynamic_agent_runner.workflow_host.capabilities import CapabilityCatalog
+from dynamic_agent_runner.workflow_host.execution_descriptors import (
+    ExecutionDescriptorValidatorRegistry,
+)
 from dynamic_agent_runner.workflow_host.policy import (
     PolicyCompilationError,
     compile_workflow_policy,
@@ -25,6 +29,8 @@ from dynamic_agent_runner.workflow_host.state import (
     PrivateStateStore,
 )
 from dynamic_agent_runner.workflow_host.workspace_ingress import (
+    MaterializedWorkspaceBinaryArtifact,
+    MaterializedWorkspaceImageArtifact,
     MaterializedWorkspaceInputArtifact,
 )
 
@@ -60,6 +66,34 @@ class WorkspaceArtifactMaterializer(WorkspaceArtifactVerifier, Protocol):
     ) -> MaterializedWorkspaceInputArtifact: ...
 
 
+@runtime_checkable
+class WorkspaceArtifactImageMaterializer(WorkspaceArtifactVerifier, Protocol):
+    """Private verifier that exposes sealed image bytes only to a vision adapter."""
+
+    def materialize_image(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceImageArtifact: ...
+
+
+@runtime_checkable
+class WorkspaceArtifactBinaryMaterializer(WorkspaceArtifactVerifier, Protocol):
+    """Private verifier that exposes sealed bytes only to a host-local tool."""
+
+    def materialize_binary(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceBinaryArtifact: ...
+
+
 @dataclass(frozen=True)
 class PreparedWorkflowInput:
     """Public opaque input reference returned by trusted local preparation."""
@@ -90,11 +124,15 @@ class WorkflowInvocationPreparationService:
         catalog: PackageCatalog,
         store: PrivateStateStore,
         artifact_verifier: WorkspaceArtifactVerifier | None = None,
+        capability_catalog: CapabilityCatalog | None = None,
+        descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
     ) -> None:
         self._registrations = registrations
         self._catalog = catalog
         self._store = store
         self._artifact_verifier = artifact_verifier
+        self._capability_catalog = capability_catalog
+        self._descriptor_validators = descriptor_validators
         self._identity = InstallationIdentityProvider()
 
     def prepare(
@@ -241,13 +279,85 @@ class WorkflowInvocationPreparationService:
             raise PreparedWorkflowInputError("workspace artifact roles are ambiguous")
         return artifacts
 
+    def materialize_workspace_images(
+        self,
+        sealed: SealedWorkflowInput,
+        *,
+        registration: WorkflowRegistration,
+        now: datetime,
+    ) -> tuple[MaterializedWorkspaceImageArtifact, ...]:
+        """Resolve sealed image artifacts for the selected vision adapter only."""
+
+        if not sealed.workspace_artifact_ids:
+            return ()
+        materializer = self._artifact_verifier
+        if not isinstance(materializer, WorkspaceArtifactImageMaterializer):
+            raise PreparedWorkflowInputError(
+                "workspace image materialization is unavailable"
+            )
+        try:
+            images = tuple(
+                materializer.materialize_image(
+                    artifact_id,
+                    workflow_id=registration.workflow_id,
+                    registration_digest=registration.registration_digest,
+                    now=now,
+                )
+                for artifact_id in sealed.workspace_artifact_ids
+            )
+        except Exception as error:
+            raise PreparedWorkflowInputError(
+                "workspace image materialization is unavailable"
+            ) from error
+        if len({image.role for image in images}) != len(images):
+            raise PreparedWorkflowInputError("workspace artifact roles are ambiguous")
+        return images
+
+    def materialize_workspace_binaries(
+        self,
+        sealed: SealedWorkflowInput,
+        *,
+        registration: WorkflowRegistration,
+        now: datetime,
+    ) -> tuple[MaterializedWorkspaceBinaryArtifact, ...]:
+        """Resolve sealed binary artifacts only for host-local tool bindings."""
+
+        if not sealed.workspace_artifact_ids:
+            return ()
+        materializer = self._artifact_verifier
+        if not isinstance(materializer, WorkspaceArtifactBinaryMaterializer):
+            raise PreparedWorkflowInputError(
+                "workspace binary materialization is unavailable"
+            )
+        try:
+            binaries = tuple(
+                materializer.materialize_binary(
+                    artifact_id,
+                    workflow_id=registration.workflow_id,
+                    registration_digest=registration.registration_digest,
+                    now=now,
+                )
+                for artifact_id in sealed.workspace_artifact_ids
+            )
+        except Exception as error:
+            raise PreparedWorkflowInputError(
+                "workspace binary materialization is unavailable"
+            ) from error
+        if len({binary.role for binary in binaries}) != len(binaries):
+            raise PreparedWorkflowInputError("workspace artifact roles are ambiguous")
+        return binaries
+
     def _registration_policy(self, workflow_id: str):
         try:
             registration = self._registrations.resolve(workflow_id)
             revision = self._catalog.revision(
                 registration.package_id, registration.revision_digest
             )
-            policy = compile_workflow_policy(revision)
+            policy = compile_workflow_policy(
+                revision,
+                capability_catalog=self._capability_catalog,
+                descriptor_validators=self._descriptor_validators,
+            )
         except (
             WorkflowRegistrationError,
             PackageCatalogError,
@@ -259,6 +369,21 @@ class WorkflowInvocationPreparationService:
         if policy.policy_digest != registration.policy_digest:
             raise PreparedWorkflowInputError(
                 "workflow registration policy does not match"
+            )
+        if (
+            self._capability_catalog is not None
+            and policy.selected_capability_provider_ids
+            and (
+                registration.selected_capability_provider_ids
+                != policy.selected_capability_provider_ids
+                or self._capability_catalog.revalidate(
+                    registration.selected_capability_provider_ids
+                ).status
+                != "eligible"
+            )
+        ):
+            raise PreparedWorkflowInputError(
+                "package capability requirements are unavailable"
             )
         return registration, policy
 

@@ -3,6 +3,36 @@
 
 ## Working
 
+- `model-generation-resource-budgets` is implemented and validated through
+  T5.13. The generic converter-capable model-adapter owns sealed-input binding,
+  budget resolution, admission/lifecycle, aggregate accounting, redacted
+  telemetry, and terminal response shaping. CPU multiprocessing and Darwin
+  Metal/MPS worker capability paths enforce containment and confirmed bounded
+  reap before sealed-input ingress.
+- Release publication remains pending an explicit decision: the checked-out
+  runtime is `0.1.18`, while converter-plugin T5.6 requires an unreleased PEP
+  440 version and a chosen publish target. Its local package build alone does
+  not authorize publication.
+- `workflow-model-support-matrix` is complete through WMS5. The verified
+  owner-local registration maps workflow `fastmail-inbox-triage-qwen-v4` to its
+  distinct sealed package. The probe derives identity and support facts through
+  registered-state inspection, has no operator-supplied support facts, and
+  requires a current reviewed pinned MCP surface before its sole read-only
+  dispatch. Deterministic Fastmail, embedding, floorplan, structured-output,
+  stateful-context, and tool-pack profiles have recorded coverage; one explicit
+  floorplan MPS receipt and one redacted Fastmail live receipt are recorded.
+  State-root paths, targets, credentials, mailbox data, and session transcripts
+  remain unrecorded. Commit `73fc6e1` records the receipt and `0c8f474`
+  reconciles the matrix validation, index, plan, and decision history.
+- `workflow-model-materials` is complete through M10: M9 preserves the generic
+  sealed floorplan successor boundary, and M10 provides generic prepared
+  Transformers host composition. The separately authorized WMS3.3 gate remains
+  the sole MPS acceptance evidence; `local-model-preparation` is superseded
+  historical context rather than open release work.
+- `mlx-local-embedding-adapter` is complete through MLE8. MLE6 WordPiece,
+  MLE7 SentencePiece-Unigram, and MLE8 RoBERTa byte-level-BPE each have a
+  sealed package, local fixture, Darwin competency receipt, and non-transferable
+  workflow support row.
 - `fastmail-inbox-triage` is complete through the registered direct-llama.cpp/
   Qwen v4 package. The owner-authorized read-only acceptance produced a
   contract-valid `needs_review` report with one `needs_reply` item and no

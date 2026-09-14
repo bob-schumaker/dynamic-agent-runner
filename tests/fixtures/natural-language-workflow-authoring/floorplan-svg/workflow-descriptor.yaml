@@ -1,0 +1,70 @@
+format_version: 1
+package_id: floorplan-from-image
+purpose: Turn one sealed image into one validated SVG floorplan.
+dar_runtime:
+  distribution: dynamic-agent-runner
+  required_version: 0.1.18
+model:
+  profile_requirement: local-multimodal-model-v1
+capability_requirements:
+  format_version: 1
+  required_capabilities:
+    - capability_id: model.converter.transformers-generate.v1
+      contract_version: "1"
+      contract_digest: 174e0315b88cd532806cac20f43f9c80cdea6ba99fbcc94dae6274613ecf5059
+      required_features: []
+    - capability_id: model.execution.transformers-generate.v1
+      contract_version: "1"
+      contract_digest: 11f1e124898e8adb5f726b144235772def3ce41f23219d1e212b527834b9750b
+      required_features: []
+  capability_requirements_digest: 0444c8c292728e8112fa8ad3aece0dc89184d1d941a7bbbe5efaf6c945add060
+  bindings:
+    converter:
+      capability_id: model.converter.transformers-generate.v1
+    runner:
+      capability_id: model.execution.transformers-generate.v1
+skills: []
+tools: []
+workspace:
+  accepted_input_types: [image/jpeg, image/png]
+  scratch_access: none
+input_contract:
+  mode: hybrid
+  structured_input_schema: null
+  additional_context_max_bytes: 8192
+  field_precedence: original_prompt
+task_invocation:
+  entrypoint: answer_request
+  allowed_tool_ids: []
+  max_total_tool_calls: 0
+  allowed_structured_input_fields: []
+  allowed_artifact_roles: [source_image]
+  terminal_output_schema_ref: svg_floorplan
+output:
+  schema_ref: svg_floorplan
+  processors:
+    - asset_path: tools/admit_floorplan_json
+      asset_digest: 5ba338003821ec48d59895c9129f72c28fb7753e02342af8ef08867b2c744976
+      max_output_bytes: 32768
+      timeout_seconds: 1
+    - asset_path: tools/render_floorplan_json
+      asset_digest: ddb93ad631028115c89b4100728ece3be33cb5661f9b2eed4f12c587e34d485f
+      max_output_bytes: 32768
+      timeout_seconds: 1
+  validator:
+    asset_path: tools/validate_svg
+    asset_digest: 855a5bb84a18943573202fe21d3e1f6a96b2889715b180e590e52076ed96e61e
+    max_output_bytes: 512
+    timeout_seconds: 1
+input_converter:
+  converter_id: qwen25-vl-3b-grpo-input-v1
+  converter_contract_version: v1
+  compatible_runner_contract_id: transformers-generate-v1
+  entrypoint: assets/qwen25_vl_3b_grpo_converter.py
+  asset_digest: 9e64a307247d8526aa5bf810c6afd6298f0c45ff5ffc27e0e54f27db9fd4a8d1
+  declared_resource_limits:
+    max_input_bytes: 8388608
+    max_output_bytes: 33554432
+    timeout_seconds: 1
+limits:
+  max_steps: 2

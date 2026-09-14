@@ -16,7 +16,7 @@ This plugin contains no MCP server or launcher. Run DAR's package CLI directly:
 <!-- rumdl-disable MD013 -->
 
 ```sh
-uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package version --json
+uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.1.18 dar-package version --json
 ```
 
 <!-- rumdl-enable MD013 -->

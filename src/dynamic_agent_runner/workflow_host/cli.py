@@ -243,6 +243,9 @@ def _parser() -> argparse.ArgumentParser:
     register.add_argument("--workflow-id", required=True)
     register.add_argument("--package-source-handle", required=True)
     register.add_argument("--mcp-binding-id")
+    refresh = commands.add_parser("refresh-registration")
+    refresh.add_argument("--workflow-id", required=True)
+    refresh.add_argument("--mcp-snapshot-id")
     invoke = commands.add_parser("invoke")
     invoke_target = invoke.add_mutually_exclusive_group(required=True)
     invoke_target.add_argument("--path")
@@ -500,6 +503,34 @@ def _mcp_workflow_result(
     return None
 
 
+def _registration_control_result(
+    host: LocalWorkflowHost, args: Any, *, now: datetime
+) -> dict[str, object] | None:
+    if args.command == "register":
+        registration = host.register(
+            workflow_id=args.workflow_id,
+            package_source_handle=args.package_source_handle,
+            now=now,
+            mcp_binding_id=args.mcp_binding_id,
+        )
+        return {
+            "workflow_id": registration.workflow_id,
+            "registration_digest": registration.registration_digest,
+            "profile_id": registration.profile_id,
+        }
+    if args.command == "refresh-registration":
+        registration = host.refresh_saved_registration(
+            workflow_id=args.workflow_id, mcp_snapshot_id=args.mcp_snapshot_id
+        )
+        return {
+            "status": "refreshed",
+            "workflow_id": registration.workflow_id,
+            "registration_digest": registration.registration_digest,
+            "profile_id": registration.profile_id,
+        }
+    return None
+
+
 def _package_control_result(
     host: LocalWorkflowHost,
     args: Any,
@@ -507,6 +538,9 @@ def _package_control_result(
     now: datetime,
     read_stdin: Callable[[], str] | None,
 ) -> dict[str, object] | None:
+    registration_result = _registration_control_result(host, args, now=now)
+    if registration_result is not None:
+        return registration_result
     if args.command == "select-package":
         select = (
             host.select_publisher_package
@@ -554,18 +588,6 @@ def _package_control_result(
             "content_digest": staged.digest,
             "file_count": staged.file_count,
             "status": "previewed",
-        }
-    if args.command == "register":
-        registration = host.register(
-            workflow_id=args.workflow_id,
-            package_source_handle=args.package_source_handle,
-            now=now,
-            mcp_binding_id=args.mcp_binding_id,
-        )
-        return {
-            "workflow_id": registration.workflow_id,
-            "registration_digest": registration.registration_digest,
-            "profile_id": registration.profile_id,
         }
     if args.command == "ingress-file":
         artifact = host.ingress_file(

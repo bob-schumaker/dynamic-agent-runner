@@ -1,0 +1,25 @@
+{
+  "bindings": {
+    "runner": {
+      "capability_id": "embedding.execute.v1"
+    }
+  },
+  "capability_requirements_digest": "eca6c6e8079e77e0223efb1b75798325e6d45608d9df260ab36ca16e67eb6377",
+  "format_version": 1,
+  "required_capabilities": [
+    {
+      "capability_id": "embedding.execute.v1",
+      "contract_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "contract_version": "1",
+      "required_features": [
+        "deterministic"
+      ]
+    },
+    {
+      "capability_id": "mlx.embedding.weights.prepare.v1",
+      "contract_digest": "7569b925f11d672100751a7838d8341b2b2cf280a382b7508fbbb38ba9a76f1f",
+      "contract_version": "1",
+      "required_features": []
+    }
+  ]
+}

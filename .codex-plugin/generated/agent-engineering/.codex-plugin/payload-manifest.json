@@ -2,7 +2,7 @@
   "entries": [
     {
       "acquisition_mode": "generated",
-      "content_hash": "28ece0a804453a00bd8c0453aab23b021a30c962bf38e139e5bb27ebfa2ccf63",
+      "content_hash": "457a8a5f29a65eacf4b656ed58aad70a70ee5ddbe1415867dbb3f9178c0fbff1",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -123,13 +123,68 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "ccff15abb6e7f3d5126cc75eb8dce119d1e2db0e7ad0870723b8f3649d3d103f",
+      "content_hash": "2b5e584d830ed408b82a9e9d9d645b4d38125b588fe1588114e98418985db438",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
       "ownership_role": "private_module_support",
       "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/workflow-descriptor.yaml",
       "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/workflow-descriptor.yaml",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "copied",
+      "content_hash": "23510205af1e37fb2c8408759e21e4d2d57cb94c46056b920c85c75875e61385",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-design.md",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-design.md",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "copied",
+      "content_hash": "0931ebf02f1473a0aad387085447c16a7f8a599567ea35faaaf8d51bc6bf5789",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-graph.mmd",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-graph.mmd",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "copied",
+      "content_hash": "52d1fdf6edab9086d1b0268eb209845371b6a604e10c46d77338d797bd3d4430",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-runtime.yaml",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/agent-runtime.yaml",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "copied",
+      "content_hash": "f5cb7725f10097c1b7941629d88cabbce9b70499e2cbb25c8963f0a84baef273",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/skill-bundle/skills/review-guide/SKILL.md",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/skill-bundle/skills/review-guide/SKILL.md",
+      "symlink_policy": "forbidden"
+    },
+    {
+      "acquisition_mode": "copied",
+      "content_hash": "b32645af23bc9d18b6ce3fa2a9bc98bf0c695628133fcea1a1a7bf553c95fcc7",
+      "file_mode": "0o644",
+      "file_type": "file",
+      "ownership_class": null,
+      "ownership_role": "private_module_support",
+      "relative_output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/workflow-descriptor.yaml",
+      "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/workflow-descriptor.yaml",
       "symlink_policy": "forbidden"
     },
     {
@@ -167,7 +222,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "ae135ec132c18fe20e42e9e0d5ffba12539d610f14ad72a0ee71ae5e0f54dd22",
+      "content_hash": "7bfdd9a60dfedb5a281aeb04cb0cdc9b2b6320a3037fcd85c0ed8c89ae210753",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -222,7 +277,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "ebfafe6bbfd0b44b1c956ed1b85c130dd733ca30603c6d0c7bfbbb3d1b0abdac",
+      "content_hash": "711e3bb745359ac475ea769938bbca8ca07d63696d03d55198b5b88e761a3802",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -233,7 +288,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "bb1daf8a7c5606b944b004b79cd628b6dd5d56635ef92d2ff6d15e48303043e2",
+      "content_hash": "d400671fba975756f424eec57f00dd22e4aebf308fc8bf13933fc625a64d6c1e",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -244,7 +299,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "0b6a42d07e60ed5032e13373c6e72958c8814f7cd4dbeb4b4f0818a510c29860",
+      "content_hash": "1a8e653d0f956ca280c186607794835a5a347d5d474b2a078c261d294c798b97",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -255,7 +310,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "11841ca55efe444c8684a8615fee22865f3cae1e4c174bdd13e8ca2db6a0710b",
+      "content_hash": "c8444dc27f5fc8566679f2aef394aa8e994e998fc4f4718a7ef982ad082c17d8",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -266,7 +321,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "c98d649cd81512c39b17ea2495ec4633748faa145b831148b2346825c6cc2a16",
+      "content_hash": "857b5ce238e1f53ceb3025a15f9ddf245bf87eed62c0d94ae24fd9faf64b6765",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -740,5 +795,5 @@
   ],
   "format_version": 1,
   "packager_format_version": 1,
-  "payload_fingerprint": "80a8f8c30adb11120d98a791e9a38e1ea79cbae953f83c7856cc0b9988012ad7"
+  "payload_fingerprint": "4837fa180d9fefb6ee95301ff28ec6abd0625556cad5a62f25b8c7b056a111cd"
 }

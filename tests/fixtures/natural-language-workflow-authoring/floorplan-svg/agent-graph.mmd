@@ -1,0 +1,6 @@
+flowchart TD
+  Input[Sealed image] --> Model[Floorplan vision model]
+  Model --> Admission[Workflow JSON admission]
+  Admission --> Renderer[Workflow JSON-to-SVG renderer]
+  Renderer --> Validator[Workflow SVG validator]
+  Validator --> Output[Validated SVG]
