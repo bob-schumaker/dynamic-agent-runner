@@ -227,10 +227,13 @@ test-first; completion evidence is recorded under each task.
   - Acceptance: all package identities are recomputed, not hand-edited; no
     model-specific DAR API is introduced.
 
-- [ ] M9.6 [validation] Run focused cleanup, material, descriptor, generic
+- [x] M9.6 [validation] Run focused cleanup, material, descriptor, generic
   runner, and floorplan fixture suites. Record deterministic results and leave
   WMS3.3 as the sole live MPS acceptance gate.
   - Depends on: M9.5.
   - Validation: `poetry run pytest -q tests/test_floorplan_cleanup.py
     tests/test_floorplan_svg_fixture.py tests/test_workflow_model_materials.py
     tests/test_transformers_peft_model.py` and `poetry run ruff check src tests`.
+  - Evidence: on 2026-09-13, the exact validation command passed with 96 tests;
+    Ruff and `git diff --check` also passed. WMS3.3 remains the sole live MPS
+    acceptance gate.
