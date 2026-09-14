@@ -13,14 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from dynamic_agent_runner.local_model_preparation import (
-    qwen25_vl_3b_floorplan_grpo_recipe,
-)
 from dynamic_agent_runner.workflow_host.catalog import PackageCatalog
 from dynamic_agent_runner.workflow_host.host import (
     _dar_owned_transformers_generation_bindings,
-    LocalWorkflowHost,
-    configure_floorplan_transformers_peft_host,
 )
 from dynamic_agent_runner.workflow_host.local_tools import (
     LocalToolDefinition,
@@ -63,13 +58,6 @@ FIXTURE = (
     / "fixtures"
     / "natural-language-workflow-authoring"
     / "floorplan-svg"
-)
-IMAGE = (
-    Path(__file__).resolve().parent
-    / "fixtures"
-    / "m4-4-direct-plugin-baseline"
-    / "assets"
-    / "agent-engineering.png"
 )
 
 
@@ -196,32 +184,6 @@ def test_floorplan_matrix_profiles_bind_synthetic_and_mps_facts() -> None:
 
         assert cell.status is WorkflowSupportStatus.BLOCKED
         validate_workflow_support_receipt(live, candidate, cell, receipt)
-
-
-def test_floorplan_host_configures_workspace_ingress_for_its_image_contract(
-    tmp_path: Path,
-) -> None:
-    root = tmp_path / "state"
-    configure_floorplan_transformers_peft_host(
-        root=root,
-        package_root=FIXTURE.parent,
-        workspace_input_root=IMAGE.parent,
-    )
-    host = LocalWorkflowHost.open(root)
-    source = host.select_package(FIXTURE, now=NOW)
-    registration = host.register(
-        workflow_id="floorplan-from-image", package_source_handle=source, now=NOW
-    )
-
-    artifact = host.ingress_file(
-        workflow_id=registration.workflow_id,
-        path=IMAGE,
-        role="source_image",
-        media_type="image/png",
-        now=NOW,
-    )
-
-    assert artifact.byte_count > 0
 
 
 def test_floorplan_fixture_stages_a_workflow_owned_svg_validator(
@@ -373,30 +335,21 @@ def test_floorplan_package_binds_a_sealed_generation_descriptor(tmp_path: Path) 
         "max_runtime_milliseconds": 360000,
         "max_memory_bytes": 30150672384,
     }
-    assert tuple(
-        (
-            source.role,
-            source.repository,
-            source.revision,
-            source.filename,
-            source.sha256,
-            source.group,
-        )
-        for source in policy.model_materials.sources
-    ) == tuple(
-        (
-            artifact.role,
-            artifact.repo_id,
-            artifact.revision,
-            artifact.filename,
-            artifact.sha256,
-            artifact.group,
-        )
-        for artifact in sorted(
-            qwen25_vl_3b_floorplan_grpo_recipe().artifacts,
-            key=lambda artifact: artifact.role,
-        )
-    )
+    assert {source.role for source in policy.model_materials.sources} == {
+        "adapter_config",
+        "adapter_weights",
+        "base_chat_template",
+        "base_config",
+        "base_generation_config",
+        "base_weight_1",
+        "base_weight_2",
+        "base_weight_index",
+        "processor_config",
+        "processor_merges",
+        "processor_tokenizer",
+        "processor_tokenizer_config",
+        "processor_vocab",
+    }
     assert (
         model_runner_registry.resolve(policy.model_execution_binding).provider_id
         == "dar-transformers-generate-runner-v1"

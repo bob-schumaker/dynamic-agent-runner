@@ -17,7 +17,6 @@ from dynamic_agent_runner.workflow_host.cli import TerminalApprovalBroker
 from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
     LocalWorkflowHostError,
-    LocalModelPreparationRequired,
 )
 from dynamic_agent_runner.workflow_host.package_controller import proxy_package_command
 from dynamic_agent_runner.workflow_host.runner import RunDarWorkflowError
@@ -68,13 +67,6 @@ def main(
         return _select_package(
             arguments[1:], stdout=stdout, stderr=stderr, host_opener=host_opener
         )
-    if arguments[0] == "prepare":
-        return _prepare_local_model(
-            arguments[1:],
-            stdout=stdout,
-            stderr=stderr,
-            host_opener=host_opener,
-        )
     if arguments[0] == "register-authored-workflow":
         return _register_authored_workflow(
             arguments[1:],
@@ -104,39 +96,6 @@ def main(
         guardrail_registry=guardrail_registry,
         workspace_artifact_ids=workspace_artifact_ids,
     )
-
-
-def _prepare_local_model(
-    arguments: Sequence[str],
-    *,
-    stdout: TextIO,
-    stderr: TextIO,
-    host_opener: Callable[[Path], LocalWorkflowHost],
-) -> int:
-    try:
-        parser = _ArgumentParser(add_help=False)
-        parser.add_argument("--model", required=True)
-        args = parser.parse_args(arguments)
-        if not args.model or Path(args.model).is_absolute():
-            raise ValueError("model must be a logical requirement")
-        result = host_opener(_default_state_root()).prepare_local_model(
-            model_id=args.model
-        )
-    except (LocalWorkflowHostError, ValueError):
-        _write(stderr, _error("usage"))
-        return 2
-    except Exception:  # noqa: BLE001 - receipt intentionally hides host details.
-        _write(stderr, _error("internal"))
-        return 1
-    _write(
-        stdout,
-        {
-            "format_version": 1,
-            "model_id": result.model_id,
-            "status": result.status,
-        },
-    )
-    return 0
 
 
 def _select_package(
@@ -305,14 +264,6 @@ def _invoke(
             workspace_artifact_ids=workspace_artifact_ids,
         )
         result = host_opener(_default_state_root()).invoke_saved(**invoke_kwargs)
-    except LocalModelPreparationRequired as error:
-        status = (
-            "ready_to_prepare"
-            if error.status == "preparation_not_authorized"
-            else "capability_unavailable"
-        )
-        _write(stderr, _invoke_error(status))
-        return 1
     except RunDarWorkflowError:
         _write(stderr, _invoke_error("failed"))
         return 1

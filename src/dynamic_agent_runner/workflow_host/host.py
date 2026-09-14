@@ -17,13 +17,6 @@ from dynamic_agent_runner.apple_foundation_models import (
     AppleFoundationModelConfig,
     create_apple_foundation_model_async_adapter,
 )
-from dynamic_agent_runner.local_model_preparation import (
-    LocalModelPreparationCatalog,
-    LocalModelPreparationResult,
-    LocalModelPreparationService,
-    PinnedLlamaCppLoraConverter,
-    qwen25_vl_3b_floorplan_grpo_recipe,
-)
 from dynamic_agent_runner.workflow_host.catalog import (
     PackageCatalog,
     PackageCatalogError,
@@ -230,14 +223,6 @@ _SEALED_ARTIFACT_OUTPUT_TTL = timedelta(minutes=5)
 
 class LocalWorkflowHostError(ValueError):
     """Raised when required human-owned host configuration is unavailable."""
-
-
-class LocalModelPreparationRequired(LocalWorkflowHostError):
-    """Raised when invocation needs the separately authorized model preparation."""
-
-    def __init__(self, result: LocalModelPreparationResult) -> None:
-        self.status = result.status
-        super().__init__("local model preparation is required")
 
 
 class DiscoveredOAuthSetupError(LocalWorkflowHostError):
@@ -530,33 +515,6 @@ def configure_fastmail_triage_llama_cpp_host(
         workspace_input_root,
         workspace_input_max_bytes,
         mcp_client_configuration,
-    )
-    _write_configuration(root, configuration)
-    return configuration
-
-
-def configure_floorplan_transformers_peft_host(
-    *,
-    root: Path,
-    package_root: Path,
-    workspace_input_root: Path | None = None,
-    workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES,
-) -> LocalWorkflowHostConfiguration:
-    """Configure the reviewed local floorplan Transformers/PEFT profile."""
-
-    _validate_root(root)
-    _validate_package_root(package_root)
-    if workspace_input_root is not None:
-        _validate_workspace_input_root(workspace_input_root)
-    _validate_workspace_input_max_bytes(workspace_input_max_bytes)
-    profile = LocalModelProfileControlPlane(
-        store=PrivateStateStore(root)
-    ).create_floorplan_transformers_peft()
-    configuration = LocalWorkflowHostConfiguration(
-        package_root,
-        profile.profile_id,
-        workspace_input_root,
-        workspace_input_max_bytes,
     )
     _write_configuration(root, configuration)
     return configuration
@@ -867,7 +825,6 @@ class LocalWorkflowHost:
         catalog: PackageCatalog,
         registrations: WorkflowRegistrationService,
         preparation: WorkflowInvocationPreparationService,
-        model_preparation: LocalModelPreparationService,
         profile: LocalModelProfile,
         runner: WorkflowRunner,
         workspace_ingress: WorkspaceIngressService | None,
@@ -889,7 +846,6 @@ class LocalWorkflowHost:
         self._catalog = catalog
         self._registrations = registrations
         self._preparation = preparation
-        self._model_preparation = model_preparation
         self._profile = profile
         self._runner = runner
         self._workspace_ingress = workspace_ingress
@@ -1010,16 +966,6 @@ class LocalWorkflowHost:
         else:
             mcp_client = mcp_client_factory(configuration.mcp_client_configuration)
         catalog = PackageCatalog(root / "catalog")
-        model_preparation = LocalModelPreparationService(
-            catalog=LocalModelPreparationCatalog(
-                (qwen25_vl_3b_floorplan_grpo_recipe(),)
-            ),
-            cache_root=root / "model-preparation",
-            approved_cache_roots=(Path.home() / ".cache" / "huggingface" / "hub",),
-            converter=PinnedLlamaCppLoraConverter(
-                checkout=root / "model-preparation" / "llama.cpp"
-            ),
-        )
         registrations = WorkflowRegistrationService(
             profiles=profiles,
             configured_profile_id=profile.profile_id,
@@ -1027,13 +973,6 @@ class LocalWorkflowHost:
             mcp_bindings=mcp_bindings if mcp_client is not None else None,
             mcp_client=mcp_client,
             mcp_surfaces=surfaces if mcp_client is not None else None,
-            model_recipe_digest_provider=lambda candidate: (
-                model_preparation.recipe_digest(
-                    model_id=candidate.model_id,
-                    adapter_id=candidate.adapter_id,
-                    runner_id=candidate.runner_id,
-                )
-            ),
         )
         workspace_ingress = _workspace_ingress_service(
             root=root, configuration=configuration, store=store
@@ -1091,7 +1030,6 @@ class LocalWorkflowHost:
             catalog=catalog,
             registrations=registrations,
             preparation=preparation,
-            model_preparation=model_preparation,
             profile=profile,
             runner=WorkflowRunner(
                 registrations=registrations,
@@ -1099,11 +1037,6 @@ class LocalWorkflowHost:
                 preparation=preparation,
                 model_adapter=_create_model_adapter(
                     profile,
-                    resolve_prepared_set=lambda: model_preparation.resolve(
-                        model_id=profile.model_id,
-                        adapter_id=profile.adapter_id,
-                        runner_id=profile.runner_id,
-                    ),
                     runners=LocalModelRunnerCatalog(local_model_runners),
                     generation_worker_factory=generation_worker_factory,
                     generation_worker_controller=generation_worker_controller,
@@ -1661,18 +1594,6 @@ class LocalWorkflowHost:
             now=now,
             approval_broker=approval_broker,
             guardrail_registry=guardrail_registry,
-        )
-
-    def prepare_local_model(self, *, model_id: str) -> LocalModelPreparationResult:
-        """Prepare the configured reviewed model through this authorized action."""
-
-        if model_id != self._profile.model_id:
-            return LocalModelPreparationResult(model_id, "recipe_unavailable")
-        return self._model_preparation.prepare(
-            model_id=model_id,
-            adapter_id=self._profile.adapter_id,
-            runner_id=self._profile.runner_id,
-            authorized=True,
         )
 
     def ingress_file(
