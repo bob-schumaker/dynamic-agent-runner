@@ -12,12 +12,8 @@ from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 
 
 _ROOT = Path(__file__).parents[1]
-_APPROVED_RECIPE_PATHS = {
-    "local_model_preparation.py",
-    "workflow_host/host.py",
-    "workflow_host/profiles.py",
-}
 _FORBIDDEN = (
+    "qwen25-vl-3b-floorplan-grpo",
     "floorplan-vision-llama-cpp-adapter-v1",
     "qwen-floorplan-input-v1",
     "svg_floorplan",
@@ -26,14 +22,10 @@ _FORBIDDEN = (
 )
 
 
-def test_floorplan_identity_is_limited_to_the_approved_recipe_registry() -> None:
+def test_production_source_has_no_floorplan_scenario_identity() -> None:
     for path in _ROOT.joinpath("src").rglob("*.py"):
         contents = path.read_text(encoding="utf-8")
         assert all(value not in contents for value in _FORBIDDEN), path
-        if "qwen25-vl-3b-floorplan-grpo" in contents:
-            assert path.relative_to(
-                _ROOT / "src" / "dynamic_agent_runner"
-            ).as_posix() in (_APPROVED_RECIPE_PATHS)
 
 
 def test_generic_multimodal_profile_needs_no_scenario_constructor(
