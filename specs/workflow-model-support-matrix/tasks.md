@@ -302,6 +302,14 @@ remain open.
     worker reap.
   - Validation: focused fake authorization/receipt tests, then a later explicit
     MPS authorization for one exact profile/package/material cell.
+  - Review disposition (2026-09-13): Council architecture triad, run as a
+    reduced-independence sequential deliberation, required package-derived
+    identity, a closed redacted receipt, and separate model-JSON/SVG terminal
+    assertions. Ponytail accepted one narrow probe/script and one generic
+    cleanup scalar; it rejected a shared probe framework, operator-supplied
+    support facts, and any floorplan-named host path. The task is
+    implementation-ready; its explicit MPS authorization remains a later
+    manual gate.
 
 - [ ] WMS4.1 [docs/validation] Document the generated support report, all four
       statuses, package non-transferability, and live-run authorization. Add a
