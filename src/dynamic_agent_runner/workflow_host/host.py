@@ -74,8 +74,19 @@ from dynamic_agent_runner.workflow_host.local_model_runners import (
     LocalModelRunnerCatalog,
 )
 from dynamic_agent_runner.workflow_host.model_execution_binding import (
+    ModelExecutionBinding,
     ModelRunnerProvider,
     ModelRunnerRegistry,
+)
+from dynamic_agent_runner.workflow_host.model_materials import (
+    ModelDependencyLock,
+    parse_model_dependency_lock,
+)
+from dynamic_agent_runner.local_model_preparation import (
+    LocalModelPreparationCatalog,
+    LocalModelPreparationService,
+    PreparedArtifactSet,
+    prepared_transformers_peft_recipe,
 )
 from dynamic_agent_runner.workflow_host.artifact_tools import (
     ReviewedArtifactToolExecutor,
@@ -540,6 +551,63 @@ def configure_apple_local_host(
     return configuration
 
 
+def configure_prepared_transformers_host(
+    *,
+    root: Path,
+    package_root: Path,
+    binding: ModelExecutionBinding,
+    lock: ModelDependencyLock,
+    profile_requirement: str,
+    workspace_input_root: Path | None = None,
+    workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES,
+) -> LocalWorkflowHostConfiguration:
+    """Configure one generic sealed Transformers+PEFT host profile."""
+
+    _validate_root(root)
+    _validate_package_root(package_root)
+    if workspace_input_root is not None:
+        _validate_workspace_input_root(workspace_input_root)
+    _validate_workspace_input_max_bytes(workspace_input_max_bytes)
+    try:
+        recipe = prepared_transformers_peft_recipe(lock=lock, binding=binding)
+        profile = LocalModelProfileControlPlane(
+            store=PrivateStateStore(root)
+        ).create_prepared_transformers(
+            binding=binding, profile_requirement=profile_requirement
+        )
+    except Exception as error:  # noqa: BLE001 - sealed inputs stay redacted.
+        raise LocalWorkflowHostError(
+            "prepared transformers binding is unavailable"
+        ) from error
+    _write_prepared_transformers_configuration(
+        root=root, binding=binding, lock=lock, recipe_digest=recipe.recipe_digest
+    )
+    configuration = LocalWorkflowHostConfiguration(
+        package_root,
+        profile.profile_id,
+        workspace_input_root,
+        workspace_input_max_bytes,
+    )
+    _write_configuration(root, configuration)
+    return configuration
+
+
+def prepare_configured_transformers_materials(*, root: Path, authorized: bool) -> str:
+    """Prepare the configured sealed Transformers materials through host cache policy."""
+
+    configuration = _read_configuration(root)
+    profile = LocalModelProfileControlPlane(store=PrivateStateStore(root)).load(
+        configuration.profile_id
+    )
+    service, _ = _prepared_transformers_service(root=root, profile=profile)
+    return service.prepare(
+        model_id=profile.model_id,
+        adapter_id=profile.adapter_id,
+        runner_id=profile.runner_id,
+        authorized=authorized,
+    ).status
+
+
 def configure_fastmail_triage_llama_cpp_host(
     *,
     root: Path,
@@ -984,6 +1052,13 @@ class LocalWorkflowHost:
         store = PrivateStateStore(root)
         profiles = LocalModelProfileControlPlane(store=store)
         profile = profiles.load(configuration.profile_id)
+        prepared_transformers: (
+            tuple[LocalModelPreparationService, PreparedArtifactSet] | None
+        ) = None
+        if profile.runner_id == "transformers-peft-v1":
+            prepared_transformers = _prepared_transformers_service(
+                root=root, profile=profile
+            )
         generation_worker_factory: object | None = None
         generation_worker_controller: object | None = None
         if (
@@ -1019,6 +1094,13 @@ class LocalWorkflowHost:
             profiles=profiles,
             configured_profile_id=profile.profile_id,
             root=root / "registrations",
+            model_recipe_digest_provider=(
+                lambda _: (
+                    prepared_transformers[1].recipe_digest
+                    if prepared_transformers is not None
+                    else None
+                )
+            ),
             mcp_bindings=mcp_bindings if mcp_client is not None else None,
             mcp_client=mcp_client,
             mcp_surfaces=surfaces if mcp_client is not None else None,
@@ -1086,6 +1168,17 @@ class LocalWorkflowHost:
                 preparation=preparation,
                 model_adapter=_create_model_adapter(
                     profile,
+                    resolve_prepared_set=(
+                        lambda: (
+                            prepared_transformers[0].resolve(
+                                model_id=profile.model_id,
+                                adapter_id=profile.adapter_id,
+                                runner_id=profile.runner_id,
+                            )
+                            if prepared_transformers is not None
+                            else None
+                        )
+                    ),
                     runners=LocalModelRunnerCatalog(local_model_runners),
                     generation_worker_factory=generation_worker_factory,
                     generation_worker_controller=generation_worker_controller,
@@ -1863,6 +1956,71 @@ def _request(workflow_id: str, prepared_input_id: str) -> RunDarWorkflowRequest:
 
 def _configuration_path(root: Path) -> Path:
     return root / "host.json"
+
+
+def _prepared_transformers_configuration_path(root: Path) -> Path:
+    return root / "prepared-transformers.json"
+
+
+def _write_prepared_transformers_configuration(
+    *,
+    root: Path,
+    binding: ModelExecutionBinding,
+    lock: ModelDependencyLock,
+    recipe_digest: str,
+) -> None:
+    destination = _prepared_transformers_configuration_path(root)
+    temporary = destination.with_suffix(".tmp")
+    temporary.write_text(
+        json.dumps(
+            {
+                "binding": binding.__dict__,
+                "lock": json.loads(lock.canonical_bytes),
+                "recipe_digest": recipe_digest,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, destination)
+
+
+def _prepared_transformers_service(
+    *, root: Path, profile: LocalModelProfile
+) -> tuple[LocalModelPreparationService, PreparedArtifactSet]:
+    try:
+        value = json.loads(
+            _prepared_transformers_configuration_path(root).read_text(encoding="utf-8")
+        )
+        binding = ModelExecutionBinding(**value["binding"])
+        lock = parse_model_dependency_lock(value["lock"])
+        recipe = prepared_transformers_peft_recipe(lock=lock, binding=binding)
+        if (
+            profile.model_id != binding.logical_model_id
+            or profile.adapter_id != recipe.adapter_id
+            or profile.runner_id != recipe.runner_id
+            or value["recipe_digest"] != recipe.recipe_digest
+        ):
+            raise ValueError
+    except Exception as error:  # noqa: BLE001 - private setup remains redacted.
+        raise LocalWorkflowHostError(
+            "prepared transformers binding is unavailable"
+        ) from error
+    service = LocalModelPreparationService(
+        catalog=LocalModelPreparationCatalog((recipe,)),
+        cache_root=root / "model-materials",
+        approved_cache_roots=(Path.home() / ".cache" / "huggingface" / "hub",),
+    )
+    try:
+        return service, service.resolve(
+            model_id=profile.model_id,
+            adapter_id=profile.adapter_id,
+            runner_id=profile.runner_id,
+        )
+    except Exception:
+        return service, PreparedArtifactSet(recipe=recipe, paths={})
 
 
 def _read_configuration(root: Path) -> LocalWorkflowHostConfiguration:
