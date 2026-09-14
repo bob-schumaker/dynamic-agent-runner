@@ -1,7 +1,8 @@
 # Workflow Model Materials Tasks
 
-Status: implemented through M8. Runtime implementation remained fake-only and
-test-first; completion evidence is recorded under each task.
+Status: implemented through M10. Runtime implementation was fake-only and
+test-first until the separately authorized WMS3.3 MPS completion gate;
+completion evidence is recorded under each task.
 
 ## M1 — Canonical Lock Parser
 
@@ -247,18 +248,36 @@ with a host-private prepared-set resolver. `LocalWorkflowHost.open()` therefore
 cannot execute an admitted v2 Transformers package. This is a generic execution
 gap, not authorization to restore a floorplan-named profile, recipe, or CLI.
 
-- [ ] M10.1 [tests, RED] Add fake-only host-composition tests for an admitted
+- [x] M10.1 [tests, RED] Add fake-only host-composition tests for an admitted
   v2 `transformers-peft-v1` package: exact generic host policy/resolver reaches
   the standard runner; absent, stale, mismatched, or incomplete prepared sets
   fail before converter ingress, worker launch, framework import, or model
   dispatch. Cover rejection of package-selected paths, model IDs, adapter IDs,
   provider identities, and device settings.
-- [ ] M10.2 [implementation, GREEN] Add the smallest generic host-owned
+  - Evidence (2026-09-13): focused fake-only host/profile/material vectors
+    cover exact generic resolver composition and rejection before ingress or
+    worker creation for unavailable, stale, mismatched, incomplete, or
+    package-selected material/provider/device values.
+- [x] M10.2 [implementation, GREEN] Add the smallest generic host-owned
   prepared-Transformers composition boundary. It may receive only the verified
   package binding, receiver-installed ABI implementation, host runner policy,
   and lazy prepared-set resolver; it must not add a model- or floorplan-named
   host/profile/CLI path or expose material paths.
-- [ ] M10.3 [validation] Run the focused RED/GREEN host/material/worker suites
+  - Evidence (2026-09-13): generic prepared-Transformers host composition
+    derives the sealed preparation recipe from the verified binding and uses a
+    host-private lazy resolver; no package-selected paths, model identifiers,
+    adapter identifiers, provider identities, or device settings enter the
+    host configuration boundary.
+- [x] M10.3 [validation] Run the focused RED/GREEN host/material/worker suites
   with no model, MPS, Hugging Face, or subprocess activity. Then WMS3.3 may
   reuse the generic composition for its separately authorized one-image MPS
   receipt.
+  - Evidence (2026-09-13): `poetry run pytest -q
+    tests/test_workflow_model_support_matrix.py tests/test_floorplan_svg_fixture.py
+    tests/test_floorplan_mps_completion_probe.py
+    tests/test_floorplan_mps_completion_probe_script.py
+    tests/test_generation_worker.py tests/test_transformers_peft_model.py
+    tests/test_dar_authoring_profiles.py tests/test_local_model_preparation.py`
+    passed with 170 tests and `poetry run ruff check src tests scripts` passed.
+    The later WMS3.3 gate reused this generic composition for exactly one
+    separately authorized MPS completion.

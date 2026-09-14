@@ -1,8 +1,9 @@
 # Workflow Model Support Matrix Validation
 
-Status: WMS1 pure classifier implementation complete; WMS2 profile coverage and
-Fastmail/floorplan live receipts remain absent; two package-bound MLX embedding
-competency rows are recorded
+Status: WMS1 pure classifier implementation complete; WMS2 profile coverage is
+complete; the floorplan MPS completion receipt is recorded; Fastmail live
+receipts remain absent; two package-bound MLX embedding competency rows are
+recorded.
 
 ## Commands Run
 
@@ -18,6 +19,8 @@ competency rows are recorded
 | `poetry run ruff check src tests` | pass | Full source and test lint after WMS1 implementation. |
 | MLE6 package-bound row | pass | `tests/test_mlx_gte_tiny_mle6_matrix.py` validates exact package/material/descriptor/capability/receipt binding and rejects changed package or material identity. |
 | MLE7 package-bound row | pass | `tests/test_mlx_multilingual_e5_small_mle7_matrix.py` validates exact package/material/descriptor/capability/receipt binding and rejects changed package or material identity. |
+| WMS3.3 floorplan MPS completion | pass | Explicitly authorized one-image MPS run completed one dispatch; JSON admission, SVG rendering/validation, bounded resource scalars, and confirmed worker reap are recorded in the closed receipt below. |
+| WMS3.3 focused regression | pass: 170 | `tests/test_workflow_model_support_matrix.py`, floorplan fixture/probe/script, generation worker, Transformers adapter, authoring profiles, and local preparation tests passed; `poetry run ruff check src tests scripts` passed. |
 
 ## Traceability Matrix
 
@@ -28,17 +31,27 @@ competency rows are recorded
 | AC-003 | FR-003 | WMS2.1--WMS2.2 synthetic fixture | not run |
 | AC-004 | FR-004, FR-005 | WMS3.1--WMS3.2 fake authorization tests; later authorized receipt | not run |
 | AC-005 | FR-006 | WMS1.3 binding tests | pass: profile, adapter, material, test-mode, status, and reason changes reject |
-| AC-006 | FR-008, FR-009 | WMS2.4 and WMS3.3 floorplan profiles | not run |
+| AC-006 | FR-008, FR-009 | WMS2.4 and WMS3.3 floorplan profiles | pass: explicit MPS gate completed one exact descriptor/material/profile cell; model JSON was admitted, SVG rendered/validated, and the worker reap was confirmed before the redacted receipt. |
 | AC-007 | FR-008, FR-010 | WMS2.5 structured-output profile | not run |
 | AC-008 | FR-008, FR-010 | WMS2.6 stateful-context profile | not run |
 | AC-009 | FR-008, FR-010 | WMS2.7 tool-pack-composition profile | not run |
 
 ## Manual Receipt Register
 
-No live Fastmail or floorplan run is authorized or recorded by this artifact
-creation. The separate local-only MLE6 and MLE7 Darwin competency receipts are
-recorded respectively at `tests/fixtures/mlx-gte-tiny/mle6-package/mle6.5-receipt.json`
-and `tests/fixtures/mlx-multilingual-e5-small/mle7-package/mle7.7-receipt.json`.
+One explicitly authorized live floorplan MPS run is recorded: profile
+`floorplan-svg-mps-completion-v1`, adapter `transformers-peft-adapter-v1`,
+status `supported`, one dispatch, 2,223 packed-context tokens, 1,282 generated
+tokens, 3,057 output bytes, and confirmed worker reap. The receipt binds
+profile `184d33c4b0a320a2bb7022b1ca80a1b86daa3203ea39d8afe75ebf3407e5e093`,
+descriptor `a986d842bb8d555ad6b5cfbe774a25a26db9eca34cd046d43a5158f9234526cb`,
+material lock `79edaed8648cffb71972d0c8fcb3d18f100457d9cf46f0b58bc26fd16cc69cb8`,
+and authorization reference
+`4519c2c2574ae800049fc79335a672f43c00803ee94884a0f0c83227ca7c9f07`.
+It contains no image/prompt/model JSON/SVG bytes, paths, process IDs, or worker
+handles. No live Fastmail run is recorded. The separate local-only MLE6 and
+MLE7 Darwin competency receipts are recorded respectively at
+`tests/fixtures/mlx-gte-tiny/mle6-package/mle6.5-receipt.json` and
+`tests/fixtures/mlx-multilingual-e5-small/mle7-package/mle7.7-receipt.json`.
 Their static matrix rows are package-local beside each receipt. Future receipts
 must contain only the fields specified by FR-005.
 

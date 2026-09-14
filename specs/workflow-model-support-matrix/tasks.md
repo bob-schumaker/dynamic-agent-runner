@@ -1,8 +1,7 @@
 # Workflow Model Support Matrix Tasks
 
-Status: WMS1 and WMS2 profile coverage are complete; WMS3.1--WMS3.2 Fastmail
-probe coverage is complete. WMS3.3 floorplan MPS completion and WMS4.1 reporting
-remain open.
+Status: WMS1 and WMS2 profile coverage are complete; WMS3.1--WMS3.3 live-probe
+coverage is complete. WMS4.1 reporting remains open.
 
 ## Prerequisites
 
@@ -273,7 +272,7 @@ remain open.
     one registered saved workflow with no workspace files and writes only the
     fixed redacted receipt. The command is not a pytest or CI entry point.
 
-- [ ] WMS3.3 [tests, RED/GREEN + manual gate] Add the operator-gated floorplan
+- [x] WMS3.3 [tests, RED/GREEN + manual gate] Add the operator-gated floorplan
       completion route. It must require a `supported` descriptor-bound MPS cell,
       preserve resource-budget/reap evidence, validate the output stage selected
       by M9.3, and render only a redacted completion receipt.
@@ -318,10 +317,23 @@ remain open.
     tests/test_workflow_model_support_matrix.py tests/test_floorplan_svg_fixture.py
     tests/test_floorplan_mps_completion_probe.py
     tests/test_floorplan_mps_completion_probe_script.py
-    tests/test_generation_worker.py tests/test_transformers_peft_model.py` passed
-    with 146 tests; `poetry run ruff check src tests scripts` passed. The
-    checkbox remains open pending the separately authorized exact live MPS
-    profile/package/material run.
+    tests/test_generation_worker.py tests/test_transformers_peft_model.py
+    tests/test_dar_authoring_profiles.py tests/test_local_model_preparation.py`
+    passed with 170 tests; `poetry run ruff check src tests scripts` passed.
+  - Manual-gate evidence (2026-09-13): one explicitly authorized live MPS run
+    for `floorplan-svg-mps-completion-v1` completed with status `supported`,
+    dispatch count 1, packed context 2,223 tokens, generated 1,282 tokens,
+    output 3,057 bytes, and confirmed `worker_reaped: true`. Its closed v1
+    receipt binds profile digest
+    `184d33c4b0a320a2bb7022b1ca80a1b86daa3203ea39d8afe75ebf3407e5e093`,
+    descriptor digest
+    `a986d842bb8d555ad6b5cfbe774a25a26db9eca34cd046d43a5158f9234526cb`,
+    material-lock digest
+    `79edaed8648cffb71972d0c8fcb3d18f100457d9cf46f0b58bc26fd16cc69cb8`,
+    and authorization-reference digest
+    `4519c2c2574ae800049fc79335a672f43c00803ee94884a0f0c83227ca7c9f07`.
+    The probe admitted model JSON, rendered and validated SVG, and emitted no
+    source image, prompt, model JSON, SVG, path, PID, or worker-handle data.
 
 - [ ] WMS4.1 [docs/validation] Document the generated support report, all four
       statuses, package non-transferability, and live-run authorization. Add a
