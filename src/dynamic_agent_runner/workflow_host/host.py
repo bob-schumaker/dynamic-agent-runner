@@ -413,6 +413,15 @@ class SavedWorkflowDryRunResult:
 
 
 @dataclass(frozen=True)
+class SavedWorkflowInspection:
+    """Immutable registered workflow facts available before host composition."""
+
+    registration: WorkflowRegistration
+    policy: Any
+    profile: LocalModelProfile
+
+
+@dataclass(frozen=True)
 class LocalWorkflowHostConfiguration:
     """Private setup record for one OS-user local workflow host."""
 
@@ -421,6 +430,46 @@ class LocalWorkflowHostConfiguration:
     workspace_input_root: Path | None = None
     workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES
     mcp_client_configuration: MCPClientConfiguration | None = None
+
+
+def inspect_saved_workflow(root: Path, *, package_name: str) -> SavedWorkflowInspection:
+    """Load one registered immutable package policy without opening a host."""
+
+    _validate_root(root)
+    if not isinstance(package_name, str) or not package_name:
+        raise LocalWorkflowHostError("saved package is unavailable")
+    try:
+        configuration = _read_configuration(root)
+        store = PrivateStateStore(root)
+        profiles = LocalModelProfileControlPlane(store=store)
+        profile = profiles.load(configuration.profile_id)
+        registrations = WorkflowRegistrationService(
+            profiles=profiles,
+            configured_profile_id=profile.profile_id,
+            root=root / "registrations",
+        )
+        registration = registrations.resolve(package_name)
+        revision = PackageCatalog(root / "catalog").revision(
+            registration.package_id, registration.revision_digest
+        )
+        capability_catalog, descriptor_validators, _ = (
+            _dar_owned_transformers_generation_bindings()
+        )
+        policy = compile_workflow_policy(
+            revision,
+            capability_catalog=capability_catalog,
+            descriptor_validators=descriptor_validators,
+        )
+    except (
+        LocalModelProfileError,
+        WorkflowRegistrationError,
+        PackageCatalogError,
+        PolicyCompilationError,
+    ) as error:
+        raise LocalWorkflowHostError("saved package is unavailable") from error
+    if policy.policy_digest != registration.policy_digest:
+        raise LocalWorkflowHostError("saved package policy does not match")
+    return SavedWorkflowInspection(registration, policy, profile)
 
 
 def configure_local_host(
