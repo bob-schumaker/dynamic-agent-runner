@@ -237,3 +237,28 @@ test-first; completion evidence is recorded under each task.
   - Evidence: on 2026-09-13, the exact validation command passed with 96 tests;
     Ruff and `git diff --check` also passed. WMS3.3 remains the sole live MPS
     acceptance gate.
+
+## M10 — Generic Prepared Transformers Host Composition
+
+M10 was discovered while preparing WMS3.3's authorized MPS gate. The sealed
+fixture and exact cached material closure are present, but no production host
+configuration can install the generic `transformers-peft-v1` execution profile
+with a host-private prepared-set resolver. `LocalWorkflowHost.open()` therefore
+cannot execute an admitted v2 Transformers package. This is a generic execution
+gap, not authorization to restore a floorplan-named profile, recipe, or CLI.
+
+- [ ] M10.1 [tests, RED] Add fake-only host-composition tests for an admitted
+  v2 `transformers-peft-v1` package: exact generic host policy/resolver reaches
+  the standard runner; absent, stale, mismatched, or incomplete prepared sets
+  fail before converter ingress, worker launch, framework import, or model
+  dispatch. Cover rejection of package-selected paths, model IDs, adapter IDs,
+  provider identities, and device settings.
+- [ ] M10.2 [implementation, GREEN] Add the smallest generic host-owned
+  prepared-Transformers composition boundary. It may receive only the verified
+  package binding, receiver-installed ABI implementation, host runner policy,
+  and lazy prepared-set resolver; it must not add a model- or floorplan-named
+  host/profile/CLI path or expose material paths.
+- [ ] M10.3 [validation] Run the focused RED/GREEN host/material/worker suites
+  with no model, MPS, Hugging Face, or subprocess activity. Then WMS3.3 may
+  reuse the generic composition for its separately authorized one-image MPS
+  receipt.

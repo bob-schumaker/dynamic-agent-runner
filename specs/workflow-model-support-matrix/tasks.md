@@ -278,7 +278,7 @@ remain open.
       preserve resource-budget/reap evidence, validate the output stage selected
       by M9.3, and render only a redacted completion receipt.
   - Spec: FR-005, FR-009, AC-006.
-  - Depends on: WMS2.4 and `../workflow-model-materials/tasks.md` M9.6.
+  - Depends on: WMS2.4 and `../workflow-model-materials/tasks.md` M9.6, M10.3.
   - RED: add fake-only tests for a package-derived profile: missing opt-in or
     authorization, an unsupported MPS cell, a stale material/descriptor/
     converter/processor/validator digest, or a missing MPS policy must refuse
