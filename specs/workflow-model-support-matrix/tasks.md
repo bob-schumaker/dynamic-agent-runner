@@ -442,7 +442,7 @@ record a live receipt.
 - [ ] WMS5.4 [manual gate] Reconcile the owner-local Fastmail registration with
       its currently compiled immutable policy before allowing a live probe.
   - Spec: FR-004, FR-006, FR-011, AC-010.
-  - Depends on: WMS5.2, WMS5.5.
+  - Depends on: WMS5.2, WMS5.5, WMS5.6.
   - Evidence: read-only WMS5.2 inspection observed that registration
     `fastmail-inbox-triage-qwen-v4` maps to the intended sealed package ID but
     fails `saved package policy does not match`. This is a fail-closed static
@@ -494,6 +494,26 @@ record a live receipt.
     paths; GREEN ran `poetry run pytest tests/test_dar_authoring_registration.py
     tests/test_dar_authoring_host.py tests/test_dar_authoring_cli.py -q`
     (66 passed), focused Ruff, and `git diff --check`.
+
+- [ ] WMS5.6 [manual gate] Reconcile a detected configured MCP peer-certificate
+  pin drift before WMS5.4 revalidates the reviewed surface.
+  - Spec: FR-006, FR-012, AC-010, AC-011.
+  - Depends on: WMS5.5 and explicit owner authorization for the local
+    connection update.
+  - Evidence: the authorized WMS5.4 attempt reached the configured HTTPS MCP
+    initialization boundary with its connection and credential records intact,
+    then refused `HTTPS MCP peer identity does not match`; no registration,
+    model, or Fastmail tool state changed.
+  - Manual gate: establish one authenticated HTTPS initialization using the
+    existing configured connection, retain the peer fingerprint only in local
+    command state, and update the existing local attachment to that observed
+    identity. Re-run the configured initialization successfully before WMS5.4.
+    Do not change endpoint, scopes, connection, authentication, reviewed tool
+    surface, package, or model; do not print or commit the fingerprint,
+    credentials, or endpoint.
+  - Validation: record only redacted success/failure and the absence of model
+    loading, registration refresh, and Fastmail tool dispatch. A changed peer
+    identity is not silently ignored or accepted by the transport.
 
 - [ ] WMS5.3 [manual gate] Record one Fastmail live receipt only after WMS5.2
       is green, the registered identity and reviewed read-only surface are
