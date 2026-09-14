@@ -20,7 +20,7 @@ from dynamic_agent_runner.workflow_host.locked_inference import (
 )
 
 
-_CAPABILITY_REQUIREMENTS_MIN_DAR_VERSION = (0, 1, 17)
+_CAPABILITY_REQUIREMENTS_MIN_DAR_VERSION = (0, 1, 18)
 
 
 class WorkflowDescriptorError(ValueError):

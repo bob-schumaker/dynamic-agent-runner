@@ -261,7 +261,7 @@ The feature has passed T5.6 local package preparation but is not released. The
 sealed converter boundary, strict JSON admission, terminal processor chain,
 manual floorplan gate, regression evidence, and package integrity checks are
 complete. Publication requires an explicit unreleased version and publish
-target; the current `0.1.17` version is behind existing `0.1.31` repository
+target; the current `0.1.18` version is behind existing `0.1.31` repository
 tags. The Apple Metal addendum is complete: its MPS placement-order benchmark
 preserved the terminal contract and improved warm generation by 7.1%, without
 introducing dtype or compilation changes.

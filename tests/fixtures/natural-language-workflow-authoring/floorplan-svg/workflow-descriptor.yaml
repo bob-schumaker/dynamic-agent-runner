@@ -3,7 +3,7 @@ package_id: floorplan-from-image
 purpose: Turn one sealed image into one validated SVG floorplan.
 dar_runtime:
   distribution: dynamic-agent-runner
-  required_version: 0.1.17
+  required_version: 0.1.18
 model:
   profile_requirement: local-multimodal-model-v1
 capability_requirements:

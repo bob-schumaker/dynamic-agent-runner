@@ -75,7 +75,7 @@ def test_valid_no_tool_descriptor_compiles() -> None:
 def test_descriptor_parses_canonical_capability_requirements() -> None:
     value = _descriptor()
     requirements = CapabilityRequirements()
-    value["dar_runtime"]["required_version"] = "0.1.17"  # type: ignore[index]
+    value["dar_runtime"]["required_version"] = "0.1.18"  # type: ignore[index]
     value["capability_requirements"] = {
         "format_version": 1,
         "required_capabilities": [],
@@ -105,7 +105,7 @@ def test_descriptor_parses_canonical_capability_requirements() -> None:
 def test_descriptor_rejects_invalid_capability_requirements(mutation: object) -> None:
     value = _descriptor()
     requirements = CapabilityRequirements()
-    value["dar_runtime"]["required_version"] = "0.1.17"  # type: ignore[index]
+    value["dar_runtime"]["required_version"] = "0.1.18"  # type: ignore[index]
     requirement: dict[str, object] = {
         "format_version": 1,
         "required_capabilities": [],

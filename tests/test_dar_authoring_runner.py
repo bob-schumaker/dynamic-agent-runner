@@ -597,7 +597,7 @@ def _runner(
                 ("multimodal",),
             )
             requirements = CapabilityRequirements((requirement,))
-            descriptor["dar_runtime"]["required_version"] = "0.1.17"
+            descriptor["dar_runtime"]["required_version"] = "0.1.18"
             descriptor["capability_requirements"] = {
                 "format_version": 1,
                 "required_capabilities": [requirement.to_mapping()],
@@ -844,7 +844,7 @@ def _install_v2_converter_budget_fixture(source: Path) -> _V2ConverterBudgetFixt
     )
     descriptor_path = source / "workflow-descriptor.yaml"
     descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
-    descriptor["dar_runtime"]["required_version"] = "0.1.17"
+    descriptor["dar_runtime"]["required_version"] = "0.1.18"
     descriptor["capability_requirements"] = {
         "format_version": 1,
         "required_capabilities": [
@@ -1073,7 +1073,7 @@ def test_runner_rejects_unsatisfied_requirement_before_artifact_materialization(
     revision.package_root.chmod(0o700)
     descriptor_path.chmod(0o600)
     descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
-    descriptor["dar_runtime"]["required_version"] = "0.1.17"
+    descriptor["dar_runtime"]["required_version"] = "0.1.18"
     descriptor["capability_requirements"] = {
         "format_version": 1,
         "required_capabilities": [requirement.to_mapping()],

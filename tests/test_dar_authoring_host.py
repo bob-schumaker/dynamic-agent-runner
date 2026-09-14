@@ -284,7 +284,7 @@ def _write_locked_inference_sealed_package(
     (source / "contracts" / "suggest.json").write_bytes(child)
     descriptor_path = source / "workflow-descriptor.yaml"
     descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
-    descriptor["dar_runtime"]["required_version"] = "0.1.17"
+    descriptor["dar_runtime"]["required_version"] = "0.1.18"
     descriptor["capability_requirements"] = {
         "format_version": 1,
         "required_capabilities": [
@@ -1353,7 +1353,7 @@ def test_local_host_rejects_tampered_asset_and_missing_handle_before_execution(
     requirements = CapabilityRequirements()
     workflow_descriptor = source / "workflow-descriptor.yaml"
     workflow = yaml.safe_load(workflow_descriptor.read_text(encoding="utf-8"))
-    workflow["dar_runtime"]["required_version"] = "0.1.17"
+    workflow["dar_runtime"]["required_version"] = "0.1.18"
     workflow["capability_requirements"] = {
         "format_version": 1,
         "required_capabilities": [],
@@ -2900,7 +2900,7 @@ def test_host_rejects_unsatisfied_requirement_before_file_ingress(
         ("multimodal",),
     )
     requirements = CapabilityRequirements((requirement,))
-    value["dar_runtime"]["required_version"] = "0.1.17"
+    value["dar_runtime"]["required_version"] = "0.1.18"
     value["capability_requirements"] = {
         "format_version": 1,
         "required_capabilities": [requirement.to_mapping()],

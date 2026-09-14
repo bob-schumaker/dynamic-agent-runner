@@ -334,7 +334,7 @@ def _set_capability_requirements(
         return
     descriptor = source / "workflow-descriptor.yaml"
     descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
-    descriptor_value["dar_runtime"]["required_version"] = "0.1.17"
+    descriptor_value["dar_runtime"]["required_version"] = "0.1.18"
     descriptor_value["capability_requirements"] = requirements
     descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
 

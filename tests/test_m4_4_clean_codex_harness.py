@@ -77,9 +77,9 @@ def _manifest_records(module: object) -> tuple[object, ...]:
                 reviewer_id=None,
                 reviewer_decision="pending",
                 marketplace_manifest_digest=digest if positive else None,
-                dar_runtime_version="0.1.17",
+                dar_runtime_version="0.1.18",
                 dar_runtime_wheel_filename=(
-                    "dynamic_agent_runner-0.1.17-py3-none-any.whl"
+                    "dynamic_agent_runner-0.1.18-py3-none-any.whl"
                 ),
                 dar_runtime_wheel_metadata_digest=digest,
                 dar_runtime_release_descriptor_digest=digest,
@@ -363,7 +363,7 @@ def test_manifest_evidence_requires_complete_fresh_redacted_record_set(
             / "author-then-run.json"
         ).read_text(encoding="utf-8")
     )
-    assert record["dar_runtime_version"] == "0.1.17"
+    assert record["dar_runtime_version"] == "0.1.18"
     assert record["dar_runtime_wheel_filename"].endswith(".whl")
     with pytest.raises(module.HarnessError):
         module.write_manifest_evidence(
@@ -444,7 +444,7 @@ def test_replay_comparison_binds_the_frozen_baseline_and_runtime_identities(
                 REPO_ROOT / "tests" / "fixtures" / "dar-authoring" / "m4-4",
                 REPO_ROOT / "tests" / "fixtures" / "m4-4-successor",
             ),
-            records=(*records[:-1], replace(records[-1], dar_runtime_version="0.1.18")),
+            records=(*records[:-1], replace(records[-1], dar_runtime_version="0.1.17")),
         )
     records = _manifest_records(module)
     with pytest.raises(module.HarnessError, match="actor durations"):
@@ -545,14 +545,14 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
         ),
     )
     runtime_release = module.RuntimeReleaseReceipt(
-        "0.1.17",
-        "dynamic_agent_runner-0.1.17-py3-none-any.whl",
+        "0.1.18",
+        "dynamic_agent_runner-0.1.18-py3-none-any.whl",
         "a" * 64,
         "b" * 64,
         "c" * 64,
         "d" * 64,
         "e" * 64,
-        ("0.1.3", "0.1.3"),
+        ("0.1.4", "0.1.4"),
     )
     runtime_receipt_calls: list[dict[str, object]] = []
     monkeypatch.setattr(
@@ -863,7 +863,7 @@ def test_generated_root_launches_isolated_author_and_invocation_actors(
             ),
             codex_home=codex_home,
             plugin_root=REPO_ROOT / ".codex-plugin" / "generated" / "agent-engineering",
-            wheel=REPO_ROOT / "dist" / "dynamic_agent_runner-0.1.17-py3-none-any.whl",
+            wheel=REPO_ROOT / "dist" / "dynamic_agent_runner-0.1.18-py3-none-any.whl",
             package_name="m44-isolated-actors",
             workflow_id="m44-isolated-actors",
             author_prompt="Author the declared DAR document-summary workflow.",

@@ -3,13 +3,13 @@
     {
       "disposition": "release_preparation_input",
       "output_path": null,
-      "sha256": "f1ae0a943815e298ed58073bb7ff1ca7d55219c50d90de13bda0c38ff8b920f9",
+      "sha256": "73cae0b3af76d798ecc1ecc5360199f80b0a04bbde3a7a8af9913cb56fce41fe",
       "source_path": ".codex-plugin/dar-runtime-release.json"
     },
     {
       "disposition": "generated_public_manifest",
       "output_path": ".codex-plugin/plugin.json",
-      "sha256": "da3c727754eada0f8c7a60a6c22c18d4615b47da2d10e4c7d726eaefacfb29cf",
+      "sha256": "8a77eb75881ca2b301a3bb44c37b1c927320cc3e2c76beb64eef99708f627943",
       "source_path": ".codex-plugin/plugin.json"
     },
     {
@@ -63,7 +63,7 @@
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/workflow-descriptor.yaml",
-      "sha256": "740d1252da3d72c88849c59d7ddf01d5ebf496650c7fcdeddf76b78d09c09499",
+      "sha256": "2b5e584d830ed408b82a9e9d9d645b4d38125b588fe1588114e98418985db438",
       "source_path": "payload/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/workflow-descriptor.yaml"
     },
     {
@@ -93,7 +93,7 @@
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/workflow-descriptor.yaml",
-      "sha256": "2ff9516a148bdb0a0fd7fc01376669d3f4018d6237d96c6a0ef06a6bb4b13b8e",
+      "sha256": "b32645af23bc9d18b6ce3fa2a9bc98bf0c695628133fcea1a1a7bf553c95fcc7",
       "source_path": "payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/workflow-descriptor.yaml"
     },
     {
@@ -117,7 +117,7 @@
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-templates/workflow-descriptor.yaml",
-      "sha256": "aa1cda3fd8d735f3e683f5724a4881f67f5f96f2642bece6292fe7e5f3c20ad3",
+      "sha256": "7bfdd9a60dfedb5a281aeb04cb0cdc9b2b6320a3037fcd85c0ed8c89ae210753",
       "source_path": "payload/dar-workflow-authoring/references/dar-authoring-templates/workflow-descriptor.yaml"
     },
     {
@@ -147,25 +147,25 @@
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-write-mcp-template/workflow-descriptor.yaml",
-      "sha256": "bd73fb709ffcab6806b8acecc2c452bb440ae146b35355941b92f6955b7c28d0",
+      "sha256": "711e3bb745359ac475ea769938bbca8ca07d63696d03d55198b5b88e761a3802",
       "source_path": "payload/dar-workflow-authoring/references/dar-authoring-write-mcp-template/workflow-descriptor.yaml"
     },
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-development.md",
-      "sha256": "69a7a0ce804930b568e07fc332cc6a7123900d0a547a037155c3e0a47f477e47",
+      "sha256": "1a8e653d0f956ca280c186607794835a5a347d5d474b2a078c261d294c798b97",
       "source_path": "payload/dar-workflow-authoring/references/dar-runtime-profile/agent-development.md"
     },
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-evaluation.md",
-      "sha256": "03cdd6fdbdde869dd1cbc44752062cd8ad45e0eca668df4c867906c7ff3055b2",
+      "sha256": "c8444dc27f5fc8566679f2aef394aa8e994e998fc4f4718a7ef982ad082c17d8",
       "source_path": "payload/dar-workflow-authoring/references/dar-runtime-profile/agent-evaluation.md"
     },
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-tool-contract-design.md",
-      "sha256": "cd3e46bd15d5dfb20906c8b86b4001e5fb6d5842cf67a73c02fd5a2d57776db1",
+      "sha256": "857b5ce238e1f53ceb3025a15f9ddf245bf87eed62c0d94ae24fd9faf64b6765",
       "source_path": "payload/dar-workflow-authoring/references/dar-runtime-profile/agent-tool-contract-design.md"
     },
     {

@@ -177,7 +177,7 @@ def _stage(
         descriptor = source / "workflow-descriptor.yaml"
         value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
         requirements = CapabilityRequirements()
-        value["dar_runtime"]["required_version"] = "0.1.17"
+        value["dar_runtime"]["required_version"] = "0.1.18"
         value["capability_requirements"] = {
             "format_version": 1,
             "required_capabilities": [],

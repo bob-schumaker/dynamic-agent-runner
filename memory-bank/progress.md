@@ -10,7 +10,7 @@
   Metal/MPS worker capability paths enforce containment and confirmed bounded
   reap before sealed-input ingress.
 - Release publication remains pending an explicit decision: the checked-out
-  runtime is `0.1.17`, while converter-plugin T5.6 requires an unreleased PEP
+  runtime is `0.1.18`, while converter-plugin T5.6 requires an unreleased PEP
   440 version and a chosen publish target. Its local package build alone does
   not authorize publication.
 - `workflow-model-support-matrix` is complete through WMS5. The verified

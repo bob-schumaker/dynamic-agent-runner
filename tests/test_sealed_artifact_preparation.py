@@ -325,7 +325,7 @@ def test_real_staged_catalog_tamper_rejects_before_handle_issue(tmp_path: Path) 
     requirements = CapabilityRequirements()
     workflow_descriptor = source / "workflow-descriptor.yaml"
     workflow = yaml.safe_load(workflow_descriptor.read_text(encoding="utf-8"))
-    workflow["dar_runtime"]["required_version"] = "0.1.17"
+    workflow["dar_runtime"]["required_version"] = "0.1.18"
     workflow["capability_requirements"] = {
         "format_version": 1,
         "required_capabilities": [],

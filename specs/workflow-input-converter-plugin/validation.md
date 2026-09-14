@@ -38,11 +38,11 @@ The 2026-09-08 readiness validation ran:
 - `git diff --check`: passed.
 
 T5.4.5 is complete. T5.6 may update feature status and prepare a release when
-its release requirements are satisfied. On 2026-09-08, `poetry build` produced
-the `0.1.17` sdist and wheel; archive and wheel integrity checks passed. This is
+its release requirements are satisfied. On 2026-09-14, `poetry build` produced
+the `0.1.18` sdist and wheel; archive and wheel integrity checks passed. This is
 local package evidence only. Publication remains blocked until an explicit
 unreleased version and publish target are selected: repository tags already
-reach `0.1.31`, so the current `0.1.17` must not be published. `pyproject.toml`
+reach `0.1.31`, so the current `0.1.18` must not be published. `pyproject.toml`
 declares `global-release-pypi` and `global-dev-pypi`, but no release policy
 selects either target. The Mac-only T5.7.1--T5.7.2 fake-only verification passed
 on 2026-09-08:

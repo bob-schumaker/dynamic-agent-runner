@@ -213,11 +213,11 @@ the standard runner interface. Docker and OS-level isolation are deferred to
 - [ ] T5.6 [release] Update validation evidence and feature status, then
   package/release only after every prior task is complete. Record OS isolation
   as deferred future hardening rather than a release blocker.
-  - [x] T5.6.1 [local package] Build `dynamic-agent-runner==0.1.17` with
+  - [x] T5.6.1 [local package] Build `dynamic-agent-runner==0.1.18` with
     `poetry build` and verify the generated sdist and wheel. This proves only
     local package integrity; it does not authorize a publish.
   - [ ] T5.6.2 [release decision] Select an unreleased PEP 440 runtime version
-    and explicit publish target before publication. The checked-out `0.1.17`
+    and explicit publish target before publication. The checked-out `0.1.18`
     version is already behind repository tag `0.1.31`; do not publish it or
     infer a version bump from this task. The configured candidates are
     `global-release-pypi` and `global-dev-pypi`; this task does not choose

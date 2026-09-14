@@ -55,7 +55,7 @@ purpose, and the local-model system prompt needed for the defined task. The
 runtime must retain `format_version: 1`, `package_type:
 dynamic_agent_design`, `entrypoint: answer_request`, a single `llm_step` node
 named `answer_request`, no tools, and the `final_answer` output contract. The
-descriptor must retain `required_version: 0.1.17`, `allowed_tool_ids: []`, and
+descriptor must retain `required_version: 0.1.18`, `allowed_tool_ids: []`, and
 `max_total_tool_calls: 0`.
 
 Do not invent an alternative runtime or descriptor schema for a simple

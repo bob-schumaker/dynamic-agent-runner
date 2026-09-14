@@ -10,7 +10,7 @@
   are gated by reviewed capabilities, enforceable containment, and confirmed
   bounded reap before sealed-input ingress.
 - Release publication is not yet authorized. The checked-out runtime version is
-  `0.1.17`; converter-plugin T5.6 has a verified local package build but still
+  `0.1.18`; converter-plugin T5.6 has a verified local package build but still
   requires an explicit unreleased PEP 440 version and publish target before any
   publication attempt.
 - `workflow-model-support-matrix` is complete through WMS5. Its deterministic

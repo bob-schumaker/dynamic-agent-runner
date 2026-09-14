@@ -441,7 +441,7 @@ def test_register_authored_workflow_creates_a_saved_workflow_for_dry_run(
         base_url="http://127.0.0.1:11434/v1",
     )
     artifacts = {
-        path.name: path.read_text(encoding="utf-8").replace("0.2.1", "0.1.17")
+        path.name: path.read_text(encoding="utf-8").replace("0.2.1", "0.1.18")
         for path in TEMPLATE_ROOT.iterdir()
     }
     request = {

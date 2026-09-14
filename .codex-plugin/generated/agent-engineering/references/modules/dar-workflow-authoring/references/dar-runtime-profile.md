@@ -47,9 +47,8 @@ the documented `source_selection_required` refusal; it must not run a DAR CLI
 command.
 
 For a workflow that declares a reviewed local model, keep the workflow
-declarative. An authorized host composition may request preparation with
-`dar-package prepare --model <logical-model-requirement>`; it then invokes the
-saved workflow with
+declarative. The receiver admits the package-bound sealed material lock before
+it invokes the saved workflow with
 `dar-package invoke --package-name <saved-workflow> --prompt-stdin`.
 Do not request, generate, or retain model, projector, or LoRA paths, converter
 commands, or any preparation handoff value.

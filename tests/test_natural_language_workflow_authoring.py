@@ -59,7 +59,7 @@ def _definition() -> DeclarativeWorkflowDefinition:
 
 def _runnable_definition() -> DeclarativeWorkflowDefinition:
     artifacts = {
-        path.name: path.read_text(encoding="utf-8").replace("0.2.1", "0.1.17")
+        path.name: path.read_text(encoding="utf-8").replace("0.2.1", "0.1.18")
         for path in (
             TEMPLATE_ROOT / "agent-design.md",
             TEMPLATE_ROOT / "agent-graph.mmd",
