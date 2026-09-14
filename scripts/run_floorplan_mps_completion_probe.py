@@ -34,7 +34,11 @@ from dynamic_agent_runner.workflow_host.workflow_support_matrix import (
 
 
 _OPT_IN_ENV = "DAR_RUN_FLOORPLAN_MPS_COMPLETION_PROBE"
-_PROMPT = "Create the floorplan from the sealed image. Return only JSON."
+_PROMPT = (
+    "Create a compact floorplan from the sealed image. Return only one JSON object "
+    'with exactly the keys "walls" and "rooms"; both keys are mandatory. Use at most '
+    "8 wall segments and 6 rooms so the complete object fits in one response."
+)
 
 
 class FloorplanMpsCompletionProbeCommandError(RuntimeError):
