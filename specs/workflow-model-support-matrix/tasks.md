@@ -247,20 +247,30 @@ remains unimplemented
   only host-specific test condition is the existing floorplan fixture's nested
   `sandbox-exec` limitation recorded above.
 
-- [ ] WMS3.1 [tests, RED] Add a fake-only authorization and redaction contract
+- [x] WMS3.1 [tests, RED] Add a fake-only authorization and redaction contract
       for a Fastmail live candidate: no authorization, non-supported cell, or
       stale surface rejects before model construction or dispatch.
   - Spec: FR-004, FR-005, AC-004.
   - Files/components: live-matrix runner seam or a new narrow runner,
     `tests/test_workflow_model_support_matrix.py`.
   - Depends on: WMS2.2.
+  - Evidence (2026-09-13): offline probe tests prove a missing authorization,
+    non-supported cell, or stale material identity prevents host opening and
+    dispatch. The admitted test path performs exactly one injected dispatch and
+    retains only fixed redacted receipt facts.
 
-- [ ] WMS3.2 [implementation, GREEN] Add the operator-gated read-only Fastmail
+- [x] WMS3.2 [implementation, GREEN] Add the operator-gated read-only Fastmail
       entry point and fixed redacted receipt renderer. Keep it out of pytest and
       CI; require explicit target/profile plus authorization evidence.
   - Spec: FR-004, FR-005, NFR-001.
   - Depends on: WMS3.1.
   - Validation: `poetry run pytest tests/test_workflow_model_support_matrix.py -q`.
+  - Evidence (2026-09-13): `scripts/run_fastmail_support_probe.py` requires
+    explicit environment opt-in, target, fixed live profile, authorization
+    reference, exact support facts, and a package name matching the admitted
+    material identity before it opens an already configured host. It invokes
+    one registered saved workflow with no workspace files and writes only the
+    fixed redacted receipt. The command is not a pytest or CI entry point.
 
 - [ ] WMS3.3 [tests, RED/GREEN + manual gate] Add the operator-gated floorplan
       completion route. It must require a `supported` descriptor-bound MPS cell,
