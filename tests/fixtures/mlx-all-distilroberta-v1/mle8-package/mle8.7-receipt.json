@@ -1,0 +1,30 @@
+{
+  "descriptor_digest": "741c566a26f604d7db84136da2764019301b9d411d18bd0fac47998e2b532c5a",
+  "duration_ms": 487.927,
+  "fixture_digest": "b61251f8fe093d86ccb8b22b9a3398d978bc9c3b5995b9dca698c1471d63b262",
+  "format_version": 1,
+  "limits": {
+    "max_aggregate_bytes": 1048576,
+    "max_conformance_fixture_bytes": 16777216,
+    "max_item_bytes": 65536,
+    "max_items": 16,
+    "max_memory_bytes": 536870912,
+    "max_safetensors_header_bytes": 16777216,
+    "max_tokenizer_bytes": 16777216,
+    "max_tokens": 512,
+    "max_vectors": 16,
+    "max_weights_bytes": 536870912
+  },
+  "material_lock_digest": "0c51398f9edb6bc20579c7ea45f18955dfb1b53d53f4e705d5f3bc6fad27b91d",
+  "max_abs_error": 7.674098014831543e-07,
+  "max_rss_bytes": 761233408,
+  "mlx_version": "0.32.2",
+  "opaque_output_ids": [
+    "index-bundle-1",
+    "coverage-report-1"
+  ],
+  "package_id": "mlx-all-distilroberta-v1-embedding-v1",
+  "status": "passed",
+  "vector_count": 3,
+  "vector_dimension": 768
+}

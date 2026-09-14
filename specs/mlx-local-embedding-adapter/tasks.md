@@ -738,10 +738,16 @@
     embedding and opaque-index paths, and rejects a changed material lock
     before provider entry. It imports neither MLX nor MLE7 fixture evidence.
 
-- [ ] MLE8.7 [manual] With explicit authorization, run the locked MLE8 package
+- [x] MLE8.7 [manual] With explicit authorization, run the locked MLE8 package
       on Darwin arm64 and retain a redacted package-bound competency receipt.
   - Spec: FR-1, FR-3, FR-5, Operational Completion Gate 4.
   - Depends on: MLE8.6.
+  - Evidence (2026-09-13): the authorized local-only Darwin/arm64 run used
+    `mlx==0.32.2` and the locked source/prepared artifacts. Its package-local
+    receipt records only bound digests, limits, resource/duration evidence,
+    opaque output IDs, and conformance metrics: three 768-dimensional vectors
+    with `7.674098014831543e-07` maximum absolute error against the locked
+    fixture (threshold `0.005`).
 
 - [ ] MLE8.8 [tests/docs] Add the successful MLE8 package/material receipt as
       a non-transferable embedding support row and update validation status.
