@@ -1,7 +1,7 @@
 # Workflow Model Support Matrix Tasks
 
-Status: WMS1 and WMS2 profile coverage are complete; WMS3.1--WMS3.3 live-probe
-coverage is complete. WMS4.1 reporting remains open.
+Status: WMS1--WMS4 are complete. Deterministic profile coverage and authorized
+floorplan MPS evidence are published through the support-coverage report.
 
 ## Prerequisites
 
@@ -335,7 +335,7 @@ coverage is complete. WMS4.1 reporting remains open.
     The probe admitted model JSON, rendered and validated SVG, and emitted no
     source image, prompt, model JSON, SVG, path, PID, or worker-handle data.
 
-- [ ] WMS4.1 [docs/validation] Publish the support-coverage report through the
+- [x] WMS4.1 [docs/validation] Publish the support-coverage report through the
       existing authored Sphinx documentation, defining all four statuses,
       package non-transferability, and per-run live authorization. Reconcile
       the matrix validation record with observed deterministic results and the
@@ -370,6 +370,14 @@ coverage is complete. WMS4.1 reporting remains open.
     Ponytail retained only the existing authored documentation and validation
     register, rejecting a runtime report generator or new reporting abstraction.
     WMS4.1 is implementation-ready with the reconciled scope above.
+  - Evidence (2026-09-13): the README and authored Sphinx validation guide
+    define all four statuses, exact-cell non-transferability, controlled
+    fixture evidence, the recorded floorplan MPS receipt, and the absence of a
+    Fastmail live receipt. `poetry run pytest -q` passed outside the nested
+    sandbox with 2,603 passed, 1 skipped, and 7 deselected; the floorplan
+    fixture's `sandbox-exec` and Darwin MPS tests require that host boundary.
+    `poetry run ruff check src tests`, `make -C docs html`, `git diff --check`,
+    and changed-file pre-commit passed.
 
 ## Checkpoints
 

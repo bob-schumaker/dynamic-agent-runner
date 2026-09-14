@@ -1,10 +1,10 @@
 # Workflow Model Support Matrix Validation
 
-Status: WMS1--WMS3 implementation is complete; deterministic profile coverage
-is recorded for Fastmail, embedding, floorplan, structured output, stateful
-context, and tool-pack composition. One floorplan MPS receipt is recorded;
-Fastmail live evidence remains absent. Two package-bound MLX embedding
-competency rows are recorded; MLE8 remains unrecorded and deferred.
+Status: WMS1--WMS4 is complete. Deterministic profile coverage is recorded for
+Fastmail, embedding, floorplan, structured output, stateful context, and
+tool-pack composition. One floorplan MPS receipt is recorded; Fastmail live
+evidence remains absent. Two package-bound MLX embedding competency rows are
+recorded; MLE8 remains unrecorded and deferred.
 
 ## Commands Run
 
@@ -23,6 +23,8 @@ competency rows are recorded; MLE8 remains unrecorded and deferred.
 | WMS3.3 floorplan MPS completion | pass | Explicitly authorized one-image MPS run completed one dispatch; JSON admission, SVG rendering/validation, bounded resource scalars, and confirmed worker reap are recorded in the closed receipt below. |
 | WMS3.3 focused regression | pass: 170 | `tests/test_workflow_model_support_matrix.py`, floorplan fixture/probe/script, generation worker, Transformers adapter, authoring profiles, and local preparation tests passed; `poetry run ruff check src tests scripts` passed. |
 | WMS4 focused profile regression | pass: 483 | The task-mapped Fastmail, embedding, floorplan, structured-output, stateful-context, tool-pack, matrix, and authorization suites passed with controlled collaborators only. |
+| WMS4 full regression | pass: 2,603; skipped: 1; deselected: 7 | Ran outside the nested sandbox because the deterministic floorplan fixture invokes macOS `sandbox-exec` and Darwin MPS controller tests require host MPS capability. |
+| WMS4 lint and docs build | pass | `poetry run ruff check src tests` and `make -C docs html` passed; changed-file pre-commit and `git diff --check` passed. |
 
 ## Traceability Matrix
 
