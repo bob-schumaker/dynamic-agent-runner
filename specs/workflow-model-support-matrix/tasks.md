@@ -609,7 +609,7 @@ record a live receipt.
     tests/test_dar_authoring_host.py tests/test_dar_authoring_cli.py -q` (67
     passed), focused Ruff, and `git diff --check`.
 
-- [ ] WMS5.3 [manual gate] Record one Fastmail live receipt only after WMS5.2
+- [x] WMS5.3 [manual gate] Record one Fastmail live receipt only after WMS5.2
       is green, the registered identity and reviewed read-only surface are
       re-inspected, and a fresh explicit operator authorization is supplied.
   - Spec: FR-004, FR-005, FR-011, AC-004, AC-010.
@@ -623,6 +623,12 @@ record a live receipt.
     binds the registered workflow, derived sealed package/material identity,
     profile, and host-revalidated reviewed surface. Otherwise retain the current
     absence of live evidence.
+  - Evidence (2026-09-13): one explicit authorized read-only probe completed
+    against the repaired registered workflow. Its fixed redacted receipt reported
+    `supported`, one dispatch, and no prohibited target, authorization,
+    credential, endpoint, path, prompt, mailbox, or raw model/tool fields. The
+    temporary receipt was verified and discarded after this durable redacted
+    record; no second dispatch was performed.
 
   - Review disposition (2026-09-13): a reduced-independence sequential Council
     architecture triad required the static registered-identity and dynamic MCP
