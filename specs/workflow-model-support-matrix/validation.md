@@ -1,11 +1,10 @@
 # Workflow Model Support Matrix Validation
 
-Status: WMS1--WMS4 is complete; WMS5 Fastmail probe identity repair is open.
-Deterministic profile coverage is recorded for
+Status: WMS1--WMS5 is complete. Deterministic profile coverage is recorded for
 Fastmail, embedding, floorplan, structured output, stateful context, and
-tool-pack composition. One floorplan MPS receipt is recorded; Fastmail live
-evidence remains absent. Three package-bound MLX embedding competency rows are
-recorded.
+tool-pack composition. One floorplan MPS receipt and one redacted Fastmail
+read-only receipt are recorded. Three package-bound MLX embedding competency
+rows are recorded.
 
 ## Commands Run
 
@@ -13,7 +12,8 @@ recorded.
 | --- | --- | --- |
 | WMS5 readiness review | pass | Council and Ponytail reconciled the distinct workflow/package identities, corrected the focused test targets, and separated static inspection from the host's dynamic MCP-surface revalidation. |
 | WMS5.1--WMS5.2 focused regression | pass: 24 | `tests/test_fastmail_support_probe_script.py`, `tests/test_fastmail_live_probe.py`, and `tests/test_workflow_model_support_matrix.py` passed; script and focused tests passed Ruff. |
-| WMS5.2 owner-local inspection | blocked: `saved package policy does not match` | Package and revision still match and an MCP binding remains present, but registered policy digest `d41486397f87362619da2441028081fc7231ddab6c167031d786903aafe56238` differs from compiled digest `2d0c80097f91a3d3a43aa75e6b3d327802daeed4ecbd0399ea8bf65546196ca4`. The read-only check made no host, model, MCP, or mailbox call; WMS5.5 must provide the bounded refresh before WMS5.4 reconciles state. |
+| WMS5.2 owner-local inspection | historical blocked result | The read-only check detected policy-digest drift while package/revision and MCP binding remained present. It made no host, model, MCP, or mailbox call. WMS5.5 later provided the bounded refresh and WMS5.4 reconciled the same package/revision before the live gate. |
+| WMS5.4--WMS5.9 reconciliation and live gate | pass | The explicit same-identity refresh, reviewed-surface revalidation, and legacy-owner claim retained fail-closed behavior. One separately authorized read-only Fastmail probe then produced the fixed redacted receipt with one dispatch. |
 | WMS1 readiness review | pass | Closed classifier identity, reason-code, precedence, receipt-binding, and no-side-effect boundaries are specified; Council and Ponytail reviews require no further scope. |
 | WMS2 readiness review | pass | WMS2.0 establishes the shared receipt boundary. Every profile has an offline fixture/seam, non-execution proof, and focused validation route; synthetic Fastmail and MLE6 evidence remain distinct from live/mailbox and Darwin competency receipts. |
 | WMS2 readiness baseline | pass: 454 | Focused Fastmail, embedding, model-interface, session/overflow, web/workspace/subagent, authorization, and matrix suites passed. |
@@ -37,7 +37,7 @@ recorded.
 | AC-001 | FR-001, FR-002 | WMS1.1--WMS1.2 classifier tests | pass: missing adapter capability is `not_applicable` before other facts |
 | AC-002 | FR-001, FR-002 | WMS1.1--WMS1.2 and WMS2.3 fixture-derived classifier plus injected-provider execution | pass: controlled MLE6 provider dispatches once for the exact sealed synthetic cell; missing ABI/material and different package rows are zero-dispatch. |
 | AC-003 | FR-003 | WMS2.1--WMS2.2 synthetic fixture | pass: controlled de-identified Fastmail fixture produces the bounded triage report through exactly one read-only dispatch with no MCP, OAuth, network, or mailbox access. |
-| AC-004 | FR-004, FR-005 | WMS3.1--WMS3.2 fake authorization tests; later authorized receipt | pass (offline route): missing authorization, unavailable support, and stale identity refuse before opening or dispatch; admitted fake evidence is redacted. No live Fastmail receipt is recorded. |
+| AC-004 | FR-004, FR-005 | WMS3.1--WMS3.2 fake authorization tests; WMS5.3 authorized receipt | pass: missing authorization, unavailable support, and stale identity refuse before opening or dispatch; admitted fake evidence is redacted. One separately authorized live read-only receipt is recorded. |
 | AC-005 | FR-006 | WMS1.3 binding tests | pass: profile, adapter, material, test-mode, status, and reason changes reject |
 | AC-006 | FR-008, FR-009 | WMS2.4 and WMS3.3 floorplan profiles | pass: explicit MPS gate completed one exact descriptor/material/profile cell; model JSON was admitted, SVG rendered/validated, and the worker reap was confirmed before the redacted receipt. |
 | AC-007 | FR-008, FR-010 | WMS2.5 structured-output profile | pass: one controlled tool dispatch yields the declared schema-valid terminal JSON; a missing capability is `not_applicable` before dispatch. |
@@ -56,7 +56,10 @@ material lock `79edaed8648cffb71972d0c8fcb3d18f100457d9cf46f0b58bc26fd16cc69cb8`
 and authorization reference
 `4519c2c2574ae800049fc79335a672f43c00803ee94884a0f0c83227ca7c9f07`.
 It contains no image/prompt/model JSON/SVG bytes, paths, process IDs, or worker
-handles. No live Fastmail run is recorded. The separate local-only MLE6, MLE7,
+handles. One separately authorized Fastmail read-only run is also recorded with
+status `supported`, one dispatch, and only the fixed redacted receipt fields;
+it contains no target, authorization value, credential, endpoint, path,
+mailbox, prompt, raw tool, or raw model data. The separate local-only MLE6, MLE7,
 and MLE8 Darwin competency receipts are recorded respectively at
 `tests/fixtures/mlx-gte-tiny/mle6-package/mle6.5-receipt.json` and
 `tests/fixtures/mlx-multilingual-e5-small/mle7-package/mle7.7-receipt.json`,
@@ -68,16 +71,12 @@ must contain only the fields specified by FR-005.
 
 ## Residual Risks
 
-- Exact support is host-, adapter-, provider-, and material-lock-dependent.
-  The initial profile inventory must be discovered during WMS1.1 rather than
-  guessed in this spec.
+- Exact support remains host-, adapter-, provider-, and material-lock-dependent.
+  The initial profile inventory was discovered during WMS1.1 rather than guessed
+  in this spec.
 - Profiles for proposed or intentionally deferred runtime features remain
   excluded until the owning specification records an implemented contract.
-- The Fastmail live route has no receipt because its current command requires a
-  single value to be both the registration key and sealed package ID. The
-  verified owner-local registration uses distinct values; WMS5 must derive
-  static identity through inspection and retain host revalidation of the dynamic
-  MCP surface before a new explicitly authorized live attempt.
-- The owner-local Fastmail registration currently fails static policy
-  verification. WMS5.4 must reconcile that same sealed package/revision and
-  reviewed binding before a fresh authorization can permit WMS5.3.
+- Fastmail evidence remains bound to the registered workflow, sealed package,
+  reviewed surface, and explicit authorization. Future changes to any of those
+  facts require a new classified, authorized receipt rather than reusing this
+  one.

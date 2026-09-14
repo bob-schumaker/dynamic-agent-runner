@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `workflow-model-materials`
-- Status: implemented through M8
+- Status: implemented through M10
 - Owner: dynamic-agent-runner workflow-package and local-model boundaries
 - Plan: `plan.md` (approved 2026-09-09)
 - Tasks: `tasks.md` (approved 2026-09-09)

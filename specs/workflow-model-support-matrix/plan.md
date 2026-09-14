@@ -141,18 +141,18 @@ evidence; do not expose child handles, PIDs, or runtime internals.
 
 ## WMS5 Fastmail Probe Identity Repair
 
-Repair the narrow operator probe only. Replace its ambiguous `--package-name`
-input with `--workflow-id`, resolve that key through
-`inspect_saved_workflow`, and derive the profile, registered package ID,
+WMS5 repaired the narrow operator probe. It replaced the ambiguous
+`--package-name` input with `--workflow-id`, resolves that key through
+`inspect_saved_workflow`, and derives the profile, registered package ID,
 revision, material identity, and policy facts from immutable registered state.
-Remove `--support-facts`; it can only self-consistently echo operator input and
-cannot establish admission. A reviewed MCP surface is dynamic, so retain the
-configured host's existing revalidation immediately before tool dispatch rather
-than falsely treating static inspection as current-surface validation.
+It removed `--support-facts`, which could only self-consistently echo operator
+input and could not establish admission. A reviewed MCP surface remains dynamic,
+so the configured host revalidates it immediately before tool dispatch rather
+than treating static inspection as current-surface validation.
 
-The focused tests must first reproduce the actual supported shape: workflow ID
+The focused tests reproduced the supported shape: workflow ID
 `fastmail-inbox-triage-qwen-v4` resolves to sealed package ID
-`fastmail-inbox-triage-qwen`. They must prove that a missing workflow, an
+`fastmail-inbox-triage-qwen`. They prove that a missing workflow, an
 inconsistent derived registration/policy, or a stale reviewed surface refuses
 before host opening or tool dispatch as applicable. The route retains explicit
 opt-in, target, and authorization-reference inputs; it records their digests
@@ -160,17 +160,15 @@ only. Do not
 record the owner-local state root, target, credentials, mailbox content, or
 Codex session transcript in repository artifacts.
 
-The current owner-local registration must also pass this inspection before a
-live attempt. WMS5.2 observed `saved package policy does not match` for the
-registered Fastmail workflow, so WMS5.4 owns an owner-approved reconciliation
-of that exact package/revision and reviewed binding. The probe must continue to
-fail closed; it must not reselect or substitute a package to make the command
-run.
+Before the live attempt, WMS5.2 observed `saved package policy does not match`
+for the registered Fastmail workflow. WMS5.4 then reconciled that exact
+package/revision and reviewed binding. The probe continues to fail closed and
+does not reselect or substitute a package to make the command run.
 
-WMS5.5 supplies the missing explicit refresh boundary. It may update only the
+WMS5.5 supplied the explicit refresh boundary. It updates only the
 policy-derived registration facts for the already registered workflow ID,
 package ID, and revision digest, after existing profile and MCP binding
-revalidation. It must not reuse the ordinary collision path, accept a source
+revalidation. It does not reuse the ordinary collision path, accept a source
 path, select a different package, or become a general registration overwrite.
 
 ## Plan Approval

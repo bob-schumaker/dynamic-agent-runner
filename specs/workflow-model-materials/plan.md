@@ -2,8 +2,9 @@
 
 ## Status
 
-Approved 2026-09-09. This plan unlocks capability-requirements C5. All
-implementation remains fake-only and test-first.
+Completed through M10. This plan unlocked capability-requirements C5. All
+implementation remained fake-only and test-first; WMS3.3 supplied the separate
+authorized MPS acceptance gate.
 
 ## Goal
 
@@ -95,6 +96,29 @@ admission has accepted the exact capability requirements.
 4. Prove two distinct descriptors under one ABI remain isolated and that no
    named experimental model, source revision, tensor table, or fixed dimension
    reaches production source or package construction.
+
+### M9 — Floorplan successor reconciliation
+
+1. Restore the production-source boundary so named floorplan recipes, profiles,
+   and preparation CLI identities are absent while generic sealed multimodal
+   packages remain admissible.
+2. Define and reseal the authoritative floorplan completion witness, output
+   stage, generation budget, converter, and validator as package-bound facts.
+3. Validate the fixture-derived package and generic runner boundaries with no
+   model, MPS, network, or artifact-download activity. The later WMS3.3 gate is
+   the sole live MPS acceptance evidence.
+
+### M10 — Generic prepared Transformers host composition
+
+1. Add host-owned composition for an admitted `transformers-peft-v1` package
+   using only verified binding, installed ABI, host runner policy, and a lazy
+   prepared-set resolver.
+2. Reject absent, stale, mismatched, incomplete, or package-selected material,
+   provider, device, and path facts before converter ingress, worker launch,
+   framework import, or model dispatch.
+3. Reuse this generic composition for the separately authorized WMS3.3 MPS
+   completion without restoring a floorplan-named host, profile, recipe, or CLI
+   path.
 
 ## Validation
 

@@ -35,11 +35,11 @@
   `d41486397f87362619da2441028081fc7231ddab6c167031d786903aafe56238`
   differs from compiled digest
   `2d0c80097f91a3d3a43aa75e6b3d327802daeed4ecbd0399ea8bf65546196ca4`.
-  WMS5.4 must re-establish the same package/revision/binding relationship before
-  any fresh live authorization is used.
+  WMS5.4 subsequently re-established the same package/revision/binding
+  relationship before the fresh live authorization was used.
 - 2026-09-13 — Reconciliation needs an explicit same-identity refresh boundary.
   — The existing `register` operation correctly rejects a changed record under
-  an existing workflow ID as an alias collision. WMS5.5 may refresh only the
+  an existing workflow ID as an alias collision. WMS5.5 now refreshes only the
   same workflow/package/revision after existing profile and MCP-binding
   validation; it must not turn collision handling into general overwrite.
 
@@ -55,9 +55,10 @@
 - 2026-09-13 — Reconciled stale draft/open status and MLE8 evidence claims.
   — WMS1--WMS4 are complete, and the MLE8 package, fixture, Darwin receipt,
   and non-transferable support row are recorded alongside MLE6 and MLE7.
-- 2026-09-13 — Verified that the owner-local Fastmail host configuration remains
-  available; no configuration was lost. — WMS5 tracks the command-interface
-  defect rather than treating the absent live receipt as missing configuration.
+- 2026-09-13 — Verified that the owner-local Fastmail host configuration remained
+  available; no configuration was lost. — WMS5 repaired the command-interface
+  defect and later recorded the redacted live receipt rather than treating the
+  earlier absence as missing configuration.
 
 ## Gate History
 
@@ -65,5 +66,5 @@
 - Spec gate: waived by explicit request to create the artifact set.
 - Plan gate: waived by explicit request to create the artifact set.
 - Task gate: waived by explicit request to create the artifact set.
-- Validation gate: passed; WMS1--WMS4 focused and full regression, lint, docs,
+- Validation gate: passed; WMS1--WMS5 focused and full regression, lint, docs,
   and changed-file checks are recorded in `validation.md`.
