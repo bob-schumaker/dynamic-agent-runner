@@ -134,6 +134,7 @@ class DeclaredTerminalOutputValidator:
     asset_path: str
     max_output_bytes: int
     timeout_seconds: int
+    asset_digest: str | None = None
 
 
 @dataclass(frozen=True)
@@ -143,6 +144,7 @@ class DeclaredTerminalOutputProcessor:
     asset_path: str
     max_output_bytes: int
     timeout_seconds: int
+    asset_digest: str | None = None
 
 
 @dataclass(frozen=True)
@@ -445,7 +447,10 @@ def _parse_terminal_output_validator(
     if value is None:
         return None
     validator = _mapping(value, "output.validator")
-    if set(validator) != {"asset_path", "max_output_bytes", "timeout_seconds"}:
+    if set(validator) not in (
+        {"asset_path", "max_output_bytes", "timeout_seconds"},
+        {"asset_path", "max_output_bytes", "timeout_seconds", "asset_digest"},
+    ):
         raise WorkflowDescriptorError("output validator is invalid")
     asset_path = _text(validator.get("asset_path"), "output.validator.asset_path")
     if asset_path.startswith("/") or ".." in asset_path.split("/"):
@@ -460,6 +465,7 @@ def _parse_terminal_output_validator(
         timeout_seconds=_positive_int(
             validator.get("timeout_seconds"), "output.validator.timeout_seconds"
         ),
+        asset_digest=_optional_digest(validator.get("asset_digest")),
     )
 
 
@@ -472,7 +478,10 @@ def _parse_terminal_output_processors(
     processors = []
     for raw in value:
         processor = _mapping(raw, "output processor")
-        if set(processor) != {"asset_path", "max_output_bytes", "timeout_seconds"}:
+        if set(processor) not in (
+            {"asset_path", "max_output_bytes", "timeout_seconds"},
+            {"asset_path", "max_output_bytes", "timeout_seconds", "asset_digest"},
+        ):
             raise WorkflowDescriptorError("output processor is invalid")
         asset_path = _text(processor.get("asset_path"), "output processor.asset_path")
         if asset_path.startswith("/") or ".." in asset_path.split("/"):
@@ -489,6 +498,7 @@ def _parse_terminal_output_processors(
                 timeout_seconds=_positive_int(
                     processor.get("timeout_seconds"), "output processor.timeout_seconds"
                 ),
+                asset_digest=_optional_digest(processor.get("asset_digest")),
             )
         )
     return tuple(processors)
@@ -797,6 +807,14 @@ def _is_digest(value: object) -> bool:
         and len(value) == 64
         and all(character in "0123456789abcdef" for character in value)
     )
+
+
+def _optional_digest(value: object) -> str | None:
+    if value is None:
+        return None
+    if not _is_digest(value):
+        raise WorkflowDescriptorError("output asset digest is invalid")
+    return value
 
 
 def _string_list(value: object, name: str) -> tuple[str, ...]:

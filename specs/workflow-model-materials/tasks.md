@@ -211,7 +211,7 @@ test-first; completion evidence is recorded under each task.
   - Boundary: do not use a live model run to decide the contract and do not
     repair malformed model JSON.
 
-- [ ] M9.4 [tests, RED] Add fixture-derived package tests for the M9.3 contract.
+- [x] M9.4 [tests, RED] Add fixture-derived package tests for the M9.3 contract.
   A stale budget, output-stage schema, material lock, converter, validator, or
   asset digest must fail before ingress or runner creation.
   - Depends on: M9.3.

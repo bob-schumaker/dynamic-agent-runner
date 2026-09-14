@@ -325,6 +325,7 @@ def compile_workflow_policy(  # noqa: C901
             "terminal_output_validator": (
                 {
                     "asset_path": descriptor.terminal_output_validator.asset_path,
+                    "asset_digest": descriptor.terminal_output_validator.asset_digest,
                     "max_output_bytes": descriptor.terminal_output_validator.max_output_bytes,
                     "timeout_seconds": descriptor.terminal_output_validator.timeout_seconds,
                 }
@@ -334,6 +335,7 @@ def compile_workflow_policy(  # noqa: C901
             "terminal_output_processors": [
                 {
                     "asset_path": processor.asset_path,
+                    "asset_digest": processor.asset_digest,
                     "max_output_bytes": processor.max_output_bytes,
                     "timeout_seconds": processor.timeout_seconds,
                 }
@@ -654,6 +656,9 @@ def _validate_terminal_output_validator(
             ),
         ),
     )
+    _validate_declared_asset_digest(
+        package_root, validator.asset_path, validator.asset_digest
+    )
 
 
 def _validate_terminal_output_processors(
@@ -675,6 +680,23 @@ def _validate_terminal_output_processors(
             for index, processor in enumerate(processors)
         ),
     )
+    for processor in processors:
+        _validate_declared_asset_digest(
+            package_root, processor.asset_path, processor.asset_digest
+        )
+
+
+def _validate_declared_asset_digest(
+    package_root: Path, asset_path: str, expected_digest: str | None
+) -> None:
+    if expected_digest is None:
+        return
+    try:
+        content = (package_root / asset_path).read_bytes()
+    except OSError as error:
+        raise PolicyCompilationError("terminal output asset is unavailable") from error
+    if hashlib.sha256(content).hexdigest() != expected_digest:
+        raise PolicyCompilationError("terminal output asset is unavailable")
 
 
 def _validate_input_converter_asset(

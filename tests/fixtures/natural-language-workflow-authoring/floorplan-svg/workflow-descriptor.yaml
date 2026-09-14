@@ -44,13 +44,16 @@ output:
   schema_ref: svg_floorplan
   processors:
     - asset_path: tools/admit_floorplan_json
+      asset_digest: 5ba338003821ec48d59895c9129f72c28fb7753e02342af8ef08867b2c744976
       max_output_bytes: 32768
       timeout_seconds: 1
     - asset_path: tools/render_floorplan_json
+      asset_digest: ddb93ad631028115c89b4100728ece3be33cb5661f9b2eed4f12c587e34d485f
       max_output_bytes: 32768
       timeout_seconds: 1
   validator:
     asset_path: tools/validate_svg
+    asset_digest: 855a5bb84a18943573202fe21d3e1f6a96b2889715b180e590e52076ed96e61e
     max_output_bytes: 512
     timeout_seconds: 1
 input_converter:

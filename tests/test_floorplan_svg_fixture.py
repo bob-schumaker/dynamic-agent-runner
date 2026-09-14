@@ -33,7 +33,10 @@ from dynamic_agent_runner.workflow_host.policy import (
     compile_workflow_policy,
 )
 import dynamic_agent_runner.workflow_host.policy as policy_module
-from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager
+from dynamic_agent_runner.workflow_host.staging import (
+    PackageStagingError,
+    PrivatePackageStager,
+)
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 from dynamic_agent_runner.workflow_host.model_materials import (
     parse_model_dependency_lock,
@@ -381,6 +384,64 @@ def test_floorplan_package_without_materials_rejects_before_converter_validation
     )
 
     with pytest.raises(PolicyCompilationError, match="model execution binding"):
+        compile_workflow_policy(
+            revision,
+            capability_catalog=capability_catalog,
+            descriptor_validators=descriptor_validators,
+        )
+
+
+@pytest.mark.parametrize(
+    ("path", "old", "new", "staging_failure"),
+    (
+        (
+            "execution-descriptor.json",
+            '"max_continuations": 0',
+            '"max_continuations": 3',
+            True,
+        ),
+        ("model-materials.json", '"format_version": 2', '"format_version": 3', True),
+        ("workflow-descriptor.yaml", "svg_floorplan", "missing_schema", True),
+        ("assets/qwen25_vl_3b_grpo_converter.py", "def ", "def stale_", False),
+        ("tools/validate_svg", "#!/usr/bin/env python3", "#!/usr/bin/stale", False),
+        (
+            "tools/render_floorplan_json",
+            "#!/usr/bin/env python3",
+            "#!/usr/bin/stale",
+            False,
+        ),
+    ),
+)
+def test_floorplan_package_tampering_rejects_before_ingress_or_runner_creation(
+    tmp_path: Path,
+    path: str,
+    old: str,
+    new: str,
+    staging_failure: bool,
+) -> None:
+    source = tmp_path / "packages" / "floorplan-from-image"
+    shutil.copytree(FIXTURE, source)
+    target = source / path
+    original = target.read_text(encoding="utf-8")
+    assert old in original
+    target.write_text(original.replace(old, new, 1), encoding="utf-8")
+    store = PrivateStateStore(tmp_path / "state")
+    handle = PackageSourceSelectionPolicy(
+        allowed_root=source.parent, store=store
+    ).select_directory(source, now=NOW)
+    stager = PrivatePackageStager(store=store, private_root=tmp_path / "staging")
+
+    if staging_failure:
+        with pytest.raises(PackageStagingError):
+            stager.stage(handle, now=NOW)
+        return
+
+    staged = stager.stage(handle, now=NOW)
+    revision = PackageCatalog(tmp_path / "catalog").import_staged(staged)
+    capability_catalog, descriptor_validators, _ = (
+        _dar_owned_transformers_generation_bindings()
+    )
+    with pytest.raises(PolicyCompilationError):
         compile_workflow_policy(
             revision,
             capability_catalog=capability_catalog,
