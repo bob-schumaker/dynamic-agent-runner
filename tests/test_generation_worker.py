@@ -1988,7 +1988,9 @@ def test_launcher_releases_reservation_after_authorized_generation() -> None:
         aggregate_generated_tokens=1,
         aggregate_output_bytes=2,
         packed_context_tokens=3,
+        worker_reaped=True,
     )
+    assert result.worker_reaped is True
     assert events == [
         "limit",
         "pack",

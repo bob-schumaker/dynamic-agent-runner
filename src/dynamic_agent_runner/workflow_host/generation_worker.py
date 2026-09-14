@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 import json
 from typing import Mapping, NoReturn
@@ -202,6 +202,7 @@ class GenerationWorkerResult:
     aggregate_output_bytes: int
     exhausted: bool = False
     packed_context_tokens: int | None = None
+    worker_reaped: bool = False
 
     def __post_init__(self) -> None:
         if (
@@ -216,6 +217,7 @@ class GenerationWorkerResult:
                 self.packed_context_tokens is not None
                 and not _nonnegative_int(self.packed_context_tokens)
             )
+            or not isinstance(self.worker_reaped, bool)
         ):
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
 
@@ -667,6 +669,7 @@ class GenerationWorkerLauncher:
             raise GenerationWorkerProtocolError("generation worker protocol invalid")
         self._packed_receipts.pop(id(child), None)
         reservation: ReservedGenerationMemory | None = None
+        result: GenerationWorkerResult | None = None
         try:
             deadline.require_remaining(now)
             self._validate_launched_reservation(
@@ -686,7 +689,7 @@ class GenerationWorkerLauncher:
             _authorize_child_if_supported(child, receipt, remaining_generated_tokens)
             deadline.require_remaining(clock())
             _configure_child_deadline(child=child, deadline=deadline, clock=clock)
-            return self._validated_generation_result(
+            result = self._validated_generation_result(
                 generate=generate,
                 deadline=deadline,
                 clock=clock,
@@ -711,6 +714,9 @@ class GenerationWorkerLauncher:
                 deadline=deadline,
                 clock=clock,
             )
+        if result is None:
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        return replace(result, worker_reaped=True)
 
     def _finish_generation_cleanup(
         self,
