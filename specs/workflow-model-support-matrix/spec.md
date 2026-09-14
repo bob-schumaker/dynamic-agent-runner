@@ -65,10 +65,11 @@ required capabilities or locked materials.
   profiles must remain deterministic and injected. They must not call a remote
   model, external service, retrieval system, or subagent process.
 - [MUST] FR-011: The Fastmail live probe must accept an explicit registered
-  workflow ID and derive its sealed package/material identity and support facts
-  from that registered host state before host composition. It must not use one
-  operator argument as both a workflow registration ID and package ID, or
-  accept operator-supplied support facts.
+  workflow ID and derive its static sealed package/material and policy facts
+  from that registered host state before host composition. Its configured host
+  must revalidate the dynamic reviewed MCP surface before tool dispatch. It
+  must not use one operator argument as both a workflow registration ID and
+  package ID, or accept operator-supplied support facts.
 
 ## Non-Functional Requirements
 
@@ -160,9 +161,9 @@ reason codes; every other cell has one or more codes allowed by its status.
   client or child process.
 - AC-010: Given a Fastmail registration whose workflow ID and package ID are
   distinct, when an explicitly authorized probe is evaluated, then it derives
-  the package/material and support facts from the registered immutable state;
-  an unknown workflow or changed derived fact refuses before host opening or
-  dispatch.
+  static package/material and policy facts from the registered immutable state.
+  An unknown workflow or changed static fact refuses before host opening; a
+  stale dynamic reviewed surface refuses before tool dispatch.
 
 ## Edge and Error Cases
 

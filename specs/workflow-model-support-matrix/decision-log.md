@@ -23,6 +23,11 @@
   `fastmail-inbox-triage-qwen`; treating one CLI value as both identities makes
   the current live command unsatisfiable. State-root paths, targets,
   credentials, mailbox data, and session transcripts remain unrecorded.
+- 2026-09-13 — Static registration inspection and dynamic reviewed-surface
+  validation remain separate. — `inspect_saved_workflow` returns registration,
+  compiled policy, and model profile without composing an MCP client; the
+  configured host must therefore revalidate its reviewed MCP surface before
+  tool dispatch rather than adding a duplicate probe validator.
 
 ## Rejected Options
 

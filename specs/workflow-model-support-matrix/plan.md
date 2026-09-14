@@ -144,16 +144,19 @@ evidence; do not expose child handles, PIDs, or runtime internals.
 Repair the narrow operator probe only. Replace its ambiguous `--package-name`
 input with `--workflow-id`, resolve that key through
 `inspect_saved_workflow`, and derive the profile, registered package ID,
-revision, material identity, and reviewed surface facts from the immutable
-registered state. Remove `--support-facts`; it can only self-consistently echo
-operator input and cannot establish admission.
+revision, material identity, and policy facts from immutable registered state.
+Remove `--support-facts`; it can only self-consistently echo operator input and
+cannot establish admission. A reviewed MCP surface is dynamic, so retain the
+configured host's existing revalidation immediately before tool dispatch rather
+than falsely treating static inspection as current-surface validation.
 
 The focused tests must first reproduce the actual supported shape: workflow ID
 `fastmail-inbox-triage-qwen-v4` resolves to sealed package ID
 `fastmail-inbox-triage-qwen`. They must prove that a missing workflow, an
 inconsistent derived registration/policy, or a stale reviewed surface refuses
-before host opening and dispatch. The route retains explicit opt-in, target,
-and authorization-reference inputs; it records their digests only. Do not
+before host opening or tool dispatch as applicable. The route retains explicit
+opt-in, target, and authorization-reference inputs; it records their digests
+only. Do not
 record the owner-local state root, target, credentials, mailbox content, or
 Codex session transcript in repository artifacts.
 

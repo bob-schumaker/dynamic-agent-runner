@@ -385,43 +385,48 @@ identity defect before any live receipt is attempted.
       Fastmail probe tests and prove that the probe admits only host-derived
       identity facts before opening a host or dispatching.
   - Spec: FR-004, FR-005, FR-011, AC-010.
-  - Files/components: `tests/test_fastmail_support_probe.py`,
+  - Files/components: `tests/test_fastmail_support_probe_script.py`,
+    `tests/test_fastmail_live_probe.py`,
     `scripts/run_fastmail_support_probe.py`, and the existing saved-workflow
-    inspection seam.
+    inspection and host-invocation seams.
   - Depends on: WMS3.2.
   - RED: use a de-secreted fixture whose registered workflow ID is
     `fastmail-inbox-triage-qwen-v4` and sealed package ID is
     `fastmail-inbox-triage-qwen`. Prove that this distinct pair can be admitted
     only when the script receives the workflow ID and derives the package,
-    material, policy, profile, and reviewed surface facts through registered
-    state.
-  - RED: prove an unknown workflow, stale derived material/policy/surface fact,
-    or an attempt to provide operator-supplied support facts refuses before
-    host opening or dispatch. Preserve the explicit opt-in, target, and
+    material, policy, and profile facts through registered state.
+  - RED: prove an unknown workflow or stale derived material/policy fact refuses
+    before host opening. Prove a stale reviewed surface is rejected by the
+    configured host before tool dispatch; static inspection cannot prove that
+    live fact. An attempt to provide operator-supplied support facts must fail
+    at argument parsing. Preserve the explicit opt-in, target, and
     authorization-reference gates and assert the redacted receipt never
     contains a state-root path, target value, credentials, mailbox content, or
     raw model/tool data.
-  - Validation: `poetry run pytest tests/test_fastmail_support_probe.py -q`
-    initially fails for the distinct identity fixture.
+  - Validation: `poetry run pytest tests/test_fastmail_support_probe_script.py
+    tests/test_fastmail_live_probe.py -q` initially fails for the distinct
+    identity fixture.
 
 - [ ] WMS5.2 [implementation, GREEN] Replace the Fastmail probe's ambiguous
       `--package-name` interface with `--workflow-id` and derive all support
       identity from `inspect_saved_workflow` before host composition.
   - Spec: FR-004, FR-005, FR-011, AC-010.
   - Files/components: `scripts/run_fastmail_support_probe.py`, its focused
-    tests, and only existing host inspection/receipt boundaries.
+    tests, and only existing host inspection/invocation/receipt boundaries.
   - Depends on: WMS5.1.
   - GREEN: remove the `--support-facts` argument and its parser. Resolve the
     explicit workflow ID once through the registered immutable state, then
-    derive and verify the exact material/package, policy, profile, and reviewed
-    read-only surface used for classification and dispatch. Invalid inspection
-    or derived facts must fail closed with zero host opens and zero dispatches.
+    derive and verify the exact material/package, policy, and profile used for
+    classification. Let the configured host revalidate its existing reviewed
+    read-only surface at invocation; do not duplicate or bypass that dynamic
+    check. Invalid inspection or derived static facts must fail closed with zero
+    host opens; stale dynamic surface facts must fail with zero tool dispatches.
   - Boundary: retain one narrow operator command; do not add a probe registry,
     a new host configuration path, live Fastmail/OAuth/MCP calls in pytest, or
     a second model/package fixture.
-  - Validation: `poetry run pytest tests/test_fastmail_support_probe.py
-    tests/test_workflow_model_support_matrix.py -q` and `poetry run ruff check
-    scripts tests`.
+  - Validation: `poetry run pytest tests/test_fastmail_support_probe_script.py
+    tests/test_fastmail_live_probe.py tests/test_workflow_model_support_matrix.py
+    -q` and `poetry run ruff check scripts tests`.
 
 - [ ] WMS5.3 [manual gate] Record one Fastmail live receipt only after WMS5.2
       is green, the registered identity and reviewed read-only surface are
@@ -435,8 +440,15 @@ identity defect before any live receipt is attempted.
     session transcript.
   - Evidence: classify Fastmail as live-supported only if the fresh receipt
     binds the registered workflow, derived sealed package/material identity,
-    profile, and reviewed surface. Otherwise retain the current absence of live
-    evidence.
+    profile, and host-revalidated reviewed surface. Otherwise retain the current
+    absence of live evidence.
+
+  - Review disposition (2026-09-13): a reduced-independence sequential Council
+    architecture triad required the static registered-identity and dynamic MCP
+    surface checks to remain distinct. Ponytail retained the existing
+    inspection and host-invocation boundaries, rejecting a probe registry,
+    second surface validator, or a new test module. WMS5 is implementation-ready
+    with the corrected focused test targets and dispatch boundary.
 
 ## Checkpoints
 
