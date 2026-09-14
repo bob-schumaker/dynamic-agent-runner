@@ -498,7 +498,7 @@ record a live receipt.
 - [ ] WMS5.6 [manual gate] Reconcile a detected configured MCP peer-certificate
   pin drift before WMS5.4 revalidates the reviewed surface.
   - Spec: FR-006, FR-012, AC-010, AC-011.
-  - Depends on: WMS5.5 and explicit owner authorization for the local
+  - Depends on: WMS5.5, WMS5.7, and explicit owner authorization for the local
     connection update.
   - Evidence: the authorized WMS5.4 attempt reached the configured HTTPS MCP
     initialization boundary with its connection and credential records intact,
@@ -514,6 +514,25 @@ record a live receipt.
   - Validation: record only redacted success/failure and the absence of model
     loading, registration refresh, and Fastmail tool dispatch. A changed peer
     identity is not silently ignored or accepted by the transport.
+
+- [ ] WMS5.7 [manual gate] Recreate the Fastmail MCP connection and OAuth
+  authentication for the active configured host profile before completing WMS5.6.
+  - Spec: FR-006, FR-012, AC-010, AC-011.
+  - Depends on: explicit owner authorization for a browser-based OAuth
+    authorization, and WMS5.5.
+  - Evidence: the authorized WMS5.6 attempt successfully obtained the current
+    authenticated peer identity but `attach_mcp_client` rejected it before any
+    write because the saved MCP connection does not match the active
+    `llama-cpp-v1` local-general-model profile. Existing connection and
+    credential records remain intact; neither pin nor registration changed.
+  - Manual gate: create one same-endpoint/same-scope connection under the
+    active profile, complete the existing discovered OAuth authorization for
+    that connection, and attach only the observed peer fingerprint. Retain no
+    endpoint, scope, identifier, fingerprint, credential, browser URL, or
+    mailbox content in repository evidence. Do not repurpose the old
+    connection/authentication records across profiles.
+  - Validation: establish current connection/profile equality and a successful
+    pinned initialization before WMS5.6; make zero model or Fastmail tool calls.
 
 - [ ] WMS5.3 [manual gate] Record one Fastmail live receipt only after WMS5.2
       is green, the registered identity and reviewed read-only surface are
