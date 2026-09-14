@@ -310,6 +310,18 @@ remain open.
     support facts, and any floorplan-named host path. The task is
     implementation-ready; its explicit MPS authorization remains a later
     manual gate.
+  - Implementation evidence (2026-09-13): the package-derived profile, generic
+    worker-reap diagnostic scalar, opt-in operator command, and fixed redacted
+    receipt are implemented. Offline coverage proves pre-inspection opt-in
+    refusal, package-derived sealed identity, zero-dispatch invalid cells, and
+    redacted successful evidence. `poetry run pytest -q
+    tests/test_workflow_model_support_matrix.py tests/test_floorplan_svg_fixture.py
+    tests/test_floorplan_mps_completion_probe.py
+    tests/test_floorplan_mps_completion_probe_script.py
+    tests/test_generation_worker.py tests/test_transformers_peft_model.py` passed
+    with 146 tests; `poetry run ruff check src tests scripts` passed. The
+    checkbox remains open pending the separately authorized exact live MPS
+    profile/package/material run.
 
 - [ ] WMS4.1 [docs/validation] Document the generated support report, all four
       statuses, package non-transferability, and live-run authorization. Add a
