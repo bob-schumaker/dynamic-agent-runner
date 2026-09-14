@@ -683,7 +683,7 @@
   - Evidence (2026-09-13): fake-only tests admit the complete pair and reject
     a missing bias, changed shape, or changed span before canonical output.
 
-- [ ] MLE8.4 [approval/package, tests RED/GREEN] With a recorded license and
+- [x] MLE8.4 [approval/package, tests RED/GREEN] With a recorded license and
       material decision, create the package-local lock and descriptor for
       `sentence-transformers/all-distilroberta-v1`; reject changed roles,
       weights, tokenizer, ABI, descriptor, and capability facts pre-execution.
@@ -695,6 +695,11 @@
     descriptor declares masked-mean pooling and L2 normalization only when the
     locked sentence-transformer closure requires them; modules/configuration
     files remain provenance rather than runtime selectors.
+  - Evidence (2026-09-13): approved Apache-2.0 revision
+    `842eaed40bee4d61673a81c92d5689a8fed7a09f` is sealed in the package
+    fixture. The actual source header's position-ID and pooler closure is
+    canonically prepared to the locked execution artifact; fake package tests
+    reject changed material hashes and ABI identity before material I/O.
 
 - [ ] MLE8.5 [manual fixture, RED/GREEN] Generate and bind synthetic local
       reference vectors for the exact MLE8 closure with `trust_remote_code=False`,
