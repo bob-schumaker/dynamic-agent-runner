@@ -1,8 +1,8 @@
 # Workflow Model Support Matrix Tasks
 
-Status: WMS1--WMS4 and WMS5.1--WMS5.2 are complete. WMS5.5 adds the bounded
-same-package/revision registration refresh that WMS5.4 needs before WMS5.3 can
-record a live receipt.
+Status: WMS1--WMS5 are complete. WMS5 repaired the registered Fastmail probe
+identity, reconciled its profile-bound pinned MCP review and legacy registration,
+and recorded one redacted live read-only receipt.
 
 ## Prerequisites
 
