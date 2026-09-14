@@ -1,6 +1,7 @@
 # Workflow Model Support Matrix Validation
 
-Status: WMS1--WMS4 is complete. Deterministic profile coverage is recorded for
+Status: WMS1--WMS4 is complete; WMS5 Fastmail probe identity repair is open.
+Deterministic profile coverage is recorded for
 Fastmail, embedding, floorplan, structured output, stateful context, and
 tool-pack composition. One floorplan MPS receipt is recorded; Fastmail live
 evidence remains absent. Three package-bound MLX embedding competency rows are
@@ -10,7 +11,7 @@ recorded.
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| Artifact consistency review | pass | Requirements, plan, WMS1 types, and WMS1--WMS4 task dependencies agree. |
+| Artifact consistency review | pass | Requirements, plan, WMS1 types, and WMS1--WMS4 task dependencies agree; WMS5 records the Fastmail registration/package identity repair before a live receipt can be attempted. |
 | WMS1 readiness review | pass | Closed classifier identity, reason-code, precedence, receipt-binding, and no-side-effect boundaries are specified; Council and Ponytail reviews require no further scope. |
 | WMS2 readiness review | pass | WMS2.0 establishes the shared receipt boundary. Every profile has an offline fixture/seam, non-execution proof, and focused validation route; synthetic Fastmail and MLE6 evidence remain distinct from live/mailbox and Darwin competency receipts. |
 | WMS2 readiness baseline | pass: 454 | Focused Fastmail, embedding, model-interface, session/overflow, web/workspace/subagent, authorization, and matrix suites passed. |
@@ -70,3 +71,7 @@ must contain only the fields specified by FR-005.
   guessed in this spec.
 - Profiles for proposed or intentionally deferred runtime features remain
   excluded until the owning specification records an implemented contract.
+- The Fastmail live route has no receipt because its current command requires a
+  single value to be both the registration key and sealed package ID. The
+  verified owner-local registration uses distinct values; WMS5 must derive
+  identity through inspection before a new explicitly authorized live attempt.

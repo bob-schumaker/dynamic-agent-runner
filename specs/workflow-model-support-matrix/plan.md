@@ -1,6 +1,6 @@
 # Workflow Model Support Matrix Implementation Plan
 
-Status: Implemented through WMS4
+Status: Implemented through WMS4; WMS5 Fastmail probe identity repair is open
 
 ## Spec Trace
 
@@ -112,6 +112,7 @@ Status meaning:
 | Floorplan evidence overstates portability | invalid model claim | bind profile and receipts to converter/material/validator/MPS facts |
 | Synthetic profiles call real collaborators | unintended side effect | install I/O and process blockers in every profile test |
 | A floorplan completion receipt overclaims worker cleanup | false live evidence | expose one generic scalar `worker_reaped` attestation after controller-confirmed cleanup; project it without worker internals |
+| Fastmail registration and package identities differ | live probe cannot admit the real host state | accept a workflow ID only; inspect the registered immutable state and derive package/material/support facts before host opening |
 
 ## WMS3.3 Floorplan Completion Slice
 
@@ -138,14 +139,34 @@ evidence; do not expose child handles, PIDs, or runtime internals.
 - Add a live test to every workflow profile — rejected because most profiles
   have deterministic injected seams and no live external behavior to authorize.
 
+## WMS5 Fastmail Probe Identity Repair
+
+Repair the narrow operator probe only. Replace its ambiguous `--package-name`
+input with `--workflow-id`, resolve that key through
+`inspect_saved_workflow`, and derive the profile, registered package ID,
+revision, material identity, and reviewed surface facts from the immutable
+registered state. Remove `--support-facts`; it can only self-consistently echo
+operator input and cannot establish admission.
+
+The focused tests must first reproduce the actual supported shape: workflow ID
+`fastmail-inbox-triage-qwen-v4` resolves to sealed package ID
+`fastmail-inbox-triage-qwen`. They must prove that a missing workflow, an
+inconsistent derived registration/policy, or a stale reviewed surface refuses
+before host opening and dispatch. The route retains explicit opt-in, target,
+and authorization-reference inputs; it records their digests only. Do not
+record the owner-local state root, target, credentials, mailbox content, or
+Codex session transcript in repository artifacts.
+
 ## Plan Approval
 
-- Status: WMS1--WMS4 complete.
+- Status: WMS1--WMS4 complete; WMS5.1--WMS5.3 remain open.
 - Notes: One shared redacted execution-receipt extension supports six separate
   fully offline profiles. Synthetic Fastmail evidence cannot inherit a live
   mailbox receipt, and the three package-bound MLE6, MLE7, and MLE8 Darwin/MLX
   competency rows cannot transfer to a different package or material closure.
   WMS3.3 records one authorized floorplan MPS receipt; Fastmail live evidence
-  remains absent. The architecture-triad review required integrated workflow
+  remains absent because the current Fastmail command conflates the registered
+  workflow key with the sealed package ID. The architecture-triad review
+  required integrated workflow
   tests where existing unit seams are disjoint; Ponytail retained only those
   existing fakes and introduced no registry or provider abstraction.

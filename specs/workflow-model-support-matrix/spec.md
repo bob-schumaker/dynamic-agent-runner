@@ -1,6 +1,6 @@
 # Workflow Model Support Matrix Specification
 
-Status: Implemented through WMS4
+Status: Implemented through WMS4; WMS5 Fastmail probe identity repair is open
 Version: 0.1.0
 Owner: Repository maintainers
 Date: 2026-09-13
@@ -64,6 +64,11 @@ required capabilities or locked materials.
 - [MUST] FR-010: Structured-output, stateful-context, and tool-pack-composition
   profiles must remain deterministic and injected. They must not call a remote
   model, external service, retrieval system, or subagent process.
+- [MUST] FR-011: The Fastmail live probe must accept an explicit registered
+  workflow ID and derive its sealed package/material identity and support facts
+  from that registered host state before host composition. It must not use one
+  operator argument as both a workflow registration ID and package ID, or
+  accept operator-supplied support facts.
 
 ## Non-Functional Requirements
 
@@ -153,6 +158,11 @@ reason codes; every other cell has one or more codes allowed by its status.
   workspace, and subagent collaborators are injected, then descriptor packing,
   approval, invocation, and redacted result shaping are tested with no external
   client or child process.
+- AC-010: Given a Fastmail registration whose workflow ID and package ID are
+  distinct, when an explicitly authorized probe is evaluated, then it derives
+  the package/material and support facts from the registered immutable state;
+  an unknown workflow or changed derived fact refuses before host opening or
+  dispatch.
 
 ## Edge and Error Cases
 

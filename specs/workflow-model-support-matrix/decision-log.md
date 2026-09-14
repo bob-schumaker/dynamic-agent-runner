@@ -17,6 +17,12 @@
 - 2026-09-13 — Proposed or intentionally deferred runtime features are explicit
   exclusions, not empty matrix rows. — A row requires an implemented owning
   contract before it can be classified honestly.
+- 2026-09-13 — Fastmail probes must resolve a registered workflow ID and derive
+  the sealed package/material facts from the configured host. — The verified
+  owner-local registration maps `fastmail-inbox-triage-qwen-v4` to package
+  `fastmail-inbox-triage-qwen`; treating one CLI value as both identities makes
+  the current live command unsatisfiable. State-root paths, targets,
+  credentials, mailbox data, and session transcripts remain unrecorded.
 
 ## Rejected Options
 
@@ -30,6 +36,9 @@
 - 2026-09-13 — Reconciled stale draft/open status and MLE8 evidence claims.
   — WMS1--WMS4 are complete, and the MLE8 package, fixture, Darwin receipt,
   and non-transferable support row are recorded alongside MLE6 and MLE7.
+- 2026-09-13 — Verified that the owner-local Fastmail host configuration remains
+  available; no configuration was lost. — WMS5 tracks the command-interface
+  defect rather than treating the absent live receipt as missing configuration.
 
 ## Gate History
 

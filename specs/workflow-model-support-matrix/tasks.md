@@ -1,7 +1,7 @@
 # Workflow Model Support Matrix Tasks
 
-Status: WMS1--WMS4 are complete. Deterministic profile coverage and authorized
-floorplan MPS evidence are published through the support-coverage report.
+Status: WMS1--WMS4 are complete. WMS5.1--WMS5.3 repair the Fastmail live-probe
+identity defect before any live receipt is attempted.
 
 ## Prerequisites
 
@@ -379,6 +379,65 @@ floorplan MPS evidence are published through the support-coverage report.
     `poetry run ruff check src tests`, `make -C docs html`, `git diff --check`,
     and changed-file pre-commit passed.
 
+## WMS5 — Fastmail Live-Probe Registration Identity Repair
+
+- [ ] WMS5.1 [tests, RED] Reproduce the owner-host registration shape in the
+      Fastmail probe tests and prove that the probe admits only host-derived
+      identity facts before opening a host or dispatching.
+  - Spec: FR-004, FR-005, FR-011, AC-010.
+  - Files/components: `tests/test_fastmail_support_probe.py`,
+    `scripts/run_fastmail_support_probe.py`, and the existing saved-workflow
+    inspection seam.
+  - Depends on: WMS3.2.
+  - RED: use a de-secreted fixture whose registered workflow ID is
+    `fastmail-inbox-triage-qwen-v4` and sealed package ID is
+    `fastmail-inbox-triage-qwen`. Prove that this distinct pair can be admitted
+    only when the script receives the workflow ID and derives the package,
+    material, policy, profile, and reviewed surface facts through registered
+    state.
+  - RED: prove an unknown workflow, stale derived material/policy/surface fact,
+    or an attempt to provide operator-supplied support facts refuses before
+    host opening or dispatch. Preserve the explicit opt-in, target, and
+    authorization-reference gates and assert the redacted receipt never
+    contains a state-root path, target value, credentials, mailbox content, or
+    raw model/tool data.
+  - Validation: `poetry run pytest tests/test_fastmail_support_probe.py -q`
+    initially fails for the distinct identity fixture.
+
+- [ ] WMS5.2 [implementation, GREEN] Replace the Fastmail probe's ambiguous
+      `--package-name` interface with `--workflow-id` and derive all support
+      identity from `inspect_saved_workflow` before host composition.
+  - Spec: FR-004, FR-005, FR-011, AC-010.
+  - Files/components: `scripts/run_fastmail_support_probe.py`, its focused
+    tests, and only existing host inspection/receipt boundaries.
+  - Depends on: WMS5.1.
+  - GREEN: remove the `--support-facts` argument and its parser. Resolve the
+    explicit workflow ID once through the registered immutable state, then
+    derive and verify the exact material/package, policy, profile, and reviewed
+    read-only surface used for classification and dispatch. Invalid inspection
+    or derived facts must fail closed with zero host opens and zero dispatches.
+  - Boundary: retain one narrow operator command; do not add a probe registry,
+    a new host configuration path, live Fastmail/OAuth/MCP calls in pytest, or
+    a second model/package fixture.
+  - Validation: `poetry run pytest tests/test_fastmail_support_probe.py
+    tests/test_workflow_model_support_matrix.py -q` and `poetry run ruff check
+    scripts tests`.
+
+- [ ] WMS5.3 [manual gate] Record one Fastmail live receipt only after WMS5.2
+      is green, the registered identity and reviewed read-only surface are
+      re-inspected, and a fresh explicit operator authorization is supplied.
+  - Spec: FR-004, FR-005, FR-011, AC-004, AC-010.
+  - Depends on: WMS5.2.
+  - Manual gate: run exactly one bounded read-only candidate with the registered
+    workflow ID, explicit opt-in, target, and authorization reference. Preserve
+    only the fixed redacted receipt; do not commit a state-root path, target,
+    authorization value, credentials, mailbox content, raw model/tool data, or
+    session transcript.
+  - Evidence: classify Fastmail as live-supported only if the fresh receipt
+    binds the registered workflow, derived sealed package/material identity,
+    profile, and reviewed surface. Otherwise retain the current absence of live
+    evidence.
+
 ## Checkpoints
 
 - WMS1: pure, side-effect-free classification and non-transferable evidence.
@@ -387,6 +446,8 @@ floorplan MPS evidence are published through the support-coverage report.
 - WMS3: human-gated Fastmail and floorplan receipt paths with fake authorization
   coverage.
 - WMS4: documented coverage and validation record.
+- WMS5: Fastmail probe derives registered workflow/package identity before a
+  newly authorized live receipt can be recorded.
 
 ## Validation
 
