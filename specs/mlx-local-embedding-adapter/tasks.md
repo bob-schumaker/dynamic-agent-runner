@@ -668,6 +668,21 @@
     prove partial groups, changed ancillary dtype, and extra tensors reject
     before output; successful output is canonical execution-only safetensors.
 
+- [x] MLE8.3b [implementation, RED/GREEN] Extend the MLE8 source-only closure
+      with the complete standard `pooler.dense.{weight,bias}` pair exposed by
+      the authorized source revision, and remove it during canonical execution
+      weight preparation.
+  - Discovery: the approved revision's actual safetensors header has the
+    descriptor-derived F32 `[H,H]`/`[H]` pooler pair plus
+    `embeddings.position_ids`; it has no masked-LM tensors.
+  - Acceptance: accept either no pooler pair or exactly the complete pair with
+    descriptor-derived F32 shapes and contiguous spans. A partial, changed, or
+    extra pooler tensor rejects before output. The provider remains a finite
+    source-closure transformer, not an arbitrary tensor filter.
+  - Depends on: MLE8.3a.
+  - Evidence (2026-09-13): fake-only tests admit the complete pair and reject
+    a missing bias, changed shape, or changed span before canonical output.
+
 - [ ] MLE8.4 [approval/package, tests RED/GREEN] With a recorded license and
       material decision, create the package-local lock and descriptor for
       `sentence-transformers/all-distilroberta-v1`; reject changed roles,

@@ -176,13 +176,21 @@ def _source_tensors(
         "lm_head.decoder.weight": ("F32", (vocab, hidden)),
         "lm_head.decoder.bias": ("F32", (vocab,)),
     }
+    pooler = {
+        "pooler.dense.weight": ("F32", (hidden, hidden)),
+        "pooler.dense.bias": ("F32", (hidden,)),
+    }
     names = set(tensors)
     extras = names - set(expected)
     if not set(expected) <= names or extras not in (
         set(),
         set(ancillary),
         set(lm_head),
+        set(pooler),
         set(ancillary) | set(lm_head),
+        set(ancillary) | set(pooler),
+        set(lm_head) | set(pooler),
+        set(ancillary) | set(lm_head) | set(pooler),
     ):
         raise ValueError
     offsets = {
@@ -191,7 +199,7 @@ def _source_tensors(
     }
     spans = list(offsets.values())
     for name in extras:
-        dtype, shape = (ancillary | lm_head)[name]
+        dtype, shape = (ancillary | lm_head | pooler)[name]
         spans.append(_span(tensors[name], dtype, shape, data_size))
     previous = 0
     for start, end in sorted(spans):

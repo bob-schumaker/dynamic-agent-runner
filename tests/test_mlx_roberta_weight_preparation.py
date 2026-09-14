@@ -112,7 +112,9 @@ def _operation() -> PreparationOperation:
     )
 
 
-def _source_weights(*, ancillary: bool = False, mutate=None) -> bytes:
+def _source_weights(
+    *, ancillary: bool = False, pooler: bool = False, mutate=None
+) -> bytes:
     descriptor = _descriptor()
     header: dict[str, object] = {"__metadata__": {"format": "pt"}}
     body = bytearray()
@@ -149,6 +151,20 @@ def _source_weights(*, ancillary: bool = False, mutate=None) -> bytes:
                 "shape": list(shape),
                 "data_offsets": [start, len(body)],
             }
+    if pooler:
+        for name, shape in {
+            "pooler.dense.weight": (2, 2),
+            "pooler.dense.bias": (2,),
+        }.items():
+            start = len(body)
+            body.extend(
+                struct.pack(f"<{math.prod(shape)}f", *([3.0] * math.prod(shape)))
+            )
+            header[name] = {
+                "dtype": "F32",
+                "shape": list(shape),
+                "data_offsets": [start, len(body)],
+            }
     if mutate is not None:
         mutate(header)
     header_bytes = json.dumps(header, sort_keys=True, separators=(",", ":")).encode()
@@ -163,7 +179,7 @@ def _header(content: bytes) -> dict[str, object]:
 def test_provider_removes_only_complete_descriptor_derived_ancillary_groups() -> None:
     descriptor = _descriptor()
     prepared = mlx_roberta_v1_weight_preparation_provider(descriptor).prepare(
-        _operation(), {"source_weights": _source_weights(ancillary=True)}
+        _operation(), {"source_weights": _source_weights(ancillary=True, pooler=True)}
     )
 
     assert set(_header(prepared)) == {
@@ -191,4 +207,22 @@ def test_provider_rejects_changed_or_partial_source_only_groups(mutate) -> None:
         provider.prepare(
             _operation(),
             {"source_weights": _source_weights(ancillary=True, mutate=mutate)},
+        )
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    (
+        lambda header: header.pop("pooler.dense.bias"),
+        lambda header: header["pooler.dense.weight"].update(shape=[3, 2]),
+        lambda header: header["pooler.dense.bias"].update(data_offsets=[1, 2]),
+    ),
+)
+def test_provider_rejects_changed_or_partial_pooler_group(mutate) -> None:
+    provider = mlx_roberta_v1_weight_preparation_provider(_descriptor())
+
+    with pytest.raises(ValueError, match="unavailable"):
+        provider.prepare(
+            _operation(),
+            {"source_weights": _source_weights(pooler=True, mutate=mutate)},
         )
