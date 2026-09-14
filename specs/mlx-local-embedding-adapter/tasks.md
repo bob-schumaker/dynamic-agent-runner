@@ -749,7 +749,11 @@
     with `7.674098014831543e-07` maximum absolute error against the locked
     fixture (threshold `0.005`).
 
-- [ ] MLE8.8 [tests/docs] Add the successful MLE8 package/material receipt as
+- [x] MLE8.8 [tests/docs] Add the successful MLE8 package/material receipt as
       a non-transferable embedding support row and update validation status.
   - Spec: Operational Completion Gate 5.
   - Depends on: MLE8.7.
+  - Evidence (2026-09-13): the support-row tests bind this package's exact
+    material lock, RoBERTa ABI, descriptor, `embedding.execute.v1` requirement,
+    and MLE8.7 receipt digest. A changed package ID or source hash cannot
+    inherit the supported Darwin MLX row.

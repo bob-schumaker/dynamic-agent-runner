@@ -1,0 +1,30 @@
+{
+  "architecture_abi": {
+    "contract_digest": "7770aa3d61b26984d2e549f99092459935d0237f67cae2e8b176c0516ce04391",
+    "id": "roberta-encoder-mlx-v1",
+    "version": "1"
+  },
+  "execution_descriptor_digest": "741c566a26f604d7db84136da2764019301b9d411d18bd0fac47998e2b532c5a",
+  "format_version": 1,
+  "material_lock_digest": "0c51398f9edb6bc20579c7ea45f18955dfb1b53d53f4e705d5f3bc6fad27b91d",
+  "package_id": "mlx-all-distilroberta-v1-embedding-v1",
+  "profile_id": "embedding-index-sealed-v1",
+  "receipt_filename": "mle8.7-receipt.json",
+  "receipt_sha256": "d4c7227002a1971383665df9845cacca4088c300b3e2ea5df0cb5849ed59a4a4",
+  "required_capability": {
+    "contract_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "id": "embedding.execute.v1",
+    "required_features": [
+      "deterministic"
+    ],
+    "version": "1"
+  },
+  "required_material_roles": [
+    "merges",
+    "vocab",
+    "weights"
+  ],
+  "status": "supported",
+  "test_mode": "darwin-mlx-competency",
+  "workflow_family": "embedding-index"
+}
