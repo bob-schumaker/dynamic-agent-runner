@@ -1016,6 +1016,18 @@ def test_cli_configures_selects_registers_prepares_and_dry_runs(tmp_path: Path) 
     assert status == 0
     assert registration["workflow_id"] == "document-helper"
 
+    status, refreshed = _invoke(
+        [
+            *state_args,
+            "refresh-registration",
+            "--workflow-id",
+            "document-helper",
+        ]
+    )
+    assert status == 0
+    assert refreshed["workflow_id"] == "document-helper"
+    assert refreshed["profile_id"] == registration["profile_id"]
+
     status, prepared = _invoke(
         [
             *state_args,

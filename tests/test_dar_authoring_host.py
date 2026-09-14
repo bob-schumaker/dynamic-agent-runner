@@ -48,12 +48,18 @@ from dynamic_agent_runner.workflow_host.authorized_tools import (  # noqa: E402
     create_authorized_mcp_tool_bindings,
 )
 from dynamic_agent_runner.workflow_host.mcp_client import MCPClientConfiguration  # noqa: E402
+from dynamic_agent_runner.workflow_host.mcp_binding import (  # noqa: E402
+    MCPWorkflowCapabilityBindingError,
+)
 from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool  # noqa: E402
 from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     InstallationIdentityProvider,
     LocalModelProfileControlPlane,
 )
-from dynamic_agent_runner.workflow_host.policy import PolicyCompilationError  # noqa: E402
+from dynamic_agent_runner.workflow_host.policy import (  # noqa: E402
+    PolicyCompilationError,
+    compile_workflow_policy,
+)
 from dynamic_agent_runner.workflow_host.package_export import (  # noqa: E402
     export_staged_package,
 )
@@ -1775,6 +1781,42 @@ def test_host_selects_and_registers_a_local_zip_package(
     assert registration.workflow_id == "document-helper"
 
 
+def test_host_refreshes_a_saved_registration_without_a_package_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package_root = tmp_path / "packages"
+    source = package_root / "document-helper"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.host.create_local_adapter",
+        lambda profile: OpenAIClientAdapter(
+            _Client(),
+            models=[profile.execution_model_id],
+            is_local=True,
+            model_id_mapping={profile.execution_model_id: profile.model_id},
+            execution_profile_adapter_id=profile.adapter_id,
+        ),
+    )
+    root = tmp_path / "state"
+    configure_local_host(
+        root=root,
+        package_root=package_root,
+        model_id="local-model-v1",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    host = LocalWorkflowHost.open(root)
+    source_handle = host.select_package(source, now=NOW)
+    registration = host.register(
+        workflow_id="document-helper", package_source_handle=source_handle, now=NOW
+    )
+
+    refreshed = host.refresh_saved_registration(workflow_id="document-helper")
+
+    assert refreshed.workflow_id == registration.workflow_id
+    assert refreshed.package_id == registration.package_id
+    assert refreshed.revision_digest == registration.revision_digest
+
+
 def test_host_open_constructs_apple_adapter_with_only_configured_alias(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2132,6 +2174,67 @@ def test_host_runs_a_registered_reviewed_mcp_workflow(
 
     assert result.output == {"message": "three unread messages"}
     assert _ReviewedMCPClient.calls == [("list_unread", {})]
+
+
+def test_host_refresh_rebinds_a_changed_policy_to_its_current_reviewed_surface(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package_root = tmp_path / "packages"
+    source = package_root / "mail-reader"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    _add_read_only_mcp_tool(source)
+    root = _configured_reviewable_mcp_host(
+        root=tmp_path / "state", package_root=package_root, monkeypatch=monkeypatch
+    )
+    host = LocalWorkflowHost.open(root)
+    snapshot = host.review_mcp_surface(approved_read_only_tool_names={"list_unread"})
+    source_handle = host.select_package(source, now=NOW)
+    binding = host.bind_mcp_package(
+        package_source_handle=source_handle, snapshot_id=snapshot.snapshot_id, now=NOW
+    )
+    registration = host.register(
+        workflow_id="mail-reader",
+        package_source_handle=source_handle,
+        mcp_binding_id=binding.binding_id,
+        now=NOW,
+    )
+    revision = host._catalog.revision(
+        registration.package_id, registration.revision_digest
+    )
+    refreshed_policy = replace(
+        compile_workflow_policy(
+            revision,
+            capability_catalog=host._capability_catalog,
+            descriptor_validators=host._descriptor_validators,
+        ),
+        policy_digest="f" * 64,
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.host.compile_workflow_policy",
+        lambda *_args, **_kwargs: refreshed_policy,
+    )
+
+    refreshed = host.refresh_saved_registration(workflow_id="mail-reader")
+
+    assert refreshed.policy_digest == refreshed_policy.policy_digest
+    assert refreshed.mcp_binding_id is not None
+    assert refreshed.mcp_binding_id != binding.binding_id
+    assert host._mcp_bindings is not None
+    saved = host._registrations.resolve("mail-reader")
+
+    def unavailable_binding(_binding_id: str):
+        raise MCPWorkflowCapabilityBindingError("unavailable")
+
+    monkeypatch.setattr(
+        host._mcp_bindings,
+        "load",
+        unavailable_binding,
+    )
+
+    with pytest.raises(LocalWorkflowHostError, match="MCP package binding"):
+        host.refresh_saved_registration(workflow_id="mail-reader")
+
+    assert host._registrations.resolve("mail-reader") == saved
 
 
 def test_apple_host_runs_only_the_bound_read_only_mcp_callback(

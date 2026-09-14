@@ -462,7 +462,7 @@ record a live receipt.
     profile, and binding identities plus a successful post-reconciliation
     inspection. A failed reconciliation remains zero host-open/dispatch evidence.
 
-- [ ] WMS5.5 [tests, implementation] Add an explicit owner-only refresh for a
+- [x] WMS5.5 [tests, implementation] Add an explicit owner-only refresh for a
       stale registration that preserves workflow, package, and revision identity.
   - Spec: FR-012, AC-011.
   - Files/components: `src/dynamic_agent_runner/workflow_host/registration.py`,
@@ -483,6 +483,17 @@ record a live receipt.
     configured-client check.
   - Validation: focused registration, host, and CLI tests plus Ruff; then
     WMS5.4 must perform the owner-approved live-state reconciliation separately.
+  - Evidence (2026-09-13): `refresh-registration --workflow-id` resolves only
+    the existing cataloged package/revision and rejects a different local
+    principal, package, revision, unavailable capability, mismatched profile,
+    or unavailable MCP binding without changing the saved alias. For a changed
+    MCP policy digest it verifies the existing reviewed snapshot against the
+    current configured client, creates a new immutable binding for that same
+    snapshot and policy, and validates it through the existing registration
+    service. RED exposed the missing service, host, CLI, and policy-rebinding
+    paths; GREEN ran `poetry run pytest tests/test_dar_authoring_registration.py
+    tests/test_dar_authoring_host.py tests/test_dar_authoring_cli.py -q`
+    (66 passed), focused Ruff, and `git diff --check`.
 
 - [ ] WMS5.3 [manual gate] Record one Fastmail live receipt only after WMS5.2
       is green, the registered identity and reviewed read-only surface are

@@ -140,6 +140,49 @@ class WorkflowRegistrationService:
             raise WorkflowRegistrationError("workflow alias is not registered")
         return _from_mapping(value)
 
+    def refresh(
+        self,
+        *,
+        workflow_id: str,
+        policy: WorkflowPolicy,
+        capability_resolution: CapabilityResolution,
+        mcp_binding_id: str | None = None,
+    ) -> WorkflowRegistration:
+        """Refresh one registered policy without changing its package revision."""
+
+        existing = self.resolve(workflow_id)
+        if existing.owner != self._owner:
+            raise WorkflowRegistrationError(
+                "workflow refresh owner does not match registration"
+            )
+        if (
+            existing.package_id != policy.package_id
+            or existing.revision_digest != policy.revision_digest
+        ):
+            raise WorkflowRegistrationError(
+                "workflow refresh immutable identity mismatch"
+            )
+        if capability_resolution.status != "eligible":
+            raise WorkflowRegistrationError(
+                "policy capability resolution is unavailable"
+            )
+        profile = self._configured_profile()
+        self._validate_profile(policy, profile)
+        bound_mcp_id = self._validate_mcp_binding(policy, mcp_binding_id)
+        registration = _registration_from(
+            policy,
+            profile,
+            workflow_id,
+            selected_capability_provider_ids=policy.selected_capability_provider_ids,
+            mcp_binding_id=bound_mcp_id,
+            model_recipe_digest=self._model_recipe_digest(policy, profile),
+            owner=self._owner,
+        )
+        records = self._read()
+        records[workflow_id] = _to_mapping(registration)
+        self._write(records)
+        return registration
+
     def configured_profile(self) -> LocalModelProfile:
         """Return the validated profile that is authoritative for registration."""
 

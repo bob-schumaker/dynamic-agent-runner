@@ -32,12 +32,14 @@ from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: 
 def _policy(
     *,
     digest: str = "a" * 64,
+    package_id: str = "document-helper",
+    revision_digest: str = "b" * 64,
     profile_requirement: str = "local-general-model",
     input_converter: bool = False,
 ) -> WorkflowPolicy:
     return WorkflowPolicy(
-        package_id="document-helper",
-        revision_digest="b" * 64,
+        package_id=package_id,
+        revision_digest=revision_digest,
         descriptor_digest="c" * 64,
         policy_digest=digest,
         model_profile_requirement=profile_requirement,
@@ -361,3 +363,75 @@ def test_registration_rejects_alias_collision_and_caller_selected_profile(
             capability_resolution=CapabilityResolution("eligible", ()),
             profile_id="caller-selected",
         )
+
+
+def test_registration_refresh_requires_the_existing_package_and_revision(
+    tmp_path: Path,
+) -> None:
+    service = _service(tmp_path)
+    first = service.register(
+        workflow_id="document-helper",
+        policy=_policy(),
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+    refreshed_policy = _policy(digest="d" * 64)
+
+    refreshed = service.refresh(
+        workflow_id="document-helper",
+        policy=refreshed_policy,
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+
+    assert refreshed.workflow_id == first.workflow_id
+    assert refreshed.package_id == first.package_id
+    assert refreshed.revision_digest == first.revision_digest
+    assert refreshed.policy_digest == refreshed_policy.policy_digest
+    assert service.resolve("document-helper") == refreshed
+    with pytest.raises(WorkflowRegistrationError, match="alias collision"):
+        service.register(
+            workflow_id="document-helper",
+            policy=_policy(digest="e" * 64),
+            capability_resolution=CapabilityResolution("eligible", ()),
+        )
+    with pytest.raises(WorkflowRegistrationError, match="immutable identity"):
+        service.refresh(
+            workflow_id="document-helper",
+            policy=_policy(package_id="other-package", digest="e" * 64),
+            capability_resolution=CapabilityResolution("eligible", ()),
+        )
+    with pytest.raises(WorkflowRegistrationError, match="immutable identity"):
+        service.refresh(
+            workflow_id="document-helper",
+            policy=_policy(revision_digest="c" * 64, digest="e" * 64),
+            capability_resolution=CapabilityResolution("eligible", ()),
+        )
+    with pytest.raises(WorkflowRegistrationError, match="profile requirement"):
+        service.refresh(
+            workflow_id="document-helper",
+            policy=_policy(
+                digest="e" * 64,
+                profile_requirement="general-language-model-v1",
+            ),
+            capability_resolution=CapabilityResolution("eligible", ()),
+        )
+    with pytest.raises(WorkflowRegistrationError, match="unavailable"):
+        service.refresh(
+            workflow_id="document-helper",
+            policy=_policy(digest="e" * 64),
+            capability_resolution=CapabilityResolution(
+                "capability_unavailable", ("local_model",)
+            ),
+        )
+    other_owner = WorkflowRegistrationService(
+        profiles=service._profiles,
+        configured_profile_id=service._configured_profile_id,
+        root=tmp_path / "registrations",
+        owner="other-owner",
+    )
+    with pytest.raises(WorkflowRegistrationError, match="owner"):
+        other_owner.refresh(
+            workflow_id="document-helper",
+            policy=_policy(digest="e" * 64),
+            capability_resolution=CapabilityResolution("eligible", ()),
+        )
+    assert service.resolve("document-helper") == refreshed

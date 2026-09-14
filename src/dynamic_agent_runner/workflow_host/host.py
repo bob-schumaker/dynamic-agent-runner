@@ -1608,6 +1608,61 @@ class LocalWorkflowHost:
             mcp_binding_id=mcp_binding_id,
         )
 
+    def refresh_saved_registration(self, *, workflow_id: str) -> WorkflowRegistration:
+        """Refresh one saved registration from its immutable catalog revision."""
+
+        registration = self._registrations.resolve(workflow_id)
+        revision = self._catalog.revision(
+            registration.package_id, registration.revision_digest
+        )
+        policy = compile_workflow_policy(
+            revision,
+            capability_catalog=self._capability_catalog,
+            descriptor_validators=self._descriptor_validators,
+        )
+        self._ensure_mcp_client(policy_requires_mcp=bool(policy.declared_tools))
+        profile = self._registrations.configured_profile()
+        mcp_binding_id = registration.mcp_binding_id
+        if policy.declared_tools:
+            if (
+                mcp_binding_id is None
+                or self._mcp_bindings is None
+                or self._mcp_client is None
+            ):
+                raise LocalWorkflowHostError("MCP client is not configured")
+            try:
+                previous_binding = self._mcp_bindings.load(mcp_binding_id)
+                mcp_binding_id = self._mcp_bindings.bind(
+                    policy=policy,
+                    snapshot_id=previous_binding.snapshot_id,
+                    client=self._mcp_client,
+                ).binding_id
+            except MCPWorkflowCapabilityBindingError as error:
+                raise LocalWorkflowHostError(
+                    "MCP package binding is unavailable"
+                ) from error
+        return self._registrations.refresh(
+            workflow_id=workflow_id,
+            policy=policy,
+            capability_resolution=resolve_capabilities(
+                policy,
+                available_capabilities={
+                    *profile.capabilities,
+                    *(
+                        {"local_tool_sandbox"}
+                        if self._runner.local_tool_execution_available
+                        else set()
+                    ),
+                    *(
+                        {"mcp_read_only", "mcp_side_effects"}
+                        if self._mcp_client is not None
+                        else set()
+                    ),
+                },
+            ),
+            mcp_binding_id=mcp_binding_id,
+        )
+
     def prepare(
         self,
         *,
