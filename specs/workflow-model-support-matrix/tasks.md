@@ -442,7 +442,7 @@ record a live receipt.
 - [ ] WMS5.4 [manual gate] Reconcile the owner-local Fastmail registration with
       its currently compiled immutable policy before allowing a live probe.
   - Spec: FR-004, FR-006, FR-011, AC-010.
-  - Depends on: WMS5.2, WMS5.5, WMS5.6.
+  - Depends on: WMS5.2, WMS5.5, WMS5.6, WMS5.8, WMS5.9.
   - Evidence: read-only WMS5.2 inspection observed that registration
     `fastmail-inbox-triage-qwen-v4` maps to the intended sealed package ID but
     fails `saved package policy does not match`. This is a fail-closed static
@@ -574,6 +574,24 @@ record a live receipt.
     pytest tests/test_dar_authoring_registration.py tests/test_dar_authoring_host.py
     tests/test_dar_authoring_cli.py -q` (66 passed), focused Ruff, and
     `git diff --check`.
+
+- [ ] WMS5.9 [tests, implementation] Allow an explicit refresh to claim only a
+      legacy ownerless registration after all normal refresh validation passes.
+  - Spec: FR-006, FR-012, AC-010, AC-011.
+  - Depends on: WMS5.5, WMS5.8.
+  - RED: prove that an ownerless registration refreshes the same workflow,
+    package, revision, profile, and current reviewed MCP binding and writes the
+    current local principal; a registration owned by any other explicit
+    principal remains rejected and unmodified.
+  - GREEN: treat `owner is None` as the sole legacy migration case inside the
+    existing explicit refresh operation. Do not add an ownership override,
+    migration command, alias replacement, path/source input, or force flag.
+  - Boundary: ownership is claimed only after immutable identity, eligible
+    capabilities, current profile, and current MCP binding validation succeed.
+    No model loading or Fastmail tool dispatch occurs.
+  - Validation: focused registration, host, and CLI tests plus Ruff; then rerun
+    WMS5.4 with the explicit fresh surface snapshot. Repository evidence must
+    remain redacted.
 
 - [ ] WMS5.3 [manual gate] Record one Fastmail live receipt only after WMS5.2
       is green, the registered identity and reviewed read-only surface are
