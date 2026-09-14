@@ -3,14 +3,21 @@
 
 ## Working
 
-- `model-generation-resource-budgets` was refined in `ff7262d` as a spec-only
-  contract. The generic converter-capable model-adapter owns sealed-input
-  binding, budget resolution, admission/lifecycle, aggregate accounting,
-  redacted telemetry, and terminal response shaping. Worker-capable
-  registrations require one parent-only factory and a reviewed controller;
-  unsupported runner/device containment or bounded reap rejects before
-  sealed-input ingress. T4.1 is complete; all remaining runtime work remains
-  RED-first gated.
+- `model-generation-resource-budgets` is implemented and validated through
+  T5.13. The generic converter-capable model-adapter owns sealed-input binding,
+  budget resolution, admission/lifecycle, aggregate accounting, redacted
+  telemetry, and terminal response shaping. CPU multiprocessing and Darwin
+  Metal/MPS worker capability paths enforce containment and confirmed bounded
+  reap before sealed-input ingress.
+- `workflow-model-support-matrix` is complete through WMS4. Deterministic
+  Fastmail, embedding, floorplan, structured-output, stateful-context, and
+  tool-pack profiles have recorded coverage; one explicit floorplan MPS receipt
+  is recorded, while the Fastmail live receipt remains absent. Commit `287008d`
+  reconciles the matrix, MLX, and portfolio records.
+- `mlx-local-embedding-adapter` is complete through MLE8. MLE6 WordPiece,
+  MLE7 SentencePiece-Unigram, and MLE8 RoBERTa byte-level-BPE each have a
+  sealed package, local fixture, Darwin competency receipt, and non-transferable
+  workflow support row.
 - `fastmail-inbox-triage` is complete through the registered direct-llama.cpp/
   Qwen v4 package. The owner-authorized read-only acceptance produced a
   contract-valid `needs_review` report with one `needs_reply` item and no
