@@ -9,6 +9,10 @@
   terminal response shaping. CPU multiprocessing and Darwin Metal/MPS workers
   are gated by reviewed capabilities, enforceable containment, and confirmed
   bounded reap before sealed-input ingress.
+- Release publication is not yet authorized. The checked-out runtime version is
+  `0.1.17`; converter-plugin T5.6 has a verified local package build but still
+  requires an explicit unreleased PEP 440 version and publish target before any
+  publication attempt.
 - `workflow-model-support-matrix` is complete through WMS5. Its deterministic
   Fastmail, embedding, floorplan, structured-output, stateful-context, and
   tool-pack profiles retain non-transferable evidence. WMS5 changed the
@@ -17,7 +21,13 @@
   safely refresh only the same package/revision registration. One authorized
   redacted read-only Fastmail receipt is recorded. State-root paths, targets,
   credentials, mailbox data, and session transcripts remain unrecorded.
-  Commits `73fc6e1` and `b0337dd` record the receipt and consistent corpus.
+  Commit `73fc6e1` records the receipt; `0c8f474` reconciles the matrix's
+  validation, index, plan, and decision history with that completion.
+- `workflow-model-materials` is complete through M10. M9 retains the generic
+  sealed floorplan successor boundary and M10 supplies generic prepared
+  Transformers host composition; the separately authorized WMS3.3 gate is the
+  sole MPS acceptance evidence. `local-model-preparation` is a superseded
+  historical baseline, not open release work.
 - `mlx-local-embedding-adapter` is complete through MLE8: each sealed MLE6
   WordPiece, MLE7 SentencePiece-Unigram, and MLE8 RoBERTa byte-level-BPE
   package has its own Darwin competency receipt and support row. No receipt
