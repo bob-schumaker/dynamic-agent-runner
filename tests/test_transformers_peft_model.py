@@ -1313,7 +1313,7 @@ def test_deferred_worker_adapter_records_only_verified_fragment_facts(
         adapter,
         "_run_worker_fragment",
         lambda **_kwargs: GenerationWorkerResult(
-            b"ok", 1, 1, 2, False, packed_context_tokens=3
+            b"ok", 1, 1, 2, False, packed_context_tokens=3, worker_reaped=True
         ),
     )
 
@@ -1328,6 +1328,7 @@ def test_deferred_worker_adapter_records_only_verified_fragment_facts(
     assert facts[0].generated_tokens == 1
     assert facts[0].output_bytes == 2
     assert facts[0].packed_context_tokens == 3
+    assert facts[0].worker_reaped is True
     assert facts[0].stop_classification == "completed"
     assert isinstance(facts[0].elapsed_milliseconds, int)
     assert facts[0].elapsed_milliseconds >= 0

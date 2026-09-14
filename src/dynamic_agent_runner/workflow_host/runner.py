@@ -198,6 +198,7 @@ class DebugGeneratedFragment:
     packed_context_tokens: int | None
     elapsed_milliseconds: int | None
     stop_classification: str | None
+    worker_reaped: bool | None
 
 
 @dataclass(frozen=True)
@@ -247,6 +248,7 @@ class _DebugDiagnosticCollector:
         packed_context_tokens = getattr(value, "packed_context_tokens", None)
         elapsed_milliseconds = getattr(value, "elapsed_milliseconds", None)
         stop_classification = getattr(value, "stop_classification", None)
+        worker_reaped = getattr(value, "worker_reaped", None)
         if output_bytes is None and isinstance(content, str):
             output_bytes = len(content.encode("utf-8"))
         if (
@@ -257,6 +259,8 @@ class _DebugDiagnosticCollector:
             or not _optional_nonnegative_int(packed_context_tokens)
             or not _optional_nonnegative_int(elapsed_milliseconds)
             or not _optional_stop_classification(stop_classification)
+            or worker_reaped is not None
+            and not isinstance(worker_reaped, bool)
         ):
             self.retention_limited = True
             return
@@ -269,6 +273,7 @@ class _DebugDiagnosticCollector:
                 packed_context_tokens,
                 elapsed_milliseconds,
                 stop_classification,
+                worker_reaped,
             )
         )
 
@@ -946,6 +951,7 @@ class WorkflowRunner:
                             "packed_context_tokens": fragment.packed_context_tokens,
                             "elapsed_milliseconds": fragment.elapsed_milliseconds,
                             "stop_classification": fragment.stop_classification,
+                            "worker_reaped": fragment.worker_reaped,
                         }
                         for fragment in collector.fragments
                     ],
@@ -1529,9 +1535,10 @@ def _debug_diagnostic(payload: Mapping[str, object]) -> DebugWorkflowDiagnostic:
         packed_context_tokens = fragment.get("packed_context_tokens")
         elapsed_milliseconds = fragment.get("elapsed_milliseconds")
         stop_classification = fragment.get("stop_classification")
+        worker_reaped = fragment.get("worker_reaped")
         if (
-            set(fragment)
-            != {
+            not set(fragment)
+            <= {
                 "fragment_index",
                 "exhausted",
                 "generated_tokens",
@@ -1539,6 +1546,7 @@ def _debug_diagnostic(payload: Mapping[str, object]) -> DebugWorkflowDiagnostic:
                 "packed_context_tokens",
                 "elapsed_milliseconds",
                 "stop_classification",
+                "worker_reaped",
             }
             or not _nonnegative_int(fragment_index)
             or not isinstance(exhausted, bool)
@@ -1547,6 +1555,8 @@ def _debug_diagnostic(payload: Mapping[str, object]) -> DebugWorkflowDiagnostic:
             or not _optional_nonnegative_int(packed_context_tokens)
             or not _optional_nonnegative_int(elapsed_milliseconds)
             or not _optional_stop_classification(stop_classification)
+            or worker_reaped is not None
+            and not isinstance(worker_reaped, bool)
         ):
             raise RunDarWorkflowError("debug diagnostic is unavailable")
         parsed.append(
@@ -1558,6 +1568,7 @@ def _debug_diagnostic(payload: Mapping[str, object]) -> DebugWorkflowDiagnostic:
                 packed_context_tokens,
                 elapsed_milliseconds,
                 stop_classification,
+                worker_reaped,
             )
         )
     terminal = (

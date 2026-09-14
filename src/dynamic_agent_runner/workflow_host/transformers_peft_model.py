@@ -146,6 +146,7 @@ class GenerationDebugFragment:
     packed_context_tokens: int | None = None
     elapsed_milliseconds: int | None = None
     stop_classification: str | None = None
+    worker_reaped: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -1614,6 +1615,7 @@ class DeferredTransformersPeftSingleImageAdapter:
                                 else "continuation"
                             )
                         ),
+                        worker_reaped=result.worker_reaped,
                     )
                 )
             fragments.append(fragment)
