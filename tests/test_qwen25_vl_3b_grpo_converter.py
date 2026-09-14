@@ -133,8 +133,8 @@ def test_floorplan_package_sets_the_qwen_generation_ceiling() -> None:
     workflow = load_agent_package_workflow(str(package))
 
     assert workflow.runtime_manifest.nodes[0].raw["model_parameters"] == {
-        "max_tokens": 65_536,
-        "max_continuations": 32,
+        "max_tokens": 16_384,
+        "max_continuations": 3,
     }
     assert workflow.runtime_manifest.nodes[0].raw["prompt"]["system"] == (
         "You are a floor plan vectorization expert. Extract wall, door, window "

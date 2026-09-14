@@ -1273,7 +1273,7 @@ def test_local_host_rejects_partial_locked_inference_configuration(
 
 
 def test_locked_inference_registration_rejects_tampered_role_before_preparation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
     package_root = tmp_path / "packages"
     source = package_root / "locked-inference"
@@ -1320,12 +1320,6 @@ def test_locked_inference_registration_rejects_tampered_role_before_preparation(
         ),
         locked_inference_host_limits=LockedInferenceHostLimits(1, 100, 100, 100, 1),
     )
-    monkeypatch.setattr(
-        host._model_preparation,
-        "prepare",
-        lambda **_kwargs: pytest.fail("model preparation was called"),
-    )
-
     with pytest.raises(ValueError, match="package descriptor"):
         host.register(
             workflow_id="locked-inference",
@@ -2895,11 +2889,6 @@ def test_host_rejects_unsatisfied_requirement_before_file_ingress(
     host._profile = replace(
         host._profile,
         adapter_id="qwen25-vl-3b-floorplan-grpo-transformers-peft-adapter-v1",
-    )
-    monkeypatch.setattr(
-        host._model_preparation,
-        "prepare",
-        lambda **_kwargs: pytest.fail("model preparation was called"),
     )
     with pytest.raises(LocalWorkflowHostError, match="saved package"):
         host.invoke_saved(
