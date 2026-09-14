@@ -16,6 +16,10 @@ from dynamic_agent_runner.hugging_face_support import (
     download_hub_file,
 )
 from dynamic_agent_runner.local_models import HuggingFaceModelFileReference
+from dynamic_agent_runner.workflow_host.model_execution_binding import (
+    ModelExecutionBinding,
+)
+from dynamic_agent_runner.workflow_host.model_materials import ModelDependencyLock
 
 
 PreparationStatus = Literal[
@@ -77,6 +81,8 @@ class LocalModelLoaderProfile:
 TRANSFORMERS_PEFT_SINGLE_IMAGE_V1 = LocalModelLoaderProfile(
     "transformers-peft-single-image-v1"
 )
+TRANSFORMERS_PEFT_ADAPTER_ID = "transformers-peft-adapter-v1"
+TRANSFORMERS_PEFT_RUNNER_ID = "transformers-peft-v1"
 
 
 @dataclass(frozen=True)
@@ -247,6 +253,45 @@ def _valid_loader_profile(recipe: LocalModelPreparationRecipe) -> bool:
         and adapter_roles == _TRANSFORMERS_PEFT_ADAPTER_ROLES
         and len(base_roles) + len(adapter_roles) == len(recipe.artifacts)
     )
+
+
+def prepared_transformers_peft_recipe(
+    *, lock: ModelDependencyLock, binding: ModelExecutionBinding
+) -> LocalModelPreparationRecipe:
+    """Derive the one closed PEFT loader recipe from sealed execution facts."""
+
+    if (
+        binding.logical_model_id != lock.logical_model_id
+        or binding.material_lock_digest != lock.digest
+        or binding.runner_contract_id != "transformers-generate-v1"
+        or binding.runner_contract_version != "1"
+        or binding.execution_abi_id != "transformers-peft-generation-v1"
+        or binding.execution_abi_version != "1"
+        or lock.preparation
+    ):
+        raise LocalModelPreparationUnavailable("recipe_invalid")
+    recipe = LocalModelPreparationRecipe(
+        model_id=lock.logical_model_id,
+        adapter_id=TRANSFORMERS_PEFT_ADAPTER_ID,
+        artifacts=tuple(
+            LocalModelArtifact(
+                role=source.role,
+                repo_id=source.repository,
+                revision=source.revision,
+                filename=source.filename,
+                sha256=source.sha256,
+                group=source.group,
+            )
+            for source in lock.sources
+        ),
+        transformation=None,
+        runner_id=TRANSFORMERS_PEFT_RUNNER_ID,
+        recipe_id=f"prepared-transformers-peft:{lock.digest}",
+        loader_profile=TRANSFORMERS_PEFT_SINGLE_IMAGE_V1,
+    )
+    if not _valid_loader_profile(recipe):
+        raise LocalModelPreparationUnavailable("recipe_invalid")
+    return recipe
 
 
 class PinnedLlamaCppLoraConverter:
