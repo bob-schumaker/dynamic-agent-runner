@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from hashlib import sha256
+import json
 from pathlib import Path
 
 import pytest
@@ -187,6 +188,54 @@ def test_qwen_native_recipe_uses_the_closed_transformers_peft_profile() -> None:
         "adapter_config",
         "adapter_weights",
     }
+
+
+def test_sealed_transformers_lock_derives_the_closed_preparation_recipe() -> None:
+    from dynamic_agent_runner.local_model_preparation import (
+        TRANSFORMERS_PEFT_SINGLE_IMAGE_V1,
+        prepared_transformers_peft_recipe,
+    )
+    from dynamic_agent_runner.workflow_host.model_execution_binding import (
+        ModelExecutionBinding,
+    )
+    from dynamic_agent_runner.workflow_host.model_materials import (
+        parse_model_dependency_lock,
+    )
+
+    fixture = (
+        Path(__file__).parent
+        / "fixtures"
+        / "natural-language-workflow-authoring"
+        / "floorplan-svg"
+    )
+    lock = parse_model_dependency_lock(
+        json.loads((fixture / "model-materials.json").read_text(encoding="utf-8"))
+    )
+    binding = ModelExecutionBinding(
+        logical_model_id=lock.logical_model_id,
+        runner_contract_id=lock.runner_contract.contract_id,
+        runner_contract_version=lock.runner_contract.version,
+        loader_profile_contract_id=None,
+        loader_profile_contract_version=None,
+        material_lock_digest=lock.digest,
+        capability_requirements_digest="a" * 64,
+        runner_capability_id="model.execution.transformers-generate.v1",
+        runner_capability_version="1",
+        runner_capability_digest="b" * 64,
+        execution_descriptor_digest="c" * 64,
+        execution_abi_id="transformers-peft-generation-v1",
+        execution_abi_version="1",
+        execution_abi_contract_digest="d" * 64,
+    )
+
+    recipe = prepared_transformers_peft_recipe(lock=lock, binding=binding)
+
+    assert recipe.model_id == lock.logical_model_id
+    assert recipe.runner_id == "transformers-peft-v1"
+    assert recipe.loader_profile == TRANSFORMERS_PEFT_SINGLE_IMAGE_V1
+    assert tuple(item.role for item in recipe.artifacts) == tuple(
+        source.role for source in lock.sources
+    )
 
 
 def test_catalog_rejects_incomplete_or_mismatched_transformers_peft_recipes() -> None:
