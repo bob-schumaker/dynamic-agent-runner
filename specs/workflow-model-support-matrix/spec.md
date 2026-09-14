@@ -177,6 +177,40 @@ reason codes; every other cell has one or more codes allowed by its status.
 - Never do: retain secrets, mailbox content, or raw model/tool content in a
   receipt.
 
+## WMS3 Floorplan MPS Completion Probe Contract
+
+WMS3.3 is one operator-gated live probe for the already registered
+`floorplan-from-image` package. It must derive the live
+`floorplan-svg-mps-completion-v1` profile and its `MaterialIdentity` from the
+registered immutable revision and compiled policy; an operator must not supply
+mutable profile, material, descriptor, converter, processor, or validator facts
+in a support-facts file. The derived identity includes the execution descriptor,
+input converter, JSON-admission processor, JSON-to-SVG renderer, and terminal
+SVG validator digests.
+
+The command requires an explicit opt-in environment variable, package name,
+target label, authorization reference, state root, and receipt destination. It
+classifies the derived MPS candidate before opening the host or creating a
+generation worker. Only an exact `supported` live cell may dispatch one sealed
+image. A missing authorization, MPS capability/policy, runner capability,
+material role, or any identity mismatch is a zero-dispatch refusal.
+
+The completion probe follows the selected M9.3 witness exactly: the model
+result is admitted as complete floorplan JSON, then the package's sealed
+workflow-local processor renders SVG, and the sealed validator accepts that SVG.
+The probe rejects an admission, rendering, or SVG-validation failure without
+publishing a receipt that claims completion.
+
+Its fixed redacted receipt contains only: format version; profile ID and digest;
+adapter ID; material identity; test mode; status/reason codes; dispatch count;
+digests of target and authorization reference; execution-descriptor digest;
+packed-context, aggregate-generated-token, and aggregate-output-byte scalars;
+and a boolean worker-reaped attestation. It contains no image, prompt, model
+JSON, SVG, paths, raw tool output, process identifier, credential, or memory
+address. The generic generation-worker result must expose the scalar
+worker-reaped attestation after confirmed cleanup so the probe does not inspect
+worker internals.
+
 ## Dependencies and Assumptions
 
 - Depends on `model-interface-parity`, `fastmail-inbox-triage`,

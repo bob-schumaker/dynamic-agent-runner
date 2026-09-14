@@ -111,6 +111,23 @@ Status meaning:
 | A candidate lacks an exact MLX package row | misleading support claim | retain `deferred` rows until that candidate records its own sealed package/material receipt; MLE6's existing row is non-transferable |
 | Floorplan evidence overstates portability | invalid model claim | bind profile and receipts to converter/material/validator/MPS facts |
 | Synthetic profiles call real collaborators | unintended side effect | install I/O and process blockers in every profile test |
+| A floorplan completion receipt overclaims worker cleanup | false live evidence | expose one generic scalar `worker_reaped` attestation after controller-confirmed cleanup; project it without worker internals |
+
+## WMS3.3 Floorplan Completion Slice
+
+Implement one narrow `floorplan_mps_completion_probe` boundary and one
+operator-gated script. Reuse the support classifier, generic MPS worker
+controller, registered package revision, compiled policy, and existing sealed
+workflow-local JSON-admission/render/SVG-validator chain. Do not share the
+Fastmail profile parser, accept operator-supplied support facts, add a probe
+registry, or add a floorplan-named host configuration path.
+
+The probe derives its profile and all sealed identity facts from the registered
+revision/policy, classifies before host opening/worker construction, runs exactly
+one sealed image only after explicit authorization, and renders the fixed
+redacted receipt defined by the spec. Extend the generic worker result with the
+minimum scalar cleanup attestation needed to preserve controller-confirmed reap
+evidence; do not expose child handles, PIDs, or runtime internals.
 
 ## Rejected Alternatives
 

@@ -279,8 +279,29 @@ remain open.
       by M9.3, and render only a redacted completion receipt.
   - Spec: FR-005, FR-009, AC-006.
   - Depends on: WMS2.4 and `../workflow-model-materials/tasks.md` M9.6.
-  - Validation: focused fake authorization/receipt tests; a later explicit MPS
-    authorization for one exact profile/package/material cell.
+  - RED: add fake-only tests for a package-derived profile: missing opt-in or
+    authorization, an unsupported MPS cell, a stale material/descriptor/
+    converter/processor/validator digest, or a missing MPS policy must refuse
+    before host opening or generation-worker creation. The supported fake path
+    must prove exactly one dispatch, JSON admission, SVG rendering/validation,
+    and a redacted receipt; no model, MPS, network, artifact download, or child
+    process is permitted in pytest.
+  - GREEN: add only a narrow floorplan probe and operator script. Derive the
+    registered package revision and compiled policy facts internally; do not
+    accept a support-facts file. Extend the generic worker result only with a
+    scalar `worker_reaped` attestation after controller-confirmed cleanup.
+  - Receipt: fixed v1 redacted fields are profile ID/digest, adapter ID,
+    material identity, test mode/status/reasons, dispatch count, target and
+    authorization-reference digests, execution-descriptor digest,
+    packed-context/generated-token/output-byte scalars, and `worker_reaped`.
+    It must omit model JSON, SVG, image/prompt bytes, paths, process IDs, and
+    worker handles.
+  - Manual gate: after fake checks are green, explicit authorization permits
+    one exact MPS profile/package/material cell. The run must admit model JSON,
+    render SVG, validate SVG, and record the fixed receipt only after confirmed
+    worker reap.
+  - Validation: focused fake authorization/receipt tests, then a later explicit
+    MPS authorization for one exact profile/package/material cell.
 
 - [ ] WMS4.1 [docs/validation] Document the generated support report, all four
       statuses, package non-transferability, and live-run authorization. Add a
