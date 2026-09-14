@@ -683,6 +683,18 @@
   - Evidence (2026-09-13): fake-only tests admit the complete pair and reject
     a missing bias, changed shape, or changed span before canonical output.
 
+- [x] MLE8.3c [bug, tests RED/GREEN] Admit the exact standard Hugging Face
+      Tokenizers BPE merge-file header exposed by the authorized source while
+      retaining the closed accepted-header set.
+  - Discovered: the authorized MLE8 competency run reached tokenizer material
+    admission but rejected the Tokenizers-provenance v0.2 header before MLX
+    load.
+  - Depends on: MLE8.3b.
+  - Evidence (2026-09-13): a focused vector failed before admission allowed
+    that exact standard header, then passed with the plain v0.2 and exact
+    Tokenizers headers as the only accepted forms. The retry reached real MLX
+    execution successfully.
+
 - [x] MLE8.4 [approval/package, tests RED/GREEN] With a recorded license and
       material decision, create the package-local lock and descriptor for
       `sentence-transformers/all-distilroberta-v1`; reject changed roles,

@@ -202,6 +202,30 @@ def test_byte_level_bpe_rejects_malformed_or_unbounded_execution_assets() -> Non
         )
 
 
+def test_byte_level_bpe_accepts_the_closed_huggingface_tokenizers_header() -> None:
+    descriptor = _descriptor()
+    descriptor.abi_fields["encoder"]["vocab_size"] = 14
+    descriptor.abi_fields["tokenizer"]["special_token_ids"] = {
+        "bos": 0,
+        "eos": 2,
+        "pad": 1,
+        "unk": 3,
+        "mask": 4,
+    }
+    vocab, merges = _tokenizer_assets()
+
+    tokenizer = _parse_roberta_byte_level_bpe(
+        vocab,
+        merges.replace(
+            b"#version: 0.2\n",
+            b"#version: 0.2 - Trained by `huggingface/tokenizers`\n",
+        ),
+        descriptor,
+    )
+
+    assert tokenizer.vocab["<s>"] == 0
+
+
 def test_roberta_position_ids_skip_padding_from_its_padding_index() -> None:
     assert _roberta_position_ids([[0, 5, 2, 1], [1, 0, 2, 1]], pad_id=1) == [
         [2, 3, 4, 1],

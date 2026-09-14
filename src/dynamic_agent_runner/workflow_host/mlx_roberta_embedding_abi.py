@@ -675,7 +675,15 @@ def _parse_roberta_byte_level_bpe(  # noqa: C901 - one closed asset-admission bo
         ):
             raise ValueError
         lines = merges_bytes.decode("utf-8").splitlines()
-        if not lines or lines[0] != "#version: 0.2" or len(lines) - 1 > len(vocab):
+        if (
+            not lines
+            or lines[0]
+            not in {
+                "#version: 0.2",
+                "#version: 0.2 - Trained by `huggingface/tokenizers`",
+            }
+            or len(lines) - 1 > len(vocab)
+        ):
             raise ValueError
         merge_ranks: dict[tuple[str, str], int] = {}
         for rank, line in enumerate(lines[1:]):
