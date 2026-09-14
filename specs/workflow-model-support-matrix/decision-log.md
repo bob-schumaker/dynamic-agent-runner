@@ -31,6 +31,10 @@
 - 2026-09-13 — A stale registered policy is a manual reconciliation gate, not a
   reason to weaken probe admission. — WMS5.2 read-only inspection returned
   `saved package policy does not match` for the owner-local Fastmail workflow;
+  the package/revision and MCP binding still match, while registered digest
+  `d41486397f87362619da2441028081fc7231ddab6c167031d786903aafe56238`
+  differs from compiled digest
+  `2d0c80097f91a3d3a43aa75e6b3d327802daeed4ecbd0399ea8bf65546196ca4`.
   WMS5.4 must re-establish the same package/revision/binding relationship before
   any fresh live authorization is used.
 

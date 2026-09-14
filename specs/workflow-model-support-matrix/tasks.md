@@ -447,7 +447,11 @@ receipt.
     `fastmail-inbox-triage-qwen-v4` maps to the intended sealed package ID but
     fails `saved package policy does not match`. This is a fail-closed static
     admission result, not a lost configuration or authorization to substitute
-    a package.
+    a package. A direct read-only comparison confirmed the package and revision
+    still match and an MCP binding remains present; only registered policy digest
+    `d41486397f87362619da2441028081fc7231ddab6c167031d786903aafe56238`
+    differs from currently compiled policy digest
+    `2d0c80097f91a3d3a43aa75e6b3d327802daeed4ecbd0399ea8bf65546196ca4`.
   - Manual gate: inspect the exact cataloged revision and owner-approved
     registration/review procedure to identify the digest drift; then re-register
     only that same sealed package/revision against its current compiled policy
