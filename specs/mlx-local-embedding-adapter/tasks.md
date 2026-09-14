@@ -715,12 +715,16 @@
     The package fixture binds generator/runtime/document digests, token/mask
     digests, finite unit vectors, and the updated descriptor digest.
 
-- [ ] MLE8.6 [tests, RED/GREEN] Run the MLE8 package through generic embedding
+- [x] MLE8.6 [tests, RED/GREEN] Run the MLE8 package through generic embedding
       execution and index-artifact paths with injected facts; prove changed
       package/material facts reject before execution and no MLE7 evidence
       transfers to this ABI.
   - Spec: FR-6, Operational Completion Gate 3.
   - Depends on: MLE8.4 and MLE8.5.
+  - Evidence (2026-09-13): the fake-only MLE8 execution test derives this
+    package's own RoBERTa binding, runs it through the existing generic
+    embedding and opaque-index paths, and rejects a changed material lock
+    before provider entry. It imports neither MLX nor MLE7 fixture evidence.
 
 - [ ] MLE8.7 [manual] With explicit authorization, run the locked MLE8 package
       on Darwin arm64 and retain a redacted package-bound competency receipt.
