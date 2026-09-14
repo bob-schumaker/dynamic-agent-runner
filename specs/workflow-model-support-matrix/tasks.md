@@ -545,7 +545,7 @@ record a live receipt.
     fingerprint, credential, browser URL, mailbox content, model, or Fastmail
     tool data was retained in repository evidence.
 
-- [ ] WMS5.8 [tests, implementation] Permit an explicit fresh reviewed MCP
+- [x] WMS5.8 [tests, implementation] Permit an explicit fresh reviewed MCP
       surface snapshot when refreshing a saved registration after connection
       replacement.
   - Spec: FR-006, FR-012, AC-010, AC-011.
@@ -566,6 +566,14 @@ record a live receipt.
   - Validation: focused host and CLI tests, Ruff, and a redacted owner-local
     review followed by WMS5.4 refresh. Do not retain identifiers, schemas,
     endpoint, credentials, fingerprint, or mailbox data.
+  - Evidence (2026-09-13): `refresh-registration` now accepts only the optional
+    opaque `--mcp-snapshot-id`; an explicit snapshot is rebound to the current
+    compiled policy and validated before replacing the existing alias. Without
+    it, stale saved-binding behavior remains fail-closed. RED produced the
+    missing host parameter and CLI argument failures. GREEN ran `poetry run
+    pytest tests/test_dar_authoring_registration.py tests/test_dar_authoring_host.py
+    tests/test_dar_authoring_cli.py -q` (66 passed), focused Ruff, and
+    `git diff --check`.
 
 - [ ] WMS5.3 [manual gate] Record one Fastmail live receipt only after WMS5.2
       is green, the registered identity and reviewed read-only surface are

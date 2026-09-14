@@ -2220,10 +2220,12 @@ def test_host_refresh_rebinds_a_changed_policy_to_its_current_reviewed_surface(
     assert refreshed.mcp_binding_id is not None
     assert refreshed.mcp_binding_id != binding.binding_id
     assert host._mcp_bindings is not None
-    saved = host._registrations.resolve("mail-reader")
+    original_load = host._mcp_bindings.load
 
-    def unavailable_binding(_binding_id: str):
-        raise MCPWorkflowCapabilityBindingError("unavailable")
+    def unavailable_binding(binding_id: str):
+        if binding_id == refreshed.mcp_binding_id:
+            raise MCPWorkflowCapabilityBindingError("unavailable")
+        return original_load(binding_id)
 
     monkeypatch.setattr(
         host._mcp_bindings,
@@ -2234,7 +2236,19 @@ def test_host_refresh_rebinds_a_changed_policy_to_its_current_reviewed_surface(
     with pytest.raises(LocalWorkflowHostError, match="MCP package binding"):
         host.refresh_saved_registration(workflow_id="mail-reader")
 
-    assert host._registrations.resolve("mail-reader") == saved
+    assert host._registrations.resolve("mail-reader") == refreshed
+
+    refreshed_with_current_snapshot = host.refresh_saved_registration(
+        workflow_id="mail-reader", mcp_snapshot_id=snapshot.snapshot_id
+    )
+
+    assert (
+        refreshed_with_current_snapshot.policy_digest == refreshed_policy.policy_digest
+    )
+    assert refreshed_with_current_snapshot.mcp_binding_id is not None
+    assert refreshed_with_current_snapshot.mcp_binding_id != refreshed.mcp_binding_id
+
+    assert host._registrations.resolve("mail-reader") == refreshed_with_current_snapshot
 
 
 def test_apple_host_runs_only_the_bound_read_only_mcp_callback(

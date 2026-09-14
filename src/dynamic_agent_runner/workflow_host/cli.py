@@ -245,6 +245,7 @@ def _parser() -> argparse.ArgumentParser:
     register.add_argument("--mcp-binding-id")
     refresh = commands.add_parser("refresh-registration")
     refresh.add_argument("--workflow-id", required=True)
+    refresh.add_argument("--mcp-snapshot-id")
     invoke = commands.add_parser("invoke")
     invoke_target = invoke.add_mutually_exclusive_group(required=True)
     invoke_target.add_argument("--path")
@@ -518,7 +519,9 @@ def _registration_control_result(
             "profile_id": registration.profile_id,
         }
     if args.command == "refresh-registration":
-        registration = host.refresh_saved_registration(workflow_id=args.workflow_id)
+        registration = host.refresh_saved_registration(
+            workflow_id=args.workflow_id, mcp_snapshot_id=args.mcp_snapshot_id
+        )
         return {
             "status": "refreshed",
             "workflow_id": registration.workflow_id,

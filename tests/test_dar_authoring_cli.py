@@ -1384,6 +1384,14 @@ def test_cli_inspects_reviews_binds_and_registers_mcp_workflows(
                 profile_id="v1.profile",
             )
 
+        def refresh_saved_registration(self, **kwargs: object) -> SimpleNamespace:
+            calls.append(("refresh", kwargs))
+            return SimpleNamespace(
+                workflow_id="mail-reader",
+                registration_digest="b" * 64,
+                profile_id="v1.profile",
+            )
+
     monkeypatch.setattr(cli.LocalWorkflowHost, "open", lambda root: Host())
     state_args = ["--state-root", "/tmp/dar-authoring-test"]
 
@@ -1459,4 +1467,27 @@ def test_cli_inspects_reviews_binds_and_registers_mcp_workflows(
     assert calls[1] == (
         "preflight",
         {"snapshot_id": "v1.snapshot", "tool_name": "list_unread"},
+    )
+
+    status, refreshed = _invoke(
+        [
+            *state_args,
+            "refresh-registration",
+            "--workflow-id",
+            "mail-reader",
+            "--mcp-snapshot-id",
+            "v1.snapshot",
+        ]
+    )
+
+    assert status == 0
+    assert refreshed == {
+        "status": "refreshed",
+        "workflow_id": "mail-reader",
+        "registration_digest": "b" * 64,
+        "profile_id": "v1.profile",
+    }
+    assert calls[-1] == (
+        "refresh",
+        {"workflow_id": "mail-reader", "mcp_snapshot_id": "v1.snapshot"},
     )

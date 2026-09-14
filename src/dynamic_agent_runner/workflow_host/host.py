@@ -1608,7 +1608,9 @@ class LocalWorkflowHost:
             mcp_binding_id=mcp_binding_id,
         )
 
-    def refresh_saved_registration(self, *, workflow_id: str) -> WorkflowRegistration:
+    def refresh_saved_registration(
+        self, *, workflow_id: str, mcp_snapshot_id: str | None = None
+    ) -> WorkflowRegistration:
         """Refresh one saved registration from its immutable catalog revision."""
 
         registration = self._registrations.resolve(workflow_id)
@@ -1631,10 +1633,12 @@ class LocalWorkflowHost:
             ):
                 raise LocalWorkflowHostError("MCP client is not configured")
             try:
-                previous_binding = self._mcp_bindings.load(mcp_binding_id)
+                snapshot_id = mcp_snapshot_id
+                if snapshot_id is None:
+                    snapshot_id = self._mcp_bindings.load(mcp_binding_id).snapshot_id
                 mcp_binding_id = self._mcp_bindings.bind(
                     policy=policy,
-                    snapshot_id=previous_binding.snapshot_id,
+                    snapshot_id=snapshot_id,
                     client=self._mcp_client,
                 ).binding_id
             except MCPWorkflowCapabilityBindingError as error:
