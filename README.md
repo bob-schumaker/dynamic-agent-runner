@@ -688,6 +688,30 @@ already loaded `LoadedAgentWorkflow` instead of materializing a temporary packag
 directory. Capability items for tools registered through `HostToolBinding`
 include the host canonical id, model-facing id, and aliases when available.
 
+## Workflow Model Support Coverage
+
+The workflow model-support matrix reports eligibility for one exact workflow
+profile, adapter, host, and sealed material closure. Its result is not a model
+ranking or a portability claim for similarly named packages.
+
+| Status | Meaning | Execution evidence |
+| --- | --- | --- |
+| `supported` | Every declared capability, host fact, and sealed identity matches. | A synthetic fixture may run; a live route still needs per-run authorization. |
+| `not_applicable` | The adapter intentionally lacks a required workflow capability. | No execution occurs. |
+| `blocked` | A required material, ABI, provider, host fact, or authorization is absent or mismatched. | No execution occurs. |
+| `deferred` | The required workflow profile has not been implemented. | No execution occurs. |
+
+Receipts bind the profile digest, adapter identity, package/material lock, and
+required descriptor or converter digests. A receipt for one cell cannot prove
+support for another adapter, package revision, material closure, or host.
+
+Synthetic Fastmail, embedding, structured-output, stateful-context, and
+tool-pack rows use controlled local collaborators. The floorplan MPS completion
+route is separately operator-gated and records only redacted bounded evidence.
+The current record contains one authorized floorplan receipt; no Fastmail live
+receipt is recorded. A future Fastmail probe requires a new explicit
+authorization and emits its own redacted receipt.
+
 ## CLI Usage
 
 After installation, run a workflow package from its directory:

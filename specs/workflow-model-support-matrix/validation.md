@@ -1,9 +1,10 @@
 # Workflow Model Support Matrix Validation
 
-Status: WMS1 pure classifier implementation complete; WMS2 profile coverage is
-complete; the floorplan MPS completion receipt is recorded; Fastmail live
-receipts remain absent; two package-bound MLX embedding competency rows are
-recorded.
+Status: WMS1--WMS3 implementation is complete; deterministic profile coverage
+is recorded for Fastmail, embedding, floorplan, structured output, stateful
+context, and tool-pack composition. One floorplan MPS receipt is recorded;
+Fastmail live evidence remains absent. Two package-bound MLX embedding
+competency rows are recorded; MLE8 remains unrecorded and deferred.
 
 ## Commands Run
 
@@ -21,20 +22,21 @@ recorded.
 | MLE7 package-bound row | pass | `tests/test_mlx_multilingual_e5_small_mle7_matrix.py` validates exact package/material/descriptor/capability/receipt binding and rejects changed package or material identity. |
 | WMS3.3 floorplan MPS completion | pass | Explicitly authorized one-image MPS run completed one dispatch; JSON admission, SVG rendering/validation, bounded resource scalars, and confirmed worker reap are recorded in the closed receipt below. |
 | WMS3.3 focused regression | pass: 170 | `tests/test_workflow_model_support_matrix.py`, floorplan fixture/probe/script, generation worker, Transformers adapter, authoring profiles, and local preparation tests passed; `poetry run ruff check src tests scripts` passed. |
+| WMS4 focused profile regression | pass: 483 | The task-mapped Fastmail, embedding, floorplan, structured-output, stateful-context, tool-pack, matrix, and authorization suites passed with controlled collaborators only. |
 
 ## Traceability Matrix
 
 | AC | Requirement | Planned Check | Result |
 | --- | --- | --- | --- |
 | AC-001 | FR-001, FR-002 | WMS1.1--WMS1.2 classifier tests | pass: missing adapter capability is `not_applicable` before other facts |
-| AC-002 | FR-001, FR-002 | WMS1.1--WMS1.2 and WMS2.3 fixture-derived classifier plus injected-provider execution | not run |
-| AC-003 | FR-003 | WMS2.1--WMS2.2 synthetic fixture | not run |
-| AC-004 | FR-004, FR-005 | WMS3.1--WMS3.2 fake authorization tests; later authorized receipt | not run |
+| AC-002 | FR-001, FR-002 | WMS1.1--WMS1.2 and WMS2.3 fixture-derived classifier plus injected-provider execution | pass: controlled MLE6 provider dispatches once for the exact sealed synthetic cell; missing ABI/material and different package rows are zero-dispatch. |
+| AC-003 | FR-003 | WMS2.1--WMS2.2 synthetic fixture | pass: controlled de-identified Fastmail fixture produces the bounded triage report through exactly one read-only dispatch with no MCP, OAuth, network, or mailbox access. |
+| AC-004 | FR-004, FR-005 | WMS3.1--WMS3.2 fake authorization tests; later authorized receipt | pass (offline route): missing authorization, unavailable support, and stale identity refuse before opening or dispatch; admitted fake evidence is redacted. No live Fastmail receipt is recorded. |
 | AC-005 | FR-006 | WMS1.3 binding tests | pass: profile, adapter, material, test-mode, status, and reason changes reject |
 | AC-006 | FR-008, FR-009 | WMS2.4 and WMS3.3 floorplan profiles | pass: explicit MPS gate completed one exact descriptor/material/profile cell; model JSON was admitted, SVG rendered/validated, and the worker reap was confirmed before the redacted receipt. |
-| AC-007 | FR-008, FR-010 | WMS2.5 structured-output profile | not run |
-| AC-008 | FR-008, FR-010 | WMS2.6 stateful-context profile | not run |
-| AC-009 | FR-008, FR-010 | WMS2.7 tool-pack-composition profile | not run |
+| AC-007 | FR-008, FR-010 | WMS2.5 structured-output profile | pass: one controlled tool dispatch yields the declared schema-valid terminal JSON; a missing capability is `not_applicable` before dispatch. |
+| AC-008 | FR-008, FR-010 | WMS2.6 stateful-context profile | pass: controlled session restoration and overflow retry retain selected-context and terminal classification facts without raw turns. |
+| AC-009 | FR-008, FR-010 | WMS2.7 tool-pack-composition profile | pass: injected web, workspace, and subagent collaborators prove packing, approval, invocation, and redaction without an external client or child process. |
 
 ## Manual Receipt Register
 
@@ -54,6 +56,10 @@ MLE7 Darwin competency receipts are recorded respectively at
 `tests/fixtures/mlx-multilingual-e5-small/mle7-package/mle7.7-receipt.json`.
 Their static matrix rows are package-local beside each receipt. Future receipts
 must contain only the fields specified by FR-005.
+
+MLE8 has no package, material, fixture, or Darwin competency evidence. It is
+therefore an unrecorded deferred candidate, not a third MLX package row and not
+an extension of either recorded receipt.
 
 ## Residual Risks
 
