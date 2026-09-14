@@ -1,7 +1,8 @@
 # Workflow Model Support Matrix Tasks
 
-Status: WMS1 pure classifier implementation complete; WMS2 profile coverage
-remains unimplemented
+Status: WMS1 and WMS2 profile coverage are complete; WMS3.1--WMS3.2 Fastmail
+probe coverage is complete. WMS3.3 floorplan MPS completion and WMS4.1 reporting
+remain open.
 
 ## Prerequisites
 
@@ -274,10 +275,10 @@ remains unimplemented
 
 - [ ] WMS3.3 [tests, RED/GREEN + manual gate] Add the operator-gated floorplan
       completion route. It must require a `supported` descriptor-bound MPS cell,
-      preserve resource-budget/reap evidence, validate the SVG contract, and
-      render only a redacted completion receipt.
+      preserve resource-budget/reap evidence, validate the output stage selected
+      by M9.3, and render only a redacted completion receipt.
   - Spec: FR-005, FR-009, AC-006.
-  - Depends on: WMS2.4.
+  - Depends on: WMS2.4 and `../workflow-model-materials/tasks.md` M9.6.
   - Validation: focused fake authorization/receipt tests; a later explicit MPS
     authorization for one exact profile/package/material cell.
 
@@ -288,7 +289,7 @@ remains unimplemented
   - Spec: FR-005, FR-007.
   - Files/components: `README.md`, `docs/files/validation-and-testing.rst`,
     `validation.md`.
-  - Depends on: WMS3.2.
+  - Depends on: WMS3.3.
   - Validation: full regression and doc build command discovered from existing
     documentation workflow.
 
@@ -312,7 +313,7 @@ remains unimplemented
 - Live Fastmail and floorplan work remain per-run human authorization boundaries.
 - Package/material locks are authoritative; adapters do not silently substitute
   files or providers.
-- One exact MLX package row is recorded by MLE6 evidence; generic MLX row
-  classification remains WMS2.3 work. Sandboxed write/shell and runner-owned
-  RAG remain excluded until
+- Three exact MLX package rows are recorded by MLE6, MLE7, and MLE8 evidence;
+  each is non-transferable despite their shared embedding workflow profile.
+  Sandboxed write/shell and runner-owned RAG remain excluded until
   their owning feature contracts are implemented.

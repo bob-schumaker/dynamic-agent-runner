@@ -185,3 +185,52 @@ test-first; completion evidence is recorded under each task.
     tests preserve descriptor isolation; the production-source cleanup test
     excludes named embedding experiment identities while allowing generic ABI
     implementations.
+
+## M9 — Floorplan Successor Reconciliation
+
+- [ ] M9.1 [tests, RED] Restore the M6 production-source boundary: named
+  floorplan recipe, profile, and CLI preparation identities must not occur
+  under `src/`, while a generic sealed multimodal package remains admissible.
+  - Files/components: `tests/test_floorplan_cleanup.py`, generic package
+    admission and local-runner seams.
+  - Acceptance: the present source allowlist fails before implementation; no
+    live model, download, converter, or MPS access occurs.
+
+- [ ] M9.2 [implementation, GREEN] Remove the remaining named static floorplan
+  recipe, profile constructor, and `dar-package prepare --model` path; retain
+  only generic package-bound material admission and runner binding.
+  - Depends on: M9.1.
+  - Acceptance: package locks are the sole material-selection authority and no
+    compatibility fallback selects a named model or artifact set.
+
+- [ ] M9.3 [design/spec reconciliation] Define the authoritative floorplan
+  completion witness: admitted model-output JSON, final workflow SVG, or both
+  as separately named stages. Set the matching sealed generation budget and
+  update the successor, historical, and fixture contracts together.
+  - Depends on: M9.2.
+  - Boundary: do not use a live model run to decide the contract and do not
+    repair malformed model JSON.
+
+- [ ] M9.4 [tests, RED] Add fixture-derived package tests for the M9.3 contract.
+  A stale budget, output-stage schema, material lock, converter, validator, or
+  asset digest must fail before ingress or runner creation.
+  - Depends on: M9.3.
+  - Files/components: `tests/test_floorplan_svg_fixture.py` and sealed-package
+    admission tests.
+  - Boundary: fake-only; no model import, MPS, network, or artifact download.
+
+- [ ] M9.5 [implementation, GREEN] Reseal the floorplan fixture package and
+  descriptor/assets through existing construction paths to implement M9.3.
+  Preserve generic DAR boundaries and workflow-local JSON-to-SVG processing
+  when selected.
+  - Depends on: M9.4.
+  - Acceptance: all package identities are recomputed, not hand-edited; no
+    model-specific DAR API is introduced.
+
+- [ ] M9.6 [validation] Run focused cleanup, material, descriptor, generic
+  runner, and floorplan fixture suites. Record deterministic results and leave
+  WMS3.3 as the sole live MPS acceptance gate.
+  - Depends on: M9.5.
+  - Validation: `poetry run pytest -q tests/test_floorplan_cleanup.py
+    tests/test_floorplan_svg_fixture.py tests/test_workflow_model_materials.py
+    tests/test_transformers_peft_model.py` and `poetry run ruff check src tests`.

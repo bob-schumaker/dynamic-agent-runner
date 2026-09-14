@@ -8,9 +8,11 @@ superseded by [`../workflow-model-materials/spec.md`](../workflow-model-material
 Any successor implementation requires a new TDD task list. No unit test may
 call Hugging Face, load a live model, or run a real converter.
 
-Current release blockers are recorded in `validation.md`: native-routed plugin
-payload regeneration fails in the available packager, and the real floorplan
-model still needs a documented-contract JSON acceptance run.
+The plugin-regeneration blocker recorded here is resolved in `validation.md`.
+T5.2 remains an unexecuted historical llama.cpp acceptance record and must not
+be run as current evidence: successor reconciliation is
+`../workflow-model-materials/tasks.md` M9.1--M9.6, followed by the separate
+authorized MPS receipt gate `../workflow-model-support-matrix/tasks.md` WMS3.3.
 
 ## S1 — Recipe and Prepared-Set Contracts
 
@@ -72,6 +74,10 @@ model still needs a documented-contract JSON acceptance run.
   tests, including output/trace redaction checks.
 
 ## S5 — Completion Evidence and Release Gate
+
+T5.2 and T5.4 are retained for historical traceability. They cannot close this
+superseded host-catalog feature until the successor tasks above establish the
+current package-bound contract and its manual receipt.
 
 - [x] T5.1 [validation] Run every focused suite from S1–S4, then the full
   repository test suite and configured formatter/lint gates.
