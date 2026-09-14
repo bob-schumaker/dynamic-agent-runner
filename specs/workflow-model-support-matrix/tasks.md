@@ -495,7 +495,7 @@ record a live receipt.
     tests/test_dar_authoring_host.py tests/test_dar_authoring_cli.py -q`
     (66 passed), focused Ruff, and `git diff --check`.
 
-- [ ] WMS5.6 [manual gate] Reconcile a detected configured MCP peer-certificate
+- [x] WMS5.6 [manual gate] Reconcile a detected configured MCP peer-certificate
   pin drift before WMS5.4 revalidates the reviewed surface.
   - Spec: FR-006, FR-012, AC-010, AC-011.
   - Depends on: WMS5.5, WMS5.7, and explicit owner authorization for the local
@@ -514,8 +514,14 @@ record a live receipt.
   - Validation: record only redacted success/failure and the absence of model
     loading, registration refresh, and Fastmail tool dispatch. A changed peer
     identity is not silently ignored or accepted by the transport.
+  - Evidence (2026-09-13): after WMS5.7 supplied a profile-bound authenticated
+    connection, an authenticated initialization observed a current peer identity
+    and attached it only to owner-local host configuration. The subsequent normal
+    `refresh-registration` initialized the pinned client successfully, made no
+    model or Fastmail tool call, then failed closed because the prior reviewed
+    surface snapshot belongs to the retired connection.
 
-- [ ] WMS5.7 [manual gate] Recreate the Fastmail MCP connection and OAuth
+- [x] WMS5.7 [manual gate] Recreate the Fastmail MCP connection and OAuth
   authentication for the active configured host profile before completing WMS5.6.
   - Spec: FR-006, FR-012, AC-010, AC-011.
   - Depends on: explicit owner authorization for a browser-based OAuth
@@ -533,6 +539,33 @@ record a live receipt.
     connection/authentication records across profiles.
   - Validation: establish current connection/profile equality and a successful
     pinned initialization before WMS5.6; make zero model or Fastmail tool calls.
+  - Evidence (2026-09-13): one active OAuth connection and authentication now
+    match the active configured profile. The local attachment was replaced only
+    after authenticated peer observation. No endpoint, scope, identifier,
+    fingerprint, credential, browser URL, mailbox content, model, or Fastmail
+    tool data was retained in repository evidence.
+
+- [ ] WMS5.8 [tests, implementation] Permit an explicit fresh reviewed MCP
+      surface snapshot when refreshing a saved registration after connection
+      replacement.
+  - Spec: FR-006, FR-012, AC-010, AC-011.
+  - Depends on: WMS5.5, WMS5.6, WMS5.7.
+  - RED: prove that an old snapshot tied to a replaced connection cannot be
+    reused, while a caller-supplied current snapshot with the same declared
+    tool/effect approvals can refresh the same workflow/package/revision.
+    An absent, stale, mismatched, or unapproved snapshot must leave the alias
+    unchanged.
+  - GREEN: extend only `refresh-registration` with an optional explicit
+    `--mcp-snapshot-id`. For MCP policies, use that supplied snapshot exactly
+    when present; otherwise retain current behavior of revalidating the saved
+    binding snapshot. Do not infer or copy approval from the prior connection,
+    accept package paths or source handles, or add a force option.
+  - Boundary: the operator must run the existing `review-mcp-surface` command
+    and explicitly select tool approvals before supplying its opaque snapshot
+    ID. No model loading or Fastmail tool dispatch occurs in either operation.
+  - Validation: focused host and CLI tests, Ruff, and a redacted owner-local
+    review followed by WMS5.4 refresh. Do not retain identifiers, schemas,
+    endpoint, credentials, fingerprint, or mailbox data.
 
 - [ ] WMS5.3 [manual gate] Record one Fastmail live receipt only after WMS5.2
       is green, the registered identity and reviewed read-only surface are
