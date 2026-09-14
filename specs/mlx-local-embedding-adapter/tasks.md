@@ -701,7 +701,7 @@
     canonically prepared to the locked execution artifact; fake package tests
     reject changed material hashes and ABI identity before material I/O.
 
-- [ ] MLE8.5 [manual fixture, RED/GREEN] Generate and bind synthetic local
+- [x] MLE8.5 [manual fixture, RED/GREEN] Generate and bind synthetic local
       reference vectors for the exact MLE8 closure with `trust_remote_code=False`,
       including byte-level tokenizer IDs/masks and padding-position vectors.
   - Spec: FR-5, Operational Completion Gate 2.
@@ -710,6 +710,10 @@
     validates finite unit vectors after exactly one declared normalization;
     token/mask evidence distinguishes RoBERTa padding-position derivation from
     BERT's positional sequence.
+  - Evidence (2026-09-13): the locked local-only CPU runtime generated vectors
+    for empty, leading-space, and UTF-8 cases with `trust_remote_code=False`.
+    The package fixture binds generator/runtime/document digests, token/mask
+    digests, finite unit vectors, and the updated descriptor digest.
 
 - [ ] MLE8.6 [tests, RED/GREEN] Run the MLE8 package through generic embedding
       execution and index-artifact paths with injected facts; prove changed

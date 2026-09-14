@@ -1,0 +1,17 @@
+{
+  "documents": [
+    {
+      "id": "empty",
+      "text": ""
+    },
+    {
+      "id": "space",
+      "text": " leading space"
+    },
+    {
+      "id": "unicode",
+      "text": "caf\u00e9!"
+    }
+  ],
+  "format_version": 1
+}

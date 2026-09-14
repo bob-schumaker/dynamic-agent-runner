@@ -1,7 +1,7 @@
 {
   "execution_descriptor": {
     "filename": "execution-descriptor.json",
-    "sha256": "0a1735fc97991736327fc291ca1952d4c85568b9b605f2177ce3f551a56cd86d"
+    "sha256": "741c566a26f604d7db84136da2764019301b9d411d18bd0fac47998e2b532c5a"
   },
   "format_version": 2,
   "logical_model_id": "mlx-all-distilroberta-v1-embedding-v1",

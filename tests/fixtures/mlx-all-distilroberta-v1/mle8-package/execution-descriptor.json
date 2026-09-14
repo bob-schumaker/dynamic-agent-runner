@@ -2,7 +2,7 @@
   "abi_fields": {
     "conformance": {
       "fixture_filename": "conformance-fixture.json",
-      "fixture_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "fixture_sha256": "b61251f8fe093d86ccb8b22b9a3398d978bc9c3b5995b9dca698c1471d63b262",
       "max_error": 0.005,
       "metric": "max_abs",
       "precision": "float32"
