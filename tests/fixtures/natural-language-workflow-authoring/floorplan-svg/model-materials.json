@@ -1,7 +1,7 @@
 {
   "execution_descriptor": {
     "filename": "execution-descriptor.json",
-    "sha256": "6279134e02a635e2ff0bf8b7189ff1988e560f7417c9531721a62eae39ca8a77"
+    "sha256": "a986d842bb8d555ad6b5cfbe774a25a26db9eca34cd046d43a5158f9234526cb"
   },
   "format_version": 2,
   "logical_model_id": "qwen25-vl-3b-floorplan-grpo",

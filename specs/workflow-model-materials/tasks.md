@@ -219,7 +219,7 @@ test-first; completion evidence is recorded under each task.
     admission tests.
   - Boundary: fake-only; no model import, MPS, network, or artifact download.
 
-- [ ] M9.5 [implementation, GREEN] Reseal the floorplan fixture package and
+- [x] M9.5 [implementation, GREEN] Reseal the floorplan fixture package and
   descriptor/assets through existing construction paths to implement M9.3.
   Preserve generic DAR boundaries and workflow-local JSON-to-SVG processing
   when selected.

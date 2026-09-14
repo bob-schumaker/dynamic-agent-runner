@@ -330,11 +330,11 @@ def test_floorplan_package_binds_a_sealed_generation_descriptor(tmp_path: Path) 
     assert policy.execution_descriptor is not None
     assert policy.model_execution_binding is not None
     assert asdict(validate_generation_budget_field(policy.execution_descriptor)) == {
-        "max_new_tokens_per_fragment": 1024,
-        "max_continuations": 0,
-        "max_total_generated_tokens": 1024,
+        "max_new_tokens_per_fragment": 4096,
+        "max_continuations": 3,
+        "max_total_generated_tokens": 16384,
         "max_total_output_bytes": 32768,
-        "max_effective_context_tokens": 4096,
+        "max_effective_context_tokens": 16384,
         "max_runtime_milliseconds": 360000,
         "max_memory_bytes": 30150672384,
     }
@@ -396,8 +396,8 @@ def test_floorplan_package_without_materials_rejects_before_converter_validation
     (
         (
             "execution-descriptor.json",
-            '"max_continuations": 0',
             '"max_continuations": 3',
+            '"max_continuations": 4',
             True,
         ),
         ("model-materials.json", '"format_version": 2', '"format_version": 3', True),

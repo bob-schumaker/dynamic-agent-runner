@@ -1,12 +1,12 @@
 {
   "abi_fields": {
     "generation_budget": {
-      "max_continuations": 0,
-      "max_effective_context_tokens": 4096,
+      "max_continuations": 3,
+      "max_effective_context_tokens": 16384,
       "max_memory_bytes": 30150672384,
-      "max_new_tokens_per_fragment": 1024,
+      "max_new_tokens_per_fragment": 4096,
       "max_runtime_milliseconds": 360000,
-      "max_total_generated_tokens": 1024,
+      "max_total_generated_tokens": 16384,
       "max_total_output_bytes": 32768
     }
   },
