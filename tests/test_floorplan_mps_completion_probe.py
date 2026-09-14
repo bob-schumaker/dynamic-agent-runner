@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import replace
+import shutil
+from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
@@ -11,12 +14,31 @@ from dynamic_agent_runner.workflow_host.floorplan_mps_completion_probe import (
     FloorplanMpsCompletionEvidence,
     FloorplanMpsCompletionProbeError,
     FloorplanMpsCompletionProbeRequest,
+    floorplan_mps_completion_profile,
     run_floorplan_mps_completion_probe,
 )
+from dynamic_agent_runner.workflow_host.catalog import PackageCatalog
+from dynamic_agent_runner.workflow_host.host import (
+    _dar_owned_transformers_generation_bindings,
+)
+from dynamic_agent_runner.workflow_host.package_sources import (
+    PackageSourceSelectionPolicy,
+)
+from dynamic_agent_runner.workflow_host.policy import compile_workflow_policy
+from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 from dynamic_agent_runner.workflow_host.workflow_support_matrix import (
     MaterialIdentity,
     WorkflowSupportCandidate,
     WorkflowSupportProfile,
+)
+
+
+_FIXTURE = (
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "natural-language-workflow-authoring"
+    / "floorplan-svg"
 )
 
 
@@ -82,6 +104,39 @@ def _evidence() -> FloorplanMpsCompletionEvidence:
         model_json_admitted=True,
         terminal_svg_validated=True,
     )
+
+
+def test_floorplan_profile_derives_all_sealed_output_assets(tmp_path: Path) -> None:
+    source = tmp_path / "packages" / "floorplan-from-image"
+    shutil.copytree(_FIXTURE, source)
+    store = PrivateStateStore(tmp_path / "state")
+    handle = PackageSourceSelectionPolicy(
+        allowed_root=source.parent, store=store
+    ).select_directory(source, now=datetime(2026, 9, 13, tzinfo=UTC))
+    staged = PrivatePackageStager(store=store, private_root=tmp_path / "staging").stage(
+        handle, now=datetime(2026, 9, 13, tzinfo=UTC)
+    )
+    revision = PackageCatalog(tmp_path / "catalog").import_staged(staged)
+    capability_catalog, descriptor_validators, _ = (
+        _dar_owned_transformers_generation_bindings()
+    )
+    policy = compile_workflow_policy(
+        revision,
+        capability_catalog=capability_catalog,
+        descriptor_validators=descriptor_validators,
+    )
+
+    profile = floorplan_mps_completion_profile(policy)
+
+    assert profile.profile_id == "floorplan-svg-mps-completion-v1"
+    assert profile.material_identity is not None
+    assert set(profile.material_identity.artifact_digests) == {
+        "execution_descriptor",
+        "input_converter",
+        "json_admission_processor",
+        "json_to_svg_renderer",
+        "terminal_svg_validator",
+    }
 
 
 def test_floorplan_probe_rejects_an_unauthorized_cell_before_dispatch() -> None:

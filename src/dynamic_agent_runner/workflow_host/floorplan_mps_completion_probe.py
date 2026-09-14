@@ -7,7 +7,9 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from dynamic_agent_runner.workflow_host.policy import WorkflowPolicy
 from dynamic_agent_runner.workflow_host.workflow_support_matrix import (
+    MaterialIdentity,
     WorkflowSupportCandidate,
     WorkflowSupportProfile,
     WorkflowSupportReceipt,
@@ -126,6 +128,59 @@ def run_floorplan_mps_completion_probe(
     evidence = dispatch()
     _validate_completion(evidence, receipt)
     return _render_receipt(request, receipt, evidence)
+
+
+def floorplan_mps_completion_profile(policy: WorkflowPolicy) -> WorkflowSupportProfile:
+    """Derive the live MPS profile only from one compiled sealed package policy."""
+
+    if not isinstance(policy, WorkflowPolicy):
+        raise FloorplanMpsCompletionProbeError("floorplan probe policy is invalid")
+    materials = policy.model_materials
+    descriptor = policy.execution_descriptor
+    converter = policy.input_converter
+    validator = policy.terminal_output_validator
+    processors = {item.asset_path: item for item in policy.terminal_output_processors}
+    admission = processors.get("tools/admit_floorplan_json")
+    renderer = processors.get("tools/render_floorplan_json")
+    if (
+        policy.package_id != "floorplan-from-image"
+        or materials is None
+        or descriptor is None
+        or converter is None
+        or validator is None
+        or admission is None
+        or renderer is None
+        or len(processors) != 2
+        or converter.asset_digest is None
+        or validator.asset_digest is None
+        or admission.asset_digest is None
+        or renderer.asset_digest is None
+    ):
+        raise FloorplanMpsCompletionProbeError("floorplan probe policy is invalid")
+    material = MaterialIdentity(
+        package_id=policy.package_id,
+        material_lock_digest=materials.digest,
+        material_roles=descriptor.material_roles,
+        artifact_digests={
+            "execution_descriptor": descriptor.digest,
+            "input_converter": converter.asset_digest,
+            "json_admission_processor": admission.asset_digest,
+            "json_to_svg_renderer": renderer.asset_digest,
+            "terminal_svg_validator": validator.asset_digest,
+        },
+    )
+    return WorkflowSupportProfile(
+        profile_id="floorplan-svg-mps-completion-v1",
+        workflow_family="floorplan-svg",
+        required_adapter_capabilities=("structured_output",),
+        required_abi_capabilities=(descriptor.architecture_abi.abi_id,),
+        required_provider_capabilities=("transformers-generate-v1",),
+        required_host_capabilities=("mps",),
+        material_identity=material,
+        execution_mode="live",
+        authorization_required=True,
+        implemented=True,
+    )
 
 
 def _validate_profile(profile: WorkflowSupportProfile) -> None:
