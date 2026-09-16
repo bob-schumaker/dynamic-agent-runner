@@ -72,6 +72,7 @@ from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa:
 )
 from dynamic_agent_runner.workflow_host.reviewed_capability_host_extension import (  # noqa: E402
     ReviewedCapabilityHostExtension,
+    ReviewedCapabilityHostExtensionError,
 )
 from dynamic_agent_runner.workflow_host.sealed_artifact_workflow_runner import (  # noqa: E402
     SealedArtifactInvocation,
@@ -1651,6 +1652,11 @@ def _reviewed_extension(
         template=_reviewed_template(extension_binding=extension_binding),
         host=_FakeReviewedCapabilityHost(),
     )
+
+
+def test_reviewed_capability_extension_rejects_an_incomplete_host() -> None:
+    with pytest.raises(ReviewedCapabilityHostExtensionError, match="extension"):
+        ReviewedCapabilityHostExtension(template=_reviewed_template(), host=object())
 
 
 def test_local_host_discovers_only_explicitly_registered_reviewed_templates(
