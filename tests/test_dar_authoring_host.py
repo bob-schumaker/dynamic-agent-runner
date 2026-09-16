@@ -1651,12 +1651,29 @@ def _reviewed_extension(
     return ReviewedCapabilityHostExtension(
         template=_reviewed_template(extension_binding=extension_binding),
         host=_FakeReviewedCapabilityHost(),
+        dependency_binding_digest="e" * 64,
+        nonce_factory=lambda: "v1.nonce",
     )
 
 
 def test_reviewed_capability_extension_rejects_an_incomplete_host() -> None:
     with pytest.raises(ReviewedCapabilityHostExtensionError, match="extension"):
-        ReviewedCapabilityHostExtension(template=_reviewed_template(), host=object())
+        ReviewedCapabilityHostExtension(
+            template=_reviewed_template(),
+            host=object(),
+            dependency_binding_digest="e" * 64,
+            nonce_factory=lambda: "v1.nonce",
+        )
+
+
+def test_reviewed_capability_extension_rejects_an_invalid_dependency_binding() -> None:
+    with pytest.raises(ReviewedCapabilityHostExtensionError, match="extension"):
+        ReviewedCapabilityHostExtension(
+            template=_reviewed_template(),
+            host=_FakeReviewedCapabilityHost(),
+            dependency_binding_digest="not-a-digest",
+            nonce_factory=lambda: "v1.nonce",
+        )
 
 
 def test_local_host_discovers_only_explicitly_registered_reviewed_templates(

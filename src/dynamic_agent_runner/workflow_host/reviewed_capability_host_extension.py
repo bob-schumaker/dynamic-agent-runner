@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from dynamic_agent_runner.workflow_host.capabilities import ReviewedCapabilityTemplate
@@ -17,20 +18,32 @@ class ReviewedCapabilityHostExtension:
 
     template: ReviewedCapabilityTemplate
     host: object
+    dependency_binding_digest: str
+    nonce_factory: Callable[[], str]
 
     def __post_init__(self) -> None:
-        if not isinstance(self.template, ReviewedCapabilityTemplate) or any(
-            not callable(getattr(self.host, operation, None))
-            for operation in (
-                "resolve",
-                "revalidate",
-                "dispatch",
-                "begin_pending_publication",
-                "query_current_outcome",
-                "acknowledge_visibility",
-                "compensate",
-                "assert_generation_current",
-                "unpublish_generation_atomically",
+        if (
+            not isinstance(self.template, ReviewedCapabilityTemplate)
+            or not isinstance(self.dependency_binding_digest, str)
+            or len(self.dependency_binding_digest) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in self.dependency_binding_digest
+            )
+            or not callable(self.nonce_factory)
+            or any(
+                not callable(getattr(self.host, operation, None))
+                for operation in (
+                    "resolve",
+                    "revalidate",
+                    "dispatch",
+                    "begin_pending_publication",
+                    "query_current_outcome",
+                    "acknowledge_visibility",
+                    "compensate",
+                    "assert_generation_current",
+                    "unpublish_generation_atomically",
+                )
             )
         ):
             raise ReviewedCapabilityHostExtensionError(
