@@ -1130,6 +1130,29 @@ class SealedArtifactOutputHandleService:
         except (OpaqueRecordError, ValueError) as error:
             raise SealedArtifactHandleError("output handle is unavailable") from error
 
+    def extend_output_set(
+        self,
+        output_set_id: str,
+        *,
+        expires_at: datetime,
+        now: datetime,
+    ) -> datetime:
+        """Extend one active output set without reading its private content."""
+
+        if not isinstance(output_set_id, str) or not output_set_id:
+            raise SealedArtifactHandleError("output handle is invalid")
+        try:
+            record = self._store.extend_active_expiry(
+                output_set_id,
+                expected_kind="sealed_artifact_output_set",
+                owner=self._owner,
+                expires_at=expires_at,
+                now=now,
+            )
+        except OpaqueRecordError as error:
+            raise SealedArtifactHandleError("output handle is unavailable") from error
+        return record.expires_at
+
 
 def _output_values(
     descriptor: SealedArtifactRunnerDescriptor,

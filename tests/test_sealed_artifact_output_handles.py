@@ -164,3 +164,36 @@ def test_declared_outputs_stage_privately_without_a_runner_descriptor(tmp_path) 
 
     assert [handle.role for handle in handles] == ["coverage", "result"]
     assert len({handle.output_set_id for handle in handles}) == 1
+
+
+def test_output_set_expiry_can_be_extended_without_exposing_content(tmp_path) -> None:
+    service, store = _service(tmp_path)
+    handles = service.publish(
+        descriptor=_descriptor(),
+        receiver_id="receiver",
+        revision_digest="e" * 64,
+        invocation_id="invocation",
+        sealed=(
+            ("coverage", "text/plain", b"ready"),
+            ("result", "application/octet-stream", b"output"),
+        ),
+        expires_at=NOW + timedelta(seconds=1),
+        now=NOW,
+    )
+
+    extended = service.extend_output_set(
+        handles[0].output_set_id,
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    assert extended == NOW + timedelta(minutes=1)
+    assert (
+        store.load(
+            handles[0].output_set_id,
+            expected_kind="sealed_artifact_output_set",
+            owner="test-owner",
+            now=NOW + timedelta(seconds=2),
+        ).expires_at
+        == extended
+    )
