@@ -1002,6 +1002,53 @@ class SealedArtifactOutputHandleService:
             raise SealedArtifactHandleError("output handle is unavailable") from error
         return SealedArtifactPrivateOutputSet(private_set_id, expiry)
 
+    def stage_declared(
+        self,
+        *,
+        declaration_digest: str,
+        outputs: tuple[SealedArtifactOutput, ...],
+        receiver_id: str,
+        revision_digest: str,
+        invocation_id: str,
+        sealed: tuple[tuple[str, str, bytes], ...],
+        expires_at: datetime,
+        now: datetime,
+    ) -> SealedArtifactPrivateOutputSet:
+        """Privately stage outputs against an immutable generic declaration."""
+
+        if not isinstance(declaration_digest, str) or not _DIGEST.fullmatch(
+            declaration_digest
+        ):
+            raise SealedArtifactHandleError("output handle is invalid")
+        fields = _handle_fields(
+            receiver_id=receiver_id,
+            revision_digest=revision_digest,
+            invocation_id=invocation_id,
+            role="output",
+            media_type="application/octet-stream",
+            schema_digest=None,
+        )
+        values = _declared_output_values(outputs, sealed)
+        issued_at = _utc(now)
+        expiry = _utc(expires_at)
+        if expiry <= issued_at:
+            raise SealedArtifactHandleError("output handle is invalid")
+        try:
+            private_set_id = self._store.issue(
+                kind="sealed_artifact_private_output_set",
+                owner=self._owner,
+                payload={
+                    **fields,
+                    "declaration_digest": declaration_digest,
+                    "outputs": values,
+                },
+                expires_at=expiry,
+                now=issued_at,
+            )
+        except OpaqueRecordError as error:
+            raise SealedArtifactHandleError("output handle is unavailable") from error
+        return SealedArtifactPrivateOutputSet(private_set_id, expiry)
+
     def promote(
         self, private: SealedArtifactPrivateOutputSet, *, now: datetime
     ) -> tuple[SealedArtifactOutputHandle, ...]:
@@ -1059,6 +1106,46 @@ def _output_values(
                 if len(schema_matches) != 1 or schema_matches[0].document is None:
                     raise SealedArtifactHandleError("output handle is invalid")
                 _validate_json_against_schema(content, schema_matches[0].document)
+            values.append(
+                {
+                    "role": role,
+                    "media_type": media_type,
+                    "byte_count": len(content),
+                    "content_digest": hashlib.sha256(content).hexdigest(),
+                    "content": content.hex(),
+                }
+            )
+    except (TypeError, ValueError, SealedArtifactHandleError) as error:
+        raise SealedArtifactHandleError("output handle is invalid") from error
+    return values
+
+
+def _declared_output_values(
+    outputs: object,
+    sealed: object,
+) -> list[dict[str, object]]:
+    if not isinstance(outputs, tuple) or not outputs:
+        raise SealedArtifactHandleError("output handle is invalid")
+    if not isinstance(sealed, tuple) or len(sealed) != len(outputs):
+        raise SealedArtifactHandleError("output handle is invalid")
+    values: list[dict[str, object]] = []
+    try:
+        for candidate, expected in zip(sealed, outputs, strict=True):
+            role, media_type, content = candidate
+            if (
+                not isinstance(expected, SealedArtifactOutput)
+                or expected.schema_digest is not None
+                or not _NAME.fullmatch(expected.role)
+                or not _MEDIA_TYPE.fullmatch(expected.media_type)
+                or not isinstance(expected.max_bytes, int)
+                or isinstance(expected.max_bytes, bool)
+                or expected.max_bytes <= 0
+                or role != expected.role
+                or media_type != expected.media_type
+                or not isinstance(content, bytes)
+                or len(content) > expected.max_bytes
+            ):
+                raise SealedArtifactHandleError("output handle is invalid")
             values.append(
                 {
                     "role": role,
