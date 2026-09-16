@@ -5,6 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from dynamic_agent_runner.workflow_host.capabilities import (
+    CapabilityError,
+    ReviewedCapabilityTemplate,
+    validate_vector_index_build_template,
+)
 from dynamic_agent_runner.workflow_host.state import (
     OpaqueRecordError,
     PrivateStateStore,
@@ -137,6 +142,66 @@ class ReviewedToolPackageControlPlane:
         return binding
 
 
+class ReviewedCapabilityTemplateControlPlane:
+    """Persist one exact host-reviewed capability template without fallback."""
+
+    def __init__(self, *, store: PrivateStateStore, owner: str) -> None:
+        if not isinstance(owner, str) or not owner:
+            raise ReviewedToolPackageError("reviewed template is invalid")
+        self._store = store
+        self._owner = owner
+
+    def create(self, *, template: ReviewedCapabilityTemplate) -> None:
+        _validate_template(template)
+        now = datetime.now(UTC)
+        try:
+            if any(
+                record.payload.get("capability_id") == template.capability_id
+                for _, record in self._store.active_records(
+                    kind="reviewed_capability_template", owner=self._owner, now=now
+                )
+            ):
+                raise ReviewedToolPackageError("reviewed template is unavailable")
+            self._store.issue(
+                kind="reviewed_capability_template",
+                owner=self._owner,
+                payload=_template_payload(template),
+                expires_at=now + timedelta(days=3650),
+                now=now,
+            )
+        except OpaqueRecordError as error:
+            raise ReviewedToolPackageError(
+                "reviewed template is unavailable"
+            ) from error
+
+    def resolve(
+        self, *, capability_id: str, current_template: ReviewedCapabilityTemplate
+    ) -> ReviewedCapabilityTemplate:
+        _require_identifier(capability_id)
+        _validate_template(current_template)
+        if current_template.capability_id != capability_id:
+            raise ReviewedToolPackageError("reviewed template is unavailable")
+        now = datetime.now(UTC)
+        try:
+            records = self._store.active_records(
+                kind="reviewed_capability_template", owner=self._owner, now=now
+            )
+        except OpaqueRecordError as error:
+            raise ReviewedToolPackageError(
+                "reviewed template is unavailable"
+            ) from error
+        matches = [
+            record
+            for _, record in records
+            if record.payload.get("capability_id") == capability_id
+        ]
+        if len(matches) != 1 or matches[0].payload != _template_payload(
+            current_template
+        ):
+            raise ReviewedToolPackageError("reviewed template is unavailable")
+        return current_template
+
+
 def _binding_from_payload(payload: object) -> ReviewedToolPackageBinding:
     if (
         not isinstance(payload, dict)
@@ -159,6 +224,26 @@ def _binding_from_payload(payload: object) -> ReviewedToolPackageBinding:
         allowed_tool_ids=tuple(payload["allowed_tool_ids"]),
         artifact_aware_tool_ids=tuple(payload["artifact_aware_tool_ids"]),
     )
+
+
+def _validate_template(template: object) -> None:
+    try:
+        if not isinstance(template, ReviewedCapabilityTemplate):
+            raise ValueError
+        if template.capability_id == "vector_index.build.v1":
+            validate_vector_index_build_template(template)
+    except (CapabilityError, ValueError) as error:
+        raise ReviewedToolPackageError("reviewed template is invalid") from error
+
+
+def _template_payload(template: ReviewedCapabilityTemplate) -> dict[str, object]:
+    return {
+        "format_version": 1,
+        "capability_id": template.capability_id,
+        "contract_version": template.contract_version,
+        "template_digest": template.template_digest,
+        "extension_binding": template.extension_binding,
+    }
 
 
 def _require_identifier(value: object) -> None:
