@@ -2,7 +2,7 @@
 
 # Reviewed Vector-Index Host Extension Tasks
 
-Status: In progress
+Status: Complete
 
 ## Prerequisites
 
@@ -349,7 +349,7 @@ Status: In progress
     tests/test_dar_authoring_action_ledger.py
     tests/test_embedding_index_artifacts.py -q` passed 135 tests.
 
-- [ ] T018 [verification] Run the complete regression and static-validation
+- [x] T018 [verification] Run the complete regression and static-validation
   gate after all focused suites are green.
   - Spec: Required Verification; Acceptance Criteria.
   - Plan: Validation Strategy.
@@ -360,7 +360,11 @@ Status: In progress
   - Evidence: every command passes; test logs establish fake-only execution,
     zero side effects on failed admission/dispatch/nonterminal recovery, and no
     live model, network, vault, vector database, external tool, or published
-    index destination.
+    index destination. Elevated macOS sandbox/MPS validation ran `poetry run
+    pytest -q` successfully: 2698 passed, 1 skipped, 7 deselected in 71.62s;
+    `poetry run ruff check src tests`, `poetry run pre-commit run --files
+    specs/reviewed-vector-index-host-extension/tasks.md`, and `git diff
+    --check` passed.
 
 ## Checkpoints
 
