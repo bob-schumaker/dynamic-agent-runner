@@ -20,9 +20,17 @@ from dynamic_agent_runner.workflow_host.reviewed_capability_execution import (
     ReviewedCapabilityDispatchError,
     ReviewedCapabilityDispatchRequest,
     ReviewedCapabilityExecutor,
+    ReviewedCapabilityHostResult,
 )
 from dynamic_agent_runner.workflow_host.reviewed_capability_host_extension import (
     ReviewedCapabilityHostExtension,
+)
+from dynamic_agent_runner.workflow_host.reviewed_capability_outputs import (
+    ReviewedCapabilityCandidateOutput,
+    ReviewedCapabilityHostContribution,
+)
+from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
+    SealedArtifactOutputHandleService,
 )
 from dynamic_agent_runner.workflow_host.reviewed_capability_jobs import (
     SealedReviewedCapabilityJob,
@@ -77,6 +85,7 @@ class _FakeExtensionHost(_FakeJobResolver, _FakeHost):
     def __init__(self, job: SealedReviewedCapabilityJob) -> None:
         _FakeJobResolver.__init__(self, job)
         _FakeHost.__init__(self)
+        self.visibility_failure = False
 
     def begin_pending_publication(self, **_kwargs: object) -> None:
         return None
@@ -85,6 +94,8 @@ class _FakeExtensionHost(_FakeJobResolver, _FakeHost):
         return "pending"
 
     def acknowledge_visibility(self, **_kwargs: object) -> None:
+        if self.visibility_failure:
+            raise RuntimeError("visibility unavailable")
         return None
 
     def compensate(self, **_kwargs: object) -> None:
@@ -95,6 +106,12 @@ class _FakeExtensionHost(_FakeJobResolver, _FakeHost):
 
     def unpublish_generation_atomically(self, **_kwargs: object) -> None:
         return None
+
+    def dispatch(
+        self, *, job: SealedReviewedCapabilityJob, reservation_id: str
+    ) -> ReviewedCapabilityHostResult:
+        _FakeHost.dispatch(self, job=job, reservation_id=reservation_id)
+        return _host_result()
 
 
 def _job() -> SealedReviewedCapabilityJob:
@@ -201,6 +218,31 @@ def _request() -> ReviewedCapabilityDispatchRequest:
     )
 
 
+def _host_result() -> ReviewedCapabilityHostResult:
+    counts = {
+        "source_records": 1,
+        "embedding_units": 1,
+        "indexed": 1,
+        "skipped": 0,
+        "deleted": 0,
+        "errored": 0,
+    }
+    return ReviewedCapabilityHostResult(
+        candidates=(
+            ReviewedCapabilityCandidateOutput(
+                "index_generation", "application/octet-stream", b"index"
+            ),
+            ReviewedCapabilityCandidateOutput(
+                "index_manifest", "application/json", b'{"index_digest":"a"}'
+            ),
+            ReviewedCapabilityCandidateOutput(
+                "coverage_report", "application/json", b'{"indexed":1}'
+            ),
+        ),
+        contribution=ReviewedCapabilityHostContribution("generation-1", counts),
+    )
+
+
 def test_executor_approves_revalidates_and_dispatches_one_sealed_job_once(
     tmp_path: Path,
 ) -> None:
@@ -238,9 +280,73 @@ def test_host_extension_composes_the_existing_approval_executor(
         approvals=WorkflowApprovalStore(store=store, owner="local-os-user-v1:501:ada"),
         approval_broker=_FakeApprovalBroker(),
         reviewed_templates=templates,
+        artifacts=SealedArtifactOutputHandleService(
+            store=store, owner="local-os-user-v1:501:ada"
+        ),
+        store=store,
+        owner="local-os-user-v1:501:ada",
     ).dispatch(_request(), now=NOW)
 
-    assert dispatched.status == "dispatched"
+    assert dispatched | {"artifacts": {}} == {
+        "status": "published",
+        "generation_id": "generation-1",
+        "published_at": "2026-09-15T00:00:00Z",
+        "artifacts": {},
+        "counts": {
+            "source_records": 1,
+            "embedding_units": 1,
+            "indexed": 1,
+            "skipped": 0,
+            "deleted": 0,
+            "errored": 0,
+        },
+    }
+    assert set(dispatched["artifacts"]) == {
+        "index_generation",
+        "index_manifest",
+        "coverage_report",
+    }
+    assert all(
+        isinstance(value, str) and value for value in dispatched["artifacts"].values()
+    )
+    assert len(host.calls) == 1
+
+
+def test_host_extension_recovers_a_pending_publication_without_rebuilding(
+    tmp_path: Path,
+) -> None:
+    host = _FakeExtensionHost(_job())
+    host.visibility_failure = True
+    store = PrivateStateStore(tmp_path / "state")
+    template = _template()
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=store, owner="local-os-user-v1:501:ada"
+    )
+    templates.create(template=template)
+    extension = ReviewedCapabilityHostExtension(
+        template=template,
+        host=host,
+        dependency_binding_digest="c" * 64,
+        nonce_factory=lambda: "v1.approval.nonce",
+    )
+    executor = extension.executor(
+        ledger=WorkflowActionLedger(store=store, owner="local-os-user-v1:501:ada"),
+        approvals=WorkflowApprovalStore(store=store, owner="local-os-user-v1:501:ada"),
+        approval_broker=_FakeApprovalBroker(),
+        reviewed_templates=templates,
+        artifacts=SealedArtifactOutputHandleService(
+            store=store, owner="local-os-user-v1:501:ada"
+        ),
+        store=store,
+        owner="local-os-user-v1:501:ada",
+    )
+
+    with pytest.raises(ReviewedCapabilityDispatchError, match="unavailable"):
+        executor.dispatch(_request(), now=NOW)
+    host.visibility_failure = False
+    recovered = executor.dispatch(_request(), now=NOW)
+
+    assert recovered["status"] == "published"
     assert len(host.calls) == 1
 
 

@@ -27,6 +27,10 @@ from dynamic_agent_runner.workflow_host.reviewed_capability_jobs import (
     revalidate_sealed_reviewed_capability_job,
     resolve_sealed_reviewed_capability_job,
 )
+from dynamic_agent_runner.workflow_host.reviewed_capability_outputs import (
+    ReviewedCapabilityCandidateOutput,
+    ReviewedCapabilityHostContribution,
+)
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
     ReviewedCapabilityTemplateControlPlane,
     ReviewedToolPackageError,
@@ -36,6 +40,14 @@ from dynamic_agent_runner.workflow_host.capabilities import ReviewedCapabilityTe
 
 class ReviewedCapabilityDispatchError(ValueError):
     """Raised when a reviewed capability cannot safely dispatch."""
+
+
+class ReviewedCapabilityCompletionError(ValueError):
+    """Raised when completion failed before or after a recoverable boundary."""
+
+    def __init__(self, *, recovery_required: bool) -> None:
+        super().__init__("reviewed capability completion is unavailable")
+        self.recovery_required = recovery_required
 
 
 @dataclass(frozen=True)
@@ -53,6 +65,14 @@ class ReviewedCapabilityDispatchRequest:
     template_digest: str
 
 
+@dataclass(frozen=True)
+class ReviewedCapabilityHostResult:
+    """Private host candidates and aggregate contribution for one dispatch."""
+
+    candidates: tuple[ReviewedCapabilityCandidateOutput, ...]
+    contribution: ReviewedCapabilityHostContribution
+
+
 class ReviewedCapabilityApprovalBroker(Protocol):
     """Host-only human decision presenter for an exact reservation digest."""
 
@@ -66,7 +86,23 @@ class ReviewedCapabilityDispatchHost(Protocol):
 
     def dispatch(
         self, *, job: SealedReviewedCapabilityJob, reservation_id: str
-    ) -> None: ...
+    ) -> object: ...
+
+
+class ReviewedCapabilityCompletion(Protocol):
+    """DAR-owned egress completion after a host has built private candidates."""
+
+    def complete(
+        self,
+        *,
+        request: ReviewedCapabilityDispatchRequest,
+        job: SealedReviewedCapabilityJob,
+        reservation_id: str,
+        result: object,
+        now: datetime,
+    ) -> object: ...
+
+    def recover(self, *, reservation_id: str, now: datetime) -> object: ...
 
 
 class ReviewedCapabilityExecutor:
@@ -85,6 +121,7 @@ class ReviewedCapabilityExecutor:
         extension_binding: str,
         dependency_binding_digest: str,
         nonce_factory: Callable[[], str],
+        completion: ReviewedCapabilityCompletion | None = None,
     ) -> None:
         if (
             not callable(getattr(resolver, "resolve", None))
@@ -100,6 +137,14 @@ class ReviewedCapabilityExecutor:
             or not isinstance(dependency_binding_digest, str)
             or len(dependency_binding_digest) != 64
             or not callable(nonce_factory)
+            or (
+                completion is not None
+                and not callable(getattr(completion, "complete", None))
+            )
+            or (
+                completion is not None
+                and not callable(getattr(completion, "recover", None))
+            )
         ):
             raise ReviewedCapabilityDispatchError("reviewed capability is unavailable")
         self._resolver = resolver
@@ -112,10 +157,11 @@ class ReviewedCapabilityExecutor:
         self._extension_binding = extension_binding
         self._dependency_binding_digest = dependency_binding_digest
         self._nonce_factory = nonce_factory
+        self._completion = completion
 
-    def dispatch(
+    def dispatch(  # noqa: C901 - completion recovery is part of one reservation flow.
         self, request: ReviewedCapabilityDispatchRequest, *, now: datetime
-    ) -> ActionLedgerEvent:
+    ) -> object:
         """Dispatch at most once, with all mutable host bindings rechecked."""
 
         try:
@@ -156,6 +202,15 @@ class ReviewedCapabilityExecutor:
                 "reviewed capability is unavailable"
             ) from error
         if reservation.replayed:
+            if self._completion is not None:
+                try:
+                    return self._completion.recover(
+                        reservation_id=reservation.action_id, now=now
+                    )
+                except ReviewedCapabilityCompletionError as error:
+                    raise ReviewedCapabilityDispatchError(
+                        "reviewed capability is unavailable"
+                    ) from error
             return ActionLedgerEvent(
                 reservation.action_id, reservation.action_digest, "replayed", True
             )
@@ -170,13 +225,36 @@ class ReviewedCapabilityExecutor:
             dispatched = self._ledger.claim_reviewed_capability_dispatch(
                 reservation.action_id, now=now
             )
-            self._host.dispatch(job=revalidated, reservation_id=reservation.action_id)
+            result = self._host.dispatch(
+                job=revalidated, reservation_id=reservation.action_id
+            )
+            if self._completion is not None:
+                try:
+                    return self._completion.complete(
+                        request=request,
+                        job=revalidated,
+                        reservation_id=reservation.action_id,
+                        result=result,
+                        now=now,
+                    )
+                except ReviewedCapabilityCompletionError as error:
+                    if error.recovery_required:
+                        raise ReviewedCapabilityDispatchError(
+                            "reviewed capability is unavailable"
+                        ) from error
+                    raise
         except (
             ActionLedgerError,
             ReviewedCapabilityJobError,
             ReviewedToolPackageError,
         ) as error:
             self._abort(reservation.action_id, now=now)
+            raise ReviewedCapabilityDispatchError(
+                "reviewed capability is unavailable"
+            ) from error
+        except ReviewedCapabilityCompletionError as error:
+            if not error.recovery_required:
+                self._abort(reservation.action_id, now=now)
             raise ReviewedCapabilityDispatchError(
                 "reviewed capability is unavailable"
             ) from error
