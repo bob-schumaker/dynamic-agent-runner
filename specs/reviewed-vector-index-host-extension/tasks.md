@@ -251,9 +251,10 @@ Status: In progress
     generation. Add a delivery-retry vector after durable `completed` that
     returns the exact stored receipt for the same correlation ID with no host
     call, build, or publication. Add fake-clock retention vectors for current
-    generation deferral, non-current successful atomic unpublication before
-    revocation, assertion/unpublication error retention, and cross-principal/
-    run retrieval denial for all three roles.
+    generation deferral through `assert_generation_current`, non-current
+    successful `unpublish_generation_atomically` before revocation, either
+    host-operation error retention, and cross-principal/run retrieval denial
+    for all three roles.
 
 - [ ] T012 [implementation] Add generic private candidate staging, bounded
   role validation, inaccessible promotion, and receipt assembly.
@@ -282,8 +283,8 @@ Status: In progress
     recovery only resumes the original reservation identity, either completes
     it or compensates it, and never rebuilds or republishes.
 
-- [ ] T014 [implementation] Enforce current-generation retention before
-  artifact revocation.
+- [ ] T014 [implementation] Enforce option-2 current-generation retention
+  before artifact revocation.
   - Spec: Authority split; FR-5.
   - Plan: S4.4.
   - Files/components: generic artifact-retention owner and host-extension
@@ -291,10 +292,11 @@ Status: In progress
   - Depends on: T012, T013.
   - Validation: applicable T011 fake-clock and cross-principal/run retrieval
     tests pass.
-  - Evidence: DAR defers revocation when the host asserts a current generation;
-    otherwise it first obtains successful atomic unpublication; assertion or
-    unpublication errors retain artifacts and leave the current generation
-    unchanged for all three output roles.
+  - Evidence: DAR calls `assert_generation_current` before revocation and
+    defers it for a current generation. For a non-current generation, DAR first
+    obtains successful `unpublish_generation_atomically`; either host-operation
+    error retains artifacts and leaves the current generation unchanged for all
+    three output roles.
 
 - [ ] T015 [tests, GREEN] Prove the completed publication receipt and all
   failure/recovery outcomes.

@@ -142,11 +142,13 @@ index format; resource, network, and retry policy; private candidate-output
 storage before DAR accepts egress; prior-generation semantics; atomic
 publication; and deletion semantics. DAR owns retention, lifetime, and opaque
 handle access for accepted sealed output artifacts. Before revocation, DAR
-shall invoke the host resolution assertion. If it asserts that a generation is
-current, DAR shall retain the artifacts and defer revocation. Otherwise, DAR
-shall require successful atomic unpublication before revocation. If assertion
-or unpublication fails, DAR shall retain the artifacts and leave the current
-generation unchanged. DAR must prevent a package from overriding these
+shall invoke the host's `assert_generation_current` operation for the opaque
+generation ID. If it reports that the generation is current, DAR shall retain
+the artifacts and defer revocation. Otherwise, DAR shall invoke the host's
+`unpublish_generation_atomically` operation and require its success before
+revocation. If either operation fails, DAR shall retain the artifacts and leave
+the current generation unchanged. Neither operation accepts package-controlled
+policy or destination input. DAR must prevent a package from overriding these
 host-owned choices.
 
 ## Functional Requirements
@@ -367,9 +369,10 @@ The verification suite shall prove:
 10. the package cannot specify a source, profile, prior generation, model,
     provider, retry policy, destination, or publish/delete behavior.
 11. fake-clock expiry proves that DAR defers revocation when the host asserts a
-    current generation; otherwise DAR revokes only after atomic unpublication.
-    An assertion or unpublication error retains artifacts and leaves the prior
-    visible generation unchanged.
+    current generation; otherwise DAR revokes only after
+    `unpublish_generation_atomically` succeeds. An
+    `assert_generation_current` or unpublication error retains artifacts and
+    leaves the prior visible generation unchanged.
 
 Run the focused suites, `poetry run pytest -q`, `poetry run ruff check src tests`, and `git diff --check` before declaring an implementation complete.
 

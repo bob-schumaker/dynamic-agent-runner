@@ -87,6 +87,14 @@ retain all corpus, model, index, and publication authority.
    receipt structure and identifier grammars. DAR enforces the generic limits;
    it does not inspect index bytes. The manifest may hold safe canonical
    provenance and digest bindings; coverage is aggregate-only.
+7. Retention uses the option-2 host lifecycle contract. Before DAR revokes an
+   accepted generation's artifacts, it calls
+   `assert_generation_current(generation_id)`. A current generation remains
+   retained. A non-current generation must be atomically unpublished through
+   `unpublish_generation_atomically(generation_id)` before DAR revokes its
+   artifacts. Either host-operation failure retains the artifacts and leaves
+   the current generation unchanged. These operations are host-private and
+   accept no package-selected policy or destination.
 
 ## Delivery Order
 
@@ -203,14 +211,15 @@ no output handles; a valid attempt can dispatch exactly once.
    respective acknowledgements. DAR records `aborted` or `recovery_required`
    before compensation or reconciliation. Test crashes immediately before and
    after every host call. Recovery resumes only this attempt.
-4. Enforce current-generation retention by having DAR invoke a host resolution
-   assertion before revocation. When it asserts a generation is current, defer
-   revocation and retain its artifacts. Otherwise, require successful atomic
-   unpublication before revocation. On assertion or unpublication failure,
-   retain artifacts and leave the current generation unchanged. Add fake-clock
-   expiry tests for each outcome, plus cross-principal/run retrieval-denial
-   tests proving that all three artifact roles share the generation handle's
-   access, retention, and revocation policy.
+4. Enforce option-2 current-generation retention. Before revocation, DAR calls
+   the host's `assert_generation_current(generation_id)`. A current generation
+   remains retained; a non-current generation requires successful
+   `unpublish_generation_atomically(generation_id)` before revocation. On
+   either operation's failure, retain artifacts and leave the current
+   generation unchanged. Add fake-clock expiry tests for each outcome, plus
+   cross-principal/run retrieval-denial tests proving that all three artifact
+   roles share the generation handle's access, retention, and revocation
+   policy.
 
 Exit: an attempt either produces one durable, internally consistent published
 receipt and three handles, or remains redacted and non-public while recovery
@@ -259,5 +268,5 @@ corresponding side-effect sentinels remain at zero.
 | Cross-store completion is treated as a transaction | Crash between host publication and DAR promotion | Use durable recovery states and the original idempotency key; do not claim simultaneous distributed atomicity. |
 | New registry changes legacy admissions | A generic catalog path starts requiring a vector template | Keep template resolution opt-in and add legacy regression fixtures. |
 | Approval leaks across jobs or runs | Run-scoped approval bypasses the bound tuple | Atomically consume the exact approval/call/job tuple and test replay/concurrency. |
-| Published generation outlives retained artifacts | DAR expiry revokes an artifact still needed by the host | Require private host resolution while current or atomic unpublication first. |
+| Published generation outlives retained artifacts | DAR expiry revokes an artifact still needed by the host | Require `assert_generation_current` before revocation; retain on `current` or either host-operation failure, otherwise atomically unpublish first. |
 | Scope expands into an index implementation | A slice adds MLX, vault, ANN, or publication code | Reject it as host-extension work; DAR only receives fake implementations in tests. |
