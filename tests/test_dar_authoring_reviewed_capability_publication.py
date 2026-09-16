@@ -79,6 +79,17 @@ def _descriptor() -> SealedArtifactRunnerDescriptor:
     )
 
 
+def _counts(**overrides: int) -> dict[str, int]:
+    return {
+        "source_records": 0,
+        "embedding_units": 0,
+        "indexed": 0,
+        "skipped": 0,
+        "deleted": 0,
+        "errored": 0,
+    } | overrides
+
+
 def test_publication_records_all_states_before_exposing_handles(tmp_path) -> None:
     store = PrivateStateStore(tmp_path / "state")
     artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
@@ -104,7 +115,7 @@ def test_publication_records_all_states_before_exposing_handles(tmp_path) -> Non
         reservation_id="v1.reservation",
         private=private,
         generation_id="generation-1",
-        counts={"source_records": 1},
+        counts=_counts(source_records=1),
         now=NOW,
     )
 
@@ -117,6 +128,55 @@ def test_publication_records_all_states_before_exposing_handles(tmp_path) -> Non
     assert host.calls == [("pending", "v1.reservation"), ("visible", "v1.reservation")]
     state = (tmp_path / "state" / "records.json").read_text(encoding="utf-8")
     assert '"status":"completed"' in state
+
+
+@pytest.mark.parametrize(
+    "counts",
+    (
+        {"source_records": 1},
+        {
+            "source_records": 1,
+            "embedding_units": 0,
+            "indexed": 0,
+            "skipped": 0,
+            "deleted": 0,
+            "errored": -1,
+        },
+    ),
+)
+def test_publication_rejects_noncanonical_aggregate_counts_before_host_effect(
+    tmp_path, counts: dict[str, int]
+) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    private = artifacts.stage(
+        descriptor=_descriptor(),
+        receiver_id="principal",
+        revision_digest="e" * 64,
+        invocation_id="run-1",
+        sealed=(
+            ("index_generation", "application/octet-stream", b"index"),
+            ("index_manifest", "application/json", b"{}"),
+            ("coverage_report", "application/json", b"{}"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    host = _FakeHost()
+    coordinator = ReviewedCapabilityPublicationCoordinator(
+        store=store, owner="host", artifacts=artifacts, host=host
+    )
+
+    with pytest.raises(ReviewedCapabilityPublicationError):
+        coordinator.complete(
+            reservation_id="v1.reservation",
+            private=private,
+            generation_id="generation-1",
+            counts=counts,
+            now=NOW,
+        )
+
+    assert host.calls == []
 
 
 def test_current_generation_retention_renews_all_output_roles(tmp_path) -> None:
@@ -143,7 +203,7 @@ def test_current_generation_retention_renews_all_output_roles(tmp_path) -> None:
         reservation_id="v1.reservation",
         private=private,
         generation_id="generation-1",
-        counts={"source_records": 1},
+        counts=_counts(source_records=1),
         now=NOW,
     )
 
@@ -190,7 +250,7 @@ def test_noncurrent_generation_unpublishes_before_output_set_revocation(
         reservation_id="v1.reservation",
         private=private,
         generation_id="generation-1",
-        counts={"source_records": 1},
+        counts=_counts(source_records=1),
         now=NOW,
     )
     host.current = False
@@ -245,7 +305,7 @@ def test_retention_host_errors_leave_completed_output_set_active(
         reservation_id="v1.reservation",
         private=private,
         generation_id="generation-1",
-        counts={"source_records": 1},
+        counts=_counts(source_records=1),
         now=NOW,
     )
     if operation == "current":
@@ -300,7 +360,7 @@ def test_completed_publication_replays_its_stored_receipt_without_host_calls(
         reservation_id="v1.reservation",
         private=private,
         generation_id="generation-1",
-        counts={"source_records": 1},
+        counts=_counts(source_records=1),
         now=NOW,
     )
     calls_after_first = list(host.calls)
@@ -309,7 +369,7 @@ def test_completed_publication_replays_its_stored_receipt_without_host_calls(
         reservation_id="v1.reservation",
         private=private,
         generation_id="generation-1",
-        counts={"source_records": 1},
+        counts=_counts(source_records=1),
         now=NOW + timedelta(seconds=1),
     )
 
@@ -341,7 +401,7 @@ def test_conflicting_completion_request_never_reenters_the_host(tmp_path) -> Non
         reservation_id="v1.reservation",
         private=private,
         generation_id="generation-1",
-        counts={"source_records": 1},
+        counts=_counts(source_records=1),
         now=NOW,
     )
     calls_after_first = list(host.calls)
@@ -351,7 +411,7 @@ def test_conflicting_completion_request_never_reenters_the_host(tmp_path) -> Non
             reservation_id="v1.reservation",
             private=private,
             generation_id="other-generation",
-            counts={"source_records": 1},
+            counts=_counts(source_records=1),
             now=NOW + timedelta(seconds=1),
         )
 
@@ -393,7 +453,7 @@ def test_pre_pending_publication_error_aborts_and_discards_candidates(
             reservation_id="v1.reservation",
             private=private,
             generation_id="generation-1",
-            counts={"source_records": 1},
+            counts=_counts(source_records=1),
             now=NOW,
         )
 
@@ -445,7 +505,7 @@ def test_pending_recovery_promotes_the_same_staged_set_without_rebuild(
             reservation_id="v1.reservation",
             private=private,
             generation_id="generation-1",
-            counts={"source_records": 1},
+            counts=_counts(source_records=1),
             now=NOW,
         )
 
@@ -492,7 +552,7 @@ def test_visibility_recovery_reuses_the_already_promoted_output_set(tmp_path) ->
             reservation_id="v1.reservation",
             private=private,
             generation_id="generation-1",
-            counts={"source_records": 1},
+            counts=_counts(source_records=1),
             now=NOW,
         )
 
@@ -535,7 +595,7 @@ def test_unrecoverable_pending_publication_compensates_and_aborts(tmp_path) -> N
             reservation_id="v1.reservation",
             private=private,
             generation_id="generation-1",
-            counts={"source_records": 1},
+            counts=_counts(source_records=1),
             now=NOW,
         )
 

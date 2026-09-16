@@ -56,6 +56,11 @@ class ReviewedCapabilityPublicationReceipt:
     counts: Mapping[str, int]
 
 
+_COUNT_FIELDS = frozenset(
+    {"source_records", "embedding_units", "indexed", "skipped", "deleted", "errored"}
+)
+
+
 class ReviewedCapabilityPublicationCoordinator:
     """Advance one staged output set through durable publication boundaries."""
 
@@ -103,6 +108,7 @@ class ReviewedCapabilityPublicationCoordinator:
             or not isinstance(generation_id, str)
             or not generation_id
             or not isinstance(counts, Mapping)
+            or not _valid_counts(counts)
         ):
             raise ReviewedCapabilityPublicationError("publication is unavailable")
         payload = {
@@ -375,6 +381,13 @@ def _timestamp(now: datetime) -> str:
     if not isinstance(now, datetime) or now.tzinfo is None:
         raise ReviewedCapabilityPublicationError("publication is unavailable")
     return now.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _valid_counts(counts: Mapping[str, int]) -> bool:
+    return set(counts) == _COUNT_FIELDS and all(
+        isinstance(value, int) and not isinstance(value, bool) and value >= 0
+        for value in counts.values()
+    )
 
 
 def _matches_completion_request(
