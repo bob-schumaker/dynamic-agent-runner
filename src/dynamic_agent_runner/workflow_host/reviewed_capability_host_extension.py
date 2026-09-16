@@ -5,7 +5,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from dynamic_agent_runner.workflow_host.action_ledger import WorkflowActionLedger
+from dynamic_agent_runner.workflow_host.approvals import WorkflowApprovalStore
 from dynamic_agent_runner.workflow_host.capabilities import ReviewedCapabilityTemplate
+from dynamic_agent_runner.workflow_host.reviewed_capability_execution import (
+    ReviewedCapabilityApprovalBroker,
+    ReviewedCapabilityExecutor,
+)
+from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
+    ReviewedCapabilityTemplateControlPlane,
+)
 
 
 class ReviewedCapabilityHostExtensionError(ValueError):
@@ -49,3 +58,31 @@ class ReviewedCapabilityHostExtension:
             raise ReviewedCapabilityHostExtensionError(
                 "reviewed capability extension is unavailable"
             )
+
+    def executor(
+        self,
+        *,
+        ledger: WorkflowActionLedger,
+        approvals: WorkflowApprovalStore,
+        approval_broker: ReviewedCapabilityApprovalBroker,
+        reviewed_templates: ReviewedCapabilityTemplateControlPlane,
+    ) -> ReviewedCapabilityExecutor:
+        """Bind this reviewed host extension to DAR's existing approval ledger."""
+
+        try:
+            return ReviewedCapabilityExecutor(
+                resolver=self.host,  # type: ignore[arg-type]
+                host=self.host,  # type: ignore[arg-type]
+                ledger=ledger,
+                approvals=approvals,
+                approval_broker=approval_broker,
+                reviewed_templates=reviewed_templates,
+                current_reviewed_template_provider=lambda _: self.template,
+                extension_binding=self.template.extension_binding,
+                dependency_binding_digest=self.dependency_binding_digest,
+                nonce_factory=self.nonce_factory,
+            )
+        except Exception as error:  # noqa: BLE001 - host boundary stays redacted.
+            raise ReviewedCapabilityHostExtensionError(
+                "reviewed capability extension is unavailable"
+            ) from error
