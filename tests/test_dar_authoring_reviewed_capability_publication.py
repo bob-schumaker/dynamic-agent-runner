@@ -102,6 +102,91 @@ def test_publication_records_all_states_before_exposing_handles(tmp_path) -> Non
     assert '"status":"completed"' in state
 
 
+def test_completed_publication_replays_its_stored_receipt_without_host_calls(
+    tmp_path,
+) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    private = artifacts.stage(
+        descriptor=_descriptor(),
+        receiver_id="principal",
+        revision_digest="e" * 64,
+        invocation_id="run-1",
+        sealed=(
+            ("index_generation", "application/octet-stream", b"index"),
+            ("index_manifest", "application/json", b"{}"),
+            ("coverage_report", "application/json", b"{}"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    host = _FakeHost()
+    coordinator = ReviewedCapabilityPublicationCoordinator(
+        store=store, owner="host", artifacts=artifacts, host=host
+    )
+
+    first = coordinator.complete(
+        reservation_id="v1.reservation",
+        private=private,
+        generation_id="generation-1",
+        counts={"source_records": 1},
+        now=NOW,
+    )
+    calls_after_first = list(host.calls)
+
+    replayed = coordinator.complete(
+        reservation_id="v1.reservation",
+        private=private,
+        generation_id="generation-1",
+        counts={"source_records": 1},
+        now=NOW + timedelta(seconds=1),
+    )
+
+    assert replayed == first
+    assert host.calls == calls_after_first
+
+
+def test_conflicting_completion_request_never_reenters_the_host(tmp_path) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    private = artifacts.stage(
+        descriptor=_descriptor(),
+        receiver_id="principal",
+        revision_digest="e" * 64,
+        invocation_id="run-1",
+        sealed=(
+            ("index_generation", "application/octet-stream", b"index"),
+            ("index_manifest", "application/json", b"{}"),
+            ("coverage_report", "application/json", b"{}"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    host = _FakeHost()
+    coordinator = ReviewedCapabilityPublicationCoordinator(
+        store=store, owner="host", artifacts=artifacts, host=host
+    )
+    coordinator.complete(
+        reservation_id="v1.reservation",
+        private=private,
+        generation_id="generation-1",
+        counts={"source_records": 1},
+        now=NOW,
+    )
+    calls_after_first = list(host.calls)
+
+    with pytest.raises(ReviewedCapabilityPublicationError):
+        coordinator.complete(
+            reservation_id="v1.reservation",
+            private=private,
+            generation_id="other-generation",
+            counts={"source_records": 1},
+            now=NOW + timedelta(seconds=1),
+        )
+
+    assert host.calls == calls_after_first
+
+
 def test_pending_publication_error_marks_the_same_attempt_for_recovery(
     tmp_path,
 ) -> None:

@@ -93,6 +93,7 @@ class ReviewedCapabilityPublicationCoordinator:
         ):
             raise ReviewedCapabilityPublicationError("publication is unavailable")
         payload = {
+            "replay_key": reservation_id,
             "reservation_id": reservation_id,
             "private_set_id": private.private_set_id,
             "generation_id": generation_id,
@@ -100,15 +101,30 @@ class ReviewedCapabilityPublicationCoordinator:
             "status": "prepared",
         }
         record: OpaqueRecord | None = None
+        attempt_id: str | None = None
         pending_attempted = False
         try:
-            attempt_id = self._store.issue(
+            attempt_id, replayed = self._store.issue_or_reuse(
                 kind="reviewed_capability_publication",
                 owner=self._owner,
                 payload=payload,
+                replay_key=reservation_id,
+                conflict_keys={"reservation_id": reservation_id},
                 expires_at=private.expires_at,
                 now=now,
             )
+            if replayed:
+                record = self._store.load(
+                    attempt_id,
+                    expected_kind="reviewed_capability_publication",
+                    owner=self._owner,
+                    now=now,
+                )
+                if not _matches_completion_request(record.payload, payload):
+                    raise ValueError
+                if record.payload.get("status") == "completed":
+                    return _receipt_from_record(record)
+                raise ValueError
             record = self._advance(attempt_id, payload, "commit_intent", now=now)
             pending_attempted = True
             self._host.begin_pending_publication(
@@ -125,9 +141,15 @@ class ReviewedCapabilityPublicationCoordinator:
             )
             self._host.acknowledge_visibility(reservation_id=reservation_id)
             record = self._advance(attempt_id, record.payload, "host_visible", now=now)
-            record = self._advance(attempt_id, record.payload, "completed", now=now)
+            record = self._advance(
+                attempt_id,
+                record.payload,
+                "completed",
+                published_at=_timestamp(now),
+                now=now,
+            )
         except Exception as error:  # noqa: BLE001 - host boundary varies.
-            if pending_attempted and record is not None:
+            if pending_attempted and attempt_id is not None and record is not None:
                 try:
                     self._advance(
                         attempt_id,
@@ -140,13 +162,7 @@ class ReviewedCapabilityPublicationCoordinator:
             raise ReviewedCapabilityPublicationError(
                 "publication is unavailable"
             ) from error
-        return ReviewedCapabilityPublicationReceipt(
-            status="published",
-            generation_id=generation_id,
-            published_at=_timestamp(now),
-            artifacts=handles,
-            counts=dict(counts),
-        )
+        return _receipt_from_record(record)
 
     def recover(
         self, *, reservation_id: str, now: datetime
@@ -192,18 +208,18 @@ class ReviewedCapabilityPublicationCoordinator:
             )
             self._host.acknowledge_visibility(reservation_id=reservation_id)
             record = self._advance(attempt_id, record.payload, "host_visible", now=now)
-            self._advance(attempt_id, record.payload, "completed", now=now)
+            record = self._advance(
+                attempt_id,
+                record.payload,
+                "completed",
+                published_at=_timestamp(now),
+                now=now,
+            )
         except Exception as error:  # noqa: BLE001 - host boundary varies.
             raise ReviewedCapabilityPublicationError(
                 "publication is unavailable"
             ) from error
-        return ReviewedCapabilityPublicationReceipt(
-            status="published",
-            generation_id=generation_id,
-            published_at=_timestamp(now),
-            artifacts=handles,
-            counts=counts,
-        )
+        return _receipt_from_record(record)
 
     def _advance(
         self,
@@ -213,6 +229,7 @@ class ReviewedCapabilityPublicationCoordinator:
         *,
         now: datetime,
         handles: tuple[SealedArtifactOutputHandle, ...] = (),
+        published_at: str | None = None,
     ) -> OpaqueRecord:
         replacement = {**payload, "status": status}
         if handles:
@@ -226,6 +243,8 @@ class ReviewedCapabilityPublicationCoordinator:
                 }
                 for item in handles
             ]
+        if published_at is not None:
+            replacement["published_at"] = published_at
         record = self._store.load(
             attempt_id,
             expected_kind="reviewed_capability_publication",
@@ -248,3 +267,60 @@ def _timestamp(now: datetime) -> str:
     if not isinstance(now, datetime) or now.tzinfo is None:
         raise ReviewedCapabilityPublicationError("publication is unavailable")
     return now.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _matches_completion_request(
+    stored: Mapping[str, object], requested: Mapping[str, object]
+) -> bool:
+    return all(
+        stored.get(name) == requested.get(name)
+        for name in (
+            "replay_key",
+            "reservation_id",
+            "private_set_id",
+            "generation_id",
+            "counts",
+        )
+    )
+
+
+def _receipt_from_record(record: OpaqueRecord) -> ReviewedCapabilityPublicationReceipt:
+    payload = record.payload
+    generation_id = payload.get("generation_id")
+    published_at = payload.get("published_at")
+    counts = payload.get("counts")
+    artifacts = payload.get("artifacts")
+    if (
+        payload.get("status") != "completed"
+        or not isinstance(generation_id, str)
+        or not isinstance(published_at, str)
+        or not isinstance(counts, dict)
+        or not isinstance(artifacts, list)
+    ):
+        raise ReviewedCapabilityPublicationError("publication is unavailable")
+    try:
+        handles = tuple(
+            SealedArtifactOutputHandle(
+                output_set_id=item["output_set_id"],
+                role=item["role"],
+                media_type=item["media_type"],
+                byte_count=item["byte_count"],
+                content_digest=item["content_digest"],
+                expires_at=record.expires_at,
+            )
+            for item in artifacts
+            if isinstance(item, dict)
+        )
+    except (KeyError, TypeError) as error:
+        raise ReviewedCapabilityPublicationError(
+            "publication is unavailable"
+        ) from error
+    if len(handles) != len(artifacts):
+        raise ReviewedCapabilityPublicationError("publication is unavailable")
+    return ReviewedCapabilityPublicationReceipt(
+        status="published",
+        generation_id=generation_id,
+        published_at=published_at,
+        artifacts=handles,
+        counts=counts,
+    )
