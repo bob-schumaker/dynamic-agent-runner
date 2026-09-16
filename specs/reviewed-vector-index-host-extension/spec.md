@@ -64,6 +64,11 @@ returns exactly one available reviewed identity; zero matches return
 the package declaration and admission record. A package never selects an
 arbitrary registry result at runtime.
 
+The registered `vector_index.build.v1` template has the closed one-field input
+schema defined below and declares one required host-selected
+`embedding.execute.v1` dependency/binding. A registration missing either is
+unavailable; these constraints are template data, not general catalog rules.
+
 ### Vector-index job
 
 A vector-index job is a host-created sealed artifact whose opaque public reference has this form:
@@ -116,19 +121,22 @@ No alternate public input shape is permitted. In particular, `corpus_snapshot`, 
 ### Authority split
 
 DAR owns generic capability/template verification, approval gating, sealed
-handle transport, workflow execution, the existing durable action ledger,
-generic template-declared output limits, artifact retention, and redacted
-result shaping.
+handle transport, workflow execution, the existing durable action ledger and
+single-store reservation record, generic template-declared output limits,
+artifact retention, and redacted result shaping.
 
 The registered host extension owns job creation and validation; source extraction
 and snapshot authority; material and embedding-provider admission; chunking;
 index format; resource, network, and retry policy; private candidate-output
 storage before DAR accepts egress; prior-generation semantics; atomic
 publication; and deletion semantics. DAR owns retention, lifetime, and opaque
-handle access for accepted sealed output artifacts. The host must retain a
-host-private resolution path while a generation is current, or atomically
-unpublish that generation before DAR revokes any required artifact. DAR must
-prevent a package from overriding these host-owned choices.
+handle access for accepted sealed output artifacts. Before revocation, DAR
+shall invoke the host resolution assertion. If it asserts that a generation is
+current, DAR shall retain the artifacts and defer revocation. Otherwise, DAR
+shall require successful atomic unpublication before revocation. If assertion
+or unpublication fails, DAR shall retain the artifacts and leave the current
+generation unchanged. DAR must prevent a package from overriding these
+host-owned choices.
 
 ## Functional Requirements
 
@@ -158,10 +166,13 @@ one-field public invocation shape. DAR shall reject malformed, foreign,
 expired, unauthorized, or template-mismatched job handles before extension
 dispatch.
 
-DAR's existing one-time approval record shall bind and match the immutable
-tuple `(run_id, package_registration_and_revision, declared_call_site_id,
-template_id_version_and_digest, job_issuer_id_revision_and_digest, principal,
-approval_nonce)`. DAR shall atomically consume it while reserving the job.
+One durable single-store reservation record shall bind and atomically consume
+the immutable tuple `(run_id, package_registration_and_revision,
+declared_call_site_id, template_id_version_and_digest, job_issuer_id,
+job_opaque_id, job_revision, job_digest, principal, approval_nonce)` while
+reserving the job. Its durable record identity is the completion and recovery
+idempotency key and supplies replay lookup across a restart between approval,
+reservation, and dispatch.
 Run-scoped approval grants cannot authorize this capability unless they bind
 that exact tuple. Any changed job, template, extension, or dependency binding
 invalidates approval and requires a new approval. The package has one declared
@@ -181,14 +192,18 @@ a replacement.
 ### FR-5: Bounded opaque egress
 
 DAR shall extend its generic staged-artifact and durable action-ledger
-mechanisms with one idempotent completion attempt. The attempt is keyed by the
-reserved job revision and approval nonce and has these durable states:
+mechanisms with one idempotent completion attempt keyed by the durable
+reservation-record identity. Its legal forward path is:
 
 ```text
 approved -> prepared -> commit_intent -> host_pending -> dar_promoted
                                                      -> host_visible -> completed
-                                                     \-> aborted | recovery_required
 ```
+
+Failure before `host_pending` transitions to `aborted`. Failure at or after
+`host_pending` transitions to `recovery_required`; recovery may resume only the
+same attempt at its last durable state or transition to `aborted` after
+successful compensation.
 
 `prepared` means all three candidate artifacts were validated privately.
 `host_pending` means the host completed an idempotent, non-visible, reversible
@@ -239,11 +254,25 @@ retention, and revocation policy as the generation handle.
 
 ### FR-6: Failure and publication atomicity
 
-Before `completed`, a failed attempt shall destroy or revoke staged artifacts
-and inaccessible handles, compensate a pending or newly visible publication,
-and leave the prior visible generation unchanged. A host that cannot provide
-pending/reversible publication and idempotent recovery cannot register this
-template.
+Before `completed`, a terminal failed attempt shall destroy or revoke staged
+artifacts and inaccessible handles, compensate a pending or newly visible
+publication, and leave the prior visible generation unchanged. A crash or
+`recovery_required` attempt remains nonterminal and shall first reconcile the
+same attempt as defined below. A host that cannot provide pending/reversible
+publication and idempotent recovery cannot register this template.
+
+The host extension shall provide four recovery operations keyed by the durable
+reservation-record identity: begin pending publication, query the current
+outcome, acknowledge visibility, and compensate. DAR shall durably record
+`prepared` and `commit_intent` before their next external effect;
+`host_pending` after the host has returned a pending acknowledgement;
+`dar_promoted` before requesting visibility; `host_visible` after the host has
+acknowledged visibility; and `completed` before exposing handles or the success
+receipt. The host shall durably record pending publication before returning its
+pending acknowledgement, visibility before acknowledging it, and compensation
+before reporting it. DAR shall durably record `aborted` or `recovery_required`
+before starting compensation or reconciliation. Recovery may resume only the
+original attempt.
 
 After `host_pending`, a crash or promotion/visibility failure enters
 `recovery_required`. DAR shall reconcile the same attempt using its idempotency
@@ -284,19 +313,25 @@ The verification suite shall prove:
    handles;
 5. a changed host-selected embedding/material dependency immediately before
    dispatch causes zero publication and no fallback selection;
-6. every transition and crash boundary through `host_visible` in the completion
-   state machine is durably recovered using the same idempotency key, never a
-   fresh build, and exposes no success receipt or handle before `completed`;
+6. every transition and crash boundary, including immediately before and after
+   every host recovery call, is durably recovered using the same reservation
+   identity, never a fresh build, and exposes no success receipt or handle
+   before `completed`;
 7. a successful extension result retains exactly three opaque artifact handles
    and one schema-valid, bounded aggregate-only receipt;
 8. missing roles, invalid role media type, oversized artifacts, invalid receipt
-   counts, unknown receipt fields, or sensitive receipt fields are rejected
-   before `host_pending`;
+   counts, unknown receipt fields, sensitive receipt fields, manifest source
+   identifiers/content/vectors/paths/profile contents, or non-aggregate
+   coverage fields are rejected before `host_pending`;
 9. an unrecoverable completion attempt returns only the closed redacted failure
    receipt, has no handles, and leaves the prior visible generation unchanged;
    and
 10. the package cannot specify a source, profile, prior generation, model,
     provider, retry policy, destination, or publish/delete behavior.
+11. fake-clock expiry proves that DAR defers revocation when the host asserts a
+    current generation; otherwise DAR revokes only after atomic unpublication.
+    An assertion or unpublication error retains artifacts and leaves the prior
+    visible generation unchanged.
 
 Run the focused suites, `poetry run pytest -q`, `poetry run ruff check src tests`, and `git diff --check` before declaring an implementation complete.
 
