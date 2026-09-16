@@ -11,6 +11,7 @@ from dynamic_agent_runner.workflow_host.reviewed_capability_publication import (
     ReviewedCapabilityPublicationError,
 )
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
+    SealedArtifactHandleError,
     SealedArtifactLimits,
     SealedArtifactOutput,
     SealedArtifactOutputHandleService,
@@ -144,6 +145,56 @@ def test_publication_records_all_states_before_exposing_handles(tmp_path) -> Non
     assert host.calls == [("pending", "v1.reservation"), ("visible", "v1.reservation")]
     state = (tmp_path / "state" / "records.json").read_text(encoding="utf-8")
     assert '"status":"completed"' in state
+
+
+@pytest.mark.parametrize(
+    ("receiver_id", "invocation_id"),
+    (("foreign-principal", "run-1"), ("principal", "foreign-run")),
+)
+def test_vector_publication_denies_all_roles_to_a_foreign_access_binding(
+    tmp_path, receiver_id: str, invocation_id: str
+) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    private = artifacts.stage(
+        descriptor=_descriptor(),
+        receiver_id="principal",
+        revision_digest="e" * 64,
+        invocation_id="run-1",
+        sealed=(
+            ("index_generation", "application/octet-stream", b"index"),
+            ("index_manifest", "application/json", b"{}"),
+            ("coverage_report", "application/json", b"{}"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    host = _FakeHost()
+    coordinator = ReviewedCapabilityPublicationCoordinator(
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
+    )
+    receipt = coordinator.complete(
+        reservation_id="v1.reservation",
+        private=private,
+        generation_id="generation-1",
+        counts=_counts(source_records=1),
+        now=NOW,
+    )
+
+    for handle in receipt.artifacts:
+        with pytest.raises(SealedArtifactHandleError, match="unavailable"):
+            artifacts.read(
+                handle,
+                receiver_id=receiver_id,
+                revision_digest="e" * 64,
+                invocation_id=invocation_id,
+                now=NOW,
+            )
 
 
 @pytest.mark.parametrize(
