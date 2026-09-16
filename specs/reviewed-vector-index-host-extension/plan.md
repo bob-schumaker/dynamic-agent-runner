@@ -117,8 +117,10 @@ retain all corpus, model, index, and publication authority.
    capability-provider catalog semantics.
 
 Exit: a host can register and resolve exactly one reviewed template candidate
-identity without loading a package, job, embedding material, or extension
-implementation. The separate authoring API is delivered in S2.
+identity only when its binding provides the required reversible-publication and
+idempotent-recovery operations, without loading a package, job, or embedding
+material or executing the extension. The separate authoring API is delivered
+in S2.
 
 ### S2 — Separate authoring discovery, declaration, policy binding, and admission
 

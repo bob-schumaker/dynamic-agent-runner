@@ -355,8 +355,9 @@ Status: In progress
 
 ## Checkpoints
 
-- C1 — T004: exact reviewed-template registration works without package or host
-  implementation execution.
+- C1 — T004: exact reviewed-template registration requires the host binding's
+  reversible-publication and idempotent-recovery operations, but performs no
+  package load or host implementation execution.
 - C2 — T007: separate host discovery writes no package or authority, while
   authoring and admission bind exactly one reviewed call site and legacy
   packages remain unchanged.
