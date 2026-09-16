@@ -26,7 +26,8 @@ DAR needs a generic reviewed host-extension seam instead. The seam must retain t
 
 This feature defines:
 
-1. reviewed registration and discovery of an exact host capability template;
+1. reviewed registration and separate host-template discovery of an exact
+   capability identity before package authoring;
 2. a one-field, approval-gated package invocation contract;
 3. sealed-job and capability revalidation at authoring, package admission, and execution admission;
 4. generic bounded artifact-handle egress and aggregate-only receipts; and
@@ -62,13 +63,17 @@ dependency bindings. A template identifies reviewed behavior, not a
 package-selected implementation. The host controls registration and removal; a
 workflow package may only require an exact registered identity.
 
-For this feature, the template capability ID is `vector_index.build.v1`. An
-authoring discovery request names that ID. It succeeds only when the registry
-returns exactly one available reviewed identity; zero matches return
+For this feature, the template capability ID is `vector_index.build.v1`. Before
+writing a package, the authoring client calls a separate host template-discovery
+API with that ID. The API succeeds only when the host registry returns exactly
+one available reviewed identity; zero matches return
 `authoring_runtime_unavailable` and multiple matches return
-`authoring_runtime_ambiguous`. The resulting version and digest are bound into
-the package declaration and admission record. A package never selects an
-arbitrary registry result at runtime.
+`authoring_runtime_ambiguous`. It returns the exact capability ID, contract
+version, template digest, and closed input-field contract needed for the
+declaration. It neither creates nor registers a package, approves execution,
+creates a job, nor authorizes dispatch. The resulting version and digest are
+bound into the package declaration and admission record. A package never
+selects an arbitrary registry result at runtime.
 
 The registered `vector_index.build.v1` template has the closed one-field input
 schema defined below and declares one required host-selected
@@ -146,12 +151,20 @@ host-owned choices.
 
 ## Functional Requirements
 
-### FR-1: Reviewed registration and shared discovery
+### FR-1: Reviewed registration and separate authoring discovery
 
 DAR shall provide one host-controlled registry for reviewed capability
-templates. The registry shall expose the discovery operation defined above and
-shall return its exact contract version and template digest. Discovery is an
-availability fact only; it is not approval or execution authorization.
+templates and a separate host template-discovery API for authoring clients. The
+API shall expose the discovery operation defined above and return only the
+exact available identity and declaration contract: capability ID, contract
+version, template digest, and closed input-field contract. Discovery is an
+availability fact only; it is not package creation or registration, approval,
+job creation, execution, or dispatch authorization.
+
+The authoring client shall call this API before it writes a package declaration.
+The returned identity is advisory until DAR independently revalidates it at
+package admission and execution admission; discovery cannot bypass either
+check or reserve the template for a package.
 
 ### FR-2: Exact package declaration and admission
 
@@ -323,8 +336,10 @@ Implementation begins with focused RED tests, followed by the smallest implement
 
 The verification suite shall prove:
 
-1. authoring emits no package and returns `authoring_runtime_unavailable` for
-   zero template matches or `authoring_runtime_ambiguous` for multiple matches;
+1. the separate host template-discovery API returns only the declaration
+   identity/contract and writes no package; authoring emits no package and
+   returns `authoring_runtime_unavailable` for zero template matches or
+   `authoring_runtime_ambiguous` for multiple matches;
 2. package admission rejects a changed, disabled, or digest-mismatched template
    before sealed-job ingress or extension execution;
 3. the public tool accepts only the canonical `job_handle` field; its exact
@@ -361,10 +376,11 @@ Run the focused suites, `poetry run pytest -q`, `poetry run ruff check src tests
 ## Acceptance Criteria
 
 The feature is complete when a host can register an exact reviewed
-`vector_index.build.v1` template and a package can discover, declare, admit,
-approve, and invoke it using only one host-created sealed job handle. DAR must
-fail closed at authoring, package admission, and execution admission; enforce
-one invocation per workflow run and one dispatch attempt per job; recover
-completion idempotently; preserve host ownership of all indexing and
-publication behavior; and return only the bounded opaque artifacts and
+`vector_index.build.v1` template, an authoring client can discover its exact
+identity through the separate host API before package creation, and a package
+can declare, admit, approve, and invoke it using only one host-created sealed
+job handle. DAR must fail closed at authoring, package admission, and execution
+admission; enforce one invocation per workflow run and one dispatch attempt per
+job; recover completion idempotently; preserve host ownership of all indexing
+and publication behavior; and return only the bounded opaque artifacts and
 aggregate receipt defined above.
