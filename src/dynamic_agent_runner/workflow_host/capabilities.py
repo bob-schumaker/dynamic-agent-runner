@@ -76,6 +76,9 @@ def reviewed_capability_template_digest(
     extension_binding: str,
     recovery_operations: tuple[str, ...],
     success_receipt_schema_digest: str,
+    generation_id_max_bytes: int,
+    artifact_handle_max_bytes: int,
+    count_ceiling: int,
     failure_classifications: tuple[str, ...],
     enabled: bool,
 ) -> str:
@@ -102,6 +105,9 @@ def reviewed_capability_template_digest(
             "recovery_operations": list(recovery_operations),
             "required_dependency": required_dependency,
             "success_receipt_schema_digest": success_receipt_schema_digest,
+            "generation_id_max_bytes": generation_id_max_bytes,
+            "artifact_handle_max_bytes": artifact_handle_max_bytes,
+            "count_ceiling": count_ceiling,
             "failure_classifications": list(failure_classifications),
         },
         ensure_ascii=False,
@@ -126,6 +132,9 @@ class ReviewedCapabilityTemplate:
     extension_binding: str
     recovery_operations: tuple[str, ...]
     success_receipt_schema_digest: str
+    generation_id_max_bytes: int
+    artifact_handle_max_bytes: int
+    count_ceiling: int
     failure_classifications: tuple[str, ...]
     enabled: bool
 
@@ -154,6 +163,9 @@ class ReviewedCapabilityTemplate:
         _text(self.extension_binding, "extension_binding")
         _canonical_strings(self.recovery_operations, "recovery_operations")
         _digest(self.success_receipt_schema_digest, "success_receipt_schema_digest")
+        _positive_int(self.generation_id_max_bytes, "generation_id_max_bytes")
+        _positive_int(self.artifact_handle_max_bytes, "artifact_handle_max_bytes")
+        _positive_int(self.count_ceiling, "count_ceiling")
         _canonical_strings(self.failure_classifications, "failure_classifications")
         if not self.failure_classifications:
             raise CapabilityError("failure_classifications must not be empty")
@@ -170,6 +182,9 @@ class ReviewedCapabilityTemplate:
             extension_binding=self.extension_binding,
             recovery_operations=tuple(self.recovery_operations),
             success_receipt_schema_digest=self.success_receipt_schema_digest,
+            generation_id_max_bytes=self.generation_id_max_bytes,
+            artifact_handle_max_bytes=self.artifact_handle_max_bytes,
+            count_ceiling=self.count_ceiling,
             failure_classifications=tuple(self.failure_classifications),
             enabled=self.enabled,
         ):
@@ -606,6 +621,11 @@ def _canonical_strings(values: Sequence[str], name: str) -> None:
         raise CapabilityError(f"{name} must be sorted unique non-empty strings")
     for value in values:
         _text(value, name)
+
+
+def _positive_int(value: object, name: str) -> None:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise CapabilityError(f"{name} must be a positive integer")
 
 
 def _requirement_from_mapping(value: object) -> CapabilityRequirement:

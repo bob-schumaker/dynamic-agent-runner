@@ -78,8 +78,10 @@ index, and publication authority.
    recovery uses the same idempotency key and either completes or compensates;
    a host that cannot provide reversible pending publication cannot register
    this template.
-6. Output byte/media/retention limits, closed receipt schemas, and stable
-   failure classifications are template data. DAR enforces the generic limits;
+6. Output byte/media/retention limits, a closed receipt-schema digest,
+   generation/handle byte limits, a count ceiling, and stable failure
+   classifications are template data. The referenced schema defines the closed
+   receipt structure and identifier grammars. DAR enforces the generic limits;
    it does not inspect index bytes. The manifest may hold safe canonical
    provenance and digest bindings; coverage is aggregate-only.
 

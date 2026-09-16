@@ -54,11 +54,13 @@ classifications, approval classification, and host extension binding. The
 output-limit contract fixes three required roles (`index_generation`,
 `index_manifest`, and `coverage_report`), each role's media type, positive
 maximum bytes, and retention lifetime. The receipt contract fixes a maximum
-receipt size, bounded grammars for generation IDs and opaque artifact handles,
-and a finite count ceiling. The template digest covers all of those fields and
-the recovery-operation and dependency bindings. A template identifies reviewed
-behavior, not a package-selected implementation. The host controls registration
-and removal; a workflow package may only require an exact registered identity.
+receipt size, positive maximum byte lengths for generation IDs and opaque
+artifact handles, and a finite count ceiling. The closed schema identified by
+the schema digest fixes the receipt structure and identifier grammars. The
+template digest covers all of those fields and the recovery-operation and
+dependency bindings. A template identifies reviewed behavior, not a
+package-selected implementation. The host controls registration and removal; a
+workflow package may only require an exact registered identity.
 
 For this feature, the template capability ID is `vector_index.build.v1`. An
 authoring discovery request names that ID. It succeeds only when the registry

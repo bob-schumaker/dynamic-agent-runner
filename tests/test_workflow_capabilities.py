@@ -72,6 +72,9 @@ def _reviewed_template(
         "query_current_outcome",
     ),
     extension_binding: str = "host-vector-index-v1",
+    generation_id_max_bytes: int = 128,
+    artifact_handle_max_bytes: int = 128,
+    count_ceiling: int = 1024,
     failure_classifications: tuple[str, ...] = (
         "host_failure",
         "publication_failed",
@@ -113,6 +116,9 @@ def _reviewed_template(
             extension_binding=extension_binding,
             recovery_operations=recovery_operations,
             success_receipt_schema_digest="d" * 64,
+            generation_id_max_bytes=generation_id_max_bytes,
+            artifact_handle_max_bytes=artifact_handle_max_bytes,
+            count_ceiling=count_ceiling,
             failure_classifications=failure_classifications,
             enabled=enabled,
         ),
@@ -124,6 +130,9 @@ def _reviewed_template(
         extension_binding=extension_binding,
         recovery_operations=recovery_operations,
         success_receipt_schema_digest="d" * 64,
+        generation_id_max_bytes=generation_id_max_bytes,
+        artifact_handle_max_bytes=artifact_handle_max_bytes,
+        count_ceiling=count_ceiling,
         failure_classifications=failure_classifications,
         enabled=enabled,
     )
@@ -150,6 +159,9 @@ def test_reviewed_template_carries_bounded_output_and_receipt_contract() -> None
     assert template.approval_class == "human_write"
     assert template.extension_binding == "host-vector-index-v1"
     assert template.success_receipt_schema_digest == "d" * 64
+    assert template.generation_id_max_bytes == 128
+    assert template.artifact_handle_max_bytes == 128
+    assert template.count_ceiling == 1024
     assert template.failure_classifications == ("host_failure", "publication_failed")
 
 
@@ -167,6 +179,9 @@ def test_reviewed_template_digest_binds_its_canonical_contract() -> None:
         extension_binding=template.extension_binding,
         recovery_operations=template.recovery_operations,
         success_receipt_schema_digest=template.success_receipt_schema_digest,
+        generation_id_max_bytes=template.generation_id_max_bytes,
+        artifact_handle_max_bytes=template.artifact_handle_max_bytes,
+        count_ceiling=template.count_ceiling,
         failure_classifications=template.failure_classifications,
         enabled=template.enabled,
     )
