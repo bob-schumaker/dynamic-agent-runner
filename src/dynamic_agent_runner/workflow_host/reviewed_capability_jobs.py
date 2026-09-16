@@ -39,6 +39,35 @@ class ReviewedCapabilityJobResolver(Protocol):
         self, *, job_handle: str, principal: str, now: datetime
     ) -> SealedReviewedCapabilityJob: ...
 
+    def revalidate(
+        self, *, job: SealedReviewedCapabilityJob, now: datetime
+    ) -> SealedReviewedCapabilityJob: ...
+
+
+def revalidate_sealed_reviewed_capability_job(
+    *,
+    job: SealedReviewedCapabilityJob,
+    resolver: ReviewedCapabilityJobResolver,
+    dependency_binding_digest: str,
+    now: datetime,
+) -> SealedReviewedCapabilityJob:
+    """Require the host's current sealed-job binding before dispatch."""
+
+    _validate_job(job)
+    current = _utc(now)
+    _digest(dependency_binding_digest)
+    try:
+        revalidated = resolver.revalidate(job=job, now=current)
+    except Exception as error:  # noqa: BLE001 - host resolver boundaries vary.
+        raise ReviewedCapabilityJobError("sealed job is unavailable") from error
+    _validate_job(revalidated)
+    if (
+        revalidated != job
+        or revalidated.dependency_binding_digest != dependency_binding_digest
+    ):
+        raise ReviewedCapabilityJobError("sealed job is unavailable")
+    return revalidated
+
 
 def resolve_sealed_reviewed_capability_job(
     *,

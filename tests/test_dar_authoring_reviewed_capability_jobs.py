@@ -10,6 +10,7 @@ import pytest
 from dynamic_agent_runner.workflow_host.reviewed_capability_jobs import (
     ReviewedCapabilityJobError,
     SealedReviewedCapabilityJob,
+    revalidate_sealed_reviewed_capability_job,
     resolve_sealed_reviewed_capability_job,
 )
 
@@ -25,6 +26,10 @@ class _FakeJobResolver:
     def resolve(self, *, job_handle: str, principal: str, now: datetime):
         del now
         self.resolved.append((job_handle, principal))
+        return self.job
+
+    def revalidate(self, *, job: SealedReviewedCapabilityJob, now: datetime):
+        del now
         return self.job
 
 
@@ -66,6 +71,18 @@ def test_resolve_sealed_job_accepts_only_canonical_handle_and_exact_bindings() -
     assert resolver.resolved == [
         ("sealed:vector-index-job:job-1", "local-os-user-v1:501:ada")
     ]
+
+
+def test_revalidation_rejects_a_changed_dependency_binding() -> None:
+    resolver = _FakeJobResolver(replace(_job(), dependency_binding_digest="e" * 64))
+
+    with pytest.raises(ReviewedCapabilityJobError, match="job"):
+        revalidate_sealed_reviewed_capability_job(
+            job=_job(),
+            resolver=resolver,
+            dependency_binding_digest="c" * 64,
+            now=NOW,
+        )
 
 
 @pytest.mark.parametrize(
