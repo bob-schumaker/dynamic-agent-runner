@@ -153,6 +153,14 @@ class SealedArtifactOutputHandle:
     expires_at: datetime
 
 
+@dataclass(frozen=True)
+class SealedArtifactPrivateOutputSet:
+    """One host-private staged output set with no public artifact handles."""
+
+    private_set_id: str
+    expires_at: datetime
+
+
 def parse_sealed_artifact_runner_descriptor(
     value: bytes,
 ) -> SealedArtifactRunnerDescriptor:
@@ -930,7 +938,6 @@ class SealedArtifactOutputHandleService:
             schema_digest=None,
         )
         values = _output_values(descriptor, sealed)
-        handles: list[SealedArtifactOutputHandle] = []
         issued_at = _utc(now)
         expiry = _utc(expires_at)
         if expiry <= issued_at:
@@ -949,18 +956,81 @@ class SealedArtifactOutputHandleService:
             )
         except OpaqueRecordError as error:
             raise SealedArtifactHandleError("output handle is unavailable") from error
-        for value in values:
-            handles.append(
-                SealedArtifactOutputHandle(
-                    output_set_id=output_set_id,
-                    role=value["role"],  # type: ignore[arg-type]
-                    media_type=value["media_type"],  # type: ignore[arg-type]
-                    byte_count=value["byte_count"],  # type: ignore[arg-type]
-                    content_digest=value["content_digest"],  # type: ignore[arg-type]
-                    expires_at=expiry,
-                )
+        return _output_handles(output_set_id, values, expiry)
+
+    def stage(
+        self,
+        *,
+        descriptor: SealedArtifactRunnerDescriptor,
+        receiver_id: str,
+        revision_digest: str,
+        invocation_id: str,
+        sealed: tuple[tuple[str, str, bytes], ...],
+        expires_at: datetime,
+        now: datetime,
+    ) -> SealedArtifactPrivateOutputSet:
+        """Persist validated outputs privately before a future promotion decision."""
+
+        if not isinstance(descriptor, SealedArtifactRunnerDescriptor):
+            raise SealedArtifactHandleError("output handle is invalid")
+        fields = _handle_fields(
+            receiver_id=receiver_id,
+            revision_digest=revision_digest,
+            invocation_id=invocation_id,
+            role="output",
+            media_type="application/octet-stream",
+            schema_digest=None,
+        )
+        values = _output_values(descriptor, sealed)
+        issued_at = _utc(now)
+        expiry = _utc(expires_at)
+        if expiry <= issued_at:
+            raise SealedArtifactHandleError("output handle is invalid")
+        try:
+            private_set_id = self._store.issue(
+                kind="sealed_artifact_private_output_set",
+                owner=self._owner,
+                payload={
+                    **fields,
+                    "descriptor_digest": descriptor.digest,
+                    "outputs": values,
+                },
+                expires_at=expiry,
+                now=issued_at,
             )
-        return tuple(handles)
+        except OpaqueRecordError as error:
+            raise SealedArtifactHandleError("output handle is unavailable") from error
+        return SealedArtifactPrivateOutputSet(private_set_id, expiry)
+
+    def promote(
+        self, private: SealedArtifactPrivateOutputSet, *, now: datetime
+    ) -> tuple[SealedArtifactOutputHandle, ...]:
+        """Atomically turn one private staged set into its public-handle record."""
+
+        if not isinstance(private, SealedArtifactPrivateOutputSet):
+            raise SealedArtifactHandleError("output handle is invalid")
+        try:
+            staged = self._store.load(
+                private.private_set_id,
+                expected_kind="sealed_artifact_private_output_set",
+                owner=self._owner,
+                now=now,
+            )
+            output_set_id = self._store.consume_and_issue(
+                private.private_set_id,
+                expected_kind="sealed_artifact_private_output_set",
+                owner=self._owner,
+                new_kind="sealed_artifact_output_set",
+                new_payload=staged.payload,
+                expires_at=staged.expires_at,
+                now=now,
+            )
+            values = staged.payload.get("outputs")
+            if not isinstance(values, list):
+                raise ValueError
+            return _output_handles(output_set_id, values, staged.expires_at)
+        except (OpaqueRecordError, TypeError, ValueError) as error:
+            raise SealedArtifactHandleError("output handle is unavailable") from error
 
 
 def _output_values(
@@ -1001,6 +1071,25 @@ def _output_values(
     except (TypeError, ValueError, SealedArtifactHandleError) as error:
         raise SealedArtifactHandleError("output handle is invalid") from error
     return values
+
+
+def _output_handles(
+    output_set_id: str, values: list[dict[str, object]], expires_at: datetime
+) -> tuple[SealedArtifactOutputHandle, ...]:
+    try:
+        return tuple(
+            SealedArtifactOutputHandle(
+                output_set_id=output_set_id,
+                role=value["role"],  # type: ignore[arg-type]
+                media_type=value["media_type"],  # type: ignore[arg-type]
+                byte_count=value["byte_count"],  # type: ignore[arg-type]
+                content_digest=value["content_digest"],  # type: ignore[arg-type]
+                expires_at=expires_at,
+            )
+            for value in values
+        )
+    except (KeyError, TypeError) as error:
+        raise SealedArtifactHandleError("output handle is unavailable") from error
 
 
 def _canonical_mapping(value: bytes) -> dict[str, Any]:

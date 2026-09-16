@@ -91,3 +91,27 @@ def test_invalid_output_set_publishes_nothing(tmp_path) -> None:
         )
 
     assert store.issue_calls == 0
+
+
+def test_private_output_set_has_no_handles_until_atomic_promotion(tmp_path) -> None:
+    service, store = _service(tmp_path)
+
+    private = service.stage(
+        descriptor=_descriptor(),
+        receiver_id="receiver",
+        revision_digest="e" * 64,
+        invocation_id="invocation",
+        sealed=(
+            ("coverage", "text/plain", b"ready"),
+            ("result", "application/octet-stream", b"output"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    assert store.issue_calls == 1
+    assert "ready" not in repr(private)
+    handles = service.promote(private, now=NOW)
+
+    assert [handle.role for handle in handles] == ["coverage", "result"]
+    assert len({handle.output_set_id for handle in handles}) == 1
