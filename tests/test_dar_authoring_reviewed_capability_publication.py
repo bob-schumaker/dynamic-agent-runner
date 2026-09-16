@@ -780,6 +780,63 @@ def test_visibility_recovery_reuses_the_already_promoted_output_set(tmp_path) ->
     assert artifacts.promotions == 1
 
 
+def test_visibility_recovery_completes_when_the_host_reports_visible(tmp_path) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = _CountingArtifacts(store=store, owner="host")
+    private = artifacts.stage(
+        descriptor=_descriptor(),
+        receiver_id="principal",
+        revision_digest="e" * 64,
+        invocation_id="run-1",
+        sealed=(
+            ("index_generation", "application/octet-stream", b"index"),
+            ("index_manifest", "application/json", b"{}"),
+            ("coverage_report", "application/json", b"{}"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    host = _FakeHost()
+
+    def lost_visible_acknowledgement(*, reservation_id: str) -> None:
+        del reservation_id
+        raise RuntimeError("lost visibility acknowledgement")
+
+    def visible_outcome(*, reservation_id: str) -> str:
+        host.calls.append(("query", reservation_id))
+        return "visible"
+
+    host.acknowledge_visibility = lost_visible_acknowledgement  # type: ignore[method-assign]
+    host.query_current_outcome = visible_outcome  # type: ignore[method-assign]
+    coordinator = ReviewedCapabilityPublicationCoordinator(
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
+        count_ceiling=1024,
+    )
+
+    with pytest.raises(ReviewedCapabilityPublicationError):
+        coordinator.complete(
+            reservation_id="v1.reservation",
+            private=private,
+            generation_id="generation-1",
+            counts=_counts(source_records=1),
+            now=NOW,
+        )
+
+    receipt = coordinator.recover(reservation_id="v1.reservation", now=NOW)
+
+    assert receipt.status == "published"
+    assert artifacts.promotions == 1
+    assert host.calls == [
+        ("pending", "v1.reservation"),
+        ("query", "v1.reservation"),
+    ]
+
+
 def test_unrecoverable_pending_publication_compensates_and_aborts(tmp_path) -> None:
     store = PrivateStateStore(tmp_path / "state")
     artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
