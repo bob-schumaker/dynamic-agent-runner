@@ -218,6 +218,61 @@ def test_noncurrent_generation_unpublishes_before_output_set_revocation(
     assert receipt.artifacts
 
 
+@pytest.mark.parametrize("operation", ("current", "unpublish"))
+def test_retention_host_errors_leave_completed_output_set_active(
+    tmp_path, operation: str
+) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    private = artifacts.stage(
+        descriptor=_descriptor(),
+        receiver_id="principal",
+        revision_digest="e" * 64,
+        invocation_id="run-1",
+        sealed=(
+            ("index_generation", "application/octet-stream", b"index"),
+            ("index_manifest", "application/json", b"{}"),
+            ("coverage_report", "application/json", b"{}"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    host = _FakeHost()
+    coordinator = ReviewedCapabilityPublicationCoordinator(
+        store=store, owner="host", artifacts=artifacts, host=host
+    )
+    receipt = coordinator.complete(
+        reservation_id="v1.reservation",
+        private=private,
+        generation_id="generation-1",
+        counts={"source_records": 1},
+        now=NOW,
+    )
+    if operation == "current":
+        host.assert_generation_current = _raise_retention_host_error  # type: ignore[method-assign]
+    else:
+        host.current = False
+        host.unpublish_generation_atomically = _raise_retention_host_error  # type: ignore[method-assign]
+
+    with pytest.raises(ReviewedCapabilityPublicationError):
+        coordinator.maintain_retention(
+            reservation_id="v1.reservation",
+            expires_at=NOW + timedelta(minutes=2),
+            now=NOW + timedelta(seconds=30),
+        )
+
+    assert store.load(
+        receipt.artifacts[0].output_set_id,
+        expected_kind="sealed_artifact_output_set",
+        owner="host",
+        now=NOW + timedelta(seconds=45),
+    ).expires_at == NOW + timedelta(minutes=1)
+
+
+def _raise_retention_host_error(**_kwargs: object) -> None:
+    raise RuntimeError("host unavailable")
+
+
 def test_completed_publication_replays_its_stored_receipt_without_host_calls(
     tmp_path,
 ) -> None:
