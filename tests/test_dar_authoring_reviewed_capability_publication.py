@@ -38,6 +38,9 @@ class _FakeHost:
         self.calls.append(("query", reservation_id))
         return "pending"
 
+    def compensate(self, *, reservation_id: str) -> None:
+        self.calls.append(("compensate", reservation_id))
+
 
 def _descriptor() -> SealedArtifactRunnerDescriptor:
     return SealedArtifactRunnerDescriptor(
@@ -323,3 +326,53 @@ def test_visibility_recovery_reuses_the_already_promoted_output_set(tmp_path) ->
     assert receipt.status == "published"
     assert host.calls.count(("pending", "v1.reservation")) == 1
     assert visibility_calls == 2
+
+
+def test_unrecoverable_pending_publication_compensates_and_aborts(tmp_path) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    private = artifacts.stage(
+        descriptor=_descriptor(),
+        receiver_id="principal",
+        revision_digest="e" * 64,
+        invocation_id="run-1",
+        sealed=(
+            ("index_generation", "application/octet-stream", b"index"),
+            ("index_manifest", "application/json", b"{}"),
+            ("coverage_report", "application/json", b"{}"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    host = _FakeHost()
+
+    def fail_pending(*, reservation_id: str, generation_id: str) -> None:
+        del reservation_id, generation_id
+        raise RuntimeError("lost acknowledgement")
+
+    host.begin_pending_publication = fail_pending  # type: ignore[method-assign]
+    host.query_current_outcome = lambda *, reservation_id: "unknown"  # type: ignore[method-assign]
+    coordinator = ReviewedCapabilityPublicationCoordinator(
+        store=store, owner="host", artifacts=artifacts, host=host
+    )
+    with pytest.raises(ReviewedCapabilityPublicationError):
+        coordinator.complete(
+            reservation_id="v1.reservation",
+            private=private,
+            generation_id="generation-1",
+            counts={"source_records": 1},
+            now=NOW,
+        )
+
+    with pytest.raises(ReviewedCapabilityPublicationError):
+        coordinator.recover(reservation_id="v1.reservation", now=NOW)
+
+    assert host.calls == [("compensate", "v1.reservation")]
+    assert (
+        store.active_records(
+            kind="sealed_artifact_private_output_set", owner="host", now=NOW
+        )
+        == ()
+    )
+    state = (tmp_path / "state" / "records.json").read_text(encoding="utf-8")
+    assert '"status":"aborted"' in state

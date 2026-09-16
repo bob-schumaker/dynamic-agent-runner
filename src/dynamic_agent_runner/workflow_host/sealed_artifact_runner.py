@@ -1104,6 +1104,32 @@ class SealedArtifactOutputHandleService:
         except (TypeError, ValueError) as error:
             raise SealedArtifactHandleError("output handle is unavailable") from error
 
+    def discard(
+        self, private: SealedArtifactPrivateOutputSet, *, now: datetime
+    ) -> None:
+        """Revoke a private candidate set or its unexposed promoted successor."""
+
+        if not isinstance(private, SealedArtifactPrivateOutputSet):
+            raise SealedArtifactHandleError("output handle is invalid")
+        try:
+            self._store.revoke(private.private_set_id, owner=self._owner, now=now)
+            return
+        except OpaqueRecordError:
+            pass
+        try:
+            matches = [
+                output_set_id
+                for output_set_id, record in self._store.active_records(
+                    kind="sealed_artifact_output_set", owner=self._owner, now=now
+                )
+                if record.payload.get("private_set_id") == private.private_set_id
+            ]
+            if len(matches) != 1:
+                raise ValueError
+            self._store.revoke(matches[0], owner=self._owner, now=now)
+        except (OpaqueRecordError, ValueError) as error:
+            raise SealedArtifactHandleError("output handle is unavailable") from error
+
 
 def _output_values(
     descriptor: SealedArtifactRunnerDescriptor,

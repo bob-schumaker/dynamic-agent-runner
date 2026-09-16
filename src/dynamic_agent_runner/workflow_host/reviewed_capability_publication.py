@@ -34,6 +34,8 @@ class ReviewedCapabilityPublicationHost(Protocol):
 
     def query_current_outcome(self, *, reservation_id: str) -> str: ...
 
+    def compensate(self, *, reservation_id: str) -> None: ...
+
 
 @dataclass(frozen=True)
 class ReviewedCapabilityPublicationReceipt:
@@ -65,6 +67,7 @@ class ReviewedCapabilityPublicationCoordinator:
             or not callable(getattr(host, "begin_pending_publication", None))
             or not callable(getattr(host, "acknowledge_visibility", None))
             or not callable(getattr(host, "query_current_outcome", None))
+            or not callable(getattr(host, "compensate", None))
         ):
             raise ReviewedCapabilityPublicationError("publication is unavailable")
         self._store = store
@@ -188,13 +191,23 @@ class ReviewedCapabilityPublicationCoordinator:
             generation_id = record.payload.get("generation_id")
             private_set_id = record.payload.get("private_set_id")
             counts = record.payload.get("counts")
+            outcome = self._host.query_current_outcome(reservation_id=reservation_id)
             if (
                 not isinstance(generation_id, str)
                 or not isinstance(private_set_id, str)
                 or not isinstance(counts, dict)
-                or self._host.query_current_outcome(reservation_id=reservation_id)
-                != "pending"
             ):
+                raise ValueError
+            if outcome != "pending":
+                record = self._advance(
+                    attempt_id, record.payload, "compensation_required", now=now
+                )
+                self._host.compensate(reservation_id=reservation_id)
+                self._artifacts.discard(
+                    SealedArtifactPrivateOutputSet(private_set_id, record.expires_at),
+                    now=now,
+                )
+                self._advance(attempt_id, record.payload, "aborted", now=now)
                 raise ValueError
             record = self._advance(attempt_id, record.payload, "host_pending", now=now)
             private = SealedArtifactPrivateOutputSet(private_set_id, record.expires_at)
