@@ -164,6 +164,22 @@ artifact allocation.
 
 The package declaration shall not contain a host implementation name, module, path, endpoint, model, provider, job-member value, or host-policy override.
 
+The declaration is one closed `tools` entry in `workflow-descriptor.yaml`:
+
+```yaml
+- id: build_vector_index
+  kind: reviewed_capability
+  capability_id: vector_index.build.v1
+  contract_version: "1"
+  template_digest: <64 lowercase hexadecimal characters>
+  input_fields: [job_handle]
+  side_effect: write
+  approval_required: true
+```
+
+The descriptor permits at most one such entry and its workflow tool-call budget
+must be one. Its identity and input fields are carried into the policy digest.
+
 ### FR-3: One sealed-handle invocation and approval
 
 DAR shall expose the template to the package as one declared write-side-effect

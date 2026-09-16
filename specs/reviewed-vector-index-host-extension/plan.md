@@ -117,7 +117,10 @@ without loading a package, job, embedding material, or extension implementation.
    `vector_index.build.v1` call sites and declaration fields for host
    implementation/module/path/endpoint, source, job members, profile, prior
    generation, model/material/provider, retry controls, destination, or
-   publish/delete policy.
+   publish/delete policy. Use one closed `tools` entry of kind
+   `reviewed_capability`; it carries only the reviewed template ID, version,
+   digest, canonical `job_handle` input, write side effect, and required
+   approval.
 2. Extend the authoring contract, workflow descriptor/parser, policy digest,
    registration record, and preflight path to carry the exact reviewed-template
    requirement. Reject changed, disabled, digest-mismatched, input-schema, or
