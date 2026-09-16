@@ -42,6 +42,7 @@ class ActionLedgerEvent:
     action_id: str
     action_digest: str
     status: str
+    replayed: bool = False
 
 
 @dataclass(frozen=True)
@@ -100,29 +101,9 @@ class WorkflowActionLedger:
     ) -> ActionLedgerEvent:
         """Atomically reserve one approved reviewed-capability job dispatch."""
 
-        digest = _reviewed_capability_reservation_digest(request)
-        run_call_key = hashlib.sha256(
-            _canonical_json(
-                {
-                    "run_id": request.run_id,
-                    "package_registration_digest": request.package_registration_digest,
-                    "package_revision_digest": request.package_revision_digest,
-                    "declared_call_site_id": request.declared_call_site_id,
-                }
-            ).encode("utf-8")
-        ).hexdigest()
-        job_key = hashlib.sha256(
-            _canonical_json(
-                {
-                    "job_issuer_id": request.job_issuer_id,
-                    "job_opaque_id": request.job_opaque_id,
-                    "job_revision": request.job_revision,
-                    "job_digest": request.job_digest,
-                }
-            ).encode("utf-8")
-        ).hexdigest()
+        digest, run_call_key, job_key = _reservation_keys(request)
         try:
-            reservation_id, _ = self._store.issue_or_reuse(
+            reservation_id, replayed = self._store.issue_or_reuse(
                 kind="reviewed_capability_reservation",
                 owner=self._owner,
                 payload={
@@ -141,7 +122,87 @@ class WorkflowActionLedger:
             raise ActionLedgerError(
                 "reviewed capability reservation is unavailable"
             ) from error
-        return ActionLedgerEvent(reservation_id, digest, "reserved")
+        return ActionLedgerEvent(reservation_id, digest, "reserved", replayed)
+
+    def reserve_approved_reviewed_capability(
+        self,
+        request: ReviewedCapabilityReservationRequest,
+        *,
+        approval_id: str,
+        now: datetime,
+    ) -> ActionLedgerEvent:
+        """Atomically consume one exact grant and reserve its dispatch tuple."""
+
+        digest, run_call_key, job_key = _reservation_keys(request)
+        try:
+            reservation_id, replayed = self._store.consume_and_issue_or_reuse(
+                approval_id,
+                expected_kind="workflow_action_approval_granted",
+                owner=self._owner,
+                expected_payload={"action_digest": digest},
+                new_kind="reviewed_capability_reservation",
+                new_payload={
+                    "format_version": 1,
+                    "replay_key": digest,
+                    "run_call_key": run_call_key,
+                    "job_key": job_key,
+                    "status": "reserved",
+                },
+                replay_key=digest,
+                conflict_keys={"run_call_key": run_call_key, "job_key": job_key},
+                expires_at=datetime.max.replace(tzinfo=UTC),
+                now=now,
+            )
+        except OpaqueRecordError as error:
+            raise ActionLedgerError(
+                "reviewed capability reservation is unavailable"
+            ) from error
+        return ActionLedgerEvent(reservation_id, digest, "reserved", replayed)
+
+    def claim_reviewed_capability_dispatch(
+        self, reservation_id: str, *, now: datetime
+    ) -> ActionLedgerEvent:
+        """Spend a reservation's one allowed transition into host dispatch."""
+
+        try:
+            reservation = self._store.transition(
+                reservation_id,
+                expected_kind="reviewed_capability_reservation",
+                owner=self._owner,
+                expected_state="active",
+                new_state="reserved",
+                now=now,
+            )
+            digest = _reservation_digest_from_payload(reservation.payload)
+        except OpaqueRecordError as error:
+            raise ActionLedgerError(
+                "reviewed capability dispatch is unavailable"
+            ) from error
+        return ActionLedgerEvent(reservation_id, digest, "dispatched")
+
+    def abort_reviewed_capability(
+        self, reservation_id: str, *, now: datetime
+    ) -> ActionLedgerEvent:
+        """Durably stop an attempt before the S4 completion state machine."""
+
+        for expected_state in ("active", "reserved"):
+            try:
+                reservation = self._store.transition(
+                    reservation_id,
+                    expected_kind="reviewed_capability_reservation",
+                    owner=self._owner,
+                    expected_state=expected_state,
+                    new_state="revoked",
+                    now=now,
+                )
+            except OpaqueRecordError:
+                continue
+            return ActionLedgerEvent(
+                reservation_id,
+                _reservation_digest_from_payload(reservation.payload),
+                "aborted",
+            )
+        raise ActionLedgerError("reviewed capability abort is unavailable")
 
     def claim_dispatch(self, intent_id: str, *, now: datetime) -> ActionLedgerEvent:
         """Atomically spend one intent, then durably record dispatch eligibility."""
@@ -292,6 +353,59 @@ def _reviewed_capability_reservation_digest(
         "approval_nonce": _opaque_id(request.approval_nonce, "approval_nonce"),
     }
     return hashlib.sha256(_canonical_json(values).encode("utf-8")).hexdigest()
+
+
+def reviewed_capability_reservation_digest(
+    request: ReviewedCapabilityReservationRequest,
+) -> str:
+    """Return the approval-bound digest for one complete reservation tuple."""
+
+    return _reviewed_capability_reservation_digest(request)
+
+
+def _reservation_keys(
+    request: ReviewedCapabilityReservationRequest,
+) -> tuple[str, str, str]:
+    digest = _reviewed_capability_reservation_digest(request)
+    run_call_key = hashlib.sha256(
+        _canonical_json(
+            {
+                "run_id": request.run_id,
+                "package_registration_digest": request.package_registration_digest,
+                "package_revision_digest": request.package_revision_digest,
+                "declared_call_site_id": request.declared_call_site_id,
+            }
+        ).encode("utf-8")
+    ).hexdigest()
+    job_key = hashlib.sha256(
+        _canonical_json(
+            {
+                "job_issuer_id": request.job_issuer_id,
+                "job_opaque_id": request.job_opaque_id,
+                "job_revision": request.job_revision,
+                "job_digest": request.job_digest,
+            }
+        ).encode("utf-8")
+    ).hexdigest()
+    return digest, run_call_key, job_key
+
+
+def _reservation_digest_from_payload(payload: Mapping[str, object]) -> str:
+    digest = payload.get("replay_key")
+    if (
+        set(payload)
+        != {
+            "format_version",
+            "replay_key",
+            "run_call_key",
+            "job_key",
+            "status",
+        }
+        or payload.get("format_version") != 1
+        or payload.get("status") != "reserved"
+    ):
+        raise ActionLedgerError("reviewed capability reservation is unavailable")
+    return _digest(digest, "replay_key")
 
 
 def _payload(

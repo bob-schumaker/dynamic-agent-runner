@@ -16,6 +16,7 @@ from dynamic_agent_runner.workflow_host.action_ledger import (  # noqa: E402
     ExternalAction,
     ReviewedCapabilityReservationRequest,
     WorkflowActionLedger,
+    reviewed_capability_reservation_digest,
 )
 from dynamic_agent_runner.workflow_host.approvals import (  # noqa: E402
     WorkflowApprovalError,
@@ -200,6 +201,35 @@ def test_reviewed_capability_reservation_is_atomic_across_ledger_instances(
         reservation_ids = tuple(executor.map(reserve, (ledger, other)))
 
     assert reservation_ids[0] == reservation_ids[1]
+
+
+def test_reviewed_capability_reservation_atomically_consumes_granted_approval(
+    tmp_path: Path,
+) -> None:
+    ledger = _ledger(tmp_path)
+    approvals = WorkflowApprovalStore(
+        store=PrivateStateStore(tmp_path / "state"),
+        owner="local-os-user-v1:501:ada",
+    )
+    request = _reviewed_reservation()
+    digest = reviewed_capability_reservation_digest(request)
+    pending = approvals.request(action_digest=digest, now=NOW)
+    granted = approvals.grant(pending.approval_id, action_digest=digest, now=NOW)
+
+    reservation = ledger.reserve_approved_reviewed_capability(
+        request, approval_id=granted.approval_id, now=NOW
+    )
+
+    assert reservation.status == "reserved"
+    with pytest.raises(WorkflowApprovalError, match="unavailable"):
+        approvals.consume(granted.approval_id, action_digest=digest, now=NOW)
+
+    dispatched = ledger.claim_reviewed_capability_dispatch(
+        reservation.action_id, now=NOW
+    )
+    assert dispatched.status == "dispatched"
+    with pytest.raises(ActionLedgerError, match="dispatch"):
+        ledger.claim_reviewed_capability_dispatch(reservation.action_id, now=NOW)
 
 
 @pytest.mark.parametrize("status", ["denied", "cancelled", "failed"])
