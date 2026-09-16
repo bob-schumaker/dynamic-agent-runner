@@ -276,3 +276,50 @@ def test_pending_recovery_promotes_the_same_staged_set_without_rebuild(
     assert receipt.status == "published"
     assert calls == 1
     assert ("query", "v1.reservation") in host.calls
+
+
+def test_visibility_recovery_reuses_the_already_promoted_output_set(tmp_path) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    private = artifacts.stage(
+        descriptor=_descriptor(),
+        receiver_id="principal",
+        revision_digest="e" * 64,
+        invocation_id="run-1",
+        sealed=(
+            ("index_generation", "application/octet-stream", b"index"),
+            ("index_manifest", "application/json", b"{}"),
+            ("coverage_report", "application/json", b"{}"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    host = _FakeHost()
+    visibility_calls = 0
+
+    def fail_visibility_once(*, reservation_id: str) -> None:
+        nonlocal visibility_calls
+        visibility_calls += 1
+        if visibility_calls == 1:
+            raise RuntimeError("lost visibility acknowledgement")
+        host.calls.append(("visible", reservation_id))
+
+    host.acknowledge_visibility = fail_visibility_once  # type: ignore[method-assign]
+    coordinator = ReviewedCapabilityPublicationCoordinator(
+        store=store, owner="host", artifacts=artifacts, host=host
+    )
+
+    with pytest.raises(ReviewedCapabilityPublicationError):
+        coordinator.complete(
+            reservation_id="v1.reservation",
+            private=private,
+            generation_id="generation-1",
+            counts={"source_records": 1},
+            now=NOW,
+        )
+
+    receipt = coordinator.recover(reservation_id="v1.reservation", now=NOW)
+
+    assert receipt.status == "published"
+    assert host.calls.count(("pending", "v1.reservation")) == 1
+    assert visibility_calls == 2

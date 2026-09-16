@@ -117,6 +117,27 @@ def test_private_output_set_has_no_handles_until_atomic_promotion(tmp_path) -> N
     assert len({handle.output_set_id for handle in handles}) == 1
 
 
+def test_private_output_promotion_replays_its_existing_output_set(tmp_path) -> None:
+    service, _ = _service(tmp_path)
+    private = service.stage(
+        descriptor=_descriptor(),
+        receiver_id="receiver",
+        revision_digest="e" * 64,
+        invocation_id="invocation",
+        sealed=(
+            ("coverage", "text/plain", b"ready"),
+            ("result", "application/octet-stream", b"output"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    first = service.promote(private, now=NOW)
+    replayed = service.promote(private, now=NOW)
+
+    assert replayed == first
+
+
 def test_declared_outputs_stage_privately_without_a_runner_descriptor(tmp_path) -> None:
     service, store = _service(tmp_path)
 

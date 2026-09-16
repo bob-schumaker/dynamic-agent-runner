@@ -1068,7 +1068,10 @@ class SealedArtifactOutputHandleService:
                 expected_kind="sealed_artifact_private_output_set",
                 owner=self._owner,
                 new_kind="sealed_artifact_output_set",
-                new_payload=staged.payload,
+                new_payload={
+                    **staged.payload,
+                    "private_set_id": private.private_set_id,
+                },
                 expires_at=staged.expires_at,
                 now=now,
             )
@@ -1076,7 +1079,29 @@ class SealedArtifactOutputHandleService:
             if not isinstance(values, list):
                 raise ValueError
             return _output_handles(output_set_id, values, staged.expires_at)
-        except (OpaqueRecordError, TypeError, ValueError) as error:
+        except OpaqueRecordError:
+            try:
+                matches = [
+                    (output_set_id, record)
+                    for output_set_id, record in self._store.active_records(
+                        kind="sealed_artifact_output_set",
+                        owner=self._owner,
+                        now=now,
+                    )
+                    if record.payload.get("private_set_id") == private.private_set_id
+                ]
+                if len(matches) != 1:
+                    raise ValueError
+                output_set_id, published = matches[0]
+                values = published.payload.get("outputs")
+                if not isinstance(values, list):
+                    raise ValueError
+                return _output_handles(output_set_id, values, published.expires_at)
+            except (OpaqueRecordError, TypeError, ValueError) as replay_error:
+                raise SealedArtifactHandleError(
+                    "output handle is unavailable"
+                ) from replay_error
+        except (TypeError, ValueError) as error:
             raise SealedArtifactHandleError("output handle is unavailable") from error
 
 
