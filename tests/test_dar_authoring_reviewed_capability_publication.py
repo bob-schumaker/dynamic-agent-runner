@@ -57,6 +57,16 @@ class _FakeHost:
         self.calls.append(("unpublish", reservation_id))
 
 
+class _CountingArtifacts(SealedArtifactOutputHandleService):
+    def __init__(self, *, store: PrivateStateStore, owner: str) -> None:
+        super().__init__(store=store, owner=owner)
+        self.promotions = 0
+
+    def promote(self, private, *, now):  # type: ignore[no-untyped-def]
+        self.promotions += 1
+        return super().promote(private, now=now)
+
+
 def _descriptor() -> SealedArtifactRunnerDescriptor:
     return SealedArtifactRunnerDescriptor(
         digest="a" * 64,
@@ -676,7 +686,7 @@ def test_pending_recovery_promotes_the_same_staged_set_without_rebuild(
 
 def test_visibility_recovery_reuses_the_already_promoted_output_set(tmp_path) -> None:
     store = PrivateStateStore(tmp_path / "state")
-    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    artifacts = _CountingArtifacts(store=store, owner="host")
     private = artifacts.stage(
         descriptor=_descriptor(),
         receiver_id="principal",
@@ -725,6 +735,7 @@ def test_visibility_recovery_reuses_the_already_promoted_output_set(tmp_path) ->
     assert receipt.status == "published"
     assert host.calls.count(("pending", "v1.reservation")) == 1
     assert visibility_calls == 2
+    assert artifacts.promotions == 1
 
 
 def test_unrecoverable_pending_publication_compensates_and_aborts(tmp_path) -> None:

@@ -241,6 +241,7 @@ class ReviewedCapabilityPublicationCoordinator:
                                 attempt_id,
                                 record.payload,
                                 "recovery_required",
+                                recovery_stage=record.payload["status"],
                                 now=now,
                             )
                         else:
@@ -253,6 +254,7 @@ class ReviewedCapabilityPublicationCoordinator:
                             attempt_id,
                             record.payload,
                             "recovery_required",
+                            recovery_stage=record.payload["status"],
                             now=now,
                         )
                 except Exception:  # noqa: BLE001 - preserve the original failure.
@@ -262,7 +264,7 @@ class ReviewedCapabilityPublicationCoordinator:
             ) from error
         return _receipt_from_record(record)
 
-    def recover(
+    def recover(  # noqa: C901 - branches mirror the durable recovery state machine.
         self, *, reservation_id: str, now: datetime
     ) -> (
         ReviewedCapabilityPublicationReceipt
@@ -293,17 +295,24 @@ class ReviewedCapabilityPublicationCoordinator:
                 )
             if record.payload.get("status") != "recovery_required":
                 raise ValueError
+            recovery_stage = record.payload.get("recovery_stage", "host_pending")
             generation_id = record.payload.get("generation_id")
             private_set_id = record.payload.get("private_set_id")
             counts = record.payload.get("counts")
-            outcome = self._host.query_current_outcome(reservation_id=reservation_id)
             if (
                 not isinstance(generation_id, str)
                 or not isinstance(private_set_id, str)
                 or not isinstance(counts, dict)
+                or recovery_stage
+                not in {"commit_intent", "host_pending", "dar_promoted", "host_visible"}
             ):
                 raise ValueError
-            if outcome != "pending":
+            outcome = (
+                self._host.query_current_outcome(reservation_id=reservation_id)
+                if recovery_stage != "host_visible"
+                else "visible"
+            )
+            if outcome not in {"pending", "visible"}:
                 record = self._advance(
                     attempt_id, record.payload, "compensation_required", now=now
                 )
@@ -323,18 +332,32 @@ class ReviewedCapabilityPublicationCoordinator:
                 return _failure_receipt_from_record(
                     record, classifications=self._failure_classifications
                 )
-            record = self._advance(attempt_id, record.payload, "host_pending", now=now)
-            private = SealedArtifactPrivateOutputSet(private_set_id, record.expires_at)
-            handles = self._artifacts.promote(private, now=now)
-            record = self._advance(
-                attempt_id,
-                record.payload,
-                "dar_promoted",
-                handles=handles,
-                now=now,
-            )
-            self._host.acknowledge_visibility(reservation_id=reservation_id)
-            record = self._advance(attempt_id, record.payload, "host_visible", now=now)
+            if recovery_stage in {"commit_intent", "host_pending"}:
+                if outcome != "pending":
+                    raise ValueError
+                record = self._advance(
+                    attempt_id, record.payload, "host_pending", now=now
+                )
+                private = SealedArtifactPrivateOutputSet(
+                    private_set_id, record.expires_at
+                )
+                handles = self._artifacts.promote(private, now=now)
+                record = self._advance(
+                    attempt_id,
+                    record.payload,
+                    "dar_promoted",
+                    handles=handles,
+                    now=now,
+                )
+            if recovery_stage == "dar_promoted" and outcome == "visible":
+                record = self._advance(
+                    attempt_id, record.payload, "host_visible", now=now
+                )
+            elif recovery_stage != "host_visible":
+                self._host.acknowledge_visibility(reservation_id=reservation_id)
+                record = self._advance(
+                    attempt_id, record.payload, "host_visible", now=now
+                )
             record = self._advance(
                 attempt_id,
                 record.payload,
@@ -429,6 +452,7 @@ class ReviewedCapabilityPublicationCoordinator:
         published_at: str | None = None,
         failure_receipt_id: str | None = None,
         failure_classification: str | None = None,
+        recovery_stage: str | None = None,
     ) -> OpaqueRecord:
         replacement = {**payload, "status": status}
         if handles:
@@ -448,6 +472,8 @@ class ReviewedCapabilityPublicationCoordinator:
             replacement["failure_receipt_id"] = failure_receipt_id
         if failure_classification is not None:
             replacement["failure_classification"] = failure_classification
+        if recovery_stage is not None:
+            replacement["recovery_stage"] = recovery_stage
         record = self._store.load(
             attempt_id,
             expected_kind="reviewed_capability_publication",
