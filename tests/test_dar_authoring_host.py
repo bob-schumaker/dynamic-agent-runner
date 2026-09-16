@@ -43,6 +43,9 @@ from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
     CapabilityRequirement,
     CapabilityRequirements,
     ProviderAvailability,
+    ReviewedCapabilityTemplate,
+    ReviewedCapabilityTemplateOutput,
+    reviewed_capability_template_digest,
 )
 from dynamic_agent_runner.workflow_host.authorized_tools import (  # noqa: E402
     create_authorized_mcp_tool_bindings,
@@ -721,7 +724,6 @@ def test_local_host_open_supplies_the_trusted_local_tool_executor(
         model_id="local-model",
         base_url="http://127.0.0.1:11434/v1",
     )
-
     host = LocalWorkflowHost.open(tmp_path / "state")
 
     assert host._runner.local_tool_execution_available
@@ -1567,6 +1569,81 @@ def test_local_host_configures_one_reviewed_tool_package(tmp_path: Path) -> None
         )
         == binding
     )
+
+
+def _reviewed_template() -> ReviewedCapabilityTemplate:
+    outputs = (
+        ReviewedCapabilityTemplateOutput(
+            "index_generation", "application/octet-stream", 1024, 60
+        ),
+        ReviewedCapabilityTemplateOutput(
+            "index_manifest", "application/json", 1024, 60
+        ),
+        ReviewedCapabilityTemplateOutput(
+            "coverage_report", "application/json", 1024, 60
+        ),
+    )
+    values = {
+        "capability_id": "vector_index.build.v1",
+        "contract_version": "1",
+        "input_fields": ("job_handle",),
+        "required_dependency": "embedding.execute.v1",
+        "outputs": outputs,
+        "max_receipt_bytes": 1024,
+        "approval_class": "human_write",
+        "extension_binding": "host-vector-index-v1",
+        "recovery_operations": (
+            "acknowledge_visibility",
+            "begin_pending_publication",
+            "compensate",
+            "query_current_outcome",
+        ),
+        "success_receipt_schema_digest": "d" * 64,
+        "generation_id_max_bytes": 128,
+        "artifact_handle_max_bytes": 128,
+        "count_ceiling": 1024,
+        "failure_classifications": ("host_failure",),
+        "enabled": True,
+    }
+    return ReviewedCapabilityTemplate(
+        template_digest=reviewed_capability_template_digest(**values), **values
+    )
+
+
+def test_local_host_discovers_only_explicitly_registered_reviewed_templates(
+    tmp_path: Path,
+) -> None:
+    configure_local_host(
+        root=tmp_path / "state",
+        package_root=tmp_path / "packages",
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    configure_local_host(
+        root=tmp_path / "enabled-state",
+        package_root=tmp_path / "enabled-packages",
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
+    unavailable = LocalWorkflowHost.open(tmp_path / "state")
+    enabled = LocalWorkflowHost.open(
+        tmp_path / "enabled-state",
+        reviewed_capability_templates=(_reviewed_template(),),
+    )
+
+    assert (
+        unavailable.discover_reviewed_capability_template(
+            capability_id="vector_index.build.v1"
+        ).status
+        == "authoring_runtime_unavailable"
+    )
+    discovered = enabled.discover_reviewed_capability_template(
+        capability_id="vector_index.build.v1"
+    )
+    assert discovered.status == "available"
+    assert discovered.capability_id == "vector_index.build.v1"
+    assert discovered.input_fields == ("job_handle",)
 
 
 class _Responses:
