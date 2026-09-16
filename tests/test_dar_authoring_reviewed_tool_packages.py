@@ -63,6 +63,8 @@ def _template(
             approval_class="human_write",
             extension_binding=extension_binding,
             recovery_operations=operations,
+            success_receipt_schema_digest="d" * 64,
+            failure_classifications=("host_failure", "publication_failed"),
             enabled=True,
         ),
         input_fields=("job_handle",),
@@ -72,6 +74,8 @@ def _template(
         approval_class="human_write",
         extension_binding=extension_binding,
         recovery_operations=operations,
+        success_receipt_schema_digest="d" * 64,
+        failure_classifications=("host_failure", "publication_failed"),
         enabled=True,
     )
 

@@ -75,6 +75,8 @@ def reviewed_capability_template_digest(
     approval_class: str,
     extension_binding: str,
     recovery_operations: tuple[str, ...],
+    success_receipt_schema_digest: str,
+    failure_classifications: tuple[str, ...],
     enabled: bool,
 ) -> str:
     """Return the SHA-256 digest of canonical reviewed-template content."""
@@ -99,6 +101,8 @@ def reviewed_capability_template_digest(
             ],
             "recovery_operations": list(recovery_operations),
             "required_dependency": required_dependency,
+            "success_receipt_schema_digest": success_receipt_schema_digest,
+            "failure_classifications": list(failure_classifications),
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -121,6 +125,8 @@ class ReviewedCapabilityTemplate:
     approval_class: str
     extension_binding: str
     recovery_operations: tuple[str, ...]
+    success_receipt_schema_digest: str
+    failure_classifications: tuple[str, ...]
     enabled: bool
 
     def __post_init__(self) -> None:
@@ -147,6 +153,8 @@ class ReviewedCapabilityTemplate:
         _text(self.approval_class, "approval_class")
         _text(self.extension_binding, "extension_binding")
         _canonical_strings(self.recovery_operations, "recovery_operations")
+        _digest(self.success_receipt_schema_digest, "success_receipt_schema_digest")
+        _canonical_strings(self.failure_classifications, "failure_classifications")
         if not isinstance(self.enabled, bool):
             raise CapabilityError("reviewed capability template is invalid")
         if self.template_digest != reviewed_capability_template_digest(
@@ -159,12 +167,17 @@ class ReviewedCapabilityTemplate:
             approval_class=self.approval_class,
             extension_binding=self.extension_binding,
             recovery_operations=tuple(self.recovery_operations),
+            success_receipt_schema_digest=self.success_receipt_schema_digest,
+            failure_classifications=tuple(self.failure_classifications),
             enabled=self.enabled,
         ):
             raise CapabilityError("reviewed capability template digest does not match")
         object.__setattr__(self, "input_fields", tuple(self.input_fields))
         object.__setattr__(self, "outputs", outputs)
         object.__setattr__(self, "recovery_operations", tuple(self.recovery_operations))
+        object.__setattr__(
+            self, "failure_classifications", tuple(self.failure_classifications)
+        )
 
 
 @dataclass(frozen=True)
