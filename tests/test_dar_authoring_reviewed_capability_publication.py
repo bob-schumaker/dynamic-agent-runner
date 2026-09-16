@@ -25,6 +25,7 @@ NOW = datetime(2026, 9, 15, tzinfo=UTC)
 class _FakeHost:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str]] = []
+        self.current = True
 
     def begin_pending_publication(
         self, *, reservation_id: str, generation_id: str
@@ -40,6 +41,19 @@ class _FakeHost:
 
     def compensate(self, *, reservation_id: str) -> None:
         self.calls.append(("compensate", reservation_id))
+
+    def assert_generation_current(
+        self, *, reservation_id: str, generation_id: str
+    ) -> bool:
+        del generation_id
+        self.calls.append(("current", reservation_id))
+        return self.current
+
+    def unpublish_generation_atomically(
+        self, *, reservation_id: str, generation_id: str
+    ) -> None:
+        del generation_id
+        self.calls.append(("unpublish", reservation_id))
 
 
 def _descriptor() -> SealedArtifactRunnerDescriptor:
@@ -103,6 +117,105 @@ def test_publication_records_all_states_before_exposing_handles(tmp_path) -> Non
     assert host.calls == [("pending", "v1.reservation"), ("visible", "v1.reservation")]
     state = (tmp_path / "state" / "records.json").read_text(encoding="utf-8")
     assert '"status":"completed"' in state
+
+
+def test_current_generation_retention_renews_all_output_roles(tmp_path) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    private = artifacts.stage(
+        descriptor=_descriptor(),
+        receiver_id="principal",
+        revision_digest="e" * 64,
+        invocation_id="run-1",
+        sealed=(
+            ("index_generation", "application/octet-stream", b"index"),
+            ("index_manifest", "application/json", b"{}"),
+            ("coverage_report", "application/json", b"{}"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    host = _FakeHost()
+    coordinator = ReviewedCapabilityPublicationCoordinator(
+        store=store, owner="host", artifacts=artifacts, host=host
+    )
+    receipt = coordinator.complete(
+        reservation_id="v1.reservation",
+        private=private,
+        generation_id="generation-1",
+        counts={"source_records": 1},
+        now=NOW,
+    )
+
+    assert (
+        coordinator.maintain_retention(
+            reservation_id="v1.reservation",
+            expires_at=NOW + timedelta(minutes=2),
+            now=NOW + timedelta(seconds=30),
+        )
+        == "retained"
+    )
+    assert host.calls[-1] == ("current", "v1.reservation")
+    assert store.load(
+        receipt.artifacts[0].output_set_id,
+        expected_kind="sealed_artifact_output_set",
+        owner="host",
+        now=NOW + timedelta(minutes=1, seconds=1),
+    ).expires_at == NOW + timedelta(minutes=2)
+
+
+def test_noncurrent_generation_unpublishes_before_output_set_revocation(
+    tmp_path,
+) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    private = artifacts.stage(
+        descriptor=_descriptor(),
+        receiver_id="principal",
+        revision_digest="e" * 64,
+        invocation_id="run-1",
+        sealed=(
+            ("index_generation", "application/octet-stream", b"index"),
+            ("index_manifest", "application/json", b"{}"),
+            ("coverage_report", "application/json", b"{}"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    host = _FakeHost()
+    coordinator = ReviewedCapabilityPublicationCoordinator(
+        store=store, owner="host", artifacts=artifacts, host=host
+    )
+    receipt = coordinator.complete(
+        reservation_id="v1.reservation",
+        private=private,
+        generation_id="generation-1",
+        counts={"source_records": 1},
+        now=NOW,
+    )
+    host.current = False
+
+    assert (
+        coordinator.maintain_retention(
+            reservation_id="v1.reservation",
+            expires_at=NOW + timedelta(minutes=2),
+            now=NOW + timedelta(seconds=30),
+        )
+        == "retired"
+    )
+    assert host.calls[-2:] == [
+        ("current", "v1.reservation"),
+        ("unpublish", "v1.reservation"),
+    ]
+    assert (
+        store.active_records(
+            kind="sealed_artifact_output_set",
+            owner="host",
+            now=NOW + timedelta(seconds=30),
+        )
+        == ()
+    )
+    assert receipt.artifacts
 
 
 def test_completed_publication_replays_its_stored_receipt_without_host_calls(

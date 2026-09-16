@@ -36,6 +36,14 @@ class ReviewedCapabilityPublicationHost(Protocol):
 
     def compensate(self, *, reservation_id: str) -> None: ...
 
+    def assert_generation_current(
+        self, *, reservation_id: str, generation_id: str
+    ) -> bool: ...
+
+    def unpublish_generation_atomically(
+        self, *, reservation_id: str, generation_id: str
+    ) -> None: ...
+
 
 @dataclass(frozen=True)
 class ReviewedCapabilityPublicationReceipt:
@@ -68,6 +76,8 @@ class ReviewedCapabilityPublicationCoordinator:
             or not callable(getattr(host, "acknowledge_visibility", None))
             or not callable(getattr(host, "query_current_outcome", None))
             or not callable(getattr(host, "compensate", None))
+            or not callable(getattr(host, "assert_generation_current", None))
+            or not callable(getattr(host, "unpublish_generation_atomically", None))
         ):
             raise ReviewedCapabilityPublicationError("publication is unavailable")
         self._store = store
@@ -248,6 +258,76 @@ class ReviewedCapabilityPublicationCoordinator:
                 "publication is unavailable"
             ) from error
         return _receipt_from_record(record)
+
+    def maintain_retention(
+        self,
+        *,
+        reservation_id: str,
+        expires_at: datetime,
+        now: datetime,
+    ) -> str:
+        """Retain current output sets or unpublish then retire non-current ones."""
+
+        if not isinstance(reservation_id, str) or not reservation_id:
+            raise ReviewedCapabilityPublicationError("publication is unavailable")
+        try:
+            matches = [
+                (attempt_id, record)
+                for attempt_id, record in self._store.active_records(
+                    kind="reviewed_capability_publication",
+                    owner=self._owner,
+                    now=now,
+                )
+                if record.payload.get("reservation_id") == reservation_id
+                and record.payload.get("status") == "completed"
+            ]
+            if len(matches) != 1:
+                raise ValueError
+            attempt_id, record = matches[0]
+            generation_id = record.payload.get("generation_id")
+            private_set_id = record.payload.get("private_set_id")
+            artifacts = record.payload.get("artifacts")
+            if (
+                not isinstance(generation_id, str)
+                or not isinstance(private_set_id, str)
+                or not isinstance(artifacts, list)
+            ):
+                raise ValueError
+            output_set_ids = {
+                item.get("output_set_id")
+                for item in artifacts
+                if isinstance(item, dict) and isinstance(item.get("output_set_id"), str)
+            }
+            if len(output_set_ids) != 1:
+                raise ValueError
+            output_set_id = next(iter(output_set_ids))
+            if self._host.assert_generation_current(
+                reservation_id=reservation_id, generation_id=generation_id
+            ):
+                self._artifacts.extend_output_set(
+                    output_set_id, expires_at=expires_at, now=now
+                )
+                self._store.extend_active_expiry(
+                    attempt_id,
+                    expected_kind="reviewed_capability_publication",
+                    owner=self._owner,
+                    expires_at=expires_at,
+                    now=now,
+                )
+                return "retained"
+            self._host.unpublish_generation_atomically(
+                reservation_id=reservation_id, generation_id=generation_id
+            )
+            self._artifacts.discard(
+                SealedArtifactPrivateOutputSet(private_set_id, record.expires_at),
+                now=now,
+            )
+            self._advance(attempt_id, record.payload, "retired", now=now)
+            return "retired"
+        except Exception as error:  # noqa: BLE001 - host boundary varies.
+            raise ReviewedCapabilityPublicationError(
+                "publication is unavailable"
+            ) from error
 
     def _advance(
         self,
