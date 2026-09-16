@@ -5,9 +5,16 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 
 from dynamic_agent_runner.workflow_host.capabilities import (
     ReviewedCapabilityTemplateOutput,
+)
+from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
+    SealedArtifactHandleError,
+    SealedArtifactOutput,
+    SealedArtifactOutputHandleService,
+    SealedArtifactPrivateOutputSet,
 )
 
 
@@ -30,6 +37,14 @@ class ReviewedCapabilityHostContribution:
 
     generation_id: str
     counts: Mapping[str, int]
+
+
+@dataclass(frozen=True)
+class StagedReviewedCapabilityCandidates:
+    """Validated host candidates retained privately for later publication."""
+
+    private: SealedArtifactPrivateOutputSet
+    contribution: ReviewedCapabilityHostContribution
 
 
 _COUNT_FIELDS = frozenset(
@@ -74,6 +89,58 @@ def validate_reviewed_capability_candidates(
     _validate_manifest(values.get("index_manifest"))
     _validate_coverage(values.get("coverage_report"), count_ceiling)
     return received
+
+
+def stage_reviewed_capability_candidates(
+    *,
+    artifacts: SealedArtifactOutputHandleService,
+    template_digest: str,
+    outputs: Sequence[ReviewedCapabilityTemplateOutput],
+    candidates: Sequence[ReviewedCapabilityCandidateOutput],
+    contribution: ReviewedCapabilityHostContribution,
+    count_ceiling: int,
+    receiver_id: str,
+    revision_digest: str,
+    invocation_id: str,
+    expires_at: datetime,
+    now: datetime,
+) -> StagedReviewedCapabilityCandidates:
+    """Validate then privately stage the vector template's declared candidates."""
+
+    accepted = validate_reviewed_capability_candidates(
+        outputs=outputs,
+        candidates=candidates,
+        contribution=contribution,
+        count_ceiling=count_ceiling,
+    )
+    if not isinstance(artifacts, SealedArtifactOutputHandleService):
+        raise ReviewedCapabilityCandidateOutputError("candidate is invalid")
+    declarations = tuple(
+        SealedArtifactOutput(
+            output.role,
+            output.media_type,
+            output.max_bytes,
+            None,
+        )
+        for output in outputs
+    )
+    try:
+        private = artifacts.stage_declared(
+            declaration_digest=template_digest,
+            outputs=declarations,
+            receiver_id=receiver_id,
+            revision_digest=revision_digest,
+            invocation_id=invocation_id,
+            sealed=tuple(
+                (candidate.role, candidate.media_type, candidate.content)
+                for candidate in accepted
+            ),
+            expires_at=expires_at,
+            now=now,
+        )
+    except SealedArtifactHandleError as error:
+        raise ReviewedCapabilityCandidateOutputError("candidate is invalid") from error
+    return StagedReviewedCapabilityCandidates(private, contribution)
 
 
 def _validate_contribution(contribution: object, count_ceiling: int) -> None:
