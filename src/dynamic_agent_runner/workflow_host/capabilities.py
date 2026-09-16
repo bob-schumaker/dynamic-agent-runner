@@ -155,6 +155,8 @@ class ReviewedCapabilityTemplate:
         _canonical_strings(self.recovery_operations, "recovery_operations")
         _digest(self.success_receipt_schema_digest, "success_receipt_schema_digest")
         _canonical_strings(self.failure_classifications, "failure_classifications")
+        if not self.failure_classifications:
+            raise CapabilityError("failure_classifications must not be empty")
         if not isinstance(self.enabled, bool):
             raise CapabilityError("reviewed capability template is invalid")
         if self.template_digest != reviewed_capability_template_digest(

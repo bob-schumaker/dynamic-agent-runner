@@ -72,6 +72,10 @@ def _reviewed_template(
         "query_current_outcome",
     ),
     extension_binding: str = "host-vector-index-v1",
+    failure_classifications: tuple[str, ...] = (
+        "host_failure",
+        "publication_failed",
+    ),
     enabled: bool = True,
 ) -> ReviewedCapabilityTemplate:
     output_contract = outputs or (
@@ -109,7 +113,7 @@ def _reviewed_template(
             extension_binding=extension_binding,
             recovery_operations=recovery_operations,
             success_receipt_schema_digest="d" * 64,
-            failure_classifications=("host_failure", "publication_failed"),
+            failure_classifications=failure_classifications,
             enabled=enabled,
         ),
         input_fields=("job_handle",),
@@ -120,7 +124,7 @@ def _reviewed_template(
         extension_binding=extension_binding,
         recovery_operations=recovery_operations,
         success_receipt_schema_digest="d" * 64,
-        failure_classifications=("host_failure", "publication_failed"),
+        failure_classifications=failure_classifications,
         enabled=enabled,
     )
 
@@ -171,6 +175,11 @@ def test_reviewed_template_digest_binds_its_canonical_contract() -> None:
 def test_reviewed_template_rejects_a_stale_contract_digest() -> None:
     with pytest.raises(CapabilityError, match="digest"):
         _reviewed_template(template_digest="a" * 64)
+
+
+def test_reviewed_template_rejects_no_failure_classification() -> None:
+    with pytest.raises(CapabilityError, match="failure_classifications"):
+        _reviewed_template(failure_classifications=())
 
 
 def test_vector_index_template_requires_its_closed_host_extension_contract() -> None:
