@@ -27,7 +27,7 @@ Status: Proposed
 
 ## Task List
 
-- [ ] T001 [discovery] Inventory the exact implementation and test seams named
+- [x] T001 [discovery] Inventory the exact implementation and test seams named
   by the plan before writing a test.
   - Spec: FR-1 through FR-6; Required Verification.
   - Plan: Current-State Anchors; Delivery Rules.
@@ -44,6 +44,18 @@ Status: Proposed
   - Evidence: a route table in this file that assigns each S1–S5 test matrix
     to one test module and one source owner; it identifies no new coordinator,
     plugin manager, index runtime, or model registry.
+
+  | Slice | Source owner | Focused test owner | First guarded boundary |
+  | --- | --- | --- | --- |
+  | S1 | `capabilities.py`; `reviewed_tool_packages.py` | `tests/test_workflow_capabilities.py`; `tests/test_dar_authoring_reviewed_tool_packages.py` | Template registration/discovery completes before package, job, dependency, or extension execution. |
+  | S2 | `workflow_authoring_registration.py`; `policy.py`; registration/preflight path | `tests/test_dar_authoring_descriptor.py`; `tests/test_dar_authoring_policy.py`; `tests/test_dar_authoring_registration.py`; `tests/test_dar_authoring_preflight.py` | Descriptor/policy admission precedes job ingress, package code, extension dispatch, and output allocation. |
+  | S3 | `authorized_tools.py`; `action_ledger.py` | `tests/test_dar_authoring_authorized_tools.py`; `tests/test_dar_authoring_action_ledger.py` | `_consume_approved_decision` and the action ledger bind approval/reservation before host dispatch. |
+  | S4 | `sealed_artifact_preparation.py`; `sealed_artifact_runner.py`; `sealed_artifact_workflow_runner.py`; `action_ledger.py` | `tests/test_sealed_artifact_preparation.py`; `tests/test_sealed_artifact_handles.py`; `tests/test_sealed_artifact_output_handles.py`; `tests/test_sealed_artifact_workflow_runner.py` | `SealedArtifactWorkflowRunner.run` validates admission before callback resolution; output handles remain private until output-set publication. |
+  | S5 | `host.py`; `embedding_sealed_artifact_callback.py` | `tests/test_dar_authoring_host.py`; `tests/test_embedding_sealed_artifact_callback.py`; existing S1–S4 suites | `LocalWorkflowHost` composition decides extension availability before authoring/admission; the legacy embedding resolver remains its separate callback path. |
+
+  - Discovery evidence: CodeGraph traced these owners and callers on 2026-09-15.
+    No current seam is a vector-index runtime, model registry, plugin manager,
+    or second action coordinator.
 
 - [ ] T002 [tests, RED] Add reviewed-template registry and discovery vectors.
   - Spec: FR-1; Reviewed template; FR-6 registration gate.
