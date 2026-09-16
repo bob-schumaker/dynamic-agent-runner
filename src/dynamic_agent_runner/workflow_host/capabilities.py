@@ -42,6 +42,29 @@ class CapabilityContract:
 
 
 @dataclass(frozen=True)
+class ReviewedCapabilityTemplateOutput:
+    """One bounded opaque output role in a reviewed template."""
+
+    role: str
+    media_type: str
+    max_bytes: int
+    retention_seconds: int
+
+    def __post_init__(self) -> None:
+        _text(self.role, "role")
+        _text(self.media_type, "media_type")
+        if (
+            not isinstance(self.max_bytes, int)
+            or isinstance(self.max_bytes, bool)
+            or self.max_bytes < 1
+            or not isinstance(self.retention_seconds, int)
+            or isinstance(self.retention_seconds, bool)
+            or self.retention_seconds < 1
+        ):
+            raise CapabilityError("reviewed capability template output is invalid")
+
+
+@dataclass(frozen=True)
 class ReviewedCapabilityTemplate:
     """One immutable host-reviewed capability template."""
 
@@ -50,6 +73,10 @@ class ReviewedCapabilityTemplate:
     template_digest: str
     input_fields: tuple[str, ...]
     required_dependency: str
+    outputs: tuple[ReviewedCapabilityTemplateOutput, ...]
+    max_receipt_bytes: int
+    approval_class: str
+    extension_binding: str
     enabled: bool
 
     def __post_init__(self) -> None:
@@ -58,9 +85,27 @@ class ReviewedCapabilityTemplate:
         _digest(self.template_digest, "template_digest")
         _canonical_strings(self.input_fields, "input_fields")
         _text(self.required_dependency, "required_dependency")
+        outputs = tuple(self.outputs)
+        if (
+            not outputs
+            or not all(
+                isinstance(item, ReviewedCapabilityTemplateOutput) for item in outputs
+            )
+            or len({item.role for item in outputs}) != len(outputs)
+        ):
+            raise CapabilityError("reviewed capability template is invalid")
+        if (
+            not isinstance(self.max_receipt_bytes, int)
+            or isinstance(self.max_receipt_bytes, bool)
+            or self.max_receipt_bytes < 1
+        ):
+            raise CapabilityError("reviewed capability template is invalid")
+        _text(self.approval_class, "approval_class")
+        _text(self.extension_binding, "extension_binding")
         if not isinstance(self.enabled, bool):
             raise CapabilityError("reviewed capability template is invalid")
         object.__setattr__(self, "input_fields", tuple(self.input_fields))
+        object.__setattr__(self, "outputs", outputs)
 
 
 @dataclass(frozen=True)

@@ -16,6 +16,7 @@ from dynamic_agent_runner.workflow_host.capabilities import (
     BUILTIN_CAPABILITY_CONTRACTS,
     ProviderAvailability,
     ReviewedCapabilityTemplate,
+    ReviewedCapabilityTemplateOutput,
     ReviewedCapabilityTemplateRegistry,
     UnavailableCapability,
 )
@@ -59,7 +60,10 @@ def _provider(
 
 
 def _reviewed_template(
-    *, template_digest: str = "b" * 64
+    *,
+    template_digest: str = "b" * 64,
+    outputs: tuple[ReviewedCapabilityTemplateOutput, ...] | None = None,
+    enabled: bool = True,
 ) -> ReviewedCapabilityTemplate:
     return ReviewedCapabilityTemplate(
         capability_id="vector_index.build.v1",
@@ -67,7 +71,19 @@ def _reviewed_template(
         template_digest=template_digest,
         input_fields=("job_handle",),
         required_dependency="embedding.execute.v1",
-        enabled=True,
+        outputs=outputs
+        or (
+            ReviewedCapabilityTemplateOutput(
+                role="index_generation",
+                media_type="application/octet-stream",
+                max_bytes=1024,
+                retention_seconds=60,
+            ),
+        ),
+        max_receipt_bytes=1024,
+        approval_class="human_write",
+        extension_binding="host-vector-index-v1",
+        enabled=enabled,
     )
 
 
@@ -82,6 +98,36 @@ def test_reviewed_template_registry_discovers_one_exact_available_template() -> 
     assert discovery.template == template
 
 
+def test_reviewed_template_carries_bounded_output_and_receipt_contract() -> None:
+    template = _reviewed_template()
+
+    assert template.outputs[0].role == "index_generation"
+    assert template.outputs[0].max_bytes == 1024
+    assert template.outputs[0].retention_seconds == 60
+    assert template.max_receipt_bytes == 1024
+    assert template.approval_class == "human_write"
+    assert template.extension_binding == "host-vector-index-v1"
+
+
+@pytest.mark.parametrize(
+    ("max_bytes", "retention_seconds"),
+    (
+        (0, 60),
+        (1024, 0),
+    ),
+)
+def test_reviewed_template_output_rejects_nonpositive_bounds(
+    max_bytes: int, retention_seconds: int
+) -> None:
+    with pytest.raises(CapabilityError):
+        ReviewedCapabilityTemplateOutput(
+            role="index_generation",
+            media_type="application/octet-stream",
+            max_bytes=max_bytes,
+            retention_seconds=retention_seconds,
+        )
+
+
 @pytest.mark.parametrize(
     ("templates", "expected_status"),
     (
@@ -94,16 +140,7 @@ def test_reviewed_template_registry_discovers_one_exact_available_template() -> 
             "authoring_runtime_ambiguous",
         ),
         (
-            (
-                ReviewedCapabilityTemplate(
-                    capability_id="vector_index.build.v1",
-                    contract_version="1",
-                    template_digest="b" * 64,
-                    input_fields=("job_handle",),
-                    required_dependency="embedding.execute.v1",
-                    enabled=False,
-                ),
-            ),
+            (_reviewed_template(enabled=False),),
             "authoring_runtime_unavailable",
         ),
     ),
