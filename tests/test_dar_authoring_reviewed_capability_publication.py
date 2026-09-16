@@ -777,6 +777,17 @@ def test_unrecoverable_pending_publication_compensates_and_aborts(tmp_path) -> N
         "receipt_id": receipt.receipt_id,
     }
     assert coordinator.recover(reservation_id="v1.reservation", now=NOW) == receipt
+    recovered = ReviewedCapabilityPublicationCoordinator(
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="other_failure",
+        failure_classifications=("host_failure", "other_failure"),
+        count_ceiling=1024,
+    )
+
+    assert recovered.recover(reservation_id="v1.reservation", now=NOW) == receipt
     assert host.calls == [
         ("pending", "v1.reservation"),
         ("compensate", "v1.reservation"),

@@ -151,6 +151,7 @@ class ReviewedCapabilityPublicationCoordinator:
         self._artifacts = artifacts
         self._host = host
         self._failure_classification = failure_classification
+        self._failure_classifications = failure_classifications
         self._count_ceiling = count_ceiling
 
     def complete(
@@ -288,7 +289,7 @@ class ReviewedCapabilityPublicationCoordinator:
                 return _receipt_from_record(record)
             if record.payload.get("status") == "aborted":
                 return _failure_receipt_from_record(
-                    record, classification=self._failure_classification
+                    record, classifications=self._failure_classifications
                 )
             if record.payload.get("status") != "recovery_required":
                 raise ValueError
@@ -316,10 +317,11 @@ class ReviewedCapabilityPublicationCoordinator:
                     record.payload,
                     "aborted",
                     failure_receipt_id=attempt_id,
+                    failure_classification=self._failure_classification,
                     now=now,
                 )
                 return _failure_receipt_from_record(
-                    record, classification=self._failure_classification
+                    record, classifications=self._failure_classifications
                 )
             record = self._advance(attempt_id, record.payload, "host_pending", now=now)
             private = SealedArtifactPrivateOutputSet(private_set_id, record.expires_at)
@@ -426,6 +428,7 @@ class ReviewedCapabilityPublicationCoordinator:
         handles: tuple[SealedArtifactOutputHandle, ...] = (),
         published_at: str | None = None,
         failure_receipt_id: str | None = None,
+        failure_classification: str | None = None,
     ) -> OpaqueRecord:
         replacement = {**payload, "status": status}
         if handles:
@@ -443,6 +446,8 @@ class ReviewedCapabilityPublicationCoordinator:
             replacement["published_at"] = published_at
         if failure_receipt_id is not None:
             replacement["failure_receipt_id"] = failure_receipt_id
+        if failure_classification is not None:
+            replacement["failure_classification"] = failure_classification
         record = self._store.load(
             attempt_id,
             expected_kind="reviewed_capability_publication",
@@ -535,13 +540,16 @@ def _receipt_from_record(record: OpaqueRecord) -> ReviewedCapabilityPublicationR
 
 
 def _failure_receipt_from_record(
-    record: OpaqueRecord, *, classification: str
+    record: OpaqueRecord, *, classifications: tuple[str, ...]
 ) -> ReviewedCapabilityPublicationFailureReceipt:
     receipt_id = record.payload.get("failure_receipt_id")
+    classification = record.payload.get("failure_classification")
     if (
         record.payload.get("status") != "aborted"
         or not isinstance(receipt_id, str)
         or not receipt_id
+        or not isinstance(classification, str)
+        or classification not in classifications
     ):
         raise ReviewedCapabilityPublicationError("publication is unavailable")
     return ReviewedCapabilityPublicationFailureReceipt(
