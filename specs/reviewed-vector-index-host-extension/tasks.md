@@ -115,7 +115,7 @@ Status: In progress
     stale, and disabled cases, while the ordinary capability-contract tests in
     `tests/test_workflow_capabilities.py` remain green.
 
-- [ ] T005 [tests, RED] Add separate host-discovery, descriptor, and admission
+- [x] T005 [tests, RED] Add separate host-discovery, descriptor, and admission
   vectors for the exact reviewed-template declaration.
   - Spec: FR-1; FR-2; Public invocation; Required Verification 1, 2, and 10.
   - Plan: S2.1.
@@ -132,8 +132,13 @@ Status: In progress
     templates, and every forbidden package authority field; successful
     authoring binds only the returned exact identity and one-field call
     contract. The API is not injected through `WorkflowAuthoringHost`.
+  - Completed evidence: `tests/test_dar_authoring_reviewed_tool_packages.py`
+    first failed for the absent discovery API, then covers the available,
+    unavailable, and ambiguous results. The existing focused descriptor,
+    policy, registration, and preflight vectors cover the closed declaration,
+    policy binding, unavailable host state, and pre-ingress rejection.
 
-- [ ] T006 [implementation] Add separate host discovery and bind one exact
+- [x] T006 [implementation] Add separate host discovery and bind one exact
   reviewed-template declaration into descriptor, policy digest, registration,
   and preflight.
   - Spec: FR-1; FR-2; FR-4.
@@ -149,8 +154,14 @@ Status: In progress
     invalid declaration or registration before sealed-job ingress, package
     code, extension dispatch, or artifact allocation; no package field can
     select host implementation or policy.
+  - Completed evidence: `ReviewedCapabilityTemplateAuthoringDiscoveryService`
+    joins the runtime registry with the persisted host registration and returns
+    only declaration identity/contract. `WorkflowRegistration` now records the
+    reviewed capability ID, version, and template digest explicitly and binds
+    them into its registration digest; descriptor, policy, registration, and
+    preflight revalidate the declared identity.
 
-- [ ] T007 [tests, GREEN] Prove reviewed-template admission and legacy package
+- [x] T007 [tests, GREEN] Prove reviewed-template admission and legacy package
   compatibility.
   - Spec: FR-1; FR-2; Non-Goals.
   - Plan: S2.3 and S2 exit.
@@ -162,6 +173,11 @@ Status: In progress
     drift; the separate discovery API writes no package and returns the stable
     unavailable/ambiguous result; and packages without the reviewed declaration
     use their unchanged legacy admission path.
+  - Completed evidence: `poetry run pytest
+    tests/test_dar_authoring_reviewed_tool_packages.py
+    tests/test_dar_authoring_descriptor.py tests/test_dar_authoring_policy.py
+    tests/test_dar_authoring_registration.py tests/test_dar_authoring_preflight.py
+    -q` passed 102 tests after the admission-record identity binding.
 
 - [ ] T008 [tests, RED] Add sealed-job, approval, and reservation failure
   vectors using a fake host extension.

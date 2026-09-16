@@ -215,6 +215,19 @@ def test_registration_binds_a_declared_reviewed_template_to_host_state(
     )
 
     assert registration.policy_digest == _policy(reviewed_capability=True).policy_digest
+    assert registration.reviewed_capability_id == "vector_index.build.v1"
+    assert registration.reviewed_capability_contract_version == "1"
+    assert registration.reviewed_capability_template_digest == template.template_digest
+    record = json.loads((tmp_path / "registrations" / "registrations.json").read_text())
+    assert record["registrations"]["document-helper"]["reviewed_capability_id"] == (
+        "vector_index.build.v1"
+    )
+    assert (
+        record["registrations"]["document-helper"][
+            "reviewed_capability_template_digest"
+        ]
+        == template.template_digest
+    )
 
 
 def test_registration_binds_eligible_policy_to_configured_local_profile(
