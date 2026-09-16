@@ -70,6 +70,9 @@ from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: 
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa: E402
     ReviewedToolPackageBinding,
 )
+from dynamic_agent_runner.workflow_host.reviewed_capability_host_extension import (  # noqa: E402
+    ReviewedCapabilityHostExtension,
+)
 from dynamic_agent_runner.workflow_host.sealed_artifact_workflow_runner import (  # noqa: E402
     SealedArtifactInvocation,
 )
@@ -1612,6 +1615,44 @@ def _reviewed_template(
     )
 
 
+class _FakeReviewedCapabilityHost:
+    def resolve(self, **_kwargs: object) -> object:
+        return object()
+
+    def revalidate(self, **_kwargs: object) -> object:
+        return object()
+
+    def dispatch(self, **_kwargs: object) -> None:
+        return None
+
+    def begin_pending_publication(self, **_kwargs: object) -> None:
+        return None
+
+    def query_current_outcome(self, **_kwargs: object) -> str:
+        return "pending"
+
+    def acknowledge_visibility(self, **_kwargs: object) -> None:
+        return None
+
+    def compensate(self, **_kwargs: object) -> None:
+        return None
+
+    def assert_generation_current(self, **_kwargs: object) -> bool:
+        return True
+
+    def unpublish_generation_atomically(self, **_kwargs: object) -> None:
+        return None
+
+
+def _reviewed_extension(
+    extension_binding: str = "host-vector-index-v1",
+) -> ReviewedCapabilityHostExtension:
+    return ReviewedCapabilityHostExtension(
+        template=_reviewed_template(extension_binding=extension_binding),
+        host=_FakeReviewedCapabilityHost(),
+    )
+
+
 def test_local_host_discovers_only_explicitly_registered_reviewed_templates(
     tmp_path: Path,
 ) -> None:
@@ -1629,9 +1670,14 @@ def test_local_host_discovers_only_explicitly_registered_reviewed_templates(
     )
 
     unavailable = LocalWorkflowHost.open(tmp_path / "state")
+    with pytest.raises(LocalWorkflowHostError, match="reviewed capability"):
+        LocalWorkflowHost.open(
+            tmp_path / "enabled-state",
+            reviewed_capability_templates=(_reviewed_template(),),
+        )
     enabled = LocalWorkflowHost.open(
         tmp_path / "enabled-state",
-        reviewed_capability_templates=(_reviewed_template(),),
+        reviewed_capability_extensions=(_reviewed_extension(),),
     )
 
     assert (
@@ -1648,7 +1694,7 @@ def test_local_host_discovers_only_explicitly_registered_reviewed_templates(
     assert discovered.input_fields == ("job_handle",)
     restarted = LocalWorkflowHost.open(
         tmp_path / "enabled-state",
-        reviewed_capability_templates=(_reviewed_template(),),
+        reviewed_capability_extensions=(_reviewed_extension(),),
     )
     assert (
         restarted.discover_reviewed_capability_template(
@@ -1666,8 +1712,8 @@ def test_local_host_discovers_only_explicitly_registered_reviewed_templates(
     with pytest.raises(LocalWorkflowHostError, match="reviewed capability"):
         LocalWorkflowHost.open(
             tmp_path / "enabled-state",
-            reviewed_capability_templates=(
-                _reviewed_template(extension_binding="changed-host-extension"),
+            reviewed_capability_extensions=(
+                _reviewed_extension(extension_binding="changed-host-extension"),
             ),
         )
 

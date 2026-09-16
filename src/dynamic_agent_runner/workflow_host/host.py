@@ -100,6 +100,9 @@ from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
     ReviewedToolPackageControlPlane,
     ReviewedToolPackageError,
 )
+from dynamic_agent_runner.workflow_host.reviewed_capability_host_extension import (
+    ReviewedCapabilityHostExtension,
+)
 from dynamic_agent_runner.workflow_host.oauth import (
     OAuthAuthorizationService,
     OAuthClientConfiguration,
@@ -254,13 +257,16 @@ def _reviewed_template_discovery(
     *,
     store: PrivateStateStore,
     owner: str,
-    templates: Sequence[ReviewedCapabilityTemplate],
+    extensions: Sequence[ReviewedCapabilityHostExtension],
 ) -> ReviewedCapabilityTemplateAuthoringDiscoveryService:
     """Install only explicitly composed reviewed templates for this host."""
 
-    values = tuple(templates)
-    if not all(isinstance(template, ReviewedCapabilityTemplate) for template in values):
+    bindings = tuple(extensions)
+    if not all(
+        isinstance(extension, ReviewedCapabilityHostExtension) for extension in bindings
+    ):
         raise LocalWorkflowHostError("reviewed capability template is unavailable")
+    values = tuple(extension.template for extension in bindings)
     control_plane = ReviewedCapabilityTemplateControlPlane(store=store, owner=owner)
     try:
         for template in values:
@@ -1027,6 +1033,7 @@ class LocalWorkflowHost:
         reviewed_artifact_tool_executors: Mapping[str, ReviewedArtifactToolExecutor]
         | None = None,
         reviewed_capability_templates: Sequence[ReviewedCapabilityTemplate] = (),
+        reviewed_capability_extensions: Sequence[ReviewedCapabilityHostExtension] = (),
         local_model_runners: Sequence[LocalModelRunner] = (),
         model_runner_registry: ModelRunnerRegistry | None = None,
         capability_catalog: CapabilityCatalog | None = None,
@@ -1121,10 +1128,12 @@ class LocalWorkflowHost:
         reviewed_tool_packages = ReviewedToolPackageControlPlane(
             store=store, owner=InstallationIdentityProvider().principal
         )
+        if reviewed_capability_templates:
+            raise LocalWorkflowHostError("reviewed capability template is unavailable")
         reviewed_template_discovery = _reviewed_template_discovery(
             store=store,
             owner=InstallationIdentityProvider().principal,
-            templates=reviewed_capability_templates,
+            extensions=reviewed_capability_extensions,
         )
         if mcp_client_factory is None:
             mcp_client = _mcp_client(
