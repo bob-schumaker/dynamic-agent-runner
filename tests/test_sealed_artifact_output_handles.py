@@ -197,3 +197,90 @@ def test_output_set_expiry_can_be_extended_without_exposing_content(tmp_path) ->
         ).expires_at
         == extended
     )
+
+
+@pytest.mark.parametrize(
+    ("receiver_id", "invocation_id"),
+    (("foreign-receiver", "invocation"), ("receiver", "foreign-invocation")),
+)
+def test_output_reads_require_the_bound_receiver_and_invocation(
+    tmp_path, receiver_id: str, invocation_id: str
+) -> None:
+    service, _ = _service(tmp_path)
+    handles = service.publish(
+        descriptor=_descriptor(),
+        receiver_id="receiver",
+        revision_digest="e" * 64,
+        invocation_id="invocation",
+        sealed=(
+            ("coverage", "text/plain", b"ready"),
+            ("result", "application/octet-stream", b"output"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    for handle in handles:
+        with pytest.raises(SealedArtifactHandleError, match="unavailable"):
+            service.read(
+                handle,
+                receiver_id=receiver_id,
+                revision_digest="e" * 64,
+                invocation_id=invocation_id,
+                now=NOW,
+            )
+
+
+def test_output_reads_return_only_the_bound_role_content(tmp_path) -> None:
+    service, _ = _service(tmp_path)
+    handles = service.publish(
+        descriptor=_descriptor(),
+        receiver_id="receiver",
+        revision_digest="e" * 64,
+        invocation_id="invocation",
+        sealed=(
+            ("coverage", "text/plain", b"ready"),
+            ("result", "application/octet-stream", b"output"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    assert [
+        service.read(
+            handle,
+            receiver_id="receiver",
+            revision_digest="e" * 64,
+            invocation_id="invocation",
+            now=NOW,
+        )
+        for handle in handles
+    ] == [b"ready", b"output"]
+
+
+def test_output_set_revocation_denies_all_bound_output_roles(tmp_path) -> None:
+    service, _ = _service(tmp_path)
+    private = service.stage(
+        descriptor=_descriptor(),
+        receiver_id="receiver",
+        revision_digest="e" * 64,
+        invocation_id="invocation",
+        sealed=(
+            ("coverage", "text/plain", b"ready"),
+            ("result", "application/octet-stream", b"output"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    handles = service.promote(private, now=NOW)
+    service.discard(private, now=NOW)
+
+    for handle in handles:
+        with pytest.raises(SealedArtifactHandleError, match="unavailable"):
+            service.read(
+                handle,
+                receiver_id="receiver",
+                revision_digest="e" * 64,
+                invocation_id="invocation",
+                now=NOW,
+            )

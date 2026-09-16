@@ -1104,6 +1104,60 @@ class SealedArtifactOutputHandleService:
         except (TypeError, ValueError) as error:
             raise SealedArtifactHandleError("output handle is unavailable") from error
 
+    def read(
+        self,
+        handle: SealedArtifactOutputHandle,
+        *,
+        receiver_id: str,
+        revision_digest: str,
+        invocation_id: str,
+        now: datetime,
+    ) -> bytes:
+        """Return one output only for its bound receiver and invocation."""
+
+        if not isinstance(handle, SealedArtifactOutputHandle):
+            raise SealedArtifactHandleError("output handle is invalid")
+        try:
+            expected = _handle_fields(
+                receiver_id=receiver_id,
+                revision_digest=revision_digest,
+                invocation_id=invocation_id,
+                role="output",
+                media_type="application/octet-stream",
+                schema_digest=None,
+            )
+            record = self._store.load(
+                handle.output_set_id,
+                expected_kind="sealed_artifact_output_set",
+                owner=self._owner,
+                now=now,
+            )
+            if any(record.payload.get(key) != value for key, value in expected.items()):
+                raise ValueError
+            outputs = record.payload.get("outputs")
+            if not isinstance(outputs, list):
+                raise ValueError
+            matches = [
+                item
+                for item in outputs
+                if isinstance(item, dict)
+                and item.get("role") == handle.role
+                and item.get("media_type") == handle.media_type
+                and item.get("byte_count") == handle.byte_count
+                and item.get("content_digest") == handle.content_digest
+            ]
+            if len(matches) != 1 or not isinstance(matches[0].get("content"), str):
+                raise ValueError
+            content = bytes.fromhex(matches[0]["content"])
+            if (
+                len(content) != handle.byte_count
+                or hashlib.sha256(content).hexdigest() != handle.content_digest
+            ):
+                raise ValueError
+            return content
+        except (OpaqueRecordError, TypeError, ValueError) as error:
+            raise SealedArtifactHandleError("output handle is unavailable") from error
+
     def discard(
         self, private: SealedArtifactPrivateOutputSet, *, now: datetime
     ) -> None:
