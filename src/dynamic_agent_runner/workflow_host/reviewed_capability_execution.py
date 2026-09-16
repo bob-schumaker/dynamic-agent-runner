@@ -27,6 +27,11 @@ from dynamic_agent_runner.workflow_host.reviewed_capability_jobs import (
     revalidate_sealed_reviewed_capability_job,
     resolve_sealed_reviewed_capability_job,
 )
+from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
+    ReviewedCapabilityTemplateControlPlane,
+    ReviewedToolPackageError,
+)
+from dynamic_agent_runner.workflow_host.capabilities import ReviewedCapabilityTemplate
 
 
 class ReviewedCapabilityDispatchError(ValueError):
@@ -75,6 +80,8 @@ class ReviewedCapabilityExecutor:
         ledger: WorkflowActionLedger,
         approvals: WorkflowApprovalStore,
         approval_broker: ReviewedCapabilityApprovalBroker,
+        reviewed_templates: ReviewedCapabilityTemplateControlPlane,
+        current_reviewed_template_provider: Callable[[str], ReviewedCapabilityTemplate],
         extension_binding: str,
         dependency_binding_digest: str,
         nonce_factory: Callable[[], str],
@@ -84,6 +91,10 @@ class ReviewedCapabilityExecutor:
             or not callable(getattr(resolver, "revalidate", None))
             or not callable(getattr(host, "dispatch", None))
             or not callable(getattr(approval_broker, "decide", None))
+            or not isinstance(
+                reviewed_templates, ReviewedCapabilityTemplateControlPlane
+            )
+            or not callable(current_reviewed_template_provider)
             or not isinstance(extension_binding, str)
             or not extension_binding
             or not isinstance(dependency_binding_digest, str)
@@ -96,6 +107,8 @@ class ReviewedCapabilityExecutor:
         self._ledger = ledger
         self._approvals = approvals
         self._approval_broker = approval_broker
+        self._reviewed_templates = reviewed_templates
+        self._current_reviewed_template_provider = current_reviewed_template_provider
         self._extension_binding = extension_binding
         self._dependency_binding_digest = dependency_binding_digest
         self._nonce_factory = nonce_factory
@@ -106,6 +119,7 @@ class ReviewedCapabilityExecutor:
         """Dispatch at most once, with all mutable host bindings rechecked."""
 
         try:
+            self._validate_template(request)
             job = resolve_sealed_reviewed_capability_job(
                 arguments=request.arguments,
                 resolver=self._resolver,
@@ -146,6 +160,7 @@ class ReviewedCapabilityExecutor:
                 reservation.action_id, reservation.action_digest, "replayed", True
             )
         try:
+            self._validate_template(request)
             revalidated = revalidate_sealed_reviewed_capability_job(
                 job=job,
                 resolver=self._resolver,
@@ -156,7 +171,11 @@ class ReviewedCapabilityExecutor:
                 reservation.action_id, now=now
             )
             self._host.dispatch(job=revalidated, reservation_id=reservation.action_id)
-        except (ActionLedgerError, ReviewedCapabilityJobError) as error:
+        except (
+            ActionLedgerError,
+            ReviewedCapabilityJobError,
+            ReviewedToolPackageError,
+        ) as error:
             self._abort(reservation.action_id, now=now)
             raise ReviewedCapabilityDispatchError(
                 "reviewed capability is unavailable"
@@ -173,6 +192,18 @@ class ReviewedCapabilityExecutor:
         if not isinstance(nonce, str) or not nonce.startswith("v1."):
             raise ReviewedCapabilityDispatchError("reviewed capability is unavailable")
         return nonce
+
+    def _validate_template(self, request: ReviewedCapabilityDispatchRequest) -> None:
+        current = self._current_reviewed_template_provider(
+            request.template_capability_id
+        )
+        self._reviewed_templates.resolve_declared(
+            capability_id=request.template_capability_id,
+            contract_version=request.template_contract_version,
+            template_digest=request.template_digest,
+            input_fields=("job_handle",),
+            current_template=current,
+        )
 
     def _approve_and_reserve(
         self, request: ReviewedCapabilityReservationRequest, *, now: datetime
