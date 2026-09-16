@@ -95,6 +95,72 @@ class PrivateStateStore:
             self._write_records(records)
         return handle
 
+    def issue_or_reuse(
+        self,
+        *,
+        kind: str,
+        owner: str,
+        payload: Mapping[str, Any],
+        replay_key: str,
+        conflict_keys: Mapping[str, str],
+        expires_at: datetime,
+        now: datetime,
+    ) -> tuple[str, bool]:
+        """Atomically issue one record, replay it, or reject a key conflict."""
+
+        _require_nonempty(kind, "kind")
+        _require_nonempty(owner, "owner")
+        _require_nonempty(replay_key, "replay_key")
+        if not conflict_keys or any(
+            not isinstance(key, str)
+            or not key
+            or not isinstance(value, str)
+            or not value
+            for key, value in conflict_keys.items()
+        ):
+            raise OpaqueRecordError("opaque record conflict keys are invalid")
+        issued_at = _as_utc(now, "now")
+        expiry = _as_utc(expires_at, "expires_at")
+        if expiry <= issued_at:
+            raise OpaqueRecordError("expires_at must be after now")
+        payload_copy = _canonical_payload(payload)
+        if payload_copy.get("replay_key") != replay_key or any(
+            payload_copy.get(key) != value for key, value in conflict_keys.items()
+        ):
+            raise OpaqueRecordError("opaque record replay binding is invalid")
+        handle = self._new_handle()
+        raw_record = self._new_raw_record(
+            kind=kind,
+            owner=owner,
+            payload=payload_copy,
+            issued_at=issued_at,
+            expires_at=expiry,
+        )
+        with self._mutation_lock():
+            records = self._read_records()
+            for existing_handle, existing_raw in records.items():
+                if existing_raw.get("owner") != owner:
+                    continue
+                record = self._validated_record_from_records(
+                    existing_handle, owner=owner, records=records
+                )
+                if record.kind != kind:
+                    continue
+                try:
+                    self._require_active(record, issued_at)
+                except OpaqueRecordError:
+                    continue
+                if record.payload.get("replay_key") == replay_key:
+                    return existing_handle, True
+                if any(
+                    record.payload.get(key) == value
+                    for key, value in conflict_keys.items()
+                ):
+                    raise OpaqueRecordError("opaque record reservation conflicts")
+            records[handle] = raw_record
+            self._write_records(records)
+        return handle, False
+
     def load(
         self,
         handle: str,

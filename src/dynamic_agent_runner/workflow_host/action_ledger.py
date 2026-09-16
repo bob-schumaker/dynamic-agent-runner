@@ -44,6 +44,25 @@ class ActionLedgerEvent:
     status: str
 
 
+@dataclass(frozen=True)
+class ReviewedCapabilityReservationRequest:
+    """The complete private binding of one reviewed-capability dispatch."""
+
+    run_id: str
+    package_registration_digest: str
+    package_revision_digest: str
+    declared_call_site_id: str
+    template_capability_id: str
+    template_contract_version: str
+    template_digest: str
+    job_issuer_id: str
+    job_opaque_id: str
+    job_revision: str
+    job_digest: str
+    principal: str
+    approval_nonce: str
+
+
 class WorkflowActionLedger:
     """Append-only action states with one atomic intent-to-dispatch claim."""
 
@@ -75,6 +94,54 @@ class WorkflowActionLedger:
         except OpaqueRecordError as error:
             raise ActionLedgerError("action intent is unavailable") from error
         return ActionLedgerEvent(action_id, digest, "intent")
+
+    def reserve_reviewed_capability(
+        self, request: ReviewedCapabilityReservationRequest, *, now: datetime
+    ) -> ActionLedgerEvent:
+        """Atomically reserve one approved reviewed-capability job dispatch."""
+
+        digest = _reviewed_capability_reservation_digest(request)
+        run_call_key = hashlib.sha256(
+            _canonical_json(
+                {
+                    "run_id": request.run_id,
+                    "package_registration_digest": request.package_registration_digest,
+                    "package_revision_digest": request.package_revision_digest,
+                    "declared_call_site_id": request.declared_call_site_id,
+                }
+            ).encode("utf-8")
+        ).hexdigest()
+        job_key = hashlib.sha256(
+            _canonical_json(
+                {
+                    "job_issuer_id": request.job_issuer_id,
+                    "job_opaque_id": request.job_opaque_id,
+                    "job_revision": request.job_revision,
+                    "job_digest": request.job_digest,
+                }
+            ).encode("utf-8")
+        ).hexdigest()
+        try:
+            reservation_id, _ = self._store.issue_or_reuse(
+                kind="reviewed_capability_reservation",
+                owner=self._owner,
+                payload={
+                    "format_version": 1,
+                    "replay_key": digest,
+                    "run_call_key": run_call_key,
+                    "job_key": job_key,
+                    "status": "reserved",
+                },
+                replay_key=digest,
+                conflict_keys={"run_call_key": run_call_key, "job_key": job_key},
+                expires_at=datetime.max.replace(tzinfo=UTC),
+                now=now,
+            )
+        except OpaqueRecordError as error:
+            raise ActionLedgerError(
+                "reviewed capability reservation is unavailable"
+            ) from error
+        return ActionLedgerEvent(reservation_id, digest, "reserved")
 
     def claim_dispatch(self, intent_id: str, *, now: datetime) -> ActionLedgerEvent:
         """Atomically spend one intent, then durably record dispatch eligibility."""
@@ -189,6 +256,40 @@ def _action_digest(action: ExternalAction) -> str:
             action.normalized_arguments, "normalized_arguments"
         ),
         "workspace_artifact_hashes": _artifact_hashes(action.workspace_artifact_hashes),
+    }
+    return hashlib.sha256(_canonical_json(values).encode("utf-8")).hexdigest()
+
+
+def _reviewed_capability_reservation_digest(
+    request: ReviewedCapabilityReservationRequest,
+) -> str:
+    if not isinstance(request, ReviewedCapabilityReservationRequest):
+        raise ActionLedgerError("reviewed capability reservation is invalid")
+    values = {
+        "format_version": 1,
+        "run_id": _text(request.run_id, "run_id"),
+        "package_registration_digest": _digest(
+            request.package_registration_digest, "package_registration_digest"
+        ),
+        "package_revision_digest": _digest(
+            request.package_revision_digest, "package_revision_digest"
+        ),
+        "declared_call_site_id": _text(
+            request.declared_call_site_id, "declared_call_site_id"
+        ),
+        "template_capability_id": _text(
+            request.template_capability_id, "template_capability_id"
+        ),
+        "template_contract_version": _text(
+            request.template_contract_version, "template_contract_version"
+        ),
+        "template_digest": _digest(request.template_digest, "template_digest"),
+        "job_issuer_id": _text(request.job_issuer_id, "job_issuer_id"),
+        "job_opaque_id": _text(request.job_opaque_id, "job_opaque_id"),
+        "job_revision": _text(request.job_revision, "job_revision"),
+        "job_digest": _digest(request.job_digest, "job_digest"),
+        "principal": _text(request.principal, "principal"),
+        "approval_nonce": _opaque_id(request.approval_nonce, "approval_nonce"),
     }
     return hashlib.sha256(_canonical_json(values).encode("utf-8")).hexdigest()
 
