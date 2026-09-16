@@ -59,6 +59,19 @@ def _descriptor() -> dict[str, object]:
     }
 
 
+def _reviewed_vector_index_tool() -> dict[str, object]:
+    return {
+        "id": "build_vector_index",
+        "kind": "reviewed_capability",
+        "capability_id": "vector_index.build.v1",
+        "contract_version": "1",
+        "template_digest": "a" * 64,
+        "input_fields": ["job_handle"],
+        "side_effect": "write",
+        "approval_required": True,
+    }
+
+
 def test_valid_no_tool_descriptor_compiles() -> None:
     descriptor = WorkflowDescriptor.from_mapping(_descriptor())
 
@@ -87,6 +100,74 @@ def test_descriptor_parses_canonical_capability_requirements() -> None:
 
     assert descriptor.capability_requirements == requirements
     assert descriptor.capability_requirements_digest == requirements.digest
+
+
+def test_descriptor_parses_one_exact_reviewed_vector_index_tool() -> None:
+    value = _descriptor()
+    value["tools"] = [_reviewed_vector_index_tool()]
+    value["task_invocation"].update(  # type: ignore[index,union-attr]
+        {"allowed_tool_ids": ["build_vector_index"], "max_total_tool_calls": 1}
+    )
+
+    descriptor = WorkflowDescriptor.from_mapping(value)
+
+    assert len(descriptor.declared_reviewed_capability_tools) == 1
+    tool = descriptor.declared_reviewed_capability_tools[0]
+    assert tool.capability_id == "vector_index.build.v1"
+    assert tool.contract_version == "1"
+    assert tool.template_digest == "a" * 64
+    assert tool.input_fields == ("job_handle",)
+    assert tool.side_effect == "write"
+    assert tool.approval_required
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        lambda tool: tool.update({"input_fields": ["job_handle", "profile"]}),
+        lambda tool: tool.update({"approval_required": False}),
+        lambda tool: tool.update({"host_implementation": "local-indexer"}),
+    ),
+)
+def test_descriptor_rejects_noncanonical_reviewed_vector_index_tool(
+    mutation: object,
+) -> None:
+    value = _descriptor()
+    tool = _reviewed_vector_index_tool()
+    mutation(tool)  # type: ignore[operator]
+    value["tools"] = [tool]
+    value["task_invocation"].update(  # type: ignore[index,union-attr]
+        {"allowed_tool_ids": ["build_vector_index"], "max_total_tool_calls": 1}
+    )
+
+    with pytest.raises(WorkflowDescriptorError, match="reviewed capability"):
+        WorkflowDescriptor.from_mapping(value)
+
+
+def test_descriptor_rejects_multiple_reviewed_vector_index_call_sites() -> None:
+    value = _descriptor()
+    duplicate = {**_reviewed_vector_index_tool(), "id": "build_vector_index_again"}
+    value["tools"] = [_reviewed_vector_index_tool(), duplicate]
+    value["task_invocation"].update(  # type: ignore[index,union-attr]
+        {
+            "allowed_tool_ids": ["build_vector_index", "build_vector_index_again"],
+            "max_total_tool_calls": 2,
+        }
+    )
+
+    with pytest.raises(WorkflowDescriptorError, match="reviewed capability"):
+        WorkflowDescriptor.from_mapping(value)
+
+
+def test_descriptor_binds_one_reviewed_vector_index_call_per_run() -> None:
+    value = _descriptor()
+    value["tools"] = [_reviewed_vector_index_tool()]
+    value["task_invocation"].update(  # type: ignore[index,union-attr]
+        {"allowed_tool_ids": ["build_vector_index"], "max_total_tool_calls": 2}
+    )
+
+    with pytest.raises(WorkflowDescriptorError, match="reviewed capability"):
+        WorkflowDescriptor.from_mapping(value)
 
 
 @pytest.mark.parametrize(
