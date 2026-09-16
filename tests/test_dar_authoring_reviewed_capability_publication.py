@@ -305,6 +305,48 @@ def test_publication_rejects_counts_above_the_template_ceiling_before_host_effec
     assert host.calls == []
 
 
+def test_publication_rejects_a_generation_id_beyond_the_registered_limit(
+    tmp_path,
+) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    private = artifacts.stage(
+        descriptor=_descriptor(),
+        receiver_id="principal",
+        revision_digest="e" * 64,
+        invocation_id="run-1",
+        sealed=(
+            ("index_generation", "application/octet-stream", b"index"),
+            ("index_manifest", "application/json", b"{}"),
+            ("coverage_report", "application/json", b"{}"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    host = _FakeHost()
+    coordinator = ReviewedCapabilityPublicationCoordinator(
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
+        count_ceiling=1024,
+        generation_id_max_bytes=1,
+    )
+
+    with pytest.raises(ReviewedCapabilityPublicationError, match="publication"):
+        coordinator.complete(
+            reservation_id="v1.reservation",
+            private=private,
+            generation_id="too-long",
+            counts=_counts(source_records=1),
+            now=NOW,
+        )
+
+    assert host.calls == []
+
+
 def test_current_generation_retention_renews_all_output_roles(tmp_path) -> None:
     store = PrivateStateStore(tmp_path / "state")
     artifacts = SealedArtifactOutputHandleService(store=store, owner="host")

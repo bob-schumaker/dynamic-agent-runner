@@ -120,6 +120,7 @@ class ReviewedCapabilityPublicationCoordinator:
         failure_classification: str,
         failure_classifications: tuple[str, ...],
         count_ceiling: int,
+        generation_id_max_bytes: int = 128,
     ) -> None:
         if (
             not isinstance(store, PrivateStateStore)
@@ -144,6 +145,9 @@ class ReviewedCapabilityPublicationCoordinator:
             or not isinstance(count_ceiling, int)
             or isinstance(count_ceiling, bool)
             or count_ceiling < 0
+            or not isinstance(generation_id_max_bytes, int)
+            or isinstance(generation_id_max_bytes, bool)
+            or generation_id_max_bytes < 1
         ):
             raise ReviewedCapabilityPublicationError("publication is unavailable")
         self._store = store
@@ -153,6 +157,7 @@ class ReviewedCapabilityPublicationCoordinator:
         self._failure_classification = failure_classification
         self._failure_classifications = failure_classifications
         self._count_ceiling = count_ceiling
+        self._generation_id_max_bytes = generation_id_max_bytes
 
     def complete(
         self,
@@ -171,6 +176,7 @@ class ReviewedCapabilityPublicationCoordinator:
             or not isinstance(private, SealedArtifactPrivateOutputSet)
             or not isinstance(generation_id, str)
             or not generation_id
+            or len(generation_id.encode("utf-8")) > self._generation_id_max_bytes
             or not isinstance(counts, Mapping)
             or not _valid_counts(counts, ceiling=self._count_ceiling)
         ):
