@@ -204,6 +204,38 @@ class ReviewedCapabilityTemplateControlPlane:
             raise ReviewedToolPackageError("reviewed template is unavailable")
         return current_template
 
+    def resolve_declared(
+        self,
+        *,
+        capability_id: str,
+        contract_version: str,
+        template_digest: str,
+        input_fields: tuple[str, ...],
+        current_template: ReviewedCapabilityTemplate,
+    ) -> ReviewedCapabilityTemplate:
+        """Resolve only a declaration that exactly matches the current template."""
+
+        try:
+            _require_identifier(capability_id)
+            _require_identifier(contract_version)
+            _require_digest(template_digest)
+            if input_fields != ("job_handle",):
+                raise ValueError
+            template = self.resolve(
+                capability_id=capability_id, current_template=current_template
+            )
+        except (ReviewedToolPackageError, ValueError) as error:
+            raise ReviewedToolPackageError(
+                "reviewed template is unavailable"
+            ) from error
+        if (
+            template.contract_version != contract_version
+            or template.template_digest != template_digest
+            or template.input_fields != input_fields
+        ):
+            raise ReviewedToolPackageError("reviewed template is unavailable")
+        return template
+
 
 def _binding_from_payload(payload: object) -> ReviewedToolPackageBinding:
     if (

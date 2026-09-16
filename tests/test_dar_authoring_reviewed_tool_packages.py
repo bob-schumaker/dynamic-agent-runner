@@ -135,6 +135,36 @@ def test_reviewed_template_registration_rejects_a_disabled_template(
         )
 
 
+def test_reviewed_template_registration_resolves_only_the_declared_identity(
+    tmp_path: Path,
+) -> None:
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=PrivateStateStore(tmp_path / "state"), owner="local-user"
+    )
+    template = _template()
+    templates.create(template=template)
+
+    assert (
+        templates.resolve_declared(
+            capability_id="vector_index.build.v1",
+            contract_version="1",
+            template_digest=template.template_digest,
+            input_fields=("job_handle",),
+            current_template=template,
+        )
+        == template
+    )
+
+    with pytest.raises(ReviewedToolPackageError, match="unavailable"):
+        templates.resolve_declared(
+            capability_id="vector_index.build.v1",
+            contract_version="1",
+            template_digest="a" * 64,
+            input_fields=("job_handle",),
+            current_template=template,
+        )
+
+
 def test_named_reviewed_package_captures_its_exact_binding_and_allowlists(
     tmp_path: Path,
 ) -> None:
