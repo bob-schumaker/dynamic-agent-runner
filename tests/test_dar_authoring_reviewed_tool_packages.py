@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
+    ReviewedCapabilityTemplateAuthoringDiscoveryService,
     ReviewedCapabilityTemplateControlPlane,
     ReviewedToolPackageBinding,
     ReviewedToolPackageControlPlane,
@@ -14,6 +15,7 @@ from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
 )
 from dynamic_agent_runner.workflow_host.capabilities import (
     ReviewedCapabilityTemplate,
+    ReviewedCapabilityTemplateRegistry,
     ReviewedCapabilityTemplateOutput,
     reviewed_capability_template_digest,
 )
@@ -163,6 +165,58 @@ def test_reviewed_template_registration_resolves_only_the_declared_identity(
             input_fields=("job_handle",),
             current_template=template,
         )
+
+
+def test_authoring_discovery_returns_only_the_registered_declaration_contract(
+    tmp_path: Path,
+) -> None:
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=PrivateStateStore(tmp_path / "state"), owner="local-user"
+    )
+    template = _template()
+    templates.create(template=template)
+
+    discovered = ReviewedCapabilityTemplateAuthoringDiscoveryService(
+        registry=ReviewedCapabilityTemplateRegistry((template,)),
+        templates=templates,
+    ).discover(capability_id="vector_index.build.v1")
+
+    assert discovered.status == "available"
+    assert discovered.capability_id == "vector_index.build.v1"
+    assert discovered.contract_version == "1"
+    assert discovered.template_digest == template.template_digest
+    assert discovered.input_fields == ("job_handle",)
+    assert not hasattr(discovered, "template")
+
+
+def test_authoring_discovery_returns_redacted_unavailable_or_ambiguous_results(
+    tmp_path: Path,
+) -> None:
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=PrivateStateStore(tmp_path / "state"), owner="local-user"
+    )
+    template = _template()
+    templates.create(template=template)
+
+    unavailable = ReviewedCapabilityTemplateAuthoringDiscoveryService(
+        registry=ReviewedCapabilityTemplateRegistry(()),
+        templates=templates,
+    ).discover(capability_id="vector_index.build.v1")
+    ambiguous = ReviewedCapabilityTemplateAuthoringDiscoveryService(
+        registry=ReviewedCapabilityTemplateRegistry(
+            (template, _template(extension_binding="host-vector-index-v2"))
+        ),
+        templates=templates,
+    ).discover(capability_id="vector_index.build.v1")
+
+    assert (unavailable.status, unavailable.capability_id) == (
+        "authoring_runtime_unavailable",
+        None,
+    )
+    assert (ambiguous.status, ambiguous.capability_id) == (
+        "authoring_runtime_ambiguous",
+        None,
+    )
 
 
 def test_named_reviewed_package_captures_its_exact_binding_and_allowlists(

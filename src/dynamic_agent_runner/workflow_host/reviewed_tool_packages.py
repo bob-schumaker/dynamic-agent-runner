@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from dynamic_agent_runner.workflow_host.capabilities import (
     CapabilityError,
     ReviewedCapabilityTemplate,
+    ReviewedCapabilityTemplateRegistry,
     validate_vector_index_build_template,
 )
 from dynamic_agent_runner.workflow_host.state import (
@@ -18,6 +19,17 @@ from dynamic_agent_runner.workflow_host.state import (
 
 class ReviewedToolPackageError(ValueError):
     """Raised when a reviewed tool package is unavailable or unsafe."""
+
+
+@dataclass(frozen=True)
+class ReviewedCapabilityTemplateAuthoringDiscovery:
+    """One redacted template identity available to an authoring client."""
+
+    status: str
+    capability_id: str | None
+    contract_version: str | None
+    template_digest: str | None
+    input_fields: tuple[str, ...] | None
 
 
 @dataclass(frozen=True)
@@ -235,6 +247,49 @@ class ReviewedCapabilityTemplateControlPlane:
         ):
             raise ReviewedToolPackageError("reviewed template is unavailable")
         return template
+
+
+class ReviewedCapabilityTemplateAuthoringDiscoveryService:
+    """Expose registered current template identities without package authority."""
+
+    def __init__(
+        self,
+        *,
+        registry: ReviewedCapabilityTemplateRegistry,
+        templates: ReviewedCapabilityTemplateControlPlane,
+    ) -> None:
+        if not isinstance(
+            registry, ReviewedCapabilityTemplateRegistry
+        ) or not isinstance(templates, ReviewedCapabilityTemplateControlPlane):
+            raise ReviewedToolPackageError("reviewed template is invalid")
+        self._registry = registry
+        self._templates = templates
+
+    def discover(
+        self, *, capability_id: str
+    ) -> ReviewedCapabilityTemplateAuthoringDiscovery:
+        """Return a registered current identity or a redacted availability result."""
+
+        discovered = self._registry.discover(capability_id)
+        if discovered.status != "available" or discovered.template is None:
+            return ReviewedCapabilityTemplateAuthoringDiscovery(
+                discovered.status, None, None, None, None
+            )
+        try:
+            template = self._templates.resolve(
+                capability_id=capability_id, current_template=discovered.template
+            )
+        except ReviewedToolPackageError:
+            return ReviewedCapabilityTemplateAuthoringDiscovery(
+                "authoring_runtime_unavailable", None, None, None, None
+            )
+        return ReviewedCapabilityTemplateAuthoringDiscovery(
+            "available",
+            template.capability_id,
+            template.contract_version,
+            template.template_digest,
+            template.input_fields,
+        )
 
 
 def _binding_from_payload(payload: object) -> ReviewedToolPackageBinding:
