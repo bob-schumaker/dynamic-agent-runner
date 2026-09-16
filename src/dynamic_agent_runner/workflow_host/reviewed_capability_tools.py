@@ -122,5 +122,5 @@ def create_reviewed_capability_tool_binding(
             "additionalProperties": False,
         },
         side_effect="write",
-        approval_required="human",
+        approval_required="human_approval",
     )

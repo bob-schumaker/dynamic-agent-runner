@@ -1929,6 +1929,10 @@ def test_runner_exposes_one_declared_reviewed_capability_tool(tmp_path: Path) ->
         "required": ["job_handle"],
         "additionalProperties": False,
     }
+    assert (
+        registry.get_tool("build_vector_index").definition.approval_required
+        == "human_approval"
+    )
 
 
 def _approval_runner(
