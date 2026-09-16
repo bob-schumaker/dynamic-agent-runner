@@ -57,7 +57,7 @@ Status: In progress
     No current seam is a vector-index runtime, model registry, plugin manager,
     or second action coordinator.
 
-- [ ] T002 [tests, RED] Add reviewed-template registry and discovery vectors.
+- [x] T002 [tests, RED] Add reviewed-template registry and discovery vectors.
   - Spec: FR-1; Reviewed template; FR-6 registration gate.
   - Plan: S1.1.
   - Files/components: capability and reviewed-host-binding test modules named
@@ -68,11 +68,18 @@ Status: In progress
     immutable reviewed-template/discovery behavior.
   - Evidence: fake-only RED vectors cover canonical ID/version/digest,
     zero/one/multiple/disabled discovery, closed `{job_handle}` input,
-    output triple and limits, receipt bounds/grammars/count ceiling,
+    output triple and limits, receipt size/identifier/count bounds and the
+    immutable success-receipt schema digest,
     mandatory `embedding.execute.v1` binding, and rejection of a host lacking
-    reversible pending publication or an idempotent recovery operation.
+    reversible pending publication or an idempotent recovery operation. S4
+    validates the schema's receipt grammar and count values against candidate
+    host results.
+  - Completed evidence: `tests/test_workflow_capabilities.py` and
+    `tests/test_dar_authoring_reviewed_tool_packages.py` use fake-only vectors
+    for exact discovery, immutable digest binding, disabled resolution, the
+    closed input/output/recovery contract, and receipt metadata.
 
-- [ ] T003 [implementation] Add the minimal immutable reviewed-template
+- [x] T003 [implementation] Add the minimal immutable reviewed-template
   registration and discovery values.
   - Spec: FR-1; Terms and Trust Boundary.
   - Plan: S1.2–S1.3.
@@ -84,8 +91,12 @@ Status: In progress
   - Evidence: registration is host-owned and private, resolution returns one
     exact identity or the stable unavailable/ambiguous outcome, and ordinary
     capability-provider semantics have no vector-template rules.
+  - Completed evidence: the immutable template, discovery registry, and
+    private-state control plane live beside the existing capability and
+    reviewed-tool-package primitives; resolution revalidates the full digest
+    and rejects disabled or stale registrations.
 
-- [ ] T004 [tests, GREEN] Prove reviewed-template resolution is fail-closed and
+- [x] T004 [tests, GREEN] Prove reviewed-template resolution is fail-closed and
   isolated from legacy capability requirements.
   - Spec: FR-1; FR-2; Non-Goals.
   - Plan: S1 exit.
@@ -98,6 +109,9 @@ Status: In progress
   - Evidence: registration/discovery requires no package, job, embedding
     material, or extension execution; legacy requirements retain their prior
     behavior.
+  - Completed evidence: focused S1 tests pass for unavailable, ambiguous,
+    stale, and disabled cases, while the ordinary capability-contract tests in
+    `tests/test_workflow_capabilities.py` remain green.
 
 - [ ] T005 [tests, RED] Add descriptor, authoring, and admission vectors for
   the exact reviewed-template declaration.
