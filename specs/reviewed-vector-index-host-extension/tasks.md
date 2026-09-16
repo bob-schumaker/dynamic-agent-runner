@@ -229,7 +229,7 @@ Status: In progress
     tests/test_dar_authoring_reviewed_capability_execution.py -q` passed 30
     tests after exact template revalidation was added.
 
-- [ ] T011 [tests, RED] Add the staged-egress and recovery state-machine test
+- [x] T011 [tests, RED] Add the staged-egress and recovery state-machine test
   matrix with fake artifacts, host, and clock.
   - Spec: FR-5; FR-6; Required Verification 6 through 11.
   - Plan: S4.1–S4.4.
@@ -256,7 +256,7 @@ Status: In progress
     host-operation error retention, and cross-principal/run retrieval denial
     for all three roles.
 
-- [ ] T012 [implementation] Add generic private candidate staging, bounded
+- [x] T012 [implementation] Add generic private candidate staging, bounded
   role validation, inaccessible promotion, and receipt assembly.
   - Spec: FR-5.
   - Plan: S4.2.
@@ -270,7 +270,7 @@ Status: In progress
     result; only DAR creates handles, status, and `published_at` from its host
     clock.
 
-- [ ] T013 [implementation] Add reservation-keyed recovery transitions and the
+- [x] T013 [implementation] Add reservation-keyed recovery transitions and the
   four-operation host recovery protocol.
   - Spec: FR-5; FR-6.
   - Plan: S4.3.
@@ -283,7 +283,7 @@ Status: In progress
     recovery only resumes the original reservation identity, either completes
     it or compensates it, and never rebuilds or republishes.
 
-- [ ] T014 [implementation] Enforce option-2 current-generation retention
+- [x] T014 [implementation] Enforce option-2 current-generation retention
   before artifact revocation.
   - Spec: Authority split; FR-5.
   - Plan: S4.4.
@@ -298,7 +298,7 @@ Status: In progress
     error retains artifacts and leaves the current generation unchanged for all
     three output roles.
 
-- [ ] T015 [tests, GREEN] Prove the completed publication receipt and all
+- [x] T015 [tests, GREEN] Prove the completed publication receipt and all
   failure/recovery outcomes.
   - Spec: FR-5; FR-6; Required Verification 6 through 11.
   - Plan: S4 exit.
@@ -309,7 +309,11 @@ Status: In progress
     and the DAR-clocked aggregate receipt; unrecoverable attempts return only a
     closed redacted failure receipt and preserve the prior visible generation;
     a delivery retry returns the same stored completed receipt without another
-    host operation, build, or publication.
+    host operation, build, or publication. `poetry run pytest
+    tests/test_dar_authoring_reviewed_capability_outputs.py
+    tests/test_dar_authoring_reviewed_capability_publication.py
+    tests/test_dar_authoring_reviewed_capability_execution.py -q` passed 31
+    focused tests after receipt-bound validation and runner completion wiring.
 
 - [ ] T016 [tests, RED] Add host-composition and end-to-end fake-extension
   vectors.
