@@ -21,6 +21,9 @@ from dynamic_agent_runner.workflow_host.reviewed_capability_execution import (
     ReviewedCapabilityDispatchRequest,
     ReviewedCapabilityExecutor,
 )
+from dynamic_agent_runner.workflow_host.reviewed_capability_host_extension import (
+    ReviewedCapabilityHostExtension,
+)
 from dynamic_agent_runner.workflow_host.reviewed_capability_jobs import (
     SealedReviewedCapabilityJob,
 )
@@ -68,6 +71,30 @@ class _FakeHost:
         self.calls.append((job, reservation_id))
         if self.failure is not None:
             raise self.failure
+
+
+class _FakeExtensionHost(_FakeJobResolver, _FakeHost):
+    def __init__(self, job: SealedReviewedCapabilityJob) -> None:
+        _FakeJobResolver.__init__(self, job)
+        _FakeHost.__init__(self)
+
+    def begin_pending_publication(self, **_kwargs: object) -> None:
+        return None
+
+    def query_current_outcome(self, **_kwargs: object) -> str:
+        return "pending"
+
+    def acknowledge_visibility(self, **_kwargs: object) -> None:
+        return None
+
+    def compensate(self, **_kwargs: object) -> None:
+        return None
+
+    def assert_generation_current(self, **_kwargs: object) -> bool:
+        return True
+
+    def unpublish_generation_atomically(self, **_kwargs: object) -> None:
+        return None
 
 
 def _job() -> SealedReviewedCapabilityJob:
@@ -186,6 +213,34 @@ def test_executor_approves_revalidates_and_dispatches_one_sealed_job_once(
 
     assert dispatched.status == "dispatched"
     assert replayed.status == "replayed"
+    assert len(host.calls) == 1
+
+
+def test_host_extension_composes_the_existing_approval_executor(
+    tmp_path: Path,
+) -> None:
+    host = _FakeExtensionHost(_job())
+    store = PrivateStateStore(tmp_path / "state")
+    template = _template()
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=store, owner="local-os-user-v1:501:ada"
+    )
+    templates.create(template=template)
+    extension = ReviewedCapabilityHostExtension(
+        template=template,
+        host=host,
+        dependency_binding_digest="c" * 64,
+        nonce_factory=lambda: "v1.approval.nonce",
+    )
+
+    dispatched = extension.executor(
+        ledger=WorkflowActionLedger(store=store, owner="local-os-user-v1:501:ada"),
+        approvals=WorkflowApprovalStore(store=store, owner="local-os-user-v1:501:ada"),
+        approval_broker=_FakeApprovalBroker(),
+        reviewed_templates=templates,
+    ).dispatch(_request(), now=NOW)
+
+    assert dispatched.status == "dispatched"
     assert len(host.calls) == 1
 
 
