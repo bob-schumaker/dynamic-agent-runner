@@ -192,6 +192,28 @@ def test_vector_index_template_requires_its_closed_host_extension_contract() -> 
                 ),
             )
         ),
+        _reviewed_template(
+            outputs=(
+                ReviewedCapabilityTemplateOutput(
+                    role="index_generation",
+                    media_type="application/json",
+                    max_bytes=1024,
+                    retention_seconds=60,
+                ),
+                ReviewedCapabilityTemplateOutput(
+                    role="index_manifest",
+                    media_type="application/json",
+                    max_bytes=1024,
+                    retention_seconds=60,
+                ),
+                ReviewedCapabilityTemplateOutput(
+                    role="coverage_report",
+                    media_type="application/json",
+                    max_bytes=1024,
+                    retention_seconds=60,
+                ),
+            )
+        ),
         _reviewed_template(recovery_operations=("compensate",)),
     ),
 )

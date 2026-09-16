@@ -224,8 +224,12 @@ def validate_vector_index_build_template(template: ReviewedCapabilityTemplate) -
         or template.capability_id != "vector_index.build.v1"
         or template.input_fields != ("job_handle",)
         or template.required_dependency != "embedding.execute.v1"
-        or tuple(item.role for item in template.outputs)
-        != ("index_generation", "index_manifest", "coverage_report")
+        or tuple((item.role, item.media_type) for item in template.outputs)
+        != (
+            ("index_generation", "application/octet-stream"),
+            ("index_manifest", "application/json"),
+            ("coverage_report", "application/json"),
+        )
         or set(template.recovery_operations)
         != {
             "begin_pending_publication",
