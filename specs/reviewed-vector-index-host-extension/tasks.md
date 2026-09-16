@@ -315,7 +315,7 @@ Status: In progress
     tests/test_dar_authoring_reviewed_capability_execution.py -q` passed 31
     focused tests after receipt-bound validation and runner completion wiring.
 
-- [ ] T016 [tests, RED] Add host-composition and end-to-end fake-extension
+- [x] T016 [tests, RED] Add host-composition and end-to-end fake-extension
   vectors.
   - Spec: Objective; Authority split; Non-Goals.
   - Plan: S5.1–S5.2.
@@ -328,7 +328,7 @@ Status: In progress
     authoring through approval, dispatch, completion, and receipt retrieval
     without leaking sealed members or host policy to arguments or traces.
 
-- [ ] T017 [implementation, GREEN] Compose the optional reviewed extension and
+- [x] T017 [implementation, GREEN] Compose the optional reviewed extension and
   preserve legacy embedding behavior.
   - Spec: Objective; Non-Goals.
   - Plan: S5.1–S5.3 and S5 exit.
@@ -342,7 +342,12 @@ Status: In progress
   - Evidence: a deployment opt-in composes the reviewed vector extension;
     default DAR and legacy workflows gain no template behavior, and
     `EmbeddingSealedArtifactCallbackResolver` remains composed for its
-    existing embedding workflow when no vector extension is installed.
+    existing embedding workflow when no vector extension is installed. `poetry
+    run pytest tests/test_dar_authoring_host.py
+    tests/test_dar_authoring_runner.py
+    tests/test_dar_authoring_reviewed_tool_packages.py
+    tests/test_dar_authoring_action_ledger.py
+    tests/test_embedding_index_artifacts.py -q` passed 135 tests.
 
 - [ ] T018 [verification] Run the complete regression and static-validation
   gate after all focused suites are green.
