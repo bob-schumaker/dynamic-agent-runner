@@ -179,7 +179,7 @@ Status: In progress
     tests/test_dar_authoring_registration.py tests/test_dar_authoring_preflight.py
     -q` passed 102 tests after the admission-record identity binding.
 
-- [ ] T008 [tests, RED] Add sealed-job, approval, and reservation failure
+- [x] T008 [tests, RED] Add sealed-job, approval, and reservation failure
   vectors using a fake host extension.
   - Spec: FR-3; FR-4; Required Verification 3 through 5.
   - Plan: S3.1 and S3.4.
@@ -193,9 +193,12 @@ Status: In progress
     foreign, expired, unauthorized, envelope/member/template/extension/
     dependency mismatches; they prove post-approval binding mutation requires
     a new approval, no fallback dependency selection, one call per run, and no
-    concurrent/replayed job dispatch.
+    concurrent/replayed job dispatch. Focused S3 RED/GREEN coverage is in
+    `tests/test_dar_authoring_reviewed_capability_jobs.py`,
+    `tests/test_dar_authoring_action_ledger.py`, and
+    `tests/test_dar_authoring_reviewed_capability_execution.py`.
 
-- [ ] T009 [implementation] Add the generic sealed-job resolver and durable
+- [x] T009 [implementation] Add the generic sealed-job resolver and durable
   single-store reservation record.
   - Spec: FR-3; FR-4.
   - Plan: S3.2–S3.4.
@@ -207,8 +210,10 @@ Status: In progress
   - Evidence: the reservation atomically consumes the full run/package/call
     site/template/job issuer/job opaque ID/job revision/job digest/principal/
     approval-nonce tuple; its identity is the sole replay and recovery key.
+    `ReviewedCapabilityExecutor` uses the sealed transport and the single-store
+    approval-to-reservation transition without host authority over the tuple.
 
-- [ ] T010 [tests, GREEN] Prove exact pre-dispatch revalidation and ordinary
+- [x] T010 [tests, GREEN] Prove exact pre-dispatch revalidation and ordinary
   dispatch failure semantics.
   - Spec: FR-3; FR-4; FR-5 failure-before-`host_pending` rule.
   - Plan: S3 exit.
@@ -218,7 +223,11 @@ Status: In progress
   - Evidence: valid jobs dispatch once; every invalid, replayed, or concurrent
     attempt has zero dispatches/handles; a pre-`host_pending` host-dispatch
     failure durably reaches `aborted` and returns only the closed redacted
-    failure receipt.
+    failure receipt. `poetry run pytest
+    tests/test_dar_authoring_action_ledger.py
+    tests/test_dar_authoring_reviewed_capability_jobs.py
+    tests/test_dar_authoring_reviewed_capability_execution.py -q` passed 30
+    tests after exact template revalidation was added.
 
 - [ ] T011 [tests, RED] Add the staged-egress and recovery state-machine test
   matrix with fake artifacts, host, and clock.
