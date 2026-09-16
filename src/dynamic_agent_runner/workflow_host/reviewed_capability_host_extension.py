@@ -159,6 +159,8 @@ class ReviewedCapabilityHostExtension:
                     failure_classifications=self.template.failure_classifications,
                     count_ceiling=self.template.count_ceiling,
                     generation_id_max_bytes=self.template.generation_id_max_bytes,
+                    artifact_handle_max_bytes=self.template.artifact_handle_max_bytes,
+                    max_receipt_bytes=self.template.max_receipt_bytes,
                 ),
             )
             return ReviewedCapabilityExecutor(

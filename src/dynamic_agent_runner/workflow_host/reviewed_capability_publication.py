@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -121,6 +122,8 @@ class ReviewedCapabilityPublicationCoordinator:
         failure_classifications: tuple[str, ...],
         count_ceiling: int,
         generation_id_max_bytes: int = 128,
+        artifact_handle_max_bytes: int = 128,
+        max_receipt_bytes: int = 4096,
     ) -> None:
         if (
             not isinstance(store, PrivateStateStore)
@@ -148,6 +151,12 @@ class ReviewedCapabilityPublicationCoordinator:
             or not isinstance(generation_id_max_bytes, int)
             or isinstance(generation_id_max_bytes, bool)
             or generation_id_max_bytes < 1
+            or not isinstance(artifact_handle_max_bytes, int)
+            or isinstance(artifact_handle_max_bytes, bool)
+            or artifact_handle_max_bytes < 1
+            or not isinstance(max_receipt_bytes, int)
+            or isinstance(max_receipt_bytes, bool)
+            or max_receipt_bytes < 1
         ):
             raise ReviewedCapabilityPublicationError("publication is unavailable")
         self._store = store
@@ -158,6 +167,8 @@ class ReviewedCapabilityPublicationCoordinator:
         self._failure_classifications = failure_classifications
         self._count_ceiling = count_ceiling
         self._generation_id_max_bytes = generation_id_max_bytes
+        self._artifact_handle_max_bytes = artifact_handle_max_bytes
+        self._max_receipt_bytes = max_receipt_bytes
 
     def complete(
         self,
@@ -225,6 +236,13 @@ class ReviewedCapabilityPublicationCoordinator:
                 "dar_promoted",
                 handles=handles,
                 now=now,
+            )
+            _validate_receipt_bounds(
+                ReviewedCapabilityPublicationReceipt(
+                    "published", generation_id, _timestamp(now), handles, counts
+                ),
+                artifact_handle_max_bytes=self._artifact_handle_max_bytes,
+                max_receipt_bytes=self._max_receipt_bytes,
             )
             self._host.acknowledge_visibility(reservation_id=reservation_id)
             record = self._advance(attempt_id, record.payload, "host_visible", now=now)
@@ -512,6 +530,31 @@ def _valid_counts(counts: Mapping[str, int], *, ceiling: int | None = None) -> b
         and (ceiling is None or value <= ceiling)
         for value in counts.values()
     )
+
+
+def _validate_receipt_bounds(
+    receipt: ReviewedCapabilityPublicationReceipt,
+    *,
+    artifact_handle_max_bytes: int,
+    max_receipt_bytes: int,
+) -> None:
+    mapping = receipt.to_mapping()
+    artifacts = mapping["artifacts"]
+    if (
+        not isinstance(artifacts, Mapping)
+        or any(
+            not isinstance(handle, str)
+            or len(handle.encode("utf-8")) > artifact_handle_max_bytes
+            for handle in artifacts.values()
+        )
+        or len(
+            json.dumps(
+                mapping, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            ).encode("utf-8")
+        )
+        > max_receipt_bytes
+    ):
+        raise ReviewedCapabilityPublicationError("publication is unavailable")
 
 
 def _matches_completion_request(
