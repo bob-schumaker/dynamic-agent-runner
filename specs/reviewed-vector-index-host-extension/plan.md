@@ -13,9 +13,9 @@ does not authorize an MLX, vault, index, or publication implementation.
 Provide DAR primitives that let a deployment host register an exact reviewed
 `vector_index.build.v1` template and execute one approval-gated,
 host-created `sealed:vector-index-job` per workflow run. DAR must own generic
-discovery, admission, approval/action consumption, sealed artifact retention,
-and recoverable completion; the host extension must retain all corpus, model,
-index, and publication authority.
+separate host-template discovery, admission, approval/action consumption,
+sealed artifact retention, and recoverable completion; the host extension must
+retain all corpus, model, index, and publication authority.
 
 ## Delivery Rules
 
@@ -40,9 +40,9 @@ index, and publication authority.
 
 | Concern | Current owner | Planned change |
 | --- | --- | --- |
-| Exact DAR capability contracts | `workflow_host/capabilities.py` | Add host-reviewed template identity/discovery without changing ordinary capability-provider selection. |
-| Reviewed host bindings | `workflow_host/reviewed_tool_packages.py` | Reuse durable host-owned binding records for template registration; do not overload package allowlists with index semantics. |
-| Authoring contract | `workflow_host/workflow_authoring_registration.py` and authoring host path | Discover and bind the exact template version/digest before emitting a package. |
+| Exact DAR capability contracts | `workflow_host/capabilities.py` | Add host-reviewed template identity/discovery values without changing ordinary capability-provider selection. |
+| Reviewed host bindings and discovery API | `workflow_host/reviewed_tool_packages.py` | Reuse durable host-owned binding records for template registration and expose the separate authoring discovery API; do not overload package allowlists with index semantics. |
+| Authoring contract | External authoring client, descriptor/parser, and `workflow_host/workflow_authoring_registration.py` boundary | The client calls the host API before package output and binds the returned exact version/digest; do not inject vector-template behavior into `WorkflowAuthoringHost`. |
 | Policy/admission | `workflow_host/policy.py`, registration, preflight, and `workflow_host/host.py` | Bind and revalidate the template identity before ingress, execution, or output allocation. |
 | Approval and idempotency | `workflow_host/authorized_tools.py` and `workflow_host/action_ledger.py` | Bind the one-time approval tuple, one-call-per-run budget, one-job reservation, and recovery state. |
 | Sealed input/output artifacts | `workflow_host/sealed_artifact_preparation.py`, `workflow_host/sealed_artifact_runner.py`, and artifact services | Add generic staged candidate retention and atomic public-handle promotion without parsing index bytes. |
@@ -56,10 +56,13 @@ index, and publication authority.
    digest, receipt bounds, finite failure classifications, approval
    classification, mandatory dependency declaration, recovery operations, and
    extension binding. Provider selection remains DAR-private.
-2. Authoring requests `vector_index.build.v1`; discovery returns one exact
-   available template identity or a stable unavailable/ambiguous result. The
-   selected identity is bound into package policy. Runtime never chooses among
-   multiple templates.
+2. Before writing a package, an authoring client calls a separate host
+   template-discovery API for `vector_index.build.v1`. It returns one exact
+   available identity and its closed declaration contract, or a stable
+   unavailable/ambiguous result. It creates neither a package nor a job and
+   grants no approval or dispatch authority. The selected identity is bound
+   into package policy. Runtime never chooses among multiple templates, and
+   package admission and execution admission revalidate the discovery result.
 3. The vector-index job is a host-created sealed envelope. Its opaque handle is
    the package's only argument. Job revision/digest, issuer, principal, expiry,
    template identity, extension binding, sealed members, and embedding binding
@@ -90,13 +93,13 @@ index, and publication authority.
 ### S1 — Reviewed template contracts and host registry
 
 1. Add RED tests for immutable template canonicalization, digest validation,
-   one/multiple/zero discovery matches, disabled registrations, exact
+   one/multiple/zero registry matches, disabled registrations, exact
    `{job_handle}` input schema, `vector_index.build.v1`'s required output
    triple, per-role media/byte/retention limits, maximum receipt size, bounded
    handle/generation-ID grammars, count ceiling, closed receipt schema, stable
    classifications, required `embedding.execute.v1` dependency/binding, and
    required reversible pending-publication/idempotent-recovery operations.
-2. Add narrow immutable template and discovery values adjacent to the current
+2. Add narrow immutable template and registry-resolution values adjacent to the current
    capability/host-binding primitives. Persist template registration in the
    existing private state store and verify its current host binding, closed
    input contract, mandatory dependency declaration, and recovery capability
@@ -105,33 +108,40 @@ index, and publication authority.
 3. Keep `vector_index.build.v1` template-specific rules out of ordinary
    capability-provider catalog semantics.
 
-Exit: a host can register and discover exactly one reviewed template identity
-without loading a package, job, embedding material, or extension implementation.
+Exit: a host can register and resolve exactly one reviewed template candidate
+identity without loading a package, job, embedding material, or extension
+implementation. The separate authoring API is delivered in S2.
 
-### S2 — Authoring declaration, policy binding, and admission
+### S2 — Separate authoring discovery, declaration, policy binding, and admission
 
-1. Write RED authoring and descriptor/policy tests that prove zero/multiple
-   discovery matches return the specified redacted result and write no package.
-   Prove a successful package binds ID, version, template digest, and the
-   template's closed one-field call contract exactly. Reject zero or multiple
-   `vector_index.build.v1` call sites and declaration fields for host
-   implementation/module/path/endpoint, source, job members, profile, prior
-   generation, model/material/provider, retry controls, destination, or
-   publish/delete policy. Use one closed `tools` entry of kind
+1. Write RED host-API and descriptor/policy tests. Prove that the separate
+   discovery API returns only ID, version, digest, and closed input-field
+   contract; that zero/multiple matches return the specified redacted result;
+   and that either result writes no package, creates no job, and grants no
+   approval or dispatch authority. Prove a successful package binds the
+   returned ID, version, template digest, and one-field call contract exactly.
+   Reject zero or multiple `vector_index.build.v1` call sites and declaration
+   fields for host implementation/module/path/endpoint, source, job members,
+   profile, prior generation, model/material/provider, retry controls,
+   destination, or publish/delete policy. Use one closed `tools` entry of kind
    `reviewed_capability`; it carries only the reviewed template ID, version,
    digest, canonical `job_handle` input, write side effect, and required
    approval.
-2. Extend the authoring contract, workflow descriptor/parser, policy digest,
-   registration record, and preflight path to carry the exact reviewed-template
-   requirement. Reject changed, disabled, digest-mismatched, input-schema, or
-   mandatory-dependency registrations, non-singular call-site declarations, or
-   package-provided host authority before job ingress, package code, or output
-   allocation.
+2. Add the separate host template-discovery API beside the reviewed
+   registration/control-plane seam. The external authoring client calls it
+   before writing the descriptor; it must not be implemented as a
+   vector-template-specific `WorkflowAuthoringHost` injection. Extend the
+   workflow descriptor/parser, policy digest, registration record, and
+   preflight path to carry the exact reviewed-template requirement. Reject
+   changed, disabled, digest-mismatched, input-schema, or mandatory-dependency
+   registrations, non-singular call-site declarations, or package-provided
+   host authority before job ingress, package code, or output allocation.
 3. Preserve legacy packages and all existing `capability_requirements`
    behavior unchanged; add compatibility fixtures for both paths.
 
-Exit: authoring and package admission fail closed against the same immutable
-template identity, while legacy packages retain their existing admission path.
+Exit: separate discovery writes no package and grants no authority; authoring
+and package admission fail closed against the same immutable template identity,
+while legacy packages retain their existing admission path.
 
 ### S3 — Sealed vector-index job and exact approval consumption
 

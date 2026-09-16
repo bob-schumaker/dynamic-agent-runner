@@ -47,8 +47,8 @@ Status: In progress
 
   | Slice | Source owner | Focused test owner | First guarded boundary |
   | --- | --- | --- | --- |
-  | S1 | `capabilities.py`; `reviewed_tool_packages.py` | `tests/test_workflow_capabilities.py`; `tests/test_dar_authoring_reviewed_tool_packages.py` | Template registration/discovery completes before package, job, dependency, or extension execution. |
-  | S2 | `workflow_authoring_registration.py`; `policy.py`; registration/preflight path | `tests/test_dar_authoring_descriptor.py`; `tests/test_dar_authoring_policy.py`; `tests/test_dar_authoring_registration.py`; `tests/test_dar_authoring_preflight.py` | Descriptor/policy admission precedes job ingress, package code, extension dispatch, and output allocation. |
+  | S1 | `capabilities.py`; `reviewed_tool_packages.py` | `tests/test_workflow_capabilities.py`; `tests/test_dar_authoring_reviewed_tool_packages.py` | Template registration completes before package, job, dependency, or extension execution. |
+  | S2 | `reviewed_tool_packages.py`; descriptor/parser; `policy.py`; registration/preflight path | `tests/test_dar_authoring_reviewed_tool_packages.py`; `tests/test_dar_authoring_descriptor.py`; `tests/test_dar_authoring_policy.py`; `tests/test_dar_authoring_registration.py`; `tests/test_dar_authoring_preflight.py` | Separate host discovery completes before package writing; descriptor/policy admission precedes job ingress, package code, extension dispatch, and output allocation. |
   | S3 | `authorized_tools.py`; `action_ledger.py` | `tests/test_dar_authoring_authorized_tools.py`; `tests/test_dar_authoring_action_ledger.py` | `_consume_approved_decision` and the action ledger bind approval/reservation before host dispatch. |
   | S4 | `sealed_artifact_preparation.py`; `sealed_artifact_runner.py`; `sealed_artifact_workflow_runner.py`; `action_ledger.py` | `tests/test_sealed_artifact_preparation.py`; `tests/test_sealed_artifact_handles.py`; `tests/test_sealed_artifact_output_handles.py`; `tests/test_sealed_artifact_workflow_runner.py` | `SealedArtifactWorkflowRunner.run` validates admission before callback resolution; output handles remain private until output-set publication. |
   | S5 | `host.py`; `embedding_sealed_artifact_callback.py` | `tests/test_dar_authoring_host.py`; `tests/test_embedding_sealed_artifact_callback.py`; existing S1–S4 suites | `LocalWorkflowHost` composition decides extension availability before authoring/admission; the legacy embedding resolver remains its separate callback path. |
@@ -58,7 +58,8 @@ Status: In progress
     or second action coordinator.
 
 - [x] T002 [tests, RED] Add reviewed-template registry and discovery vectors.
-  - Spec: FR-1; Reviewed template; FR-6 registration gate.
+  - Spec: Reviewed template; FR-1 host-controlled registry prerequisite;
+    FR-6 registration gate.
   - Plan: S1.1.
   - Files/components: capability and reviewed-host-binding test modules named
     by T001; `workflow_host/capabilities.py` and
@@ -81,7 +82,7 @@ Status: In progress
 
 - [x] T003 [implementation] Add the minimal immutable reviewed-template
   registration and discovery values.
-  - Spec: FR-1; Terms and Trust Boundary.
+  - Spec: Reviewed template; FR-1 host-controlled registry prerequisite.
   - Plan: S1.2–S1.3.
   - Files/components: source owners confirmed by T001, beginning with
     `workflow_host/capabilities.py` and `workflow_host/reviewed_tool_packages.py`.
@@ -98,7 +99,8 @@ Status: In progress
 
 - [x] T004 [tests, GREEN] Prove reviewed-template resolution is fail-closed and
   isolated from legacy capability requirements.
-  - Spec: FR-1; FR-2; Non-Goals.
+  - Spec: Reviewed template; FR-1 host-controlled registry prerequisite;
+    FR-2; Non-Goals.
   - Plan: S1 exit.
   - Files/components: focused registry tests from T001 and legacy capability
     requirement tests.
@@ -113,47 +115,53 @@ Status: In progress
     stale, and disabled cases, while the ordinary capability-contract tests in
     `tests/test_workflow_capabilities.py` remain green.
 
-- [ ] T005 [tests, RED] Add descriptor, authoring, and admission vectors for
-  the exact reviewed-template declaration.
-  - Spec: FR-2; Public invocation; Required Verification 1, 2, and 10.
+- [ ] T005 [tests, RED] Add separate host-discovery, descriptor, and admission
+  vectors for the exact reviewed-template declaration.
+  - Spec: FR-1; FR-2; Public invocation; Required Verification 1, 2, and 10.
   - Plan: S2.1.
-  - Files/components: authoring/descriptor/policy tests named by T001;
-    `workflow_host/workflow_authoring_registration.py` and
+  - Files/components: reviewed-template, descriptor, and policy tests named by
+    T001; `workflow_host/reviewed_tool_packages.py`, descriptor/parser, and
     `workflow_host/policy.py`.
   - Depends on: T004.
   - Validation: focused S2 test command recorded by T001 fails before parser,
     policy, and registration changes.
-  - Evidence: RED cases reject zero/multiple call sites, non-single discovery,
-    changed/disabled/digest-mismatched templates, and every forbidden package
-    authority field; successful authoring binds only the exact identity and
-    one-field call contract. Unavailable and ambiguous discovery use a
-    package-write sentinel proving they return the stable redacted result
-    without writing a package.
+  - Evidence: RED cases prove the separate host API returns only the exact
+    identity and one-field declaration contract, then rejects zero/multiple
+    discovery without writing a package or creating a job/approval/dispatch.
+    They reject zero/multiple call sites, changed/disabled/digest-mismatched
+    templates, and every forbidden package authority field; successful
+    authoring binds only the returned exact identity and one-field call
+    contract. The API is not injected through `WorkflowAuthoringHost`.
 
-- [ ] T006 [implementation] Bind one exact reviewed-template declaration into
-  authoring, descriptor, policy digest, registration, and preflight.
-  - Spec: FR-2; FR-4.
+- [ ] T006 [implementation] Add separate host discovery and bind one exact
+  reviewed-template declaration into descriptor, policy digest, registration,
+  and preflight.
+  - Spec: FR-1; FR-2; FR-4.
   - Plan: S2.2.
-  - Files/components: `workflow_host/workflow_authoring_registration.py`,
+  - Files/components: `workflow_host/reviewed_tool_packages.py`,
     `workflow_host/policy.py`, descriptor/parser, registration, preflight, and
     host owners identified by T001.
   - Depends on: T005.
   - Validation: T005 focused suite passes.
-  - Evidence: admission rejects an invalid declaration or registration before
-    sealed-job ingress, package code, extension dispatch, or artifact
-    allocation; no package field can select host implementation or policy.
+  - Evidence: the host API exposes only available declaration identity/contract
+    before an external authoring client writes a package; it performs no
+    package write, job creation, approval, or dispatch. Admission rejects an
+    invalid declaration or registration before sealed-job ingress, package
+    code, extension dispatch, or artifact allocation; no package field can
+    select host implementation or policy.
 
 - [ ] T007 [tests, GREEN] Prove reviewed-template admission and legacy package
   compatibility.
-  - Spec: FR-2; Non-Goals.
+  - Spec: FR-1; FR-2; Non-Goals.
   - Plan: S2.3 and S2 exit.
   - Files/components: descriptor, authoring, registration, preflight, and
     legacy-package fixtures identified by T001.
   - Depends on: T006.
   - Validation: recorded S2 focused suites.
   - Evidence: reviewed packages fail closed on identity or mandatory-dependency
-    drift, unavailable/ambiguous authoring writes no package, and packages
-    without the reviewed declaration use their unchanged legacy admission path.
+    drift; the separate discovery API writes no package and returns the stable
+    unavailable/ambiguous result; and packages without the reviewed declaration
+    use their unchanged legacy admission path.
 
 - [ ] T008 [tests, RED] Add sealed-job, approval, and reservation failure
   vectors using a fake host extension.
@@ -320,10 +328,11 @@ Status: In progress
 
 ## Checkpoints
 
-- C1 — T004: exact reviewed-template discovery works without package or host
+- C1 — T004: exact reviewed-template registration works without package or host
   implementation execution.
-- C2 — T007: authoring and admission bind exactly one reviewed call site while
-  legacy packages remain unchanged.
+- C2 — T007: separate host discovery writes no package or authority, while
+  authoring and admission bind exactly one reviewed call site and legacy
+  packages remain unchanged.
 - C3 — T010: one sealed job and one approval consume exactly one dispatch.
 - C4 — T015: staged publication/recovery provides bounded opaque egress with
   no partial public outcome.
