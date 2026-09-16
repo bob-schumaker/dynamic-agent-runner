@@ -158,6 +158,46 @@ def test_publication_records_all_states_before_exposing_handles(tmp_path) -> Non
     assert '"status":"completed"' in state
 
 
+def test_publication_rejects_an_oversized_receipt_before_visibility(tmp_path) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    private = artifacts.stage(
+        descriptor=_descriptor(),
+        receiver_id="principal",
+        revision_digest="e" * 64,
+        invocation_id="run-1",
+        sealed=(
+            ("index_generation", "application/octet-stream", b"index"),
+            ("index_manifest", "application/json", b"{}"),
+            ("coverage_report", "application/json", b"{}"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    host = _FakeHost()
+    coordinator = ReviewedCapabilityPublicationCoordinator(
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
+        count_ceiling=1024,
+        max_receipt_bytes=1,
+    )
+
+    with pytest.raises(ReviewedCapabilityPublicationError, match="unavailable"):
+        coordinator.complete(
+            reservation_id="v1.reservation",
+            private=private,
+            generation_id="generation-1",
+            counts=_counts(source_records=1),
+            now=NOW,
+        )
+
+    assert host.calls == [("pending", "v1.reservation")]
+
+
 @pytest.mark.parametrize(
     ("receiver_id", "invocation_id"),
     (("foreign-principal", "run-1"), ("principal", "foreign-run")),
