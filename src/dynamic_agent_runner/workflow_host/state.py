@@ -336,6 +336,41 @@ class PrivateStateStore:
                 handle, owner=owner, records=records
             )
 
+    def extend_active_expiry(
+        self,
+        handle: str,
+        *,
+        expected_kind: str,
+        owner: str,
+        expires_at: datetime,
+        now: datetime,
+    ) -> OpaqueRecord:
+        """Extend one active record's authenticated expiry without changing payload."""
+
+        _require_nonempty(expected_kind, "expected_kind")
+        _require_nonempty(owner, "owner")
+        expiry = _as_utc(expires_at, "expires_at")
+        with self._mutation_lock():
+            records = self._read_records()
+            record = self._active_record(
+                handle,
+                expected_kind=expected_kind,
+                owner=owner,
+                now=now,
+                records=records,
+            )
+            if expiry <= record.expires_at:
+                raise OpaqueRecordError("opaque record expiry is invalid")
+            raw_record = records.get(handle)
+            if raw_record is None:
+                raise OpaqueRecordError("unknown or forged opaque record")
+            raw_record["expires_at"] = _timestamp(expiry)
+            raw_record["mac"] = self._record_mac(raw_record)
+            self._write_records(records)
+            return self._validated_record_from_records(
+                handle, owner=owner, records=records
+            )
+
     def consume_and_issue(
         self,
         handle: str,
