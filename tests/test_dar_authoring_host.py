@@ -1656,6 +1656,13 @@ def test_local_host_discovers_only_explicitly_registered_reviewed_templates(
         )
         == discovered
     )
+    removed = LocalWorkflowHost.open(tmp_path / "enabled-state")
+    assert (
+        removed.discover_reviewed_capability_template(
+            capability_id="vector_index.build.v1"
+        ).status
+        == "authoring_runtime_unavailable"
+    )
     with pytest.raises(LocalWorkflowHostError, match="reviewed capability"):
         LocalWorkflowHost.open(
             tmp_path / "enabled-state",
