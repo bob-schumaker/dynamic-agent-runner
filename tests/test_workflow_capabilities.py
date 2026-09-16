@@ -15,6 +15,8 @@ from dynamic_agent_runner.workflow_host.capabilities import (
     CapabilityRequirements,
     BUILTIN_CAPABILITY_CONTRACTS,
     ProviderAvailability,
+    ReviewedCapabilityTemplate,
+    ReviewedCapabilityTemplateRegistry,
     UnavailableCapability,
 )
 
@@ -54,6 +56,67 @@ def _provider(
         availability=availability,
         conformance_passed=conforms,
     )
+
+
+def _reviewed_template(
+    *, template_digest: str = "b" * 64
+) -> ReviewedCapabilityTemplate:
+    return ReviewedCapabilityTemplate(
+        capability_id="vector_index.build.v1",
+        contract_version="1",
+        template_digest=template_digest,
+        input_fields=("job_handle",),
+        required_dependency="embedding.execute.v1",
+        enabled=True,
+    )
+
+
+def test_reviewed_template_registry_discovers_one_exact_available_template() -> None:
+    template = _reviewed_template()
+
+    discovery = ReviewedCapabilityTemplateRegistry((template,)).discover(
+        "vector_index.build.v1"
+    )
+
+    assert discovery.status == "available"
+    assert discovery.template == template
+
+
+@pytest.mark.parametrize(
+    ("templates", "expected_status"),
+    (
+        ((), "authoring_runtime_unavailable"),
+        (
+            (
+                _reviewed_template(template_digest="b" * 64),
+                _reviewed_template(template_digest="c" * 64),
+            ),
+            "authoring_runtime_ambiguous",
+        ),
+        (
+            (
+                ReviewedCapabilityTemplate(
+                    capability_id="vector_index.build.v1",
+                    contract_version="1",
+                    template_digest="b" * 64,
+                    input_fields=("job_handle",),
+                    required_dependency="embedding.execute.v1",
+                    enabled=False,
+                ),
+            ),
+            "authoring_runtime_unavailable",
+        ),
+    ),
+)
+def test_reviewed_template_registry_fails_closed_when_discovery_is_not_unique(
+    templates: tuple[ReviewedCapabilityTemplate, ...], expected_status: str
+) -> None:
+    discovery = ReviewedCapabilityTemplateRegistry(templates).discover(
+        "vector_index.build.v1"
+    )
+
+    assert discovery.status == expected_status
+    assert discovery.template is None
 
 
 def test_requirement_digest_is_canonical_and_excludes_declared_digest() -> None:

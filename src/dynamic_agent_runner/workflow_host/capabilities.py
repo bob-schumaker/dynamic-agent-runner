@@ -42,6 +42,64 @@ class CapabilityContract:
 
 
 @dataclass(frozen=True)
+class ReviewedCapabilityTemplate:
+    """One immutable host-reviewed capability template."""
+
+    capability_id: str
+    contract_version: str
+    template_digest: str
+    input_fields: tuple[str, ...]
+    required_dependency: str
+    enabled: bool
+
+    def __post_init__(self) -> None:
+        _text(self.capability_id, "capability_id")
+        _text(self.contract_version, "contract_version")
+        _digest(self.template_digest, "template_digest")
+        _canonical_strings(self.input_fields, "input_fields")
+        _text(self.required_dependency, "required_dependency")
+        if not isinstance(self.enabled, bool):
+            raise CapabilityError("reviewed capability template is invalid")
+        object.__setattr__(self, "input_fields", tuple(self.input_fields))
+
+
+@dataclass(frozen=True)
+class ReviewedCapabilityTemplateDiscovery:
+    """One redacted reviewed-template discovery result."""
+
+    status: str
+    template: ReviewedCapabilityTemplate | None
+
+
+class ReviewedCapabilityTemplateRegistry:
+    """Discover one exact available reviewed template without fallback."""
+
+    def __init__(self, templates: Sequence[ReviewedCapabilityTemplate]) -> None:
+        if not all(isinstance(item, ReviewedCapabilityTemplate) for item in templates):
+            raise CapabilityError("reviewed capability template is invalid")
+        self._templates = tuple(templates)
+
+    def discover(self, capability_id: str) -> ReviewedCapabilityTemplateDiscovery:
+        """Return one available template or a stable unavailable/ambiguous result."""
+
+        _text(capability_id, "capability_id")
+        matches = tuple(
+            item
+            for item in self._templates
+            if item.capability_id == capability_id and item.enabled
+        )
+        if not matches:
+            return ReviewedCapabilityTemplateDiscovery(
+                "authoring_runtime_unavailable", None
+            )
+        if len(matches) != 1:
+            return ReviewedCapabilityTemplateDiscovery(
+                "authoring_runtime_ambiguous", None
+            )
+        return ReviewedCapabilityTemplateDiscovery("available", matches[0])
+
+
+@dataclass(frozen=True)
 class CapabilityRequirement:
     """One package-visible request for an exact capability contract."""
 
