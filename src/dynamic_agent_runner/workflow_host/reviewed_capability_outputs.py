@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from dynamic_agent_runner.workflow_host.capabilities import (
     ReviewedCapabilityTemplateOutput,
@@ -114,6 +114,11 @@ def stage_reviewed_capability_candidates(
         count_ceiling=count_ceiling,
     )
     if not isinstance(artifacts, SealedArtifactOutputHandleService):
+        raise ReviewedCapabilityCandidateOutputError("candidate is invalid")
+    retention_seconds = {output.retention_seconds for output in outputs}
+    if len(retention_seconds) != 1 or expires_at != now + timedelta(
+        seconds=retention_seconds.pop()
+    ):
         raise ReviewedCapabilityCandidateOutputError("candidate is invalid")
     declarations = tuple(
         SealedArtifactOutput(

@@ -109,6 +109,35 @@ def test_validated_reviewed_candidates_stage_as_a_private_output_set(tmp_path) -
     ]
 
 
+def test_candidate_staging_rejects_a_caller_selected_expiry_beyond_the_template(
+    tmp_path,
+) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+
+    with pytest.raises(ReviewedCapabilityCandidateOutputError, match="candidate"):
+        stage_reviewed_capability_candidates(
+            artifacts=artifacts,
+            template_digest="a" * 64,
+            outputs=_outputs(),
+            candidates=_candidates(),
+            contribution=_contribution(),
+            count_ceiling=8,
+            receiver_id="principal",
+            revision_digest="b" * 64,
+            invocation_id="run",
+            expires_at=NOW + timedelta(seconds=61),
+            now=NOW,
+        )
+
+    assert (
+        store.active_records(
+            kind="sealed_artifact_private_output_set", owner="host", now=NOW
+        )
+        == ()
+    )
+
+
 def test_unsafe_reviewed_candidates_create_no_private_output_set(tmp_path) -> None:
     store = PrivateStateStore(tmp_path / "state")
     artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
