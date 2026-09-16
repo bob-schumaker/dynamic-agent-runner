@@ -11,9 +11,18 @@ import pytest
 
 from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
     DeclaredInputConverter,
+    DeclaredReviewedCapabilityTool,
     InputContract,
     TaskInvocation,
     WorkflowLimits,
+)
+from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
+    ReviewedCapabilityTemplate,
+    ReviewedCapabilityTemplateOutput,
+    reviewed_capability_template_digest,
+)
+from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa: E402
+    ReviewedCapabilityTemplateControlPlane,
 )
 from dynamic_agent_runner.workflow_host.policy import (  # noqa: E402
     CapabilityResolution,
@@ -36,6 +45,7 @@ def _policy(
     revision_digest: str = "b" * 64,
     profile_requirement: str = "local-general-model",
     input_converter: bool = False,
+    reviewed_capability: bool = False,
 ) -> WorkflowPolicy:
     return WorkflowPolicy(
         package_id=package_id,
@@ -50,7 +60,7 @@ def _policy(
         ),
         task_invocation=TaskInvocation(
             entrypoint="answer",
-            max_total_tool_calls=0,
+            max_total_tool_calls=1 if reviewed_capability else 0,
             allowed_structured_input_fields=(),
             allowed_artifact_roles=(),
             terminal_output_schema_ref="answer-v1",
@@ -71,6 +81,75 @@ def _policy(
             if input_converter
             else None
         ),
+        declared_reviewed_capability_tools=(
+            (
+                DeclaredReviewedCapabilityTool(
+                    tool_id="build_vector_index",
+                    capability_id="vector_index.build.v1",
+                    contract_version="1",
+                    template_digest=_template().template_digest,
+                    input_fields=("job_handle",),
+                    side_effect="write",
+                    approval_required=True,
+                ),
+            )
+            if reviewed_capability
+            else ()
+        ),
+    )
+
+
+def _template() -> ReviewedCapabilityTemplate:
+    outputs = (
+        ReviewedCapabilityTemplateOutput(
+            "index_generation", "application/octet-stream", 1024, 60
+        ),
+        ReviewedCapabilityTemplateOutput(
+            "index_manifest", "application/json", 1024, 60
+        ),
+        ReviewedCapabilityTemplateOutput(
+            "coverage_report", "application/json", 1024, 60
+        ),
+    )
+    recovery_operations = (
+        "acknowledge_visibility",
+        "begin_pending_publication",
+        "compensate",
+        "query_current_outcome",
+    )
+    return ReviewedCapabilityTemplate(
+        capability_id="vector_index.build.v1",
+        contract_version="1",
+        template_digest=reviewed_capability_template_digest(
+            capability_id="vector_index.build.v1",
+            contract_version="1",
+            input_fields=("job_handle",),
+            required_dependency="embedding.execute.v1",
+            outputs=outputs,
+            max_receipt_bytes=1024,
+            approval_class="human_write",
+            extension_binding="host-vector-index-v1",
+            recovery_operations=recovery_operations,
+            success_receipt_schema_digest="d" * 64,
+            generation_id_max_bytes=128,
+            artifact_handle_max_bytes=128,
+            count_ceiling=1024,
+            failure_classifications=("host_failure", "publication_failed"),
+            enabled=True,
+        ),
+        input_fields=("job_handle",),
+        required_dependency="embedding.execute.v1",
+        outputs=outputs,
+        max_receipt_bytes=1024,
+        approval_class="human_write",
+        extension_binding="host-vector-index-v1",
+        recovery_operations=recovery_operations,
+        success_receipt_schema_digest="d" * 64,
+        generation_id_max_bytes=128,
+        artifact_handle_max_bytes=128,
+        count_ceiling=1024,
+        failure_classifications=("host_failure", "publication_failed"),
+        enabled=True,
     )
 
 
@@ -79,6 +158,8 @@ def _service(
     *,
     profile_requirement: str = "local-general-model",
     model_recipe_digest_provider=None,
+    reviewed_templates: ReviewedCapabilityTemplateControlPlane | None = None,
+    current_reviewed_template_provider=None,
 ):
     store = PrivateStateStore(tmp_path / "state")
     profiles = LocalModelProfileControlPlane(store=store)
@@ -94,8 +175,46 @@ def _service(
         configured_profile_id=profile.profile_id,
         root=tmp_path / "registrations",
         model_recipe_digest_provider=model_recipe_digest_provider,
+        reviewed_templates=reviewed_templates,
+        current_reviewed_template_provider=current_reviewed_template_provider,
         owner="test-owner",
     )
+
+
+def test_registration_rejects_a_reviewed_declaration_without_host_template(
+    tmp_path: Path,
+) -> None:
+    service = _service(tmp_path)
+
+    with pytest.raises(WorkflowRegistrationError, match="reviewed template"):
+        service.register(
+            workflow_id="document-helper",
+            policy=_policy(reviewed_capability=True),
+            capability_resolution=CapabilityResolution("eligible", ()),
+        )
+
+
+def test_registration_binds_a_declared_reviewed_template_to_host_state(
+    tmp_path: Path,
+) -> None:
+    template = _template()
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=PrivateStateStore(tmp_path / "template-state"), owner="test-owner"
+    )
+    templates.create(template=template)
+    service = _service(
+        tmp_path,
+        reviewed_templates=templates,
+        current_reviewed_template_provider=lambda _capability_id: template,
+    )
+
+    registration = service.register(
+        workflow_id="document-helper",
+        policy=_policy(reviewed_capability=True),
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+
+    assert registration.policy_digest == _policy(reviewed_capability=True).policy_digest
 
 
 def test_registration_binds_eligible_policy_to_configured_local_profile(

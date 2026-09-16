@@ -23,11 +23,15 @@ from dynamic_agent_runner.workflow_host.mcp_surfaces import (
     MCPSurfaceSnapshotError,
 )
 from dynamic_agent_runner.workflow_host.mcp_tools import MCPReadOnlyToolClient
+from dynamic_agent_runner.workflow_host.capabilities import ReviewedCapabilityTemplate
 from dynamic_agent_runner.workflow_host.profiles import (
     InstallationIdentityProvider,
     LocalModelProfile,
     LocalModelProfileControlPlane,
     LocalModelProfileError,
+)
+from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
+    ReviewedCapabilityTemplateControlPlane,
 )
 
 
@@ -70,6 +74,10 @@ class WorkflowRegistrationService:
         mcp_client: MCPReadOnlyToolClient | None = None,
         mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
         model_recipe_digest_provider: Callable[[LocalModelProfile], str] | None = None,
+        reviewed_templates: ReviewedCapabilityTemplateControlPlane | None = None,
+        current_reviewed_template_provider: (
+            Callable[[str], ReviewedCapabilityTemplate] | None
+        ) = None,
         owner: str | None = None,
     ) -> None:
         self._profiles = profiles
@@ -80,6 +88,8 @@ class WorkflowRegistrationService:
         self._mcp_client = mcp_client
         self._mcp_surfaces = mcp_surfaces
         self._model_recipe_digest_provider = model_recipe_digest_provider
+        self._reviewed_templates = reviewed_templates
+        self._current_reviewed_template_provider = current_reviewed_template_provider
         self._owner = (
             InstallationIdentityProvider().principal if owner is None else owner
         )
@@ -104,6 +114,7 @@ class WorkflowRegistrationService:
             raise WorkflowRegistrationError(
                 "policy capability resolution is unavailable"
             )
+        self._validate_reviewed_templates(policy)
         profile = self._configured_profile()
         self._validate_profile(policy, profile)
         bound_mcp_id = self._validate_mcp_binding(policy, mcp_binding_id)
@@ -166,6 +177,7 @@ class WorkflowRegistrationService:
             raise WorkflowRegistrationError(
                 "policy capability resolution is unavailable"
             )
+        self._validate_reviewed_templates(policy)
         profile = self._configured_profile()
         self._validate_profile(policy, profile)
         bound_mcp_id = self._validate_mcp_binding(policy, mcp_binding_id)
@@ -258,6 +270,33 @@ class WorkflowRegistrationService:
         if not _is_digest(digest):
             raise WorkflowRegistrationError("model recipe is unavailable")
         return digest
+
+    def _validate_reviewed_templates(self, policy: WorkflowPolicy) -> None:
+        declarations = policy.declared_reviewed_capability_tools
+        if not declarations:
+            return
+        if (
+            len(declarations) != 1
+            or self._reviewed_templates is None
+            or self._current_reviewed_template_provider is None
+        ):
+            raise WorkflowRegistrationError("reviewed template is unavailable")
+        declaration = declarations[0]
+        try:
+            current = self._current_reviewed_template_provider(
+                declaration.capability_id
+            )
+            self._reviewed_templates.resolve_declared(
+                capability_id=declaration.capability_id,
+                contract_version=declaration.contract_version,
+                template_digest=declaration.template_digest,
+                input_fields=declaration.input_fields,
+                current_template=current,
+            )
+        except Exception as error:  # noqa: BLE001 - host provider boundary varies.
+            raise WorkflowRegistrationError(
+                "reviewed template is unavailable"
+            ) from error
 
     def _read(self) -> dict[str, dict[str, object]]:
         try:
