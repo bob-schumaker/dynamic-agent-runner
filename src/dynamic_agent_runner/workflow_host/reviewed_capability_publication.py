@@ -119,6 +119,7 @@ class ReviewedCapabilityPublicationCoordinator:
         host: ReviewedCapabilityPublicationHost,
         failure_classification: str,
         failure_classifications: tuple[str, ...],
+        count_ceiling: int,
     ) -> None:
         if (
             not isinstance(store, PrivateStateStore)
@@ -140,6 +141,9 @@ class ReviewedCapabilityPublicationCoordinator:
                 for item in failure_classifications
             )
             or failure_classification not in failure_classifications
+            or not isinstance(count_ceiling, int)
+            or isinstance(count_ceiling, bool)
+            or count_ceiling < 0
         ):
             raise ReviewedCapabilityPublicationError("publication is unavailable")
         self._store = store
@@ -147,6 +151,7 @@ class ReviewedCapabilityPublicationCoordinator:
         self._artifacts = artifacts
         self._host = host
         self._failure_classification = failure_classification
+        self._count_ceiling = count_ceiling
 
     def complete(
         self,
@@ -166,7 +171,7 @@ class ReviewedCapabilityPublicationCoordinator:
             or not isinstance(generation_id, str)
             or not generation_id
             or not isinstance(counts, Mapping)
-            or not _valid_counts(counts)
+            or not _valid_counts(counts, ceiling=self._count_ceiling)
         ):
             raise ReviewedCapabilityPublicationError("publication is unavailable")
         payload = {
@@ -462,9 +467,12 @@ def _timestamp(now: datetime) -> str:
     return now.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _valid_counts(counts: Mapping[str, int]) -> bool:
+def _valid_counts(counts: Mapping[str, int], *, ceiling: int | None = None) -> bool:
     return set(counts) == _COUNT_FIELDS and all(
-        isinstance(value, int) and not isinstance(value, bool) and value >= 0
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and value >= 0
+        and (ceiling is None or value <= ceiling)
         for value in counts.values()
     )
 

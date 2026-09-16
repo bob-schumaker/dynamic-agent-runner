@@ -115,6 +115,7 @@ def test_publication_records_all_states_before_exposing_handles(tmp_path) -> Non
         host=host,
         failure_classification="host_failure",
         failure_classifications=("host_failure",),
+        count_ceiling=1024,
     )
 
     receipt = coordinator.complete(
@@ -177,6 +178,7 @@ def test_vector_publication_denies_all_roles_to_a_foreign_access_binding(
         host=host,
         failure_classification="host_failure",
         failure_classifications=("host_failure",),
+        count_ceiling=1024,
     )
     receipt = coordinator.complete(
         reservation_id="v1.reservation",
@@ -237,6 +239,7 @@ def test_publication_rejects_noncanonical_aggregate_counts_before_host_effect(
         host=host,
         failure_classification="host_failure",
         failure_classifications=("host_failure",),
+        count_ceiling=1024,
     )
 
     with pytest.raises(ReviewedCapabilityPublicationError):
@@ -245,6 +248,47 @@ def test_publication_rejects_noncanonical_aggregate_counts_before_host_effect(
             private=private,
             generation_id="generation-1",
             counts=counts,
+            now=NOW,
+        )
+
+    assert host.calls == []
+
+
+def test_publication_rejects_counts_above_the_template_ceiling_before_host_effect(
+    tmp_path,
+) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    private = artifacts.stage(
+        descriptor=_descriptor(),
+        receiver_id="principal",
+        revision_digest="e" * 64,
+        invocation_id="run-1",
+        sealed=(
+            ("index_generation", "application/octet-stream", b"index"),
+            ("index_manifest", "application/json", b"{}"),
+            ("coverage_report", "application/json", b"{}"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    host = _FakeHost()
+    coordinator = ReviewedCapabilityPublicationCoordinator(
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
+        count_ceiling=1,
+    )
+
+    with pytest.raises(ReviewedCapabilityPublicationError):
+        coordinator.complete(
+            reservation_id="v1.reservation",
+            private=private,
+            generation_id="generation-1",
+            counts=_counts(source_records=2),
             now=NOW,
         )
 
@@ -275,6 +319,7 @@ def test_current_generation_retention_renews_all_output_roles(tmp_path) -> None:
         host=host,
         failure_classification="host_failure",
         failure_classifications=("host_failure",),
+        count_ceiling=1024,
     )
     receipt = coordinator.complete(
         reservation_id="v1.reservation",
@@ -327,6 +372,7 @@ def test_noncurrent_generation_unpublishes_before_output_set_revocation(
         host=host,
         failure_classification="host_failure",
         failure_classifications=("host_failure",),
+        count_ceiling=1024,
     )
     receipt = coordinator.complete(
         reservation_id="v1.reservation",
@@ -387,6 +433,7 @@ def test_retention_host_errors_leave_completed_output_set_active(
         host=host,
         failure_classification="host_failure",
         failure_classifications=("host_failure",),
+        count_ceiling=1024,
     )
     receipt = coordinator.complete(
         reservation_id="v1.reservation",
@@ -446,6 +493,7 @@ def test_completed_publication_replays_its_stored_receipt_without_host_calls(
         host=host,
         failure_classification="host_failure",
         failure_classifications=("host_failure",),
+        count_ceiling=1024,
     )
 
     first = coordinator.complete(
@@ -493,6 +541,7 @@ def test_conflicting_completion_request_never_reenters_the_host(tmp_path) -> Non
         host=host,
         failure_classification="host_failure",
         failure_classifications=("host_failure",),
+        count_ceiling=1024,
     )
     coordinator.complete(
         reservation_id="v1.reservation",
@@ -548,6 +597,7 @@ def test_pre_pending_publication_error_aborts_and_discards_candidates(
         host=host,
         failure_classification="host_failure",
         failure_classifications=("host_failure",),
+        count_ceiling=1024,
     )
 
     with pytest.raises(Exception, match="publication"):
@@ -606,6 +656,7 @@ def test_pending_recovery_promotes_the_same_staged_set_without_rebuild(
         host=host,
         failure_classification="host_failure",
         failure_classifications=("host_failure",),
+        count_ceiling=1024,
     )
     with pytest.raises(ReviewedCapabilityPublicationError):
         coordinator.complete(
@@ -657,6 +708,7 @@ def test_visibility_recovery_reuses_the_already_promoted_output_set(tmp_path) ->
         host=host,
         failure_classification="host_failure",
         failure_classifications=("host_failure",),
+        count_ceiling=1024,
     )
 
     with pytest.raises(ReviewedCapabilityPublicationError):
@@ -706,6 +758,7 @@ def test_unrecoverable_pending_publication_compensates_and_aborts(tmp_path) -> N
         host=host,
         failure_classification="host_failure",
         failure_classifications=("host_failure",),
+        count_ceiling=1024,
     )
     with pytest.raises(ReviewedCapabilityPublicationError):
         coordinator.complete(
