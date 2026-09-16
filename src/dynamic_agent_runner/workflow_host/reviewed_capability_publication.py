@@ -55,10 +55,36 @@ class ReviewedCapabilityPublicationReceipt:
     artifacts: tuple[SealedArtifactOutputHandle, ...]
     counts: Mapping[str, int]
 
+    def to_mapping(self) -> dict[str, object]:
+        """Return the closed public receipt without internal artifact metadata."""
+
+        artifacts = {item.role: item.output_set_id for item in self.artifacts}
+        if (
+            self.status != "published"
+            or not self.generation_id
+            or not self.published_at
+            or set(artifacts) != _OUTPUT_ROLES
+            or len(artifacts) != len(self.artifacts)
+            or any(
+                not isinstance(handle, str) or not handle
+                for handle in artifacts.values()
+            )
+            or not _valid_counts(self.counts)
+        ):
+            raise ReviewedCapabilityPublicationError("publication is unavailable")
+        return {
+            "status": "published",
+            "generation_id": self.generation_id,
+            "published_at": self.published_at,
+            "artifacts": artifacts,
+            "counts": dict(self.counts),
+        }
+
 
 _COUNT_FIELDS = frozenset(
     {"source_records", "embedding_units", "indexed", "skipped", "deleted", "errored"}
 )
+_OUTPUT_ROLES = frozenset({"index_generation", "index_manifest", "coverage_report"})
 
 
 class ReviewedCapabilityPublicationCoordinator:

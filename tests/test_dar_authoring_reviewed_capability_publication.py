@@ -125,6 +125,17 @@ def test_publication_records_all_states_before_exposing_handles(tmp_path) -> Non
         "index_manifest",
         "coverage_report",
     ]
+    assert receipt.to_mapping() == {
+        "status": "published",
+        "generation_id": "generation-1",
+        "published_at": "2026-09-15T00:00:00Z",
+        "artifacts": {
+            "index_generation": receipt.artifacts[0].output_set_id,
+            "index_manifest": receipt.artifacts[1].output_set_id,
+            "coverage_report": receipt.artifacts[2].output_set_id,
+        },
+        "counts": _counts(source_records=1),
+    }
     assert host.calls == [("pending", "v1.reservation"), ("visible", "v1.reservation")]
     state = (tmp_path / "state" / "records.json").read_text(encoding="utf-8")
     assert '"status":"completed"' in state
