@@ -2,7 +2,7 @@
 
 # Reviewed Vector-Index Host Extension Tasks
 
-Status: Proposed
+Status: In progress
 
 ## Prerequisites
 

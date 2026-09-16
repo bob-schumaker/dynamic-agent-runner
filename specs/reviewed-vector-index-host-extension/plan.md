@@ -4,8 +4,8 @@
 
 ## Status
 
-Proposed implementation plan derived from `spec.md`. The reviewed contract is
-the entry criterion; T001 establishes the exact test-fixture shape. The plan
+In-progress implementation plan derived from `spec.md`. The reviewed contract
+is the entry criterion; T001 established the exact test-fixture shape. The plan
 does not authorize an MLX, vault, index, or publication implementation.
 
 ## Goal
@@ -52,9 +52,10 @@ index, and publication authority.
 
 1. A reviewed template is distinct from a capability provider. The template is
    a host-owned, immutable registration record containing the exact capability
-   ID, version, digest, closed input/output contract, approval classification,
-   limits, mandatory dependency declaration, and extension binding. Provider
-   selection remains DAR-private.
+   ID, version, digest, closed input/output contract, success-receipt schema
+   digest, receipt bounds, finite failure classifications, approval
+   classification, mandatory dependency declaration, recovery operations, and
+   extension binding. Provider selection remains DAR-private.
 2. Authoring requests `vector_index.build.v1`; discovery returns one exact
    available template identity or a stable unavailable/ambiguous result. The
    selected identity is bound into package policy. Runtime never chooses among

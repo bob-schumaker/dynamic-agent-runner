@@ -5,7 +5,7 @@
 ## Metadata
 
 - Feature slug: `reviewed-vector-index-host-extension`
-- Status: proposed future work
+- Status: in progress
 - Owner: dynamic-agent-runner host-extension, capability, sealed-artifact, and workflow-package boundaries
 - Related specifications:
   - `specs/workflow-capability-requirements/spec.md`
@@ -49,12 +49,16 @@ This feature does not:
 
 A reviewed template is an immutable host-registration record with a capability
 ID, contract version, immutable template digest, input schema, output-limit
-contract, approval classification, and host extension binding. The output-limit
-contract fixes three required roles (`index_generation`, `index_manifest`, and
-`coverage_report`), each role's media type, positive maximum bytes, retention
-lifetime, and a maximum receipt size. A template identifies reviewed behavior,
-not a package-selected implementation. The host controls registration and
-removal; a workflow package may only require an exact registered identity.
+contract, success-receipt schema digest, receipt bounds, finite failure
+classifications, approval classification, and host extension binding. The
+output-limit contract fixes three required roles (`index_generation`,
+`index_manifest`, and `coverage_report`), each role's media type, positive
+maximum bytes, and retention lifetime. The receipt contract fixes a maximum
+receipt size, bounded grammars for generation IDs and opaque artifact handles,
+and a finite count ceiling. The template digest covers all of those fields and
+the recovery-operation and dependency bindings. A template identifies reviewed
+behavior, not a package-selected implementation. The host controls registration
+and removal; a workflow package may only require an exact registered identity.
 
 For this feature, the template capability ID is `vector_index.build.v1`. An
 authoring discovery request names that ID. It succeeds only when the registry
@@ -214,9 +218,10 @@ handles and stores the success receipt. Candidate artifacts have no public
 opaque handles before `completed`. DAR shall not parse index bytes or require a
 shared index format.
 
-The host supplies only the aggregate counts and opaque generation ID; DAR
-writes `published_at` from its host clock at completion, then validates and
-stores this closed success receipt with
+For the success receipt, the host supplies only aggregate counts and an opaque
+generation ID. DAR writes `published_at` from its host clock at completion,
+creates the artifact handles, then validates and stores this closed success
+receipt with
 `additionalProperties: false` at every object level:
 
 ```json
