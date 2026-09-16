@@ -1023,7 +1023,7 @@ class LocalWorkflowHost:
         self._sealed_artifact_runner = sealed_artifact_runner
 
     @classmethod
-    def open(
+    def open(  # noqa: C901 - host composition validates independent deployment seams.
         cls,
         root: Path,
         *,
@@ -1135,6 +1135,17 @@ class LocalWorkflowHost:
             owner=InstallationIdentityProvider().principal,
             extensions=reviewed_capability_extensions,
         )
+        reviewed_capability_templates = ReviewedCapabilityTemplateControlPlane(
+            store=store, owner=InstallationIdentityProvider().principal
+        )
+        reviewed_capability_extensions_by_id = {
+            extension.template.capability_id: extension
+            for extension in reviewed_capability_extensions
+        }
+        if len(reviewed_capability_extensions_by_id) != len(
+            reviewed_capability_extensions
+        ):
+            raise LocalWorkflowHostError("reviewed capability template is unavailable")
         if mcp_client_factory is None:
             mcp_client = _mcp_client(
                 root=root, configuration=configuration, connections=connections
@@ -1158,6 +1169,12 @@ class LocalWorkflowHost:
             mcp_bindings=mcp_bindings if mcp_client is not None else None,
             mcp_client=mcp_client,
             mcp_surfaces=surfaces if mcp_client is not None else None,
+            reviewed_templates=reviewed_capability_templates,
+            current_reviewed_template_provider=(
+                lambda capability_id: (
+                    reviewed_capability_extensions_by_id[capability_id].template
+                )
+            ),
         )
         workspace_ingress = _workspace_ingress_service(
             root=root, configuration=configuration, store=store
@@ -1246,7 +1263,7 @@ class LocalWorkflowHost:
                         store=store,
                         owner=InstallationIdentityProvider().principal,
                     )
-                    if mcp_client is not None
+                    if mcp_client is not None or reviewed_capability_extensions
                     else None
                 ),
                 approval_store=WorkflowApprovalStore(
@@ -1255,6 +1272,9 @@ class LocalWorkflowHost:
                 local_tool_executor=execute_macos_sandbox_exec,
                 reviewed_tool_packages=reviewed_tool_packages,
                 reviewed_artifact_tool_executors=reviewed_artifact_tool_executors,
+                reviewed_capability_extensions=reviewed_capability_extensions_by_id,
+                reviewed_capability_templates=reviewed_capability_templates,
+                reviewed_capability_artifacts=sealed_outputs,
                 terminal_diagnostic_store=store,
                 terminal_diagnostic_owner=InstallationIdentityProvider().principal,
                 capability_catalog=capability_catalog,
