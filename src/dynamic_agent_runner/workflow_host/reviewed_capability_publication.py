@@ -96,6 +96,8 @@ class ReviewedCapabilityPublicationCoordinator:
             "counts": dict(counts),
             "status": "prepared",
         }
+        record: OpaqueRecord | None = None
+        pending_attempted = False
         try:
             attempt_id = self._store.issue(
                 kind="reviewed_capability_publication",
@@ -105,6 +107,7 @@ class ReviewedCapabilityPublicationCoordinator:
                 now=now,
             )
             record = self._advance(attempt_id, payload, "commit_intent", now=now)
+            pending_attempted = True
             self._host.begin_pending_publication(
                 reservation_id=reservation_id, generation_id=generation_id
             )
@@ -121,6 +124,16 @@ class ReviewedCapabilityPublicationCoordinator:
             record = self._advance(attempt_id, record.payload, "host_visible", now=now)
             record = self._advance(attempt_id, record.payload, "completed", now=now)
         except Exception as error:  # noqa: BLE001 - host boundary varies.
+            if pending_attempted and record is not None:
+                try:
+                    self._advance(
+                        attempt_id,
+                        record.payload,
+                        "recovery_required",
+                        now=now,
+                    )
+                except Exception:  # noqa: BLE001 - preserve the original failure.
+                    pass
             raise ReviewedCapabilityPublicationError(
                 "publication is unavailable"
             ) from error
