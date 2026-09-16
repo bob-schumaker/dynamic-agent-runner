@@ -19,6 +19,7 @@ from dynamic_agent_runner.workflow_host.capabilities import (
     ReviewedCapabilityTemplateOutput,
     ReviewedCapabilityTemplateRegistry,
     UnavailableCapability,
+    validate_vector_index_build_template,
 )
 
 
@@ -63,6 +64,12 @@ def _reviewed_template(
     *,
     template_digest: str = "b" * 64,
     outputs: tuple[ReviewedCapabilityTemplateOutput, ...] | None = None,
+    recovery_operations: tuple[str, ...] = (
+        "acknowledge_visibility",
+        "begin_pending_publication",
+        "compensate",
+        "query_current_outcome",
+    ),
     enabled: bool = True,
 ) -> ReviewedCapabilityTemplate:
     return ReviewedCapabilityTemplate(
@@ -79,10 +86,23 @@ def _reviewed_template(
                 max_bytes=1024,
                 retention_seconds=60,
             ),
+            ReviewedCapabilityTemplateOutput(
+                role="index_manifest",
+                media_type="application/json",
+                max_bytes=1024,
+                retention_seconds=60,
+            ),
+            ReviewedCapabilityTemplateOutput(
+                role="coverage_report",
+                media_type="application/json",
+                max_bytes=1024,
+                retention_seconds=60,
+            ),
         ),
         max_receipt_bytes=1024,
         approval_class="human_write",
         extension_binding="host-vector-index-v1",
+        recovery_operations=recovery_operations,
         enabled=enabled,
     )
 
@@ -107,6 +127,35 @@ def test_reviewed_template_carries_bounded_output_and_receipt_contract() -> None
     assert template.max_receipt_bytes == 1024
     assert template.approval_class == "human_write"
     assert template.extension_binding == "host-vector-index-v1"
+
+
+def test_vector_index_template_requires_its_closed_host_extension_contract() -> None:
+    template = _reviewed_template()
+
+    validate_vector_index_build_template(template)
+
+
+@pytest.mark.parametrize(
+    "template",
+    (
+        _reviewed_template(
+            outputs=(
+                ReviewedCapabilityTemplateOutput(
+                    role="index_generation",
+                    media_type="application/octet-stream",
+                    max_bytes=1024,
+                    retention_seconds=60,
+                ),
+            )
+        ),
+        _reviewed_template(recovery_operations=("compensate",)),
+    ),
+)
+def test_vector_index_template_rejects_missing_output_or_recovery_contract(
+    template: ReviewedCapabilityTemplate,
+) -> None:
+    with pytest.raises(CapabilityError):
+        validate_vector_index_build_template(template)
 
 
 @pytest.mark.parametrize(

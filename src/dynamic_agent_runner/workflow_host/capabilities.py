@@ -77,6 +77,7 @@ class ReviewedCapabilityTemplate:
     max_receipt_bytes: int
     approval_class: str
     extension_binding: str
+    recovery_operations: tuple[str, ...]
     enabled: bool
 
     def __post_init__(self) -> None:
@@ -102,10 +103,12 @@ class ReviewedCapabilityTemplate:
             raise CapabilityError("reviewed capability template is invalid")
         _text(self.approval_class, "approval_class")
         _text(self.extension_binding, "extension_binding")
+        _canonical_strings(self.recovery_operations, "recovery_operations")
         if not isinstance(self.enabled, bool):
             raise CapabilityError("reviewed capability template is invalid")
         object.__setattr__(self, "input_fields", tuple(self.input_fields))
         object.__setattr__(self, "outputs", outputs)
+        object.__setattr__(self, "recovery_operations", tuple(self.recovery_operations))
 
 
 @dataclass(frozen=True)
@@ -142,6 +145,27 @@ class ReviewedCapabilityTemplateRegistry:
                 "authoring_runtime_ambiguous", None
             )
         return ReviewedCapabilityTemplateDiscovery("available", matches[0])
+
+
+def validate_vector_index_build_template(template: ReviewedCapabilityTemplate) -> None:
+    """Require the closed reusable vector-index host-extension contract."""
+
+    if (
+        not isinstance(template, ReviewedCapabilityTemplate)
+        or template.capability_id != "vector_index.build.v1"
+        or template.input_fields != ("job_handle",)
+        or template.required_dependency != "embedding.execute.v1"
+        or tuple(item.role for item in template.outputs)
+        != ("index_generation", "index_manifest", "coverage_report")
+        or set(template.recovery_operations)
+        != {
+            "begin_pending_publication",
+            "query_current_outcome",
+            "acknowledge_visibility",
+            "compensate",
+        }
+    ):
+        raise CapabilityError("reviewed vector-index template is invalid")
 
 
 @dataclass(frozen=True)
