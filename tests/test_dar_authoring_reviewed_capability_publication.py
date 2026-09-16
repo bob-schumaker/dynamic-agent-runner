@@ -190,7 +190,7 @@ def test_conflicting_completion_request_never_reenters_the_host(tmp_path) -> Non
     assert host.calls == calls_after_first
 
 
-def test_pending_publication_error_marks_the_same_attempt_for_recovery(
+def test_pre_pending_publication_error_aborts_and_discards_candidates(
     tmp_path,
 ) -> None:
     store = PrivateStateStore(tmp_path / "state")
@@ -215,6 +215,7 @@ def test_pending_publication_error_marks_the_same_attempt_for_recovery(
         raise RuntimeError("host unavailable")
 
     host.begin_pending_publication = fail_pending  # type: ignore[method-assign]
+    host.query_current_outcome = lambda *, reservation_id: "absent"  # type: ignore[method-assign]
     coordinator = ReviewedCapabilityPublicationCoordinator(
         store=store, owner="host", artifacts=artifacts, host=host
     )
@@ -229,8 +230,14 @@ def test_pending_publication_error_marks_the_same_attempt_for_recovery(
         )
 
     state = (tmp_path / "state" / "records.json").read_text(encoding="utf-8")
-    assert '"status":"recovery_required"' in state
+    assert '"status":"aborted"' in state
     assert '"kind":"sealed_artifact_output_set"' not in state
+    assert (
+        store.active_records(
+            kind="sealed_artifact_private_output_set", owner="host", now=NOW
+        )
+        == ()
+    )
 
 
 def test_pending_recovery_promotes_the_same_staged_set_without_rebuild(
@@ -346,11 +353,11 @@ def test_unrecoverable_pending_publication_compensates_and_aborts(tmp_path) -> N
     )
     host = _FakeHost()
 
-    def fail_pending(*, reservation_id: str, generation_id: str) -> None:
-        del reservation_id, generation_id
-        raise RuntimeError("lost acknowledgement")
+    def fail_visibility(*, reservation_id: str) -> None:
+        del reservation_id
+        raise RuntimeError("lost visibility acknowledgement")
 
-    host.begin_pending_publication = fail_pending  # type: ignore[method-assign]
+    host.acknowledge_visibility = fail_visibility  # type: ignore[method-assign]
     host.query_current_outcome = lambda *, reservation_id: "unknown"  # type: ignore[method-assign]
     coordinator = ReviewedCapabilityPublicationCoordinator(
         store=store, owner="host", artifacts=artifacts, host=host
@@ -367,11 +374,12 @@ def test_unrecoverable_pending_publication_compensates_and_aborts(tmp_path) -> N
     with pytest.raises(ReviewedCapabilityPublicationError):
         coordinator.recover(reservation_id="v1.reservation", now=NOW)
 
-    assert host.calls == [("compensate", "v1.reservation")]
+    assert host.calls == [
+        ("pending", "v1.reservation"),
+        ("compensate", "v1.reservation"),
+    ]
     assert (
-        store.active_records(
-            kind="sealed_artifact_private_output_set", owner="host", now=NOW
-        )
+        store.active_records(kind="sealed_artifact_output_set", owner="host", now=NOW)
         == ()
     )
     state = (tmp_path / "state" / "records.json").read_text(encoding="utf-8")

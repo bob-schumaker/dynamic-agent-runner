@@ -105,7 +105,6 @@ class ReviewedCapabilityPublicationCoordinator:
         }
         record: OpaqueRecord | None = None
         attempt_id: str | None = None
-        pending_attempted = False
         try:
             attempt_id, replayed = self._store.issue_or_reuse(
                 kind="reviewed_capability_publication",
@@ -129,7 +128,6 @@ class ReviewedCapabilityPublicationCoordinator:
                     return _receipt_from_record(record)
                 raise ValueError
             record = self._advance(attempt_id, payload, "commit_intent", now=now)
-            pending_attempted = True
             self._host.begin_pending_publication(
                 reservation_id=reservation_id, generation_id=generation_id
             )
@@ -152,14 +150,31 @@ class ReviewedCapabilityPublicationCoordinator:
                 now=now,
             )
         except Exception as error:  # noqa: BLE001 - host boundary varies.
-            if pending_attempted and attempt_id is not None and record is not None:
+            if attempt_id is not None and record is not None:
                 try:
-                    self._advance(
-                        attempt_id,
-                        record.payload,
-                        "recovery_required",
-                        now=now,
-                    )
+                    if record.payload.get("status") in {"prepared", "commit_intent"}:
+                        outcome = self._host.query_current_outcome(
+                            reservation_id=reservation_id
+                        )
+                        if outcome == "pending":
+                            self._advance(
+                                attempt_id,
+                                record.payload,
+                                "recovery_required",
+                                now=now,
+                            )
+                        else:
+                            record = self._advance(
+                                attempt_id, record.payload, "aborted", now=now
+                            )
+                            self._artifacts.discard(private, now=now)
+                    else:
+                        self._advance(
+                            attempt_id,
+                            record.payload,
+                            "recovery_required",
+                            now=now,
+                        )
                 except Exception:  # noqa: BLE001 - preserve the original failure.
                     pass
             raise ReviewedCapabilityPublicationError(
