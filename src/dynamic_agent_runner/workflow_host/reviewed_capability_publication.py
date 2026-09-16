@@ -32,6 +32,8 @@ class ReviewedCapabilityPublicationHost(Protocol):
 
     def acknowledge_visibility(self, *, reservation_id: str) -> None: ...
 
+    def query_current_outcome(self, *, reservation_id: str) -> str: ...
+
 
 @dataclass(frozen=True)
 class ReviewedCapabilityPublicationReceipt:
@@ -62,6 +64,7 @@ class ReviewedCapabilityPublicationCoordinator:
             or artifacts.owner != owner
             or not callable(getattr(host, "begin_pending_publication", None))
             or not callable(getattr(host, "acknowledge_visibility", None))
+            or not callable(getattr(host, "query_current_outcome", None))
         ):
             raise ReviewedCapabilityPublicationError("publication is unavailable")
         self._store = store
@@ -143,6 +146,63 @@ class ReviewedCapabilityPublicationCoordinator:
             published_at=_timestamp(now),
             artifacts=handles,
             counts=dict(counts),
+        )
+
+    def recover(
+        self, *, reservation_id: str, now: datetime
+    ) -> ReviewedCapabilityPublicationReceipt:
+        """Resume only one host-confirmed pending attempt for this reservation."""
+
+        if not isinstance(reservation_id, str) or not reservation_id:
+            raise ReviewedCapabilityPublicationError("publication is unavailable")
+        try:
+            matches = [
+                (attempt_id, record)
+                for attempt_id, record in self._store.active_records(
+                    kind="reviewed_capability_publication",
+                    owner=self._owner,
+                    now=now,
+                )
+                if record.payload.get("reservation_id") == reservation_id
+                and record.payload.get("status") == "recovery_required"
+            ]
+            if len(matches) != 1:
+                raise ValueError
+            attempt_id, record = matches[0]
+            generation_id = record.payload.get("generation_id")
+            private_set_id = record.payload.get("private_set_id")
+            counts = record.payload.get("counts")
+            if (
+                not isinstance(generation_id, str)
+                or not isinstance(private_set_id, str)
+                or not isinstance(counts, dict)
+                or self._host.query_current_outcome(reservation_id=reservation_id)
+                != "pending"
+            ):
+                raise ValueError
+            record = self._advance(attempt_id, record.payload, "host_pending", now=now)
+            private = SealedArtifactPrivateOutputSet(private_set_id, record.expires_at)
+            handles = self._artifacts.promote(private, now=now)
+            record = self._advance(
+                attempt_id,
+                record.payload,
+                "dar_promoted",
+                handles=handles,
+                now=now,
+            )
+            self._host.acknowledge_visibility(reservation_id=reservation_id)
+            record = self._advance(attempt_id, record.payload, "host_visible", now=now)
+            self._advance(attempt_id, record.payload, "completed", now=now)
+        except Exception as error:  # noqa: BLE001 - host boundary varies.
+            raise ReviewedCapabilityPublicationError(
+                "publication is unavailable"
+            ) from error
+        return ReviewedCapabilityPublicationReceipt(
+            status="published",
+            generation_id=generation_id,
+            published_at=_timestamp(now),
+            artifacts=handles,
+            counts=counts,
         )
 
     def _advance(

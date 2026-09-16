@@ -8,6 +8,7 @@ import pytest
 
 from dynamic_agent_runner.workflow_host.reviewed_capability_publication import (
     ReviewedCapabilityPublicationCoordinator,
+    ReviewedCapabilityPublicationError,
 )
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactLimits,
@@ -32,6 +33,10 @@ class _FakeHost:
 
     def acknowledge_visibility(self, *, reservation_id: str) -> None:
         self.calls.append(("visible", reservation_id))
+
+    def query_current_outcome(self, *, reservation_id: str) -> str:
+        self.calls.append(("query", reservation_id))
+        return "pending"
 
 
 def _descriptor() -> SealedArtifactRunnerDescriptor:
@@ -138,3 +143,51 @@ def test_pending_publication_error_marks_the_same_attempt_for_recovery(
     state = (tmp_path / "state" / "records.json").read_text(encoding="utf-8")
     assert '"status":"recovery_required"' in state
     assert '"kind":"sealed_artifact_output_set"' not in state
+
+
+def test_pending_recovery_promotes_the_same_staged_set_without_rebuild(
+    tmp_path,
+) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    private = artifacts.stage(
+        descriptor=_descriptor(),
+        receiver_id="principal",
+        revision_digest="e" * 64,
+        invocation_id="run-1",
+        sealed=(
+            ("index_generation", "application/octet-stream", b"index"),
+            ("index_manifest", "application/json", b"{}"),
+            ("coverage_report", "application/json", b"{}"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    host = _FakeHost()
+    calls = 0
+
+    def fail_once(*, reservation_id: str, generation_id: str) -> None:
+        nonlocal calls
+        del reservation_id, generation_id
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("lost acknowledgement")
+
+    host.begin_pending_publication = fail_once  # type: ignore[method-assign]
+    coordinator = ReviewedCapabilityPublicationCoordinator(
+        store=store, owner="host", artifacts=artifacts, host=host
+    )
+    with pytest.raises(ReviewedCapabilityPublicationError):
+        coordinator.complete(
+            reservation_id="v1.reservation",
+            private=private,
+            generation_id="generation-1",
+            counts={"source_records": 1},
+            now=NOW,
+        )
+
+    receipt = coordinator.recover(reservation_id="v1.reservation", now=NOW)
+
+    assert receipt.status == "published"
+    assert calls == 1
+    assert ("query", "v1.reservation") in host.calls
