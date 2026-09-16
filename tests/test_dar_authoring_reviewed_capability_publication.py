@@ -108,7 +108,12 @@ def test_publication_records_all_states_before_exposing_handles(tmp_path) -> Non
     )
     host = _FakeHost()
     coordinator = ReviewedCapabilityPublicationCoordinator(
-        store=store, owner="host", artifacts=artifacts, host=host
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
     )
 
     receipt = coordinator.complete(
@@ -175,7 +180,12 @@ def test_publication_rejects_noncanonical_aggregate_counts_before_host_effect(
     )
     host = _FakeHost()
     coordinator = ReviewedCapabilityPublicationCoordinator(
-        store=store, owner="host", artifacts=artifacts, host=host
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
     )
 
     with pytest.raises(ReviewedCapabilityPublicationError):
@@ -208,7 +218,12 @@ def test_current_generation_retention_renews_all_output_roles(tmp_path) -> None:
     )
     host = _FakeHost()
     coordinator = ReviewedCapabilityPublicationCoordinator(
-        store=store, owner="host", artifacts=artifacts, host=host
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
     )
     receipt = coordinator.complete(
         reservation_id="v1.reservation",
@@ -255,7 +270,12 @@ def test_noncurrent_generation_unpublishes_before_output_set_revocation(
     )
     host = _FakeHost()
     coordinator = ReviewedCapabilityPublicationCoordinator(
-        store=store, owner="host", artifacts=artifacts, host=host
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
     )
     receipt = coordinator.complete(
         reservation_id="v1.reservation",
@@ -310,7 +330,12 @@ def test_retention_host_errors_leave_completed_output_set_active(
     )
     host = _FakeHost()
     coordinator = ReviewedCapabilityPublicationCoordinator(
-        store=store, owner="host", artifacts=artifacts, host=host
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
     )
     receipt = coordinator.complete(
         reservation_id="v1.reservation",
@@ -364,7 +389,12 @@ def test_completed_publication_replays_its_stored_receipt_without_host_calls(
     )
     host = _FakeHost()
     coordinator = ReviewedCapabilityPublicationCoordinator(
-        store=store, owner="host", artifacts=artifacts, host=host
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
     )
 
     first = coordinator.complete(
@@ -406,7 +436,12 @@ def test_conflicting_completion_request_never_reenters_the_host(tmp_path) -> Non
     )
     host = _FakeHost()
     coordinator = ReviewedCapabilityPublicationCoordinator(
-        store=store, owner="host", artifacts=artifacts, host=host
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
     )
     coordinator.complete(
         reservation_id="v1.reservation",
@@ -456,7 +491,12 @@ def test_pre_pending_publication_error_aborts_and_discards_candidates(
     host.begin_pending_publication = fail_pending  # type: ignore[method-assign]
     host.query_current_outcome = lambda *, reservation_id: "absent"  # type: ignore[method-assign]
     coordinator = ReviewedCapabilityPublicationCoordinator(
-        store=store, owner="host", artifacts=artifacts, host=host
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
     )
 
     with pytest.raises(Exception, match="publication"):
@@ -509,7 +549,12 @@ def test_pending_recovery_promotes_the_same_staged_set_without_rebuild(
 
     host.begin_pending_publication = fail_once  # type: ignore[method-assign]
     coordinator = ReviewedCapabilityPublicationCoordinator(
-        store=store, owner="host", artifacts=artifacts, host=host
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
     )
     with pytest.raises(ReviewedCapabilityPublicationError):
         coordinator.complete(
@@ -555,7 +600,12 @@ def test_visibility_recovery_reuses_the_already_promoted_output_set(tmp_path) ->
 
     host.acknowledge_visibility = fail_visibility_once  # type: ignore[method-assign]
     coordinator = ReviewedCapabilityPublicationCoordinator(
-        store=store, owner="host", artifacts=artifacts, host=host
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
     )
 
     with pytest.raises(ReviewedCapabilityPublicationError):
@@ -599,7 +649,12 @@ def test_unrecoverable_pending_publication_compensates_and_aborts(tmp_path) -> N
     host.acknowledge_visibility = fail_visibility  # type: ignore[method-assign]
     host.query_current_outcome = lambda *, reservation_id: "unknown"  # type: ignore[method-assign]
     coordinator = ReviewedCapabilityPublicationCoordinator(
-        store=store, owner="host", artifacts=artifacts, host=host
+        store=store,
+        owner="host",
+        artifacts=artifacts,
+        host=host,
+        failure_classification="host_failure",
+        failure_classifications=("host_failure",),
     )
     with pytest.raises(ReviewedCapabilityPublicationError):
         coordinator.complete(
@@ -610,9 +665,14 @@ def test_unrecoverable_pending_publication_compensates_and_aborts(tmp_path) -> N
             now=NOW,
         )
 
-    with pytest.raises(ReviewedCapabilityPublicationError):
-        coordinator.recover(reservation_id="v1.reservation", now=NOW)
+    receipt = coordinator.recover(reservation_id="v1.reservation", now=NOW)
 
+    assert receipt.to_mapping() == {
+        "status": "failed",
+        "classification": "host_failure",
+        "receipt_id": receipt.receipt_id,
+    }
+    assert coordinator.recover(reservation_id="v1.reservation", now=NOW) == receipt
     assert host.calls == [
         ("pending", "v1.reservation"),
         ("compensate", "v1.reservation"),

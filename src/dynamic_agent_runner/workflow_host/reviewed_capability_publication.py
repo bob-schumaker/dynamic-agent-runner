@@ -81,6 +81,26 @@ class ReviewedCapabilityPublicationReceipt:
         }
 
 
+@dataclass(frozen=True)
+class ReviewedCapabilityPublicationFailureReceipt:
+    """The closed redacted terminal result for a compensated attempt."""
+
+    status: str
+    classification: str
+    receipt_id: str
+
+    def to_mapping(self) -> dict[str, str]:
+        """Return the closed public failure receipt."""
+
+        if self.status != "failed" or not self.classification or not self.receipt_id:
+            raise ReviewedCapabilityPublicationError("publication is unavailable")
+        return {
+            "status": "failed",
+            "classification": self.classification,
+            "receipt_id": self.receipt_id,
+        }
+
+
 _COUNT_FIELDS = frozenset(
     {"source_records", "embedding_units", "indexed", "skipped", "deleted", "errored"}
 )
@@ -97,6 +117,8 @@ class ReviewedCapabilityPublicationCoordinator:
         owner: str,
         artifacts: SealedArtifactOutputHandleService,
         host: ReviewedCapabilityPublicationHost,
+        failure_classification: str,
+        failure_classifications: tuple[str, ...],
     ) -> None:
         if (
             not isinstance(store, PrivateStateStore)
@@ -109,12 +131,22 @@ class ReviewedCapabilityPublicationCoordinator:
             or not callable(getattr(host, "compensate", None))
             or not callable(getattr(host, "assert_generation_current", None))
             or not callable(getattr(host, "unpublish_generation_atomically", None))
+            or not isinstance(failure_classification, str)
+            or not failure_classification
+            or not isinstance(failure_classifications, tuple)
+            or not failure_classifications
+            or any(
+                not isinstance(item, str) or not item
+                for item in failure_classifications
+            )
+            or failure_classification not in failure_classifications
         ):
             raise ReviewedCapabilityPublicationError("publication is unavailable")
         self._store = store
         self._owner = owner
         self._artifacts = artifacts
         self._host = host
+        self._failure_classification = failure_classification
 
     def complete(
         self,
@@ -226,7 +258,10 @@ class ReviewedCapabilityPublicationCoordinator:
 
     def recover(
         self, *, reservation_id: str, now: datetime
-    ) -> ReviewedCapabilityPublicationReceipt:
+    ) -> (
+        ReviewedCapabilityPublicationReceipt
+        | ReviewedCapabilityPublicationFailureReceipt
+    ):
         """Resume only one host-confirmed pending attempt for this reservation."""
 
         if not isinstance(reservation_id, str) or not reservation_id:
@@ -240,11 +275,18 @@ class ReviewedCapabilityPublicationCoordinator:
                     now=now,
                 )
                 if record.payload.get("reservation_id") == reservation_id
-                and record.payload.get("status") == "recovery_required"
             ]
             if len(matches) != 1:
                 raise ValueError
             attempt_id, record = matches[0]
+            if record.payload.get("status") == "completed":
+                return _receipt_from_record(record)
+            if record.payload.get("status") == "aborted":
+                return _failure_receipt_from_record(
+                    record, classification=self._failure_classification
+                )
+            if record.payload.get("status") != "recovery_required":
+                raise ValueError
             generation_id = record.payload.get("generation_id")
             private_set_id = record.payload.get("private_set_id")
             counts = record.payload.get("counts")
@@ -264,8 +306,16 @@ class ReviewedCapabilityPublicationCoordinator:
                     SealedArtifactPrivateOutputSet(private_set_id, record.expires_at),
                     now=now,
                 )
-                self._advance(attempt_id, record.payload, "aborted", now=now)
-                raise ValueError
+                record = self._advance(
+                    attempt_id,
+                    record.payload,
+                    "aborted",
+                    failure_receipt_id=attempt_id,
+                    now=now,
+                )
+                return _failure_receipt_from_record(
+                    record, classification=self._failure_classification
+                )
             record = self._advance(attempt_id, record.payload, "host_pending", now=now)
             private = SealedArtifactPrivateOutputSet(private_set_id, record.expires_at)
             handles = self._artifacts.promote(private, now=now)
@@ -370,6 +420,7 @@ class ReviewedCapabilityPublicationCoordinator:
         now: datetime,
         handles: tuple[SealedArtifactOutputHandle, ...] = (),
         published_at: str | None = None,
+        failure_receipt_id: str | None = None,
     ) -> OpaqueRecord:
         replacement = {**payload, "status": status}
         if handles:
@@ -385,6 +436,8 @@ class ReviewedCapabilityPublicationCoordinator:
             ]
         if published_at is not None:
             replacement["published_at"] = published_at
+        if failure_receipt_id is not None:
+            replacement["failure_receipt_id"] = failure_receipt_id
         record = self._store.load(
             attempt_id,
             expected_kind="reviewed_capability_publication",
@@ -470,4 +523,19 @@ def _receipt_from_record(record: OpaqueRecord) -> ReviewedCapabilityPublicationR
         published_at=published_at,
         artifacts=handles,
         counts=counts,
+    )
+
+
+def _failure_receipt_from_record(
+    record: OpaqueRecord, *, classification: str
+) -> ReviewedCapabilityPublicationFailureReceipt:
+    receipt_id = record.payload.get("failure_receipt_id")
+    if (
+        record.payload.get("status") != "aborted"
+        or not isinstance(receipt_id, str)
+        or not receipt_id
+    ):
+        raise ReviewedCapabilityPublicationError("publication is unavailable")
+    return ReviewedCapabilityPublicationFailureReceipt(
+        status="failed", classification=classification, receipt_id=receipt_id
     )
