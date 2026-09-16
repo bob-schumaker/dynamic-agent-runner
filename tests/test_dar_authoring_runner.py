@@ -1993,6 +1993,8 @@ def test_runner_exposes_one_declared_reviewed_capability_tool(  # noqa: C901 - f
 
     assert result.success is True
     assert result.output["status"] == "published"
+    assert "index_digest" not in json.dumps(result.output)
+    assert job.member_binding_digest not in json.dumps(result.output)
     assert host.calls == 1
 
 
