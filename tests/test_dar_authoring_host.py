@@ -1571,7 +1571,9 @@ def test_local_host_configures_one_reviewed_tool_package(tmp_path: Path) -> None
     )
 
 
-def _reviewed_template() -> ReviewedCapabilityTemplate:
+def _reviewed_template(
+    *, extension_binding: str = "host-vector-index-v1"
+) -> ReviewedCapabilityTemplate:
     outputs = (
         ReviewedCapabilityTemplateOutput(
             "index_generation", "application/octet-stream", 1024, 60
@@ -1591,7 +1593,7 @@ def _reviewed_template() -> ReviewedCapabilityTemplate:
         "outputs": outputs,
         "max_receipt_bytes": 1024,
         "approval_class": "human_write",
-        "extension_binding": "host-vector-index-v1",
+        "extension_binding": extension_binding,
         "recovery_operations": (
             "acknowledge_visibility",
             "begin_pending_publication",
@@ -1654,6 +1656,13 @@ def test_local_host_discovers_only_explicitly_registered_reviewed_templates(
         )
         == discovered
     )
+    with pytest.raises(LocalWorkflowHostError, match="reviewed capability"):
+        LocalWorkflowHost.open(
+            tmp_path / "enabled-state",
+            reviewed_capability_templates=(
+                _reviewed_template(extension_binding="changed-host-extension"),
+            ),
+        )
 
 
 class _Responses:
