@@ -19,6 +19,7 @@ from dynamic_agent_runner.workflow_host.capabilities import (
     ReviewedCapabilityTemplateOutput,
     ReviewedCapabilityTemplateRegistry,
     UnavailableCapability,
+    reviewed_capability_template_digest,
     validate_vector_index_build_template,
 )
 
@@ -62,7 +63,7 @@ def _provider(
 
 def _reviewed_template(
     *,
-    template_digest: str = "b" * 64,
+    template_digest: str | None = None,
     outputs: tuple[ReviewedCapabilityTemplateOutput, ...] | None = None,
     recovery_operations: tuple[str, ...] = (
         "acknowledge_visibility",
@@ -70,38 +71,51 @@ def _reviewed_template(
         "compensate",
         "query_current_outcome",
     ),
+    extension_binding: str = "host-vector-index-v1",
     enabled: bool = True,
 ) -> ReviewedCapabilityTemplate:
+    output_contract = outputs or (
+        ReviewedCapabilityTemplateOutput(
+            role="index_generation",
+            media_type="application/octet-stream",
+            max_bytes=1024,
+            retention_seconds=60,
+        ),
+        ReviewedCapabilityTemplateOutput(
+            role="index_manifest",
+            media_type="application/json",
+            max_bytes=1024,
+            retention_seconds=60,
+        ),
+        ReviewedCapabilityTemplateOutput(
+            role="coverage_report",
+            media_type="application/json",
+            max_bytes=1024,
+            retention_seconds=60,
+        ),
+    )
     return ReviewedCapabilityTemplate(
         capability_id="vector_index.build.v1",
         contract_version="1",
-        template_digest=template_digest,
+        template_digest=template_digest
+        or reviewed_capability_template_digest(
+            capability_id="vector_index.build.v1",
+            contract_version="1",
+            input_fields=("job_handle",),
+            required_dependency="embedding.execute.v1",
+            outputs=output_contract,
+            max_receipt_bytes=1024,
+            approval_class="human_write",
+            extension_binding=extension_binding,
+            recovery_operations=recovery_operations,
+            enabled=enabled,
+        ),
         input_fields=("job_handle",),
         required_dependency="embedding.execute.v1",
-        outputs=outputs
-        or (
-            ReviewedCapabilityTemplateOutput(
-                role="index_generation",
-                media_type="application/octet-stream",
-                max_bytes=1024,
-                retention_seconds=60,
-            ),
-            ReviewedCapabilityTemplateOutput(
-                role="index_manifest",
-                media_type="application/json",
-                max_bytes=1024,
-                retention_seconds=60,
-            ),
-            ReviewedCapabilityTemplateOutput(
-                role="coverage_report",
-                media_type="application/json",
-                max_bytes=1024,
-                retention_seconds=60,
-            ),
-        ),
+        outputs=output_contract,
         max_receipt_bytes=1024,
         approval_class="human_write",
-        extension_binding="host-vector-index-v1",
+        extension_binding=extension_binding,
         recovery_operations=recovery_operations,
         enabled=enabled,
     )
@@ -127,6 +141,28 @@ def test_reviewed_template_carries_bounded_output_and_receipt_contract() -> None
     assert template.max_receipt_bytes == 1024
     assert template.approval_class == "human_write"
     assert template.extension_binding == "host-vector-index-v1"
+
+
+def test_reviewed_template_digest_binds_its_canonical_contract() -> None:
+    template = _reviewed_template()
+
+    assert template.template_digest == reviewed_capability_template_digest(
+        capability_id=template.capability_id,
+        contract_version=template.contract_version,
+        input_fields=template.input_fields,
+        required_dependency=template.required_dependency,
+        outputs=template.outputs,
+        max_receipt_bytes=template.max_receipt_bytes,
+        approval_class=template.approval_class,
+        extension_binding=template.extension_binding,
+        recovery_operations=template.recovery_operations,
+        enabled=template.enabled,
+    )
+
+
+def test_reviewed_template_rejects_a_stale_contract_digest() -> None:
+    with pytest.raises(CapabilityError, match="digest"):
+        _reviewed_template(template_digest="a" * 64)
 
 
 def test_vector_index_template_requires_its_closed_host_extension_contract() -> None:
@@ -183,8 +219,8 @@ def test_reviewed_template_output_rejects_nonpositive_bounds(
         ((), "authoring_runtime_unavailable"),
         (
             (
-                _reviewed_template(template_digest="b" * 64),
-                _reviewed_template(template_digest="c" * 64),
+                _reviewed_template(),
+                _reviewed_template(extension_binding="host-vector-index-v2"),
             ),
             "authoring_runtime_ambiguous",
         ),

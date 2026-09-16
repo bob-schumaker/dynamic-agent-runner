@@ -64,6 +64,49 @@ class ReviewedCapabilityTemplateOutput:
             raise CapabilityError("reviewed capability template output is invalid")
 
 
+def reviewed_capability_template_digest(
+    *,
+    capability_id: str,
+    contract_version: str,
+    input_fields: tuple[str, ...],
+    required_dependency: str,
+    outputs: tuple[ReviewedCapabilityTemplateOutput, ...],
+    max_receipt_bytes: int,
+    approval_class: str,
+    extension_binding: str,
+    recovery_operations: tuple[str, ...],
+    enabled: bool,
+) -> str:
+    """Return the SHA-256 digest of canonical reviewed-template content."""
+
+    canonical = json.dumps(
+        {
+            "approval_class": approval_class,
+            "capability_id": capability_id,
+            "contract_version": contract_version,
+            "enabled": enabled,
+            "extension_binding": extension_binding,
+            "input_fields": list(input_fields),
+            "max_receipt_bytes": max_receipt_bytes,
+            "outputs": [
+                {
+                    "max_bytes": output.max_bytes,
+                    "media_type": output.media_type,
+                    "retention_seconds": output.retention_seconds,
+                    "role": output.role,
+                }
+                for output in outputs
+            ],
+            "recovery_operations": list(recovery_operations),
+            "required_dependency": required_dependency,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return hashlib.sha256(canonical).hexdigest()
+
+
 @dataclass(frozen=True)
 class ReviewedCapabilityTemplate:
     """One immutable host-reviewed capability template."""
@@ -106,6 +149,19 @@ class ReviewedCapabilityTemplate:
         _canonical_strings(self.recovery_operations, "recovery_operations")
         if not isinstance(self.enabled, bool):
             raise CapabilityError("reviewed capability template is invalid")
+        if self.template_digest != reviewed_capability_template_digest(
+            capability_id=self.capability_id,
+            contract_version=self.contract_version,
+            input_fields=tuple(self.input_fields),
+            required_dependency=self.required_dependency,
+            outputs=outputs,
+            max_receipt_bytes=self.max_receipt_bytes,
+            approval_class=self.approval_class,
+            extension_binding=self.extension_binding,
+            recovery_operations=tuple(self.recovery_operations),
+            enabled=self.enabled,
+        ):
+            raise CapabilityError("reviewed capability template digest does not match")
         object.__setattr__(self, "input_fields", tuple(self.input_fields))
         object.__setattr__(self, "outputs", outputs)
         object.__setattr__(self, "recovery_operations", tuple(self.recovery_operations))
