@@ -179,7 +179,10 @@ class ReviewedCapabilityTemplateControlPlane:
     ) -> ReviewedCapabilityTemplate:
         _require_identifier(capability_id)
         _validate_template(current_template)
-        if current_template.capability_id != capability_id:
+        if (
+            current_template.capability_id != capability_id
+            or not current_template.enabled
+        ):
             raise ReviewedToolPackageError("reviewed template is unavailable")
         now = datetime.now(UTC)
         try:

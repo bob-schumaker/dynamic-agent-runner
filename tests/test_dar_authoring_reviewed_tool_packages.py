@@ -31,7 +31,7 @@ def _binding() -> ReviewedToolPackageBinding:
 
 
 def _template(
-    *, extension_binding: str = "host-vector-index-v1"
+    *, extension_binding: str = "host-vector-index-v1", enabled: bool = True
 ) -> ReviewedCapabilityTemplate:
     outputs = (
         ReviewedCapabilityTemplateOutput(
@@ -65,7 +65,7 @@ def _template(
             recovery_operations=operations,
             success_receipt_schema_digest="d" * 64,
             failure_classifications=("host_failure", "publication_failed"),
-            enabled=True,
+            enabled=enabled,
         ),
         input_fields=("job_handle",),
         required_dependency="embedding.execute.v1",
@@ -76,7 +76,7 @@ def _template(
         recovery_operations=operations,
         success_receipt_schema_digest="d" * 64,
         failure_classifications=("host_failure", "publication_failed"),
-        enabled=True,
+        enabled=enabled,
     )
 
 
@@ -110,6 +110,22 @@ def test_reviewed_template_registration_rejects_a_changed_host_binding(
         templates.resolve(
             capability_id="vector_index.build.v1",
             current_template=_template(extension_binding="host-vector-index-v2"),
+        )
+
+
+def test_reviewed_template_registration_rejects_a_disabled_template(
+    tmp_path: Path,
+) -> None:
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=PrivateStateStore(tmp_path / "state"), owner="local-user"
+    )
+    disabled_template = _template(enabled=False)
+    templates.create(template=disabled_template)
+
+    with pytest.raises(ReviewedToolPackageError, match="unavailable"):
+        templates.resolve(
+            capability_id="vector_index.build.v1",
+            current_template=disabled_template,
         )
 
 
