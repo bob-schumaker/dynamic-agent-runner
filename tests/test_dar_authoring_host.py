@@ -1644,6 +1644,16 @@ def test_local_host_discovers_only_explicitly_registered_reviewed_templates(
     assert discovered.status == "available"
     assert discovered.capability_id == "vector_index.build.v1"
     assert discovered.input_fields == ("job_handle",)
+    restarted = LocalWorkflowHost.open(
+        tmp_path / "enabled-state",
+        reviewed_capability_templates=(_reviewed_template(),),
+    )
+    assert (
+        restarted.discover_reviewed_capability_template(
+            capability_id="vector_index.build.v1"
+        )
+        == discovered
+    )
 
 
 class _Responses:

@@ -98,6 +98,7 @@ from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
     ReviewedToolPackage,
     ReviewedToolPackageBinding,
     ReviewedToolPackageControlPlane,
+    ReviewedToolPackageError,
 )
 from dynamic_agent_runner.workflow_host.oauth import (
     OAuthAuthorizationService,
@@ -263,7 +264,13 @@ def _reviewed_template_discovery(
     control_plane = ReviewedCapabilityTemplateControlPlane(store=store, owner=owner)
     try:
         for template in values:
-            control_plane.create(template=template)
+            try:
+                control_plane.create(template=template)
+            except ReviewedToolPackageError:
+                control_plane.resolve(
+                    capability_id=template.capability_id,
+                    current_template=template,
+                )
         return ReviewedCapabilityTemplateAuthoringDiscoveryService(
             registry=ReviewedCapabilityTemplateRegistry(values),
             templates=control_plane,
