@@ -294,6 +294,48 @@ class PrivateStateStore:
             self._change_state_in_records(records, handle, new_state)
             return record
 
+    def replace_active_payload(
+        self,
+        handle: str,
+        *,
+        expected_kind: str,
+        owner: str,
+        expected_payload_digest: str,
+        payload: Mapping[str, Any],
+        now: datetime,
+    ) -> OpaqueRecord:
+        """Compare-and-swap the private payload of one active record."""
+
+        _require_nonempty(expected_kind, "expected_kind")
+        _require_nonempty(owner, "owner")
+        if (
+            not isinstance(expected_payload_digest, str)
+            or len(expected_payload_digest) != 64
+        ):
+            raise OpaqueRecordError("opaque record payload digest is invalid")
+        replacement = _canonical_payload(payload)
+        with self._mutation_lock():
+            records = self._read_records()
+            record = self._active_record(
+                handle,
+                expected_kind=expected_kind,
+                owner=owner,
+                now=now,
+                records=records,
+            )
+            if not hmac.compare_digest(record.payload_digest, expected_payload_digest):
+                raise OpaqueRecordError("opaque record payload does not match")
+            raw_record = records.get(handle)
+            if raw_record is None:
+                raise OpaqueRecordError("unknown or forged opaque record")
+            raw_record["payload"] = replacement
+            raw_record["payload_digest"] = _digest(replacement)
+            raw_record["mac"] = self._record_mac(raw_record)
+            self._write_records(records)
+            return self._validated_record_from_records(
+                handle, owner=owner, records=records
+            )
+
     def consume_and_issue(
         self,
         handle: str,
