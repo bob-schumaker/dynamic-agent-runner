@@ -3,6 +3,16 @@
 
 ## Current Focus
 
+- `reviewed-vector-index-host-extension` is complete. DAR now supplies generic
+  reviewed-capability registration, admission, approval, sealed-artifact
+  staging, bounded redacted receipts, and recovery-aware publication. The
+  reusable `vector_index.build.v1` host extension accepts exactly one
+  host-created `sealed:vector-index-job` handle, requires a reviewed
+  `embedding.execute.v1` dependency, and leaves extraction, index material,
+  retries, publication, and deletion semantics with the deployment host.
+  Option-2 retention protects a current host-published generation until the
+  host atomically unpublishes it. All task slices are committed; final
+  validation passed with 2698 tests, 1 skip, and 7 deselections.
 - `model-generation-resource-budgets` is implemented and validated through
   T5.13. The generic converter-capable adapter owns sealed-input binding,
   budget resolution, lifecycle/admission, accounting, redacted telemetry, and

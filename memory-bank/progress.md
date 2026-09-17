@@ -3,6 +3,13 @@
 
 ## Working
 
+- The reviewed vector-index host-extension slice is complete. Its generic DAR
+  runner composes only an installed reviewed host extension; the vector-index
+  implementation and authority remain host-owned. The package-facing call is
+  one approval-gated sealed job handle, while results expose bounded opaque
+  artifact handles, safe canonical provenance, aggregate coverage, and a
+  receipt. Full elevated macOS validation passed: 2698 tests, 1 skipped, and 7
+  deselected.
 - `model-generation-resource-budgets` is implemented and validated through
   T5.13. The generic converter-capable model-adapter owns sealed-input binding,
   budget resolution, admission/lifecycle, aggregate accounting, redacted
