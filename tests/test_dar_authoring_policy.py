@@ -63,6 +63,7 @@ def _catalog_revision(  # noqa: C901
     with_read_only_mcp_tool: bool = False,
     with_side_effecting_mcp_tool: bool = False,
     with_reviewed_capability_tool: bool = False,
+    reviewed_receipt_terminal: bool = False,
     with_local_tool: bool = False,
     package_skill_id: str | None = None,
     package_skill_bundled_path: str | None = None,
@@ -254,6 +255,25 @@ def _catalog_revision(  # noqa: C901
             }
         ]
         runtime_value["nodes"][0]["available_tools"] = ["build_vector_index"]
+        if reviewed_receipt_terminal:
+            descriptor_value["output"]["schema_ref"] = "reviewed_receipt"
+            descriptor_value["task_invocation"]["terminal_output_schema_ref"] = (
+                "reviewed_receipt"
+            )
+            runtime_value["output_contracts"] = [
+                {
+                    "id": "reviewed_receipt",
+                    "terminal_result_kind": "reviewed_capability_receipt.v1",
+                    "required_fields": [
+                        "status",
+                        "generation_id",
+                        "published_at",
+                        "artifacts",
+                        "counts",
+                    ],
+                }
+            ]
+            descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
         runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
     if with_local_tool:
         descriptor = source / "workflow-descriptor.yaml"
@@ -486,6 +506,20 @@ def test_policy_binds_the_exact_reviewed_capability_template(tmp_path: Path) -> 
     assert tool.contract_version == "1"
     assert tool.template_digest == "a" * 64
     assert tool.input_fields == ("job_handle",)
+
+
+def test_policy_accepts_the_opt_in_reviewed_capability_receipt_contract(
+    tmp_path: Path,
+) -> None:
+    policy = compile_workflow_policy(
+        _catalog_revision(
+            tmp_path,
+            with_reviewed_capability_tool=True,
+            reviewed_receipt_terminal=True,
+        )
+    )
+
+    assert len(policy.declared_reviewed_capability_tools) == 1
 
 
 def test_policy_binds_the_canonical_model_materials_digest(tmp_path: Path) -> None:
@@ -1359,6 +1393,47 @@ def test_policy_rejects_unknown_registered_terminal_output_contract(
     )
 
     with pytest.raises(PolicyCompilationError, match="terminal output contract"):
+        compile_workflow_policy(revision)
+
+
+def test_policy_rejects_a_receipt_terminal_contract_without_a_reviewed_capability(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "packages" / "document-helper"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    runtime = source / "agent-runtime.yaml"
+    runtime_value = yaml.safe_load(runtime.read_text(encoding="utf-8"))
+    runtime_value["output_contracts"] = [
+        {
+            "id": "reviewed_receipt",
+            "terminal_result_kind": "reviewed_capability_receipt.v1",
+            "required_fields": [
+                "status",
+                "generation_id",
+                "published_at",
+                "artifacts",
+                "counts",
+            ],
+        }
+    ]
+    runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
+    descriptor = source / "workflow-descriptor.yaml"
+    descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+    descriptor_value["output"]["schema_ref"] = "reviewed_receipt"
+    descriptor_value["task_invocation"]["terminal_output_schema_ref"] = (
+        "reviewed_receipt"
+    )
+    descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
+    store = PrivateStateStore(tmp_path / "state")
+    source_handle = PackageSourceSelectionPolicy(
+        allowed_root=source.parent, store=store
+    ).select_directory(source, now=NOW)
+    staged = PrivatePackageStager(store=store, private_root=tmp_path / "staging").stage(
+        source_handle, now=NOW
+    )
+    revision = PackageCatalog(tmp_path / "catalog").import_staged(staged)
+
+    with pytest.raises(PolicyCompilationError, match="reviewed capability terminal"):
         compile_workflow_policy(revision)
 
 

@@ -100,6 +100,7 @@ from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
 )
 from dynamic_agent_runner.workflow_host.policy import (
     PolicyCompilationError,
+    REVIEWED_CAPABILITY_RECEIPT_TERMINAL_RESULT_KIND,
     compile_workflow_policy,
 )
 from dynamic_agent_runner.workflow_host.preparation import (
@@ -166,7 +167,7 @@ class RunDarWorkflowResult:
 
     status: str
     run_id: str
-    output: dict[str, str]
+    output: dict[str, object]
 
 
 @dataclass(frozen=True)
@@ -458,21 +459,26 @@ class WorkflowRunner:
             finally:
                 self._clear_sealed_converter_payload(payload)
                 self._clear_sealed_image(image)
-            processed_result = self._process_terminal_output(
-                policy=policy,
-                package_root=Path(package_root),
-                value=final_result,
-                run_id=run_id,
-                now=now,
-            )
-            output = _terminal_output(
-                processed_result,
-                terminal_output_contract,
-                adapter_id=self._configured_profile.adapter_id,
-            )
-            self._validate_terminal_output(
-                policy=policy, package_root=Path(package_root), output=output
-            )
+            if _is_reviewed_capability_receipt_contract(terminal_output_contract):
+                output = self._reviewed_capability_terminal_output(
+                    policy=policy, value=final_result
+                )
+            else:
+                processed_result = self._process_terminal_output(
+                    policy=policy,
+                    package_root=Path(package_root),
+                    value=final_result,
+                    run_id=run_id,
+                    now=now,
+                )
+                output = _terminal_output(
+                    processed_result,
+                    terminal_output_contract,
+                    adapter_id=self._configured_profile.adapter_id,
+                )
+                self._validate_terminal_output(
+                    policy=policy, package_root=Path(package_root), output=output
+                )
         except asyncio.CancelledError:
             self._traces.append(
                 RedactedRunTrace(run_id, request.workflow_id, "failed", 0)
@@ -501,7 +507,7 @@ class WorkflowRunner:
                 run_id,
                 request.workflow_id,
                 "completed",
-                len(output["message"].encode("utf-8")),
+                _terminal_output_byte_count(output),
             )
         )
         return RunDarWorkflowResult("completed", run_id, output)
@@ -725,7 +731,7 @@ class WorkflowRunner:
             clear()
 
     def _validate_terminal_output(
-        self, *, policy: Any, package_root: Path, output: Mapping[str, str]
+        self, *, policy: Any, package_root: Path, output: Mapping[str, object]
     ) -> None:
         """Run an optional workflow-owned validator after terminal shaping."""
 
@@ -747,12 +753,30 @@ class WorkflowRunner:
                     timeout_seconds=validator.timeout_seconds,
                 ),
                 artifact_role="terminal_output",
-                artifact_bytes=output["message"].encode("utf-8"),
+                artifact_bytes=_terminal_message(output).encode("utf-8"),
             )
         except LocalToolSandboxError as error:
             raise RunDarWorkflowError("terminal output validation failed") from error
         if evidence.get("valid") is not True:
             raise RunDarWorkflowError("terminal output validation failed")
+
+    def _reviewed_capability_terminal_output(
+        self, *, policy: Any, value: object
+    ) -> dict[str, object]:
+        """Revalidate the one host-issued receipt selected by policy."""
+
+        declarations = policy.declared_reviewed_capability_tools
+        if len(declarations) != 1:
+            raise RunDarWorkflowError("reviewed capability receipt is unavailable")
+        declaration = declarations[0]
+        extension = self._reviewed_capability_extensions.get(declaration.capability_id)
+        if (
+            extension is None
+            or extension.template.contract_version != declaration.contract_version
+            or extension.template.template_digest != declaration.template_digest
+        ):
+            raise RunDarWorkflowError("reviewed capability receipt is unavailable")
+        return _reviewed_capability_terminal_receipt(value, template=extension.template)
 
     def _process_terminal_output(
         self,
@@ -1472,7 +1496,7 @@ def _terminal_output(
     contract: Mapping[str, Any],
     *,
     adapter_id: str,
-) -> dict[str, str]:
+) -> dict[str, object]:
     if not isinstance(value, str) or not value:
         raise RunDarWorkflowError("workflow terminal output is not a message")
     if len(value.encode("utf-8")) > 32 * 1024:
@@ -1495,6 +1519,153 @@ def _terminal_output(
             "terminal output does not satisfy registered contract"
         )
     return output
+
+
+def _is_reviewed_capability_receipt_contract(contract: Mapping[str, object]) -> bool:
+    return (
+        contract.get("terminal_result_kind")
+        == REVIEWED_CAPABILITY_RECEIPT_TERMINAL_RESULT_KIND
+    )
+
+
+def _terminal_message(output: Mapping[str, object]) -> str:
+    message = output.get("message")
+    if not isinstance(message, str):
+        raise RunDarWorkflowError(
+            "terminal output does not satisfy registered contract"
+        )
+    return message
+
+
+def _terminal_output_byte_count(output: Mapping[str, object]) -> int:
+    if "message" in output:
+        return len(_terminal_message(output).encode("utf-8"))
+    try:
+        return len(
+            json.dumps(
+                output, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            ).encode("utf-8")
+        )
+    except (TypeError, ValueError) as error:
+        raise RunDarWorkflowError("workflow terminal output is invalid") from error
+
+
+def _reviewed_capability_terminal_receipt(
+    value: object, *, template: object
+) -> dict[str, object]:
+    """Admit only the canonical bounded receipt shape from a reviewed template."""
+
+    if not isinstance(value, Mapping):
+        raise RunDarWorkflowError("reviewed capability receipt is invalid")
+    receipt = dict(value)
+    status = receipt.get("status")
+    if status == "published":
+        _validate_published_reviewed_capability_receipt(receipt, template=template)
+    elif status == "failed":
+        _validate_failed_reviewed_capability_receipt(receipt, template=template)
+    else:
+        raise RunDarWorkflowError("reviewed capability receipt is invalid")
+    try:
+        encoded = json.dumps(
+            receipt,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as error:
+        raise RunDarWorkflowError("reviewed capability receipt is invalid") from error
+    if len(encoded) > _template_positive_int(template, "max_receipt_bytes"):
+        raise RunDarWorkflowError("reviewed capability receipt is invalid")
+    return json.loads(encoded.decode("utf-8"))
+
+
+def _validate_published_reviewed_capability_receipt(
+    receipt: Mapping[str, object], *, template: object
+) -> None:
+    if set(receipt) != {
+        "status",
+        "generation_id",
+        "published_at",
+        "artifacts",
+        "counts",
+    }:
+        raise RunDarWorkflowError("reviewed capability receipt is invalid")
+    _bounded_text(
+        receipt.get("generation_id"),
+        maximum=_template_positive_int(template, "generation_id_max_bytes"),
+    )
+    _published_at(receipt.get("published_at"))
+    artifacts = receipt.get("artifacts")
+    roles = tuple(
+        getattr(output, "role", None) for output in getattr(template, "outputs", ())
+    )
+    if not isinstance(artifacts, Mapping) or set(artifacts) != set(roles):
+        raise RunDarWorkflowError("reviewed capability receipt is invalid")
+    if len(roles) != len(set(roles)) or not all(
+        isinstance(role, str) for role in roles
+    ):
+        raise RunDarWorkflowError("reviewed capability receipt is invalid")
+    maximum_handle_bytes = _template_positive_int(template, "artifact_handle_max_bytes")
+    for handle in artifacts.values():
+        _bounded_text(handle, maximum=maximum_handle_bytes)
+    counts = receipt.get("counts")
+    count_fields = {
+        "source_records",
+        "embedding_units",
+        "indexed",
+        "skipped",
+        "deleted",
+        "errored",
+    }
+    if not isinstance(counts, Mapping) or set(counts) != count_fields:
+        raise RunDarWorkflowError("reviewed capability receipt is invalid")
+    ceiling = _template_positive_int(template, "count_ceiling")
+    if any(
+        not isinstance(count, int)
+        or isinstance(count, bool)
+        or count < 0
+        or count > ceiling
+        for count in counts.values()
+    ):
+        raise RunDarWorkflowError("reviewed capability receipt is invalid")
+
+
+def _validate_failed_reviewed_capability_receipt(
+    receipt: Mapping[str, object], *, template: object
+) -> None:
+    if set(receipt) != {"status", "classification", "receipt_id"}:
+        raise RunDarWorkflowError("reviewed capability receipt is invalid")
+    classifications = getattr(template, "failure_classifications", ())
+    if receipt.get("classification") not in classifications:
+        raise RunDarWorkflowError("reviewed capability receipt is invalid")
+    _bounded_text(
+        receipt.get("receipt_id"),
+        maximum=_template_positive_int(template, "generation_id_max_bytes"),
+    )
+
+
+def _template_positive_int(template: object, name: str) -> int:
+    value = getattr(template, name, None)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise RunDarWorkflowError("reviewed capability receipt is invalid")
+    return value
+
+
+def _bounded_text(value: object, *, maximum: int) -> None:
+    if not isinstance(value, str) or not value or len(value.encode("utf-8")) > maximum:
+        raise RunDarWorkflowError("reviewed capability receipt is invalid")
+
+
+def _published_at(value: object) -> None:
+    if not isinstance(value, str) or not value or len(value.encode("utf-8")) > 64:
+        raise RunDarWorkflowError("reviewed capability receipt is invalid")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise RunDarWorkflowError("reviewed capability receipt is invalid") from error
+    if parsed.tzinfo is None:
+        raise RunDarWorkflowError("reviewed capability receipt is invalid")
 
 
 def _terminal_processor_output(evidence: Mapping[str, object]) -> bytes:
