@@ -85,7 +85,18 @@ from dynamic_agent_runner.workflow_host.artifact_tools import (
     create_reviewed_artifact_tool_binding,
 )
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
+    ReviewedCapabilityTemplateControlPlane,
     ReviewedToolPackageControlPlane,
+)
+from dynamic_agent_runner.workflow_host.reviewed_capability_host_extension import (
+    ReviewedCapabilityHostExtension,
+)
+from dynamic_agent_runner.workflow_host.reviewed_capability_tools import (
+    ReviewedCapabilityToolBindingError,
+    create_reviewed_capability_tool_binding,
+)
+from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
+    SealedArtifactOutputHandleService,
 )
 from dynamic_agent_runner.workflow_host.policy import (
     PolicyCompilationError,
@@ -334,6 +345,11 @@ class WorkflowRunner:
         reviewed_tool_packages: ReviewedToolPackageControlPlane | None = None,
         reviewed_artifact_tool_executors: Mapping[str, ReviewedArtifactToolExecutor]
         | None = None,
+        reviewed_capability_extensions: Mapping[str, ReviewedCapabilityHostExtension]
+        | None = None,
+        reviewed_capability_templates: ReviewedCapabilityTemplateControlPlane
+        | None = None,
+        reviewed_capability_artifacts: SealedArtifactOutputHandleService | None = None,
         terminal_diagnostic_store: PrivateStateStore | None = None,
         terminal_diagnostic_owner: str | None = None,
         capability_catalog: CapabilityCatalog | None = None,
@@ -356,6 +372,11 @@ class WorkflowRunner:
         self._reviewed_artifact_tool_executors = dict(
             reviewed_artifact_tool_executors or {}
         )
+        self._reviewed_capability_extensions = dict(
+            reviewed_capability_extensions or {}
+        )
+        self._reviewed_capability_templates = reviewed_capability_templates
+        self._reviewed_capability_artifacts = reviewed_capability_artifacts
         self._terminal_diagnostic_store = terminal_diagnostic_store
         self._capability_catalog = capability_catalog
         self._model_runner_registry = model_runner_registry
@@ -1101,6 +1122,7 @@ class WorkflowRunner:
             not policy.declared_tools
             and not policy.declared_local_tools
             and not policy.declared_artifact_tools
+            and not policy.declared_reviewed_capability_tools
         ):
             if registration.mcp_binding_id is not None:
                 raise RunDarWorkflowError("no-tool registration has an MCP binding")
@@ -1125,6 +1147,16 @@ class WorkflowRunner:
                     now=now,
                 )
             )
+        if policy.declared_reviewed_capability_tools:
+            bindings.extend(
+                self._reviewed_capability_tool_bindings(
+                    policy=policy,
+                    registration=registration,
+                    run_id=run_id,
+                    approval_broker=approval_broker,
+                    now=now,
+                )
+            )
         if not policy.declared_tools:
             return create_host_tool_registry(tuple(bindings))
         bindings.extend(
@@ -1139,6 +1171,53 @@ class WorkflowRunner:
             )
         )
         return create_host_tool_registry(tuple(bindings))
+
+    def _reviewed_capability_tool_bindings(
+        self,
+        *,
+        policy: Any,
+        registration: WorkflowRegistration,
+        run_id: str,
+        approval_broker: LocalActionApprovalBroker | None,
+        now: datetime,
+    ) -> list[Any]:
+        """Bind the one declared reviewed capability to its selected host extension."""
+
+        declarations = policy.declared_reviewed_capability_tools
+        if (
+            len(declarations) != 1
+            or self._action_ledger is None
+            or self._approval_store is None
+            or approval_broker is None
+            or self._reviewed_capability_templates is None
+            or self._reviewed_capability_artifacts is None
+            or self._terminal_diagnostic_store is None
+        ):
+            raise RunDarWorkflowError("reviewed capability is unavailable")
+        declaration = declarations[0]
+        extension = self._reviewed_capability_extensions.get(declaration.capability_id)
+        if extension is None:
+            raise RunDarWorkflowError("reviewed capability is unavailable")
+        try:
+            return [
+                create_reviewed_capability_tool_binding(
+                    declaration=declaration,
+                    registration=registration,
+                    run_id=run_id,
+                    principal=self._terminal_diagnostic_owner,
+                    extension=extension,
+                    ledger=self._action_ledger,
+                    approvals=self._approval_store,
+                    approval_broker=approval_broker,
+                    reviewed_templates=self._reviewed_capability_templates,
+                    artifacts=self._reviewed_capability_artifacts,
+                    store=self._terminal_diagnostic_store,
+                    owner=self._terminal_diagnostic_owner,
+                    now=lambda: now,
+                )
+            ]
+        except (ReviewedCapabilityToolBindingError, TypeError) as error:
+            raise RunDarWorkflowError("reviewed capability is unavailable") from error
 
     def _artifact_tool_bindings(
         self,

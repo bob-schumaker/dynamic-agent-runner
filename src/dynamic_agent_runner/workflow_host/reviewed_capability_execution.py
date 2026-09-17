@@ -1,0 +1,318 @@
+"""Approval-gated dispatch for one sealed reviewed host capability job."""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Protocol
+
+from dynamic_agent_runner.workflow_host.action_ledger import (
+    ActionLedgerError,
+    ActionLedgerEvent,
+    ReviewedCapabilityReservationRequest,
+    WorkflowActionLedger,
+    reviewed_capability_reservation_digest,
+)
+from dynamic_agent_runner.workflow_host.approvals import (
+    WorkflowApproval,
+    WorkflowApprovalError,
+    WorkflowApprovalStore,
+)
+from dynamic_agent_runner.workflow_host.authorized_tools import LocalApprovalDecision
+from dynamic_agent_runner.workflow_host.reviewed_capability_jobs import (
+    ReviewedCapabilityJobError,
+    ReviewedCapabilityJobResolver,
+    SealedReviewedCapabilityJob,
+    revalidate_sealed_reviewed_capability_job,
+    resolve_sealed_reviewed_capability_job,
+)
+from dynamic_agent_runner.workflow_host.reviewed_capability_outputs import (
+    ReviewedCapabilityCandidateOutput,
+    ReviewedCapabilityHostContribution,
+)
+from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
+    ReviewedCapabilityTemplateControlPlane,
+    ReviewedToolPackageError,
+)
+from dynamic_agent_runner.workflow_host.capabilities import ReviewedCapabilityTemplate
+
+
+class ReviewedCapabilityDispatchError(ValueError):
+    """Raised when a reviewed capability cannot safely dispatch."""
+
+
+class ReviewedCapabilityCompletionError(ValueError):
+    """Raised when completion failed before or after a recoverable boundary."""
+
+    def __init__(self, *, recovery_required: bool) -> None:
+        super().__init__("reviewed capability completion is unavailable")
+        self.recovery_required = recovery_required
+
+
+@dataclass(frozen=True)
+class ReviewedCapabilityDispatchRequest:
+    """The non-secret invocation identity supplied by DAR's workflow runtime."""
+
+    run_id: str
+    package_registration_digest: str
+    package_revision_digest: str
+    declared_call_site_id: str
+    principal: str
+    arguments: Mapping[str, object]
+    template_capability_id: str
+    template_contract_version: str
+    template_digest: str
+
+
+@dataclass(frozen=True)
+class ReviewedCapabilityHostResult:
+    """Private host candidates and aggregate contribution for one dispatch."""
+
+    candidates: tuple[ReviewedCapabilityCandidateOutput, ...]
+    contribution: ReviewedCapabilityHostContribution
+
+
+class ReviewedCapabilityApprovalBroker(Protocol):
+    """Host-only human decision presenter for an exact reservation digest."""
+
+    def decide(
+        self, *, approval: WorkflowApproval, reservation_digest: str
+    ) -> LocalApprovalDecision: ...
+
+
+class ReviewedCapabilityDispatchHost(Protocol):
+    """Host extension boundary after DAR completes admission and approval."""
+
+    def dispatch(
+        self, *, job: SealedReviewedCapabilityJob, reservation_id: str
+    ) -> object: ...
+
+
+class ReviewedCapabilityCompletion(Protocol):
+    """DAR-owned egress completion after a host has built private candidates."""
+
+    def complete(
+        self,
+        *,
+        request: ReviewedCapabilityDispatchRequest,
+        job: SealedReviewedCapabilityJob,
+        reservation_id: str,
+        result: object,
+        now: datetime,
+    ) -> object: ...
+
+    def recover(self, *, reservation_id: str, now: datetime) -> object: ...
+
+
+class ReviewedCapabilityExecutor:
+    """Resolve, approve, reserve, revalidate, and dispatch exactly one job."""
+
+    def __init__(
+        self,
+        *,
+        resolver: ReviewedCapabilityJobResolver,
+        host: ReviewedCapabilityDispatchHost,
+        ledger: WorkflowActionLedger,
+        approvals: WorkflowApprovalStore,
+        approval_broker: ReviewedCapabilityApprovalBroker,
+        reviewed_templates: ReviewedCapabilityTemplateControlPlane,
+        current_reviewed_template_provider: Callable[[str], ReviewedCapabilityTemplate],
+        extension_binding: str,
+        dependency_binding_digest: str,
+        nonce_factory: Callable[[], str],
+        completion: ReviewedCapabilityCompletion | None = None,
+    ) -> None:
+        if (
+            not callable(getattr(resolver, "resolve", None))
+            or not callable(getattr(resolver, "revalidate", None))
+            or not callable(getattr(host, "dispatch", None))
+            or not callable(getattr(approval_broker, "decide", None))
+            or not isinstance(
+                reviewed_templates, ReviewedCapabilityTemplateControlPlane
+            )
+            or not callable(current_reviewed_template_provider)
+            or not isinstance(extension_binding, str)
+            or not extension_binding
+            or not isinstance(dependency_binding_digest, str)
+            or len(dependency_binding_digest) != 64
+            or not callable(nonce_factory)
+            or (
+                completion is not None
+                and not callable(getattr(completion, "complete", None))
+            )
+            or (
+                completion is not None
+                and not callable(getattr(completion, "recover", None))
+            )
+        ):
+            raise ReviewedCapabilityDispatchError("reviewed capability is unavailable")
+        self._resolver = resolver
+        self._host = host
+        self._ledger = ledger
+        self._approvals = approvals
+        self._approval_broker = approval_broker
+        self._reviewed_templates = reviewed_templates
+        self._current_reviewed_template_provider = current_reviewed_template_provider
+        self._extension_binding = extension_binding
+        self._dependency_binding_digest = dependency_binding_digest
+        self._nonce_factory = nonce_factory
+        self._completion = completion
+
+    def dispatch(  # noqa: C901 - completion recovery is part of one reservation flow.
+        self, request: ReviewedCapabilityDispatchRequest, *, now: datetime
+    ) -> object:
+        """Dispatch at most once, with all mutable host bindings rechecked."""
+
+        try:
+            self._validate_template(request)
+            job = resolve_sealed_reviewed_capability_job(
+                arguments=request.arguments,
+                resolver=self._resolver,
+                principal=request.principal,
+                template_capability_id=request.template_capability_id,
+                template_contract_version=request.template_contract_version,
+                template_digest=request.template_digest,
+                extension_binding=self._extension_binding,
+                dependency_binding_digest=self._dependency_binding_digest,
+                now=now,
+            )
+            reservation_request = ReviewedCapabilityReservationRequest(
+                run_id=request.run_id,
+                package_registration_digest=request.package_registration_digest,
+                package_revision_digest=request.package_revision_digest,
+                declared_call_site_id=request.declared_call_site_id,
+                template_capability_id=request.template_capability_id,
+                template_contract_version=request.template_contract_version,
+                template_digest=request.template_digest,
+                job_issuer_id=job.issuer_id,
+                job_opaque_id=job.opaque_id,
+                job_revision=job.revision,
+                job_digest=job.digest,
+                principal=request.principal,
+                approval_nonce=self._approval_nonce(),
+            )
+            reservation = self._approve_and_reserve(reservation_request, now=now)
+        except (
+            ActionLedgerError,
+            ReviewedCapabilityJobError,
+            WorkflowApprovalError,
+        ) as error:
+            raise ReviewedCapabilityDispatchError(
+                "reviewed capability is unavailable"
+            ) from error
+        if reservation.replayed:
+            if self._completion is not None:
+                try:
+                    return self._completion.recover(
+                        reservation_id=reservation.action_id, now=now
+                    )
+                except ReviewedCapabilityCompletionError as error:
+                    raise ReviewedCapabilityDispatchError(
+                        "reviewed capability is unavailable"
+                    ) from error
+            return ActionLedgerEvent(
+                reservation.action_id, reservation.action_digest, "replayed", True
+            )
+        try:
+            self._validate_template(request)
+            revalidated = revalidate_sealed_reviewed_capability_job(
+                job=job,
+                resolver=self._resolver,
+                dependency_binding_digest=self._dependency_binding_digest,
+                now=now,
+            )
+            dispatched = self._ledger.claim_reviewed_capability_dispatch(
+                reservation.action_id, now=now
+            )
+            result = self._host.dispatch(
+                job=revalidated, reservation_id=reservation.action_id
+            )
+            if self._completion is not None:
+                try:
+                    return self._completion.complete(
+                        request=request,
+                        job=revalidated,
+                        reservation_id=reservation.action_id,
+                        result=result,
+                        now=now,
+                    )
+                except ReviewedCapabilityCompletionError as error:
+                    if error.recovery_required:
+                        raise ReviewedCapabilityDispatchError(
+                            "reviewed capability is unavailable"
+                        ) from error
+                    raise
+        except (
+            ActionLedgerError,
+            ReviewedCapabilityJobError,
+            ReviewedToolPackageError,
+        ) as error:
+            self._abort(reservation.action_id, now=now)
+            raise ReviewedCapabilityDispatchError(
+                "reviewed capability is unavailable"
+            ) from error
+        except ReviewedCapabilityCompletionError as error:
+            if not error.recovery_required:
+                self._abort(reservation.action_id, now=now)
+            raise ReviewedCapabilityDispatchError(
+                "reviewed capability is unavailable"
+            ) from error
+        except Exception as error:  # noqa: BLE001 - host extension boundary varies.
+            self._abort(reservation.action_id, now=now)
+            raise ReviewedCapabilityDispatchError(
+                "reviewed capability is unavailable"
+            ) from error
+        return dispatched
+
+    def _approval_nonce(self) -> str:
+        nonce = self._nonce_factory()
+        if not isinstance(nonce, str) or not nonce.startswith("v1."):
+            raise ReviewedCapabilityDispatchError("reviewed capability is unavailable")
+        return nonce
+
+    def _validate_template(self, request: ReviewedCapabilityDispatchRequest) -> None:
+        current = self._current_reviewed_template_provider(
+            request.template_capability_id
+        )
+        self._reviewed_templates.resolve_declared(
+            capability_id=request.template_capability_id,
+            contract_version=request.template_contract_version,
+            template_digest=request.template_digest,
+            input_fields=("job_handle",),
+            current_template=current,
+        )
+
+    def _approve_and_reserve(
+        self, request: ReviewedCapabilityReservationRequest, *, now: datetime
+    ) -> ActionLedgerEvent:
+        digest = reviewed_capability_reservation_digest(request)
+        approval = self._approvals.request(action_digest=digest, now=now)
+        try:
+            decision = self._approval_broker.decide(
+                approval=approval, reservation_digest=digest
+            )
+        except Exception as error:  # noqa: BLE001 - host approval UI boundary varies.
+            self._deny(approval, digest, now=now)
+            raise WorkflowApprovalError("approval is unavailable") from error
+        if decision is not LocalApprovalDecision.APPROVED:
+            self._deny(approval, digest, now=now)
+            raise WorkflowApprovalError("approval is unavailable")
+        granted = self._approvals.grant(
+            approval.approval_id, action_digest=digest, now=now
+        )
+        return self._ledger.reserve_approved_reviewed_capability(
+            request, approval_id=granted.approval_id, now=now
+        )
+
+    def _deny(self, approval: WorkflowApproval, digest: str, *, now: datetime) -> None:
+        try:
+            self._approvals.deny(approval.approval_id, action_digest=digest, now=now)
+        except WorkflowApprovalError:
+            return
+
+    def _abort(self, reservation_id: str, *, now: datetime) -> None:
+        try:
+            self._ledger.abort_reviewed_capability(reservation_id, now=now)
+        except ActionLedgerError:
+            return

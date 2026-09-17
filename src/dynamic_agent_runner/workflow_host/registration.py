@@ -23,11 +23,15 @@ from dynamic_agent_runner.workflow_host.mcp_surfaces import (
     MCPSurfaceSnapshotError,
 )
 from dynamic_agent_runner.workflow_host.mcp_tools import MCPReadOnlyToolClient
+from dynamic_agent_runner.workflow_host.capabilities import ReviewedCapabilityTemplate
 from dynamic_agent_runner.workflow_host.profiles import (
     InstallationIdentityProvider,
     LocalModelProfile,
     LocalModelProfileControlPlane,
     LocalModelProfileError,
+)
+from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
+    ReviewedCapabilityTemplateControlPlane,
 )
 
 
@@ -54,6 +58,9 @@ class WorkflowRegistration:
     selected_capability_provider_ids: tuple[str, ...] = ()
     mcp_binding_id: str | None = None
     model_recipe_digest: str | None = None
+    reviewed_capability_id: str | None = None
+    reviewed_capability_contract_version: str | None = None
+    reviewed_capability_template_digest: str | None = None
     owner: str | None = None
 
 
@@ -70,6 +77,10 @@ class WorkflowRegistrationService:
         mcp_client: MCPReadOnlyToolClient | None = None,
         mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
         model_recipe_digest_provider: Callable[[LocalModelProfile], str] | None = None,
+        reviewed_templates: ReviewedCapabilityTemplateControlPlane | None = None,
+        current_reviewed_template_provider: (
+            Callable[[str], ReviewedCapabilityTemplate] | None
+        ) = None,
         owner: str | None = None,
     ) -> None:
         self._profiles = profiles
@@ -80,6 +91,8 @@ class WorkflowRegistrationService:
         self._mcp_client = mcp_client
         self._mcp_surfaces = mcp_surfaces
         self._model_recipe_digest_provider = model_recipe_digest_provider
+        self._reviewed_templates = reviewed_templates
+        self._current_reviewed_template_provider = current_reviewed_template_provider
         self._owner = (
             InstallationIdentityProvider().principal if owner is None else owner
         )
@@ -104,6 +117,7 @@ class WorkflowRegistrationService:
             raise WorkflowRegistrationError(
                 "policy capability resolution is unavailable"
             )
+        self._validate_reviewed_templates(policy)
         profile = self._configured_profile()
         self._validate_profile(policy, profile)
         bound_mcp_id = self._validate_mcp_binding(policy, mcp_binding_id)
@@ -166,6 +180,7 @@ class WorkflowRegistrationService:
             raise WorkflowRegistrationError(
                 "policy capability resolution is unavailable"
             )
+        self._validate_reviewed_templates(policy)
         profile = self._configured_profile()
         self._validate_profile(policy, profile)
         bound_mcp_id = self._validate_mcp_binding(policy, mcp_binding_id)
@@ -259,6 +274,33 @@ class WorkflowRegistrationService:
             raise WorkflowRegistrationError("model recipe is unavailable")
         return digest
 
+    def _validate_reviewed_templates(self, policy: WorkflowPolicy) -> None:
+        declarations = policy.declared_reviewed_capability_tools
+        if not declarations:
+            return
+        if (
+            len(declarations) != 1
+            or self._reviewed_templates is None
+            or self._current_reviewed_template_provider is None
+        ):
+            raise WorkflowRegistrationError("reviewed template is unavailable")
+        declaration = declarations[0]
+        try:
+            current = self._current_reviewed_template_provider(
+                declaration.capability_id
+            )
+            self._reviewed_templates.resolve_declared(
+                capability_id=declaration.capability_id,
+                contract_version=declaration.contract_version,
+                template_digest=declaration.template_digest,
+                input_fields=declaration.input_fields,
+                current_template=current,
+            )
+        except Exception as error:  # noqa: BLE001 - host provider boundary varies.
+            raise WorkflowRegistrationError(
+                "reviewed template is unavailable"
+            ) from error
+
     def _read(self) -> dict[str, dict[str, object]]:
         try:
             value = json.loads(self._path.read_text(encoding="utf-8"))
@@ -292,6 +334,7 @@ def _registration_from(
     model_recipe_digest: str | None,
     owner: str,
 ) -> WorkflowRegistration:
+    reviewed_template = _reviewed_template_identity(policy)
     digest_input = {
         "format_version": 1,
         "workflow_id": workflow_id,
@@ -312,6 +355,8 @@ def _registration_from(
         digest_input["mcp_binding_id"] = mcp_binding_id
     if model_recipe_digest is not None:
         digest_input["model_recipe_digest"] = model_recipe_digest
+    if reviewed_template is not None:
+        digest_input.update(reviewed_template)
     registration_digest = hashlib.sha256(
         json.dumps(digest_input, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -331,6 +376,7 @@ def _registration_from(
         selected_capability_provider_ids=selected_capability_provider_ids,
         mcp_binding_id=mcp_binding_id,
         model_recipe_digest=model_recipe_digest,
+        **(reviewed_template or {}),
         owner=owner,
     )
 
@@ -366,6 +412,14 @@ def _to_mapping(registration: WorkflowRegistration) -> dict[str, object]:
         )
     if registration.model_recipe_digest is not None:
         result["model_recipe_digest"] = registration.model_recipe_digest
+    if registration.reviewed_capability_id is not None:
+        result["reviewed_capability_id"] = registration.reviewed_capability_id
+        result["reviewed_capability_contract_version"] = (
+            registration.reviewed_capability_contract_version
+        )
+        result["reviewed_capability_template_digest"] = (
+            registration.reviewed_capability_template_digest
+        )
     if registration.owner is not None:
         result["owner"] = registration.owner
     return result
@@ -386,6 +440,9 @@ def _from_mapping(value: object) -> WorkflowRegistration:  # noqa: C901
         "selected_capability_provider_ids",
         "mcp_binding_id",
         "model_recipe_digest",
+        "reviewed_capability_id",
+        "reviewed_capability_contract_version",
+        "reviewed_capability_template_digest",
         "owner",
     }
     if not set(value).issubset(allowed_fields) or any(
@@ -399,6 +456,28 @@ def _from_mapping(value: object) -> WorkflowRegistration:  # noqa: C901
         raise WorkflowRegistrationError("registration catalog is invalid")
     model_recipe_digest = value.get("model_recipe_digest")
     if model_recipe_digest is not None and not _is_digest(model_recipe_digest):
+        raise WorkflowRegistrationError("registration catalog is invalid")
+    reviewed_capability_id = value.get("reviewed_capability_id")
+    reviewed_capability_contract_version = value.get(
+        "reviewed_capability_contract_version"
+    )
+    reviewed_capability_template_digest = value.get(
+        "reviewed_capability_template_digest"
+    )
+    if any(
+        item is not None
+        for item in (
+            reviewed_capability_id,
+            reviewed_capability_contract_version,
+            reviewed_capability_template_digest,
+        )
+    ) and (
+        not isinstance(reviewed_capability_id, str)
+        or not reviewed_capability_id
+        or not isinstance(reviewed_capability_contract_version, str)
+        or not reviewed_capability_contract_version
+        or not _is_digest(reviewed_capability_template_digest)
+    ):
         raise WorkflowRegistrationError("registration catalog is invalid")
     owner = value.get("owner")
     if owner is not None and (not isinstance(owner, str) or not owner):
@@ -441,6 +520,9 @@ def _from_mapping(value: object) -> WorkflowRegistration:  # noqa: C901
         selected_capability_provider_ids=tuple(provider_ids),
         mcp_binding_id=mcp_binding_id,
         model_recipe_digest=model_recipe_digest,
+        reviewed_capability_id=reviewed_capability_id,
+        reviewed_capability_contract_version=reviewed_capability_contract_version,
+        reviewed_capability_template_digest=reviewed_capability_template_digest,
         owner=owner,
     )
 
@@ -468,3 +550,17 @@ def _is_digest(value: object) -> bool:
         and len(value) == 64
         and all(character in "0123456789abcdef" for character in value)
     )
+
+
+def _reviewed_template_identity(policy: WorkflowPolicy) -> dict[str, str] | None:
+    declarations = policy.declared_reviewed_capability_tools
+    if not declarations:
+        return None
+    if len(declarations) != 1:
+        raise WorkflowRegistrationError("reviewed template is unavailable")
+    declaration = declarations[0]
+    return {
+        "reviewed_capability_id": declaration.capability_id,
+        "reviewed_capability_contract_version": declaration.contract_version,
+        "reviewed_capability_template_digest": declaration.template_digest,
+    }

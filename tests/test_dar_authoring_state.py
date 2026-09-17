@@ -174,6 +174,71 @@ def test_consume_and_issue_moves_records_under_one_lock(tmp_path: Path) -> None:
     ).payload == {"status": "dispatched"}
 
 
+def test_replace_active_payload_requires_the_current_authenticated_digest(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    handle = store.issue(
+        kind="publication_attempt",
+        owner="local-user",
+        payload={"status": "prepared"},
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    prepared = store.load(
+        handle, expected_kind="publication_attempt", owner="local-user", now=NOW
+    )
+
+    updated = store.replace_active_payload(
+        handle,
+        expected_kind="publication_attempt",
+        owner="local-user",
+        expected_payload_digest=prepared.payload_digest,
+        payload={"status": "commit_intent"},
+        now=NOW,
+    )
+
+    assert updated.payload == {"status": "commit_intent"}
+    with pytest.raises(OpaqueRecordError, match="payload"):
+        store.replace_active_payload(
+            handle,
+            expected_kind="publication_attempt",
+            owner="local-user",
+            expected_payload_digest=prepared.payload_digest,
+            payload={"status": "host_pending"},
+            now=NOW,
+        )
+
+
+def test_active_record_expiry_can_only_be_extended_before_its_deadline(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    handle = store.issue(
+        kind="publication_attempt",
+        owner="local-user",
+        payload={"status": "completed"},
+        expires_at=NOW + timedelta(seconds=1),
+        now=NOW,
+    )
+
+    extended = store.extend_active_expiry(
+        handle,
+        expected_kind="publication_attempt",
+        owner="local-user",
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    assert extended.expires_at == NOW + timedelta(minutes=1)
+    assert store.load(
+        handle,
+        expected_kind="publication_attempt",
+        owner="local-user",
+        now=NOW + timedelta(seconds=2),
+    ).payload == {"status": "completed"}
+
+
 def test_forged_or_tampered_records_are_rejected(tmp_path: Path) -> None:
     store = _store(tmp_path)
     handle = store.issue(

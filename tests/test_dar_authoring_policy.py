@@ -62,6 +62,7 @@ def _catalog_revision(  # noqa: C901
     package_id: str | None = None,
     with_read_only_mcp_tool: bool = False,
     with_side_effecting_mcp_tool: bool = False,
+    with_reviewed_capability_tool: bool = False,
     with_local_tool: bool = False,
     package_skill_id: str | None = None,
     package_skill_bundled_path: str | None = None,
@@ -210,6 +211,49 @@ def _catalog_revision(  # noqa: C901
             }
         ]
         runtime_value["nodes"][0]["available_tools"] = ["mail_send"]
+        runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
+    if with_reviewed_capability_tool:
+        descriptor = source / "workflow-descriptor.yaml"
+        descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+        descriptor_value["tools"] = [
+            {
+                "id": "build_vector_index",
+                "kind": "reviewed_capability",
+                "capability_id": "vector_index.build.v1",
+                "contract_version": "1",
+                "template_digest": "a" * 64,
+                "input_fields": ["job_handle"],
+                "side_effect": "write",
+                "approval_required": True,
+            }
+        ]
+        descriptor_value["task_invocation"].update(
+            {"allowed_tool_ids": ["build_vector_index"], "max_total_tool_calls": 1}
+        )
+        descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
+        runtime = source / "agent-runtime.yaml"
+        runtime_value = yaml.safe_load(runtime.read_text(encoding="utf-8"))
+        runtime_value["tools"] = [
+            {
+                "id": "build_vector_index",
+                "label": "Build vector index",
+                "tool_type": "external_api",
+                "description_for_llm": "Build one approved vector index.",
+                "adapter": "host.reviewed_capability",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"job_handle": {"type": "string"}},
+                    "required": ["job_handle"],
+                    "additionalProperties": False,
+                },
+                "side_effect": "write",
+                "approval_required": True,
+                "timeout": "runtime_default",
+                "retry_policy": "none",
+                "failure_behavior": "error",
+            }
+        ]
+        runtime_value["nodes"][0]["available_tools"] = ["build_vector_index"]
         runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
     if with_local_tool:
         descriptor = source / "workflow-descriptor.yaml"
@@ -429,6 +473,19 @@ def test_policy_binds_the_canonical_capability_requirements_digest(
     assert policy.capability_requirements == requirements
     assert policy.capability_requirements_digest == requirements.digest
     assert policy.policy_digest
+
+
+def test_policy_binds_the_exact_reviewed_capability_template(tmp_path: Path) -> None:
+    policy = compile_workflow_policy(
+        _catalog_revision(tmp_path, with_reviewed_capability_tool=True)
+    )
+
+    assert len(policy.declared_reviewed_capability_tools) == 1
+    tool = policy.declared_reviewed_capability_tools[0]
+    assert tool.capability_id == "vector_index.build.v1"
+    assert tool.contract_version == "1"
+    assert tool.template_digest == "a" * 64
+    assert tool.input_fields == ("job_handle",)
 
 
 def test_policy_binds_the_canonical_model_materials_digest(tmp_path: Path) -> None:

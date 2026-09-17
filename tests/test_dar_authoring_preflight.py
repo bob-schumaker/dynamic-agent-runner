@@ -44,6 +44,7 @@ def _service(
     capabilities: set[str],
     capability_catalog: CapabilityCatalog | None = None,
     with_capability_requirements: bool = False,
+    with_reviewed_capability_tool: bool = False,
 ) -> tuple[PackagePreflightService, str]:
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -66,6 +67,49 @@ def _service(
             "bindings": {},
         }
         descriptor.write_text(yaml.safe_dump(value), encoding="utf-8")
+    if with_reviewed_capability_tool:
+        descriptor = source / "workflow-descriptor.yaml"
+        value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+        value["tools"] = [
+            {
+                "id": "build_vector_index",
+                "kind": "reviewed_capability",
+                "capability_id": "vector_index.build.v1",
+                "contract_version": "1",
+                "template_digest": "a" * 64,
+                "input_fields": ["job_handle"],
+                "side_effect": "write",
+                "approval_required": True,
+            }
+        ]
+        value["task_invocation"].update(
+            {"allowed_tool_ids": ["build_vector_index"], "max_total_tool_calls": 1}
+        )
+        descriptor.write_text(yaml.safe_dump(value), encoding="utf-8")
+        runtime = source / "agent-runtime.yaml"
+        value = yaml.safe_load(runtime.read_text(encoding="utf-8"))
+        value["tools"] = [
+            {
+                "id": "build_vector_index",
+                "label": "Build vector index",
+                "tool_type": "external_api",
+                "description_for_llm": "Build one approved vector index.",
+                "adapter": "host.reviewed_capability",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"job_handle": {"type": "string"}},
+                    "required": ["job_handle"],
+                    "additionalProperties": False,
+                },
+                "side_effect": "write",
+                "approval_required": True,
+                "timeout": "runtime_default",
+                "retry_policy": "none",
+                "failure_behavior": "error",
+            }
+        ]
+        value["nodes"][0]["available_tools"] = ["build_vector_index"]
+        runtime.write_text(yaml.safe_dump(value), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
         allowed_root=source.parent, store=store
@@ -123,6 +167,19 @@ def test_preflight_rejects_unsatisfied_exact_capability_before_policy_binding(
         capabilities={"text_generation"},
         capability_catalog=CapabilityCatalog((contract,), ()),
         with_capability_requirements=True,
+    )
+
+    with pytest.raises(PackagePreflightError, match="preflight failed"):
+        service.preflight(source_handle, now=NOW)
+
+
+def test_preflight_rejects_a_reviewed_tool_without_host_template(
+    tmp_path: Path,
+) -> None:
+    service, source_handle = _service(
+        tmp_path,
+        capabilities={"text_generation"},
+        with_reviewed_capability_tool=True,
     )
 
     with pytest.raises(PackagePreflightError, match="preflight failed"):

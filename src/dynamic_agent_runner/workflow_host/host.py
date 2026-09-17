@@ -92,9 +92,16 @@ from dynamic_agent_runner.workflow_host.artifact_tools import (
     ReviewedArtifactToolExecutor,
 )
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
+    ReviewedCapabilityTemplateAuthoringDiscovery,
+    ReviewedCapabilityTemplateAuthoringDiscoveryService,
+    ReviewedCapabilityTemplateControlPlane,
     ReviewedToolPackage,
     ReviewedToolPackageBinding,
     ReviewedToolPackageControlPlane,
+    ReviewedToolPackageError,
+)
+from dynamic_agent_runner.workflow_host.reviewed_capability_host_extension import (
+    ReviewedCapabilityHostExtension,
 )
 from dynamic_agent_runner.workflow_host.oauth import (
     OAuthAuthorizationService,
@@ -125,6 +132,8 @@ from dynamic_agent_runner.workflow_host.package_sources import (
 from dynamic_agent_runner.workflow_host.capabilities import (
     CapabilityCatalog,
     CapabilityProvider,
+    ReviewedCapabilityTemplate,
+    ReviewedCapabilityTemplateRegistry,
 )
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
     ExecutionDescriptorValidatorRegistry,
@@ -242,6 +251,40 @@ class DiscoveredOAuthSetupError(LocalWorkflowHostError):
     def __init__(self, status: str) -> None:
         self.status = status
         super().__init__(status)
+
+
+def _reviewed_template_discovery(
+    *,
+    store: PrivateStateStore,
+    owner: str,
+    extensions: Sequence[ReviewedCapabilityHostExtension],
+) -> ReviewedCapabilityTemplateAuthoringDiscoveryService:
+    """Install only explicitly composed reviewed templates for this host."""
+
+    bindings = tuple(extensions)
+    if not all(
+        isinstance(extension, ReviewedCapabilityHostExtension) for extension in bindings
+    ):
+        raise LocalWorkflowHostError("reviewed capability template is unavailable")
+    values = tuple(extension.template for extension in bindings)
+    control_plane = ReviewedCapabilityTemplateControlPlane(store=store, owner=owner)
+    try:
+        for template in values:
+            try:
+                control_plane.create(template=template)
+            except ReviewedToolPackageError:
+                control_plane.resolve(
+                    capability_id=template.capability_id,
+                    current_template=template,
+                )
+        return ReviewedCapabilityTemplateAuthoringDiscoveryService(
+            registry=ReviewedCapabilityTemplateRegistry(values),
+            templates=control_plane,
+        )
+    except Exception as error:  # noqa: BLE001 - host registration stays private.
+        raise LocalWorkflowHostError(
+            "reviewed capability template is unavailable"
+        ) from error
 
 
 def _create_model_adapter(
@@ -951,6 +994,7 @@ class LocalWorkflowHost:
         mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
         mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
         reviewed_tool_packages: ReviewedToolPackageControlPlane,
+        reviewed_template_discovery: ReviewedCapabilityTemplateAuthoringDiscoveryService,
         capability_catalog: CapabilityCatalog | None = None,
         descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
         sealed_artifact_preparation: SealedArtifactInputPreparationService
@@ -972,13 +1016,14 @@ class LocalWorkflowHost:
         self._mcp_surfaces = mcp_surfaces
         self._mcp_bindings = mcp_bindings
         self._reviewed_tool_packages = reviewed_tool_packages
+        self._reviewed_template_discovery = reviewed_template_discovery
         self._capability_catalog = capability_catalog
         self._descriptor_validators = descriptor_validators
         self._sealed_artifact_preparation = sealed_artifact_preparation
         self._sealed_artifact_runner = sealed_artifact_runner
 
     @classmethod
-    def open(
+    def open(  # noqa: C901 - host composition validates independent deployment seams.
         cls,
         root: Path,
         *,
@@ -987,6 +1032,8 @@ class LocalWorkflowHost:
         mcp_connections: MCPConnectionControlPlane | None = None,
         reviewed_artifact_tool_executors: Mapping[str, ReviewedArtifactToolExecutor]
         | None = None,
+        reviewed_capability_templates: Sequence[ReviewedCapabilityTemplate] = (),
+        reviewed_capability_extensions: Sequence[ReviewedCapabilityHostExtension] = (),
         local_model_runners: Sequence[LocalModelRunner] = (),
         model_runner_registry: ModelRunnerRegistry | None = None,
         capability_catalog: CapabilityCatalog | None = None,
@@ -1081,6 +1128,24 @@ class LocalWorkflowHost:
         reviewed_tool_packages = ReviewedToolPackageControlPlane(
             store=store, owner=InstallationIdentityProvider().principal
         )
+        if reviewed_capability_templates:
+            raise LocalWorkflowHostError("reviewed capability template is unavailable")
+        reviewed_template_discovery = _reviewed_template_discovery(
+            store=store,
+            owner=InstallationIdentityProvider().principal,
+            extensions=reviewed_capability_extensions,
+        )
+        reviewed_capability_templates = ReviewedCapabilityTemplateControlPlane(
+            store=store, owner=InstallationIdentityProvider().principal
+        )
+        reviewed_capability_extensions_by_id = {
+            extension.template.capability_id: extension
+            for extension in reviewed_capability_extensions
+        }
+        if len(reviewed_capability_extensions_by_id) != len(
+            reviewed_capability_extensions
+        ):
+            raise LocalWorkflowHostError("reviewed capability template is unavailable")
         if mcp_client_factory is None:
             mcp_client = _mcp_client(
                 root=root, configuration=configuration, connections=connections
@@ -1104,6 +1169,12 @@ class LocalWorkflowHost:
             mcp_bindings=mcp_bindings if mcp_client is not None else None,
             mcp_client=mcp_client,
             mcp_surfaces=surfaces if mcp_client is not None else None,
+            reviewed_templates=reviewed_capability_templates,
+            current_reviewed_template_provider=(
+                lambda capability_id: (
+                    reviewed_capability_extensions_by_id[capability_id].template
+                )
+            ),
         )
         workspace_ingress = _workspace_ingress_service(
             root=root, configuration=configuration, store=store
@@ -1192,7 +1263,7 @@ class LocalWorkflowHost:
                         store=store,
                         owner=InstallationIdentityProvider().principal,
                     )
-                    if mcp_client is not None
+                    if mcp_client is not None or reviewed_capability_extensions
                     else None
                 ),
                 approval_store=WorkflowApprovalStore(
@@ -1201,6 +1272,9 @@ class LocalWorkflowHost:
                 local_tool_executor=execute_macos_sandbox_exec,
                 reviewed_tool_packages=reviewed_tool_packages,
                 reviewed_artifact_tool_executors=reviewed_artifact_tool_executors,
+                reviewed_capability_extensions=reviewed_capability_extensions_by_id,
+                reviewed_capability_templates=reviewed_capability_templates,
+                reviewed_capability_artifacts=sealed_outputs,
                 terminal_diagnostic_store=store,
                 terminal_diagnostic_owner=InstallationIdentityProvider().principal,
                 capability_catalog=capability_catalog,
@@ -1227,6 +1301,7 @@ class LocalWorkflowHost:
             mcp_surfaces=surfaces if mcp_client is not None else None,
             mcp_bindings=mcp_bindings if mcp_client is not None else None,
             reviewed_tool_packages=reviewed_tool_packages,
+            reviewed_template_discovery=reviewed_template_discovery,
             capability_catalog=capability_catalog,
             descriptor_validators=descriptor_validators,
             sealed_artifact_preparation=sealed_preparation,
@@ -1248,6 +1323,13 @@ class LocalWorkflowHost:
         return self._reviewed_tool_packages.create(
             package_name=package_name, binding=binding
         )
+
+    def discover_reviewed_capability_template(
+        self, *, capability_id: str
+    ) -> ReviewedCapabilityTemplateAuthoringDiscovery:
+        """Return only a host-registered reviewed-template declaration."""
+
+        return self._reviewed_template_discovery.discover(capability_id=capability_id)
 
     def register_authored_workflow(
         self,

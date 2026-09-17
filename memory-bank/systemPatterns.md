@@ -414,3 +414,17 @@
   loader, executor, and CLI compatibility tests.
 - Update this file as concrete modules, entry points, and architectural
   boundaries become real.
+- Reviewed host capabilities are generic DAR runtime composition: registration
+  binds an exact reviewed template to a host extension; admission accepts the
+  declared call only; dispatch consumes the sealed host-created input through
+  normal approval and action-ledger behavior; and completion stages bounded,
+  redacted artifacts before recovery-aware publication. A vector index is a
+  reusable host extension (`vector_index.build.v1`), not a DAR primitive. Its
+  public call accepts exactly one `sealed:vector-index-job` handle whose
+  non-recombinable members include the required corpus snapshot, optional prior
+  generation, and immutable index profile, with a mandatory reviewed
+  `embedding.execute.v1` dependency. The host retains authority over corpus
+  extraction, embedding material, index format, retry/network/resource policy,
+  publication, and deletion. Current published generations must remain
+  resolvable privately until atomic unpublication precedes DAR retention
+  revocation.

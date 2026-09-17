@@ -235,6 +235,11 @@ When the user corrects your approach, append a one-line rule here before ending 
   tracing, and registration. Agent Engineering identifies unmet tooling and
   writes repository guidance, never executable local-tool code; after the
   converter-plugin isolation gate, it may create only sealed converter assets.
+- Keep vector-index authority non-recombinable: a DAR package may invoke only
+  one host-created `sealed:vector-index-job` handle, never separately supplied
+  corpus, prior-generation, or index-profile inputs.
+- Require every reviewed dense-vector index job to bind one host-selected
+  embedding capability; do not describe that dependency as optional.
 
 ---
 

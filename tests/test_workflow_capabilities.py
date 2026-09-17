@@ -15,7 +15,12 @@ from dynamic_agent_runner.workflow_host.capabilities import (
     CapabilityRequirements,
     BUILTIN_CAPABILITY_CONTRACTS,
     ProviderAvailability,
+    ReviewedCapabilityTemplate,
+    ReviewedCapabilityTemplateOutput,
+    ReviewedCapabilityTemplateRegistry,
     UnavailableCapability,
+    reviewed_capability_template_digest,
+    validate_vector_index_build_template,
 )
 
 
@@ -54,6 +59,240 @@ def _provider(
         availability=availability,
         conformance_passed=conforms,
     )
+
+
+def _reviewed_template(
+    *,
+    template_digest: str | None = None,
+    outputs: tuple[ReviewedCapabilityTemplateOutput, ...] | None = None,
+    recovery_operations: tuple[str, ...] = (
+        "acknowledge_visibility",
+        "begin_pending_publication",
+        "compensate",
+        "query_current_outcome",
+    ),
+    extension_binding: str = "host-vector-index-v1",
+    generation_id_max_bytes: int = 128,
+    artifact_handle_max_bytes: int = 128,
+    count_ceiling: int = 1024,
+    failure_classifications: tuple[str, ...] = (
+        "host_failure",
+        "publication_failed",
+    ),
+    enabled: bool = True,
+) -> ReviewedCapabilityTemplate:
+    output_contract = outputs or (
+        ReviewedCapabilityTemplateOutput(
+            role="index_generation",
+            media_type="application/octet-stream",
+            max_bytes=1024,
+            retention_seconds=60,
+        ),
+        ReviewedCapabilityTemplateOutput(
+            role="index_manifest",
+            media_type="application/json",
+            max_bytes=1024,
+            retention_seconds=60,
+        ),
+        ReviewedCapabilityTemplateOutput(
+            role="coverage_report",
+            media_type="application/json",
+            max_bytes=1024,
+            retention_seconds=60,
+        ),
+    )
+    return ReviewedCapabilityTemplate(
+        capability_id="vector_index.build.v1",
+        contract_version="1",
+        template_digest=template_digest
+        or reviewed_capability_template_digest(
+            capability_id="vector_index.build.v1",
+            contract_version="1",
+            input_fields=("job_handle",),
+            required_dependency="embedding.execute.v1",
+            outputs=output_contract,
+            max_receipt_bytes=1024,
+            approval_class="human_write",
+            extension_binding=extension_binding,
+            recovery_operations=recovery_operations,
+            success_receipt_schema_digest="d" * 64,
+            generation_id_max_bytes=generation_id_max_bytes,
+            artifact_handle_max_bytes=artifact_handle_max_bytes,
+            count_ceiling=count_ceiling,
+            failure_classifications=failure_classifications,
+            enabled=enabled,
+        ),
+        input_fields=("job_handle",),
+        required_dependency="embedding.execute.v1",
+        outputs=output_contract,
+        max_receipt_bytes=1024,
+        approval_class="human_write",
+        extension_binding=extension_binding,
+        recovery_operations=recovery_operations,
+        success_receipt_schema_digest="d" * 64,
+        generation_id_max_bytes=generation_id_max_bytes,
+        artifact_handle_max_bytes=artifact_handle_max_bytes,
+        count_ceiling=count_ceiling,
+        failure_classifications=failure_classifications,
+        enabled=enabled,
+    )
+
+
+def test_reviewed_template_registry_discovers_one_exact_available_template() -> None:
+    template = _reviewed_template()
+
+    discovery = ReviewedCapabilityTemplateRegistry((template,)).discover(
+        "vector_index.build.v1"
+    )
+
+    assert discovery.status == "available"
+    assert discovery.template == template
+
+
+def test_reviewed_template_carries_bounded_output_and_receipt_contract() -> None:
+    template = _reviewed_template()
+
+    assert template.outputs[0].role == "index_generation"
+    assert template.outputs[0].max_bytes == 1024
+    assert template.outputs[0].retention_seconds == 60
+    assert template.max_receipt_bytes == 1024
+    assert template.approval_class == "human_write"
+    assert template.extension_binding == "host-vector-index-v1"
+    assert template.success_receipt_schema_digest == "d" * 64
+    assert template.generation_id_max_bytes == 128
+    assert template.artifact_handle_max_bytes == 128
+    assert template.count_ceiling == 1024
+    assert template.failure_classifications == ("host_failure", "publication_failed")
+
+
+def test_reviewed_template_digest_binds_its_canonical_contract() -> None:
+    template = _reviewed_template()
+
+    assert template.template_digest == reviewed_capability_template_digest(
+        capability_id=template.capability_id,
+        contract_version=template.contract_version,
+        input_fields=template.input_fields,
+        required_dependency=template.required_dependency,
+        outputs=template.outputs,
+        max_receipt_bytes=template.max_receipt_bytes,
+        approval_class=template.approval_class,
+        extension_binding=template.extension_binding,
+        recovery_operations=template.recovery_operations,
+        success_receipt_schema_digest=template.success_receipt_schema_digest,
+        generation_id_max_bytes=template.generation_id_max_bytes,
+        artifact_handle_max_bytes=template.artifact_handle_max_bytes,
+        count_ceiling=template.count_ceiling,
+        failure_classifications=template.failure_classifications,
+        enabled=template.enabled,
+    )
+
+
+def test_reviewed_template_rejects_a_stale_contract_digest() -> None:
+    with pytest.raises(CapabilityError, match="digest"):
+        _reviewed_template(template_digest="a" * 64)
+
+
+def test_reviewed_template_rejects_no_failure_classification() -> None:
+    with pytest.raises(CapabilityError, match="failure_classifications"):
+        _reviewed_template(failure_classifications=())
+
+
+def test_vector_index_template_requires_its_closed_host_extension_contract() -> None:
+    template = _reviewed_template()
+
+    validate_vector_index_build_template(template)
+
+
+@pytest.mark.parametrize(
+    "template",
+    (
+        _reviewed_template(
+            outputs=(
+                ReviewedCapabilityTemplateOutput(
+                    role="index_generation",
+                    media_type="application/octet-stream",
+                    max_bytes=1024,
+                    retention_seconds=60,
+                ),
+            )
+        ),
+        _reviewed_template(
+            outputs=(
+                ReviewedCapabilityTemplateOutput(
+                    role="index_generation",
+                    media_type="application/json",
+                    max_bytes=1024,
+                    retention_seconds=60,
+                ),
+                ReviewedCapabilityTemplateOutput(
+                    role="index_manifest",
+                    media_type="application/json",
+                    max_bytes=1024,
+                    retention_seconds=60,
+                ),
+                ReviewedCapabilityTemplateOutput(
+                    role="coverage_report",
+                    media_type="application/json",
+                    max_bytes=1024,
+                    retention_seconds=60,
+                ),
+            )
+        ),
+        _reviewed_template(recovery_operations=("compensate",)),
+    ),
+)
+def test_vector_index_template_rejects_missing_output_or_recovery_contract(
+    template: ReviewedCapabilityTemplate,
+) -> None:
+    with pytest.raises(CapabilityError):
+        validate_vector_index_build_template(template)
+
+
+@pytest.mark.parametrize(
+    ("max_bytes", "retention_seconds"),
+    (
+        (0, 60),
+        (1024, 0),
+    ),
+)
+def test_reviewed_template_output_rejects_nonpositive_bounds(
+    max_bytes: int, retention_seconds: int
+) -> None:
+    with pytest.raises(CapabilityError):
+        ReviewedCapabilityTemplateOutput(
+            role="index_generation",
+            media_type="application/octet-stream",
+            max_bytes=max_bytes,
+            retention_seconds=retention_seconds,
+        )
+
+
+@pytest.mark.parametrize(
+    ("templates", "expected_status"),
+    (
+        ((), "authoring_runtime_unavailable"),
+        (
+            (
+                _reviewed_template(),
+                _reviewed_template(extension_binding="host-vector-index-v2"),
+            ),
+            "authoring_runtime_ambiguous",
+        ),
+        (
+            (_reviewed_template(enabled=False),),
+            "authoring_runtime_unavailable",
+        ),
+    ),
+)
+def test_reviewed_template_registry_fails_closed_when_discovery_is_not_unique(
+    templates: tuple[ReviewedCapabilityTemplate, ...], expected_status: str
+) -> None:
+    discovery = ReviewedCapabilityTemplateRegistry(templates).discover(
+        "vector_index.build.v1"
+    )
+
+    assert discovery.status == expected_status
+    assert discovery.template is None
 
 
 def test_requirement_digest_is_canonical_and_excludes_declared_digest() -> None:

@@ -14,7 +14,9 @@ import pytest
 from dynamic_agent_runner.workflow_host.action_ledger import (  # noqa: E402
     ActionLedgerError,
     ExternalAction,
+    ReviewedCapabilityReservationRequest,
     WorkflowActionLedger,
+    reviewed_capability_reservation_digest,
 )
 from dynamic_agent_runner.workflow_host.approvals import (  # noqa: E402
     WorkflowApprovalError,
@@ -48,6 +50,26 @@ def _action() -> ExternalAction:
             "body": "private email body",
         },
         workspace_artifact_hashes={"v1.body-artifact": "sha256:" + "b" * 64},
+    )
+
+
+def _reviewed_reservation(
+    *, run_id: str = "run-1", job_opaque_id: str = "job-1"
+) -> ReviewedCapabilityReservationRequest:
+    return ReviewedCapabilityReservationRequest(
+        run_id=run_id,
+        package_registration_digest="a" * 64,
+        package_revision_digest="b" * 64,
+        declared_call_site_id="build_vector_index",
+        template_capability_id="vector_index.build.v1",
+        template_contract_version="1",
+        template_digest="c" * 64,
+        job_issuer_id="host-local",
+        job_opaque_id=job_opaque_id,
+        job_revision="1",
+        job_digest="d" * 64,
+        principal="local-os-user-v1:501:ada",
+        approval_nonce="v1.approval.nonce",
     )
 
 
@@ -137,6 +159,77 @@ def test_ledger_allows_exactly_one_atomic_dispatch_claim(tmp_path: Path) -> None
 
     assert outcomes.count(True) == 1
     assert outcomes.count(False) == 1
+
+
+def test_reviewed_capability_reservation_replays_only_the_exact_approved_tuple(
+    tmp_path: Path,
+) -> None:
+    ledger = _ledger(tmp_path)
+    request = _reviewed_reservation()
+
+    reserved = ledger.reserve_reviewed_capability(request, now=NOW)
+    replay = ledger.reserve_reviewed_capability(request, now=NOW)
+
+    assert reserved.status == replay.status == "reserved"
+    assert reserved.action_id == replay.action_id
+    assert reserved.action_digest == replay.action_digest
+
+    with pytest.raises(ActionLedgerError, match="reservation"):
+        ledger.reserve_reviewed_capability(
+            _reviewed_reservation(job_opaque_id="job-2"), now=NOW
+        )
+    with pytest.raises(ActionLedgerError, match="reservation"):
+        ledger.reserve_reviewed_capability(
+            _reviewed_reservation(run_id="run-2"), now=NOW
+        )
+
+
+def test_reviewed_capability_reservation_is_atomic_across_ledger_instances(
+    tmp_path: Path,
+) -> None:
+    ledger = _ledger(tmp_path)
+    other = _ledger(tmp_path)
+    barrier = Barrier(2)
+
+    def reserve(candidate: WorkflowActionLedger) -> str:
+        barrier.wait()
+        return candidate.reserve_reviewed_capability(
+            _reviewed_reservation(), now=NOW
+        ).action_id
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        reservation_ids = tuple(executor.map(reserve, (ledger, other)))
+
+    assert reservation_ids[0] == reservation_ids[1]
+
+
+def test_reviewed_capability_reservation_atomically_consumes_granted_approval(
+    tmp_path: Path,
+) -> None:
+    ledger = _ledger(tmp_path)
+    approvals = WorkflowApprovalStore(
+        store=PrivateStateStore(tmp_path / "state"),
+        owner="local-os-user-v1:501:ada",
+    )
+    request = _reviewed_reservation()
+    digest = reviewed_capability_reservation_digest(request)
+    pending = approvals.request(action_digest=digest, now=NOW)
+    granted = approvals.grant(pending.approval_id, action_digest=digest, now=NOW)
+
+    reservation = ledger.reserve_approved_reviewed_capability(
+        request, approval_id=granted.approval_id, now=NOW
+    )
+
+    assert reservation.status == "reserved"
+    with pytest.raises(WorkflowApprovalError, match="unavailable"):
+        approvals.consume(granted.approval_id, action_digest=digest, now=NOW)
+
+    dispatched = ledger.claim_reviewed_capability_dispatch(
+        reservation.action_id, now=NOW
+    )
+    assert dispatched.status == "dispatched"
+    with pytest.raises(ActionLedgerError, match="dispatch"):
+        ledger.claim_reviewed_capability_dispatch(reservation.action_id, now=NOW)
 
 
 @pytest.mark.parametrize("status", ["denied", "cancelled", "failed"])

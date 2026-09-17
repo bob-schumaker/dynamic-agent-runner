@@ -7,9 +7,17 @@ from pathlib import Path
 import pytest
 
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (
+    ReviewedCapabilityTemplateAuthoringDiscoveryService,
+    ReviewedCapabilityTemplateControlPlane,
     ReviewedToolPackageBinding,
     ReviewedToolPackageControlPlane,
     ReviewedToolPackageError,
+)
+from dynamic_agent_runner.workflow_host.capabilities import (
+    ReviewedCapabilityTemplate,
+    ReviewedCapabilityTemplateRegistry,
+    ReviewedCapabilityTemplateOutput,
+    reviewed_capability_template_digest,
 )
 from dynamic_agent_runner.workflow_host.descriptor import DeclaredArtifactTool
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore
@@ -21,6 +29,193 @@ def _binding() -> ReviewedToolPackageBinding:
         binding_digest="a" * 64,
         allowed_tool_ids=("packet_summary", "packet_filter"),
         artifact_aware_tool_ids=("packet_summary",),
+    )
+
+
+def _template(
+    *, extension_binding: str = "host-vector-index-v1", enabled: bool = True
+) -> ReviewedCapabilityTemplate:
+    outputs = (
+        ReviewedCapabilityTemplateOutput(
+            "index_generation", "application/octet-stream", 1024, 60
+        ),
+        ReviewedCapabilityTemplateOutput(
+            "index_manifest", "application/json", 1024, 60
+        ),
+        ReviewedCapabilityTemplateOutput(
+            "coverage_report", "application/json", 1024, 60
+        ),
+    )
+    operations = (
+        "acknowledge_visibility",
+        "begin_pending_publication",
+        "compensate",
+        "query_current_outcome",
+    )
+    return ReviewedCapabilityTemplate(
+        capability_id="vector_index.build.v1",
+        contract_version="1",
+        template_digest=reviewed_capability_template_digest(
+            capability_id="vector_index.build.v1",
+            contract_version="1",
+            input_fields=("job_handle",),
+            required_dependency="embedding.execute.v1",
+            outputs=outputs,
+            max_receipt_bytes=1024,
+            approval_class="human_write",
+            extension_binding=extension_binding,
+            recovery_operations=operations,
+            success_receipt_schema_digest="d" * 64,
+            generation_id_max_bytes=128,
+            artifact_handle_max_bytes=128,
+            count_ceiling=1024,
+            failure_classifications=("host_failure", "publication_failed"),
+            enabled=enabled,
+        ),
+        input_fields=("job_handle",),
+        required_dependency="embedding.execute.v1",
+        outputs=outputs,
+        max_receipt_bytes=1024,
+        approval_class="human_write",
+        extension_binding=extension_binding,
+        recovery_operations=operations,
+        success_receipt_schema_digest="d" * 64,
+        generation_id_max_bytes=128,
+        artifact_handle_max_bytes=128,
+        count_ceiling=1024,
+        failure_classifications=("host_failure", "publication_failed"),
+        enabled=enabled,
+    )
+
+
+def test_reviewed_template_registration_persists_one_exact_host_binding(
+    tmp_path: Path,
+) -> None:
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=PrivateStateStore(tmp_path / "state"), owner="local-user"
+    )
+    template = _template()
+
+    templates.create(template=template)
+
+    assert (
+        templates.resolve(
+            capability_id="vector_index.build.v1", current_template=template
+        )
+        == template
+    )
+
+
+def test_reviewed_template_registration_rejects_a_changed_host_binding(
+    tmp_path: Path,
+) -> None:
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=PrivateStateStore(tmp_path / "state"), owner="local-user"
+    )
+    templates.create(template=_template())
+
+    with pytest.raises(ReviewedToolPackageError, match="unavailable"):
+        templates.resolve(
+            capability_id="vector_index.build.v1",
+            current_template=_template(extension_binding="host-vector-index-v2"),
+        )
+
+
+def test_reviewed_template_registration_rejects_a_disabled_template(
+    tmp_path: Path,
+) -> None:
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=PrivateStateStore(tmp_path / "state"), owner="local-user"
+    )
+    disabled_template = _template(enabled=False)
+    templates.create(template=disabled_template)
+
+    with pytest.raises(ReviewedToolPackageError, match="unavailable"):
+        templates.resolve(
+            capability_id="vector_index.build.v1",
+            current_template=disabled_template,
+        )
+
+
+def test_reviewed_template_registration_resolves_only_the_declared_identity(
+    tmp_path: Path,
+) -> None:
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=PrivateStateStore(tmp_path / "state"), owner="local-user"
+    )
+    template = _template()
+    templates.create(template=template)
+
+    assert (
+        templates.resolve_declared(
+            capability_id="vector_index.build.v1",
+            contract_version="1",
+            template_digest=template.template_digest,
+            input_fields=("job_handle",),
+            current_template=template,
+        )
+        == template
+    )
+
+    with pytest.raises(ReviewedToolPackageError, match="unavailable"):
+        templates.resolve_declared(
+            capability_id="vector_index.build.v1",
+            contract_version="1",
+            template_digest="a" * 64,
+            input_fields=("job_handle",),
+            current_template=template,
+        )
+
+
+def test_authoring_discovery_returns_only_the_registered_declaration_contract(
+    tmp_path: Path,
+) -> None:
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=PrivateStateStore(tmp_path / "state"), owner="local-user"
+    )
+    template = _template()
+    templates.create(template=template)
+
+    discovered = ReviewedCapabilityTemplateAuthoringDiscoveryService(
+        registry=ReviewedCapabilityTemplateRegistry((template,)),
+        templates=templates,
+    ).discover(capability_id="vector_index.build.v1")
+
+    assert discovered.status == "available"
+    assert discovered.capability_id == "vector_index.build.v1"
+    assert discovered.contract_version == "1"
+    assert discovered.template_digest == template.template_digest
+    assert discovered.input_fields == ("job_handle",)
+    assert not hasattr(discovered, "template")
+
+
+def test_authoring_discovery_returns_redacted_unavailable_or_ambiguous_results(
+    tmp_path: Path,
+) -> None:
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=PrivateStateStore(tmp_path / "state"), owner="local-user"
+    )
+    template = _template()
+    templates.create(template=template)
+
+    unavailable = ReviewedCapabilityTemplateAuthoringDiscoveryService(
+        registry=ReviewedCapabilityTemplateRegistry(()),
+        templates=templates,
+    ).discover(capability_id="vector_index.build.v1")
+    ambiguous = ReviewedCapabilityTemplateAuthoringDiscoveryService(
+        registry=ReviewedCapabilityTemplateRegistry(
+            (template, _template(extension_binding="host-vector-index-v2"))
+        ),
+        templates=templates,
+    ).discover(capability_id="vector_index.build.v1")
+
+    assert (unavailable.status, unavailable.capability_id) == (
+        "authoring_runtime_unavailable",
+        None,
+    )
+    assert (ambiguous.status, ambiguous.capability_id) == (
+        "authoring_runtime_ambiguous",
+        None,
     )
 
 

@@ -42,6 +42,223 @@ class CapabilityContract:
 
 
 @dataclass(frozen=True)
+class ReviewedCapabilityTemplateOutput:
+    """One bounded opaque output role in a reviewed template."""
+
+    role: str
+    media_type: str
+    max_bytes: int
+    retention_seconds: int
+
+    def __post_init__(self) -> None:
+        _text(self.role, "role")
+        _text(self.media_type, "media_type")
+        if (
+            not isinstance(self.max_bytes, int)
+            or isinstance(self.max_bytes, bool)
+            or self.max_bytes < 1
+            or not isinstance(self.retention_seconds, int)
+            or isinstance(self.retention_seconds, bool)
+            or self.retention_seconds < 1
+        ):
+            raise CapabilityError("reviewed capability template output is invalid")
+
+
+def reviewed_capability_template_digest(
+    *,
+    capability_id: str,
+    contract_version: str,
+    input_fields: tuple[str, ...],
+    required_dependency: str,
+    outputs: tuple[ReviewedCapabilityTemplateOutput, ...],
+    max_receipt_bytes: int,
+    approval_class: str,
+    extension_binding: str,
+    recovery_operations: tuple[str, ...],
+    success_receipt_schema_digest: str,
+    generation_id_max_bytes: int,
+    artifact_handle_max_bytes: int,
+    count_ceiling: int,
+    failure_classifications: tuple[str, ...],
+    enabled: bool,
+) -> str:
+    """Return the SHA-256 digest of canonical reviewed-template content."""
+
+    canonical = json.dumps(
+        {
+            "approval_class": approval_class,
+            "capability_id": capability_id,
+            "contract_version": contract_version,
+            "enabled": enabled,
+            "extension_binding": extension_binding,
+            "input_fields": list(input_fields),
+            "max_receipt_bytes": max_receipt_bytes,
+            "outputs": [
+                {
+                    "max_bytes": output.max_bytes,
+                    "media_type": output.media_type,
+                    "retention_seconds": output.retention_seconds,
+                    "role": output.role,
+                }
+                for output in outputs
+            ],
+            "recovery_operations": list(recovery_operations),
+            "required_dependency": required_dependency,
+            "success_receipt_schema_digest": success_receipt_schema_digest,
+            "generation_id_max_bytes": generation_id_max_bytes,
+            "artifact_handle_max_bytes": artifact_handle_max_bytes,
+            "count_ceiling": count_ceiling,
+            "failure_classifications": list(failure_classifications),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return hashlib.sha256(canonical).hexdigest()
+
+
+@dataclass(frozen=True)
+class ReviewedCapabilityTemplate:
+    """One immutable host-reviewed capability template."""
+
+    capability_id: str
+    contract_version: str
+    template_digest: str
+    input_fields: tuple[str, ...]
+    required_dependency: str
+    outputs: tuple[ReviewedCapabilityTemplateOutput, ...]
+    max_receipt_bytes: int
+    approval_class: str
+    extension_binding: str
+    recovery_operations: tuple[str, ...]
+    success_receipt_schema_digest: str
+    generation_id_max_bytes: int
+    artifact_handle_max_bytes: int
+    count_ceiling: int
+    failure_classifications: tuple[str, ...]
+    enabled: bool
+
+    def __post_init__(self) -> None:
+        _text(self.capability_id, "capability_id")
+        _text(self.contract_version, "contract_version")
+        _digest(self.template_digest, "template_digest")
+        _canonical_strings(self.input_fields, "input_fields")
+        _text(self.required_dependency, "required_dependency")
+        outputs = tuple(self.outputs)
+        if (
+            not outputs
+            or not all(
+                isinstance(item, ReviewedCapabilityTemplateOutput) for item in outputs
+            )
+            or len({item.role for item in outputs}) != len(outputs)
+        ):
+            raise CapabilityError("reviewed capability template is invalid")
+        if (
+            not isinstance(self.max_receipt_bytes, int)
+            or isinstance(self.max_receipt_bytes, bool)
+            or self.max_receipt_bytes < 1
+        ):
+            raise CapabilityError("reviewed capability template is invalid")
+        _text(self.approval_class, "approval_class")
+        _text(self.extension_binding, "extension_binding")
+        _canonical_strings(self.recovery_operations, "recovery_operations")
+        _digest(self.success_receipt_schema_digest, "success_receipt_schema_digest")
+        _positive_int(self.generation_id_max_bytes, "generation_id_max_bytes")
+        _positive_int(self.artifact_handle_max_bytes, "artifact_handle_max_bytes")
+        _positive_int(self.count_ceiling, "count_ceiling")
+        _canonical_strings(self.failure_classifications, "failure_classifications")
+        if not self.failure_classifications:
+            raise CapabilityError("failure_classifications must not be empty")
+        if not isinstance(self.enabled, bool):
+            raise CapabilityError("reviewed capability template is invalid")
+        if self.template_digest != reviewed_capability_template_digest(
+            capability_id=self.capability_id,
+            contract_version=self.contract_version,
+            input_fields=tuple(self.input_fields),
+            required_dependency=self.required_dependency,
+            outputs=outputs,
+            max_receipt_bytes=self.max_receipt_bytes,
+            approval_class=self.approval_class,
+            extension_binding=self.extension_binding,
+            recovery_operations=tuple(self.recovery_operations),
+            success_receipt_schema_digest=self.success_receipt_schema_digest,
+            generation_id_max_bytes=self.generation_id_max_bytes,
+            artifact_handle_max_bytes=self.artifact_handle_max_bytes,
+            count_ceiling=self.count_ceiling,
+            failure_classifications=tuple(self.failure_classifications),
+            enabled=self.enabled,
+        ):
+            raise CapabilityError("reviewed capability template digest does not match")
+        object.__setattr__(self, "input_fields", tuple(self.input_fields))
+        object.__setattr__(self, "outputs", outputs)
+        object.__setattr__(self, "recovery_operations", tuple(self.recovery_operations))
+        object.__setattr__(
+            self, "failure_classifications", tuple(self.failure_classifications)
+        )
+
+
+@dataclass(frozen=True)
+class ReviewedCapabilityTemplateDiscovery:
+    """One redacted reviewed-template discovery result."""
+
+    status: str
+    template: ReviewedCapabilityTemplate | None
+
+
+class ReviewedCapabilityTemplateRegistry:
+    """Discover one exact available reviewed template without fallback."""
+
+    def __init__(self, templates: Sequence[ReviewedCapabilityTemplate]) -> None:
+        if not all(isinstance(item, ReviewedCapabilityTemplate) for item in templates):
+            raise CapabilityError("reviewed capability template is invalid")
+        self._templates = tuple(templates)
+
+    def discover(self, capability_id: str) -> ReviewedCapabilityTemplateDiscovery:
+        """Return one available template or a stable unavailable/ambiguous result."""
+
+        _text(capability_id, "capability_id")
+        matches = tuple(
+            item
+            for item in self._templates
+            if item.capability_id == capability_id and item.enabled
+        )
+        if not matches:
+            return ReviewedCapabilityTemplateDiscovery(
+                "authoring_runtime_unavailable", None
+            )
+        if len(matches) != 1:
+            return ReviewedCapabilityTemplateDiscovery(
+                "authoring_runtime_ambiguous", None
+            )
+        return ReviewedCapabilityTemplateDiscovery("available", matches[0])
+
+
+def validate_vector_index_build_template(template: ReviewedCapabilityTemplate) -> None:
+    """Require the closed reusable vector-index host-extension contract."""
+
+    if (
+        not isinstance(template, ReviewedCapabilityTemplate)
+        or template.capability_id != "vector_index.build.v1"
+        or template.input_fields != ("job_handle",)
+        or template.required_dependency != "embedding.execute.v1"
+        or tuple((item.role, item.media_type) for item in template.outputs)
+        != (
+            ("index_generation", "application/octet-stream"),
+            ("index_manifest", "application/json"),
+            ("coverage_report", "application/json"),
+        )
+        or set(template.recovery_operations)
+        != {
+            "begin_pending_publication",
+            "query_current_outcome",
+            "acknowledge_visibility",
+            "compensate",
+        }
+    ):
+        raise CapabilityError("reviewed vector-index template is invalid")
+
+
+@dataclass(frozen=True)
 class CapabilityRequirement:
     """One package-visible request for an exact capability contract."""
 
@@ -404,6 +621,11 @@ def _canonical_strings(values: Sequence[str], name: str) -> None:
         raise CapabilityError(f"{name} must be sorted unique non-empty strings")
     for value in values:
         _text(value, name)
+
+
+def _positive_int(value: object, name: str) -> None:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise CapabilityError(f"{name} must be a positive integer")
 
 
 def _requirement_from_mapping(value: object) -> CapabilityRequirement:

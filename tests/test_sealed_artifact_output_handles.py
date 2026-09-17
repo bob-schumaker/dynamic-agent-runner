@@ -91,3 +91,196 @@ def test_invalid_output_set_publishes_nothing(tmp_path) -> None:
         )
 
     assert store.issue_calls == 0
+
+
+def test_private_output_set_has_no_handles_until_atomic_promotion(tmp_path) -> None:
+    service, store = _service(tmp_path)
+
+    private = service.stage(
+        descriptor=_descriptor(),
+        receiver_id="receiver",
+        revision_digest="e" * 64,
+        invocation_id="invocation",
+        sealed=(
+            ("coverage", "text/plain", b"ready"),
+            ("result", "application/octet-stream", b"output"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    assert store.issue_calls == 1
+    assert "ready" not in repr(private)
+    handles = service.promote(private, now=NOW)
+
+    assert [handle.role for handle in handles] == ["coverage", "result"]
+    assert len({handle.output_set_id for handle in handles}) == 1
+
+
+def test_private_output_promotion_replays_its_existing_output_set(tmp_path) -> None:
+    service, _ = _service(tmp_path)
+    private = service.stage(
+        descriptor=_descriptor(),
+        receiver_id="receiver",
+        revision_digest="e" * 64,
+        invocation_id="invocation",
+        sealed=(
+            ("coverage", "text/plain", b"ready"),
+            ("result", "application/octet-stream", b"output"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    first = service.promote(private, now=NOW)
+    replayed = service.promote(private, now=NOW)
+
+    assert replayed == first
+
+
+def test_declared_outputs_stage_privately_without_a_runner_descriptor(tmp_path) -> None:
+    service, store = _service(tmp_path)
+
+    private = service.stage_declared(
+        declaration_digest="f" * 64,
+        outputs=(
+            SealedArtifactOutput("coverage", "text/plain", 10, None),
+            SealedArtifactOutput("result", "application/octet-stream", 10, None),
+        ),
+        receiver_id="receiver",
+        revision_digest="e" * 64,
+        invocation_id="invocation",
+        sealed=(
+            ("coverage", "text/plain", b"ready"),
+            ("result", "application/octet-stream", b"output"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    assert store.issue_calls == 1
+    assert "ready" not in repr(private)
+    handles = service.promote(private, now=NOW)
+
+    assert [handle.role for handle in handles] == ["coverage", "result"]
+    assert len({handle.output_set_id for handle in handles}) == 1
+
+
+def test_output_set_expiry_can_be_extended_without_exposing_content(tmp_path) -> None:
+    service, store = _service(tmp_path)
+    handles = service.publish(
+        descriptor=_descriptor(),
+        receiver_id="receiver",
+        revision_digest="e" * 64,
+        invocation_id="invocation",
+        sealed=(
+            ("coverage", "text/plain", b"ready"),
+            ("result", "application/octet-stream", b"output"),
+        ),
+        expires_at=NOW + timedelta(seconds=1),
+        now=NOW,
+    )
+
+    extended = service.extend_output_set(
+        handles[0].output_set_id,
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    assert extended == NOW + timedelta(minutes=1)
+    assert (
+        store.load(
+            handles[0].output_set_id,
+            expected_kind="sealed_artifact_output_set",
+            owner="test-owner",
+            now=NOW + timedelta(seconds=2),
+        ).expires_at
+        == extended
+    )
+
+
+@pytest.mark.parametrize(
+    ("receiver_id", "invocation_id"),
+    (("foreign-receiver", "invocation"), ("receiver", "foreign-invocation")),
+)
+def test_output_reads_require_the_bound_receiver_and_invocation(
+    tmp_path, receiver_id: str, invocation_id: str
+) -> None:
+    service, _ = _service(tmp_path)
+    handles = service.publish(
+        descriptor=_descriptor(),
+        receiver_id="receiver",
+        revision_digest="e" * 64,
+        invocation_id="invocation",
+        sealed=(
+            ("coverage", "text/plain", b"ready"),
+            ("result", "application/octet-stream", b"output"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    for handle in handles:
+        with pytest.raises(SealedArtifactHandleError, match="unavailable"):
+            service.read(
+                handle,
+                receiver_id=receiver_id,
+                revision_digest="e" * 64,
+                invocation_id=invocation_id,
+                now=NOW,
+            )
+
+
+def test_output_reads_return_only_the_bound_role_content(tmp_path) -> None:
+    service, _ = _service(tmp_path)
+    handles = service.publish(
+        descriptor=_descriptor(),
+        receiver_id="receiver",
+        revision_digest="e" * 64,
+        invocation_id="invocation",
+        sealed=(
+            ("coverage", "text/plain", b"ready"),
+            ("result", "application/octet-stream", b"output"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    assert [
+        service.read(
+            handle,
+            receiver_id="receiver",
+            revision_digest="e" * 64,
+            invocation_id="invocation",
+            now=NOW,
+        )
+        for handle in handles
+    ] == [b"ready", b"output"]
+
+
+def test_output_set_revocation_denies_all_bound_output_roles(tmp_path) -> None:
+    service, _ = _service(tmp_path)
+    private = service.stage(
+        descriptor=_descriptor(),
+        receiver_id="receiver",
+        revision_digest="e" * 64,
+        invocation_id="invocation",
+        sealed=(
+            ("coverage", "text/plain", b"ready"),
+            ("result", "application/octet-stream", b"output"),
+        ),
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    handles = service.promote(private, now=NOW)
+    service.discard(private, now=NOW)
+
+    for handle in handles:
+        with pytest.raises(SealedArtifactHandleError, match="unavailable"):
+            service.read(
+                handle,
+                receiver_id="receiver",
+                revision_digest="e" * 64,
+                invocation_id="invocation",
+                now=NOW,
+            )

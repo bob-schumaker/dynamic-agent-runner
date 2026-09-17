@@ -128,6 +128,19 @@ class DeclaredArtifactTool:
 
 
 @dataclass(frozen=True)
+class DeclaredReviewedCapabilityTool:
+    """One exact host-reviewed capability invocation declared by the package."""
+
+    tool_id: str
+    capability_id: str
+    contract_version: str
+    template_digest: str
+    input_fields: tuple[str, ...]
+    side_effect: str
+    approval_required: bool
+
+
+@dataclass(frozen=True)
 class DeclaredTerminalOutputValidator:
     """One package-owned post-processing validator for shaped terminal output."""
 
@@ -178,6 +191,7 @@ class WorkflowDescriptor:
     limits: WorkflowLimits
     declared_local_tools: tuple[DeclaredLocalTool, ...] = ()
     declared_artifact_tools: tuple[DeclaredArtifactTool, ...] = ()
+    declared_reviewed_capability_tools: tuple[DeclaredReviewedCapabilityTool, ...] = ()
     terminal_output_validator: DeclaredTerminalOutputValidator | None = None
     terminal_output_processors: tuple[DeclaredTerminalOutputProcessor, ...] = ()
     input_converter: DeclaredInputConverter | None = None
@@ -193,9 +207,12 @@ class WorkflowDescriptor:
         if mapping.get("format_version") != 1:
             raise WorkflowDescriptorError("format_version must be 1")
         declared_skill_ids = _parse_declared_skill_ids(mapping.get("skills"))
-        declared_tools, declared_local_tools, declared_artifact_tools = (
-            _parse_declared_tools(mapping.get("tools"))
-        )
+        (
+            declared_tools,
+            declared_local_tools,
+            declared_artifact_tools,
+            declared_reviewed_capability_tools,
+        ) = _parse_declared_tools(mapping.get("tools"))
         runtime = _mapping(mapping.get("dar_runtime"), "dar_runtime")
         if runtime.get("distribution") != "dynamic-agent-runner":
             raise WorkflowDescriptorError("dar_runtime.distribution is invalid")
@@ -208,12 +225,17 @@ class WorkflowDescriptor:
         input_contract = _parse_input_contract(mapping.get("input_contract"))
         workspace = _parse_workspace_contract(mapping.get("workspace"))
         task = _parse_task_invocation(mapping.get("task_invocation"))
+        if declared_reviewed_capability_tools and task.max_total_tool_calls != 1:
+            raise WorkflowDescriptorError(
+                "declared reviewed capability tool is invalid"
+            )
         declared_tool_ids = tuple(
             tool.tool_id
             for tool in (
                 *declared_tools,
                 *declared_local_tools,
                 *declared_artifact_tools,
+                *declared_reviewed_capability_tools,
             )
         )
         if task.allowed_tool_ids != declared_tool_ids:
@@ -250,6 +272,7 @@ class WorkflowDescriptor:
             limits=WorkflowLimits(_positive_int(limits.get("max_steps"), "max_steps")),
             declared_local_tools=declared_local_tools,
             declared_artifact_tools=declared_artifact_tools,
+            declared_reviewed_capability_tools=declared_reviewed_capability_tools,
             terminal_output_validator=terminal_output_validator,
             terminal_output_processors=terminal_output_processors,
             input_converter=input_converter,
@@ -274,6 +297,7 @@ def validate_no_tool_runtime_nodes(
             *descriptor.declared_tools,
             *descriptor.declared_local_tools,
             *descriptor.declared_artifact_tools,
+            *descriptor.declared_reviewed_capability_tools,
         )
     }
     if not declared and descriptor.task_invocation.max_total_tool_calls != 0:
@@ -301,6 +325,7 @@ def validate_runtime_tool_contract(
             *descriptor.declared_tools,
             *descriptor.declared_local_tools,
             *descriptor.declared_artifact_tools,
+            *descriptor.declared_reviewed_capability_tools,
         )
     )
     if tuple(tool.id for tool in runtime_tools) != expected:
@@ -552,18 +577,20 @@ def _parse_input_converter(value: object) -> DeclaredInputConverter | None:
     )
 
 
-def _parse_declared_tools(
+def _parse_declared_tools(  # noqa: C901
     value: object,
 ) -> tuple[
     tuple[DeclaredTool, ...],
     tuple[DeclaredLocalTool, ...],
     tuple[DeclaredArtifactTool, ...],
+    tuple[DeclaredReviewedCapabilityTool, ...],
 ]:
     if not isinstance(value, list):
         raise WorkflowDescriptorError("tools must be a list")
     tools: list[DeclaredTool] = []
     local_tools: list[DeclaredLocalTool] = []
     artifact_tools: list[DeclaredArtifactTool] = []
+    reviewed_capability_tools: list[DeclaredReviewedCapabilityTool] = []
     seen: set[str] = set()
     for raw_tool in value:
         mapping = _mapping(raw_tool, "tools entry")
@@ -577,6 +604,12 @@ def _parse_declared_tools(
             continue
         if kind == "artifact":
             artifact_tools.append(_parse_artifact_tool(mapping, tool_id))
+            seen.add(tool_id)
+            continue
+        if kind == "reviewed_capability":
+            reviewed_capability_tools.append(
+                _parse_reviewed_capability_tool(mapping, tool_id)
+            )
             seen.add(tool_id)
             continue
         if kind != "mcp":
@@ -602,7 +635,14 @@ def _parse_declared_tools(
             )
         )
         seen.add(tool_id)
-    return tuple(tools), tuple(local_tools), tuple(artifact_tools)
+    if len(reviewed_capability_tools) > 1:
+        raise WorkflowDescriptorError("declared reviewed capability tool is invalid")
+    return (
+        tuple(tools),
+        tuple(local_tools),
+        tuple(artifact_tools),
+        tuple(reviewed_capability_tools),
+    )
 
 
 def _parse_local_tool(mapping: Mapping[str, Any], tool_id: str) -> DeclaredLocalTool:
@@ -664,6 +704,41 @@ def _parse_artifact_tool(
         max_result_bytes=_positive_int(
             mapping.get("max_result_bytes"), "tool.max_result_bytes"
         ),
+    )
+
+
+def _parse_reviewed_capability_tool(
+    mapping: Mapping[str, Any], tool_id: str
+) -> DeclaredReviewedCapabilityTool:
+    if set(mapping) != {
+        "id",
+        "kind",
+        "capability_id",
+        "contract_version",
+        "template_digest",
+        "input_fields",
+        "side_effect",
+        "approval_required",
+    }:
+        raise WorkflowDescriptorError("declared reviewed capability tool is invalid")
+    if (
+        mapping.get("capability_id") != "vector_index.build.v1"
+        or _text(mapping.get("contract_version"), "tool.contract_version") != "1"
+        or not _is_digest(mapping.get("template_digest"))
+        or _string_list(mapping.get("input_fields"), "tool.input_fields")
+        != ("job_handle",)
+        or mapping.get("side_effect") != "write"
+        or mapping.get("approval_required") is not True
+    ):
+        raise WorkflowDescriptorError("declared reviewed capability tool is invalid")
+    return DeclaredReviewedCapabilityTool(
+        tool_id=tool_id,
+        capability_id="vector_index.build.v1",
+        contract_version="1",
+        template_digest=mapping["template_digest"],
+        input_fields=("job_handle",),
+        side_effect="write",
+        approval_required=True,
     )
 
 

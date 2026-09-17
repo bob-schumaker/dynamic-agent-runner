@@ -21,6 +21,7 @@ from dynamic_agent_runner.workflow_host.descriptor import (
     DeclaredTool,
     DeclaredLocalTool,
     DeclaredArtifactTool,
+    DeclaredReviewedCapabilityTool,
     DeclaredInputConverter,
     DeclaredTerminalOutputValidator,
     DeclaredTerminalOutputProcessor,
@@ -115,6 +116,7 @@ class WorkflowPolicy:
     declared_tools: tuple[DeclaredTool, ...] = ()
     declared_local_tools: tuple[DeclaredLocalTool, ...] = ()
     declared_artifact_tools: tuple[DeclaredArtifactTool, ...] = ()
+    declared_reviewed_capability_tools: tuple[DeclaredReviewedCapabilityTool, ...] = ()
     terminal_output_validator: DeclaredTerminalOutputValidator | None = None
     terminal_output_processors: tuple[DeclaredTerminalOutputProcessor, ...] = ()
     input_converter: DeclaredInputConverter | None = None
@@ -322,6 +324,18 @@ def compile_workflow_policy(  # noqa: C901
                 }
                 for tool in descriptor.declared_artifact_tools
             ],
+            "declared_reviewed_capability_tools": [
+                {
+                    "tool_id": tool.tool_id,
+                    "capability_id": tool.capability_id,
+                    "contract_version": tool.contract_version,
+                    "template_digest": tool.template_digest,
+                    "input_fields": tool.input_fields,
+                    "side_effect": tool.side_effect,
+                    "approval_required": tool.approval_required,
+                }
+                for tool in descriptor.declared_reviewed_capability_tools
+            ],
             "terminal_output_validator": (
                 {
                     "asset_path": descriptor.terminal_output_validator.asset_path,
@@ -401,6 +415,7 @@ def compile_workflow_policy(  # noqa: C901
         declared_tools=descriptor.declared_tools,
         declared_local_tools=descriptor.declared_local_tools,
         declared_artifact_tools=descriptor.declared_artifact_tools,
+        declared_reviewed_capability_tools=descriptor.declared_reviewed_capability_tools,
         terminal_output_validator=descriptor.terminal_output_validator,
         terminal_output_processors=descriptor.terminal_output_processors,
         input_converter=descriptor.input_converter,

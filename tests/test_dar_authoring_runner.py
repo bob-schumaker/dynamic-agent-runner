@@ -35,6 +35,9 @@ from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
     CapabilityRequirement,
     CapabilityRequirements,
     ProviderAvailability,
+    ReviewedCapabilityTemplate,
+    ReviewedCapabilityTemplateOutput,
+    reviewed_capability_template_digest,
 )
 from dynamic_agent_runner.workflow_host.action_ledger import WorkflowActionLedger  # noqa: E402
 from dynamic_agent_runner.workflow_host.approvals import WorkflowApprovalStore  # noqa: E402
@@ -72,6 +75,7 @@ from dynamic_agent_runner.workflow_host.model_execution_binding import (  # noqa
 from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
     DeclaredArtifactTool,
     DeclaredLocalTool,
+    DeclaredReviewedCapabilityTool,
     DeclaredTerminalOutputProcessor,
     DeclaredTerminalOutputValidator,
 )
@@ -87,8 +91,25 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (  # 
 )
 from dynamic_agent_runner.workflow_host.host import LocalWorkflowHost  # noqa: E402
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa: E402
+    ReviewedCapabilityTemplateControlPlane,
     ReviewedToolPackageBinding,
     ReviewedToolPackageControlPlane,
+)
+from dynamic_agent_runner.workflow_host.reviewed_capability_host_extension import (  # noqa: E402
+    ReviewedCapabilityHostExtension,
+)
+from dynamic_agent_runner.workflow_host.reviewed_capability_execution import (  # noqa: E402
+    ReviewedCapabilityHostResult,
+)
+from dynamic_agent_runner.workflow_host.reviewed_capability_jobs import (  # noqa: E402
+    SealedReviewedCapabilityJob,
+)
+from dynamic_agent_runner.workflow_host.reviewed_capability_outputs import (  # noqa: E402
+    ReviewedCapabilityCandidateOutput,
+    ReviewedCapabilityHostContribution,
+)
+from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (  # noqa: E402
+    SealedArtifactOutputHandleService,
 )
 from dynamic_agent_runner.workflow_host.registration import WorkflowRegistrationService  # noqa: E402
 from dynamic_agent_runner.workflow_host.runner import (  # noqa: E402
@@ -1791,6 +1812,190 @@ def test_runner_binds_reviewed_tool_to_an_opaque_binary_artifact(
     assert result.success is True
     assert result.output == {"packet_count": len(b"sealed network capture")}
     assert len(executor.references) == 1
+
+
+def test_runner_exposes_one_declared_reviewed_capability_tool(  # noqa: C901 - full binding path.
+    tmp_path: Path,
+) -> None:
+    class Host:
+        def resolve(self, **_kwargs: object) -> object:
+            return job
+
+        def revalidate(self, **_kwargs: object) -> object:
+            return job
+
+        def dispatch(self, **_kwargs: object) -> ReviewedCapabilityHostResult:
+            self.calls += 1
+            return ReviewedCapabilityHostResult(
+                candidates=(
+                    ReviewedCapabilityCandidateOutput(
+                        "index_generation", "application/octet-stream", b"index"
+                    ),
+                    ReviewedCapabilityCandidateOutput(
+                        "index_manifest", "application/json", b'{"index_digest":"a"}'
+                    ),
+                    ReviewedCapabilityCandidateOutput(
+                        "coverage_report", "application/json", b'{"indexed":1}'
+                    ),
+                ),
+                contribution=ReviewedCapabilityHostContribution(
+                    "generation-1",
+                    {
+                        "source_records": 1,
+                        "embedding_units": 1,
+                        "indexed": 1,
+                        "skipped": 0,
+                        "deleted": 0,
+                        "errored": 0,
+                    },
+                ),
+            )
+
+        def begin_pending_publication(self, **_kwargs: object) -> None:
+            return None
+
+        def query_current_outcome(self, **_kwargs: object) -> str:
+            return "pending"
+
+        def acknowledge_visibility(self, **_kwargs: object) -> None:
+            return None
+
+        def compensate(self, **_kwargs: object) -> None:
+            return None
+
+        def assert_generation_current(self, **_kwargs: object) -> bool:
+            return True
+
+        def unpublish_generation_atomically(self, **_kwargs: object) -> None:
+            return None
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+    outputs = (
+        ReviewedCapabilityTemplateOutput(
+            "index_generation", "application/octet-stream", 1024, 60
+        ),
+        ReviewedCapabilityTemplateOutput(
+            "index_manifest", "application/json", 1024, 60
+        ),
+        ReviewedCapabilityTemplateOutput(
+            "coverage_report", "application/json", 1024, 60
+        ),
+    )
+    values = {
+        "capability_id": "vector_index.build.v1",
+        "contract_version": "1",
+        "input_fields": ("job_handle",),
+        "required_dependency": "embedding.execute.v1",
+        "outputs": outputs,
+        "max_receipt_bytes": 1024,
+        "approval_class": "human_write",
+        "extension_binding": "host-vector-index-v1",
+        "recovery_operations": (
+            "acknowledge_visibility",
+            "begin_pending_publication",
+            "compensate",
+            "query_current_outcome",
+        ),
+        "success_receipt_schema_digest": "d" * 64,
+        "generation_id_max_bytes": 128,
+        "artifact_handle_max_bytes": 128,
+        "count_ceiling": 1024,
+        "failure_classifications": ("host_failure",),
+        "enabled": True,
+    }
+    template = ReviewedCapabilityTemplate(
+        template_digest=reviewed_capability_template_digest(**values), **values
+    )
+    host = Host()
+    extension = ReviewedCapabilityHostExtension(
+        template=template,
+        host=host,
+        dependency_binding_digest="c" * 64,
+        nonce_factory=lambda: "v1.approval.nonce",
+    )
+    runner, preparation, registration, revision, _ = _runner(tmp_path)
+    store = PrivateStateStore(tmp_path / "reviewed")
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=store, owner="test-local-user"
+    )
+    templates.create(template=template)
+    runner._action_ledger = WorkflowActionLedger(store=store, owner="test-local-user")  # type: ignore[attr-defined]
+    runner._approval_store = WorkflowApprovalStore(store=store, owner="test-local-user")  # type: ignore[attr-defined]
+    runner._reviewed_capability_extensions = {template.capability_id: extension}  # type: ignore[attr-defined]
+    runner._reviewed_capability_templates = templates  # type: ignore[attr-defined]
+    runner._reviewed_capability_artifacts = SealedArtifactOutputHandleService(  # type: ignore[attr-defined]
+        store=store, owner="test-local-user"
+    )
+    job = SealedReviewedCapabilityJob(
+        job_handle="sealed:vector-index-job:job-1",
+        issuer_id="host-local",
+        opaque_id="job-1",
+        revision="1",
+        digest="a" * 64,
+        principal="test-local-user",
+        expires_at=NOW + timedelta(minutes=5),
+        template_capability_id=template.capability_id,
+        template_contract_version=template.contract_version,
+        template_digest=template.template_digest,
+        extension_binding=template.extension_binding,
+        dependency_capability_id="embedding.execute.v1",
+        dependency_binding_digest="c" * 64,
+        member_binding_digest="d" * 64,
+    )
+    policy = replace(
+        compile_workflow_policy(revision),
+        declared_reviewed_capability_tools=(
+            DeclaredReviewedCapabilityTool(
+                tool_id="build_vector_index",
+                capability_id=template.capability_id,
+                contract_version=template.contract_version,
+                template_digest=template.template_digest,
+                input_fields=("job_handle",),
+                side_effect="write",
+                approval_required=True,
+            ),
+        ),
+    )
+    prepared = preparation.prepare(
+        workflow_id=registration.workflow_id, prompt="Build it.", now=NOW
+    )
+    sealed = preparation.load(
+        prepared.prepared_input_id, registration=registration, now=NOW
+    )
+
+    registry = runner._tool_registry(  # type: ignore[attr-defined]
+        policy,
+        registration,
+        package_root=revision.package_root,
+        sealed=sealed,
+        run_id="test-run",
+        approval_broker=type(
+            "Broker",
+            (),
+            {"decide": lambda *_args, **_kwargs: LocalApprovalDecision.APPROVED},
+        )(),
+        now=NOW,
+    )
+
+    assert registry.get_tool("build_vector_index").definition.raw["input_schema"] == {
+        "type": "object",
+        "properties": {"job_handle": {"type": "string"}},
+        "required": ["job_handle"],
+        "additionalProperties": False,
+    }
+    assert (
+        registry.get_tool("build_vector_index").definition.approval_required
+        == "human_approval"
+    )
+    result = registry.invoke_tool("build_vector_index", {"job_handle": job.job_handle})
+
+    assert result.success is True
+    assert result.output["status"] == "published"
+    assert "index_digest" not in json.dumps(result.output)
+    assert job.member_binding_digest not in json.dumps(result.output)
+    assert host.calls == 1
 
 
 def _approval_runner(
