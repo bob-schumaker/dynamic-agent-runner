@@ -10,6 +10,8 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Callable, Mapping, Sequence
 
+from jsonschema import Draft202012Validator, SchemaError
+
 
 class CapabilityError(ValueError):
     """Raised when a capability value is malformed or noncanonical."""
@@ -290,6 +292,10 @@ def validate_vector_index_build_template(template: ReviewedCapabilityTemplate) -
         }
     ):
         raise CapabilityError("reviewed vector-index template is invalid")
+    try:
+        Draft202012Validator.check_schema(dict(template.canonical_manifest_schema))
+    except SchemaError as error:
+        raise CapabilityError("reviewed vector-index template is invalid") from error
 
 
 @dataclass(frozen=True)

@@ -25,6 +25,21 @@ from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 
 NOW = datetime(2026, 9, 15, tzinfo=UTC)
 
+_MANIFEST_SCHEMA = {
+    "additionalProperties": False,
+    "properties": {
+        "counts": {"additionalProperties": False, "type": "object"},
+        "digests": {
+            "additionalProperties": False,
+            "properties": {"snapshot": {"type": "string"}},
+            "required": ["snapshot"],
+            "type": "object",
+        },
+    },
+    "required": ["digests", "counts"],
+    "type": "object",
+}
+
 
 def _outputs() -> tuple[ReviewedCapabilityTemplateOutput, ...]:
     return (
@@ -74,6 +89,7 @@ def test_candidate_validation_accepts_the_exact_private_output_triple() -> None:
     accepted = validate_reviewed_capability_candidates(
         outputs=_outputs(),
         candidates=_candidates(),
+        canonical_manifest_schema=_MANIFEST_SCHEMA,
         contribution=_contribution(),
         count_ceiling=8,
     )
@@ -90,6 +106,7 @@ def test_validated_reviewed_candidates_stage_as_a_private_output_set(tmp_path) -
         template_digest="a" * 64,
         outputs=_outputs(),
         candidates=_candidates(),
+        canonical_manifest_schema=_MANIFEST_SCHEMA,
         contribution=_contribution(),
         count_ceiling=8,
         receiver_id="principal",
@@ -121,6 +138,7 @@ def test_candidate_staging_rejects_a_caller_selected_expiry_beyond_the_template(
             template_digest="a" * 64,
             outputs=_outputs(),
             candidates=_candidates(),
+            canonical_manifest_schema=_MANIFEST_SCHEMA,
             contribution=_contribution(),
             count_ceiling=8,
             receiver_id="principal",
@@ -155,6 +173,7 @@ def test_unsafe_reviewed_candidates_create_no_private_output_set(tmp_path) -> No
             template_digest="a" * 64,
             outputs=_outputs(),
             candidates=unsafe,
+            canonical_manifest_schema=_MANIFEST_SCHEMA,
             contribution=_contribution(),
             count_ceiling=8,
             receiver_id="principal",
@@ -196,6 +215,63 @@ def test_candidate_validation_rejects_before_any_publication(candidates) -> None
         validate_reviewed_capability_candidates(
             outputs=_outputs(),
             candidates=candidates(),
+            canonical_manifest_schema=_MANIFEST_SCHEMA,
             contribution=_contribution(),
             count_ceiling=8,
         )
+
+
+def test_candidate_validation_rejects_a_manifest_outside_the_registered_schema() -> (
+    None
+):
+    invalid = (
+        _candidates()[0],
+        ReviewedCapabilityCandidateOutput(
+            "index_manifest", "application/json", b'{"digests":{}}'
+        ),
+        _candidates()[2],
+    )
+
+    with pytest.raises(ReviewedCapabilityCandidateOutputError, match="candidate"):
+        validate_reviewed_capability_candidates(
+            outputs=_outputs(),
+            candidates=invalid,
+            canonical_manifest_schema=_MANIFEST_SCHEMA,
+            contribution=_contribution(),
+            count_ceiling=8,
+        )
+
+
+def test_schema_invalid_manifest_creates_no_private_output_set(tmp_path) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    artifacts = SealedArtifactOutputHandleService(store=store, owner="host")
+    invalid = (
+        _candidates()[0],
+        ReviewedCapabilityCandidateOutput(
+            "index_manifest", "application/json", b'{"digests":{}}'
+        ),
+        _candidates()[2],
+    )
+
+    with pytest.raises(ReviewedCapabilityCandidateOutputError, match="candidate"):
+        stage_reviewed_capability_candidates(
+            artifacts=artifacts,
+            template_digest="a" * 64,
+            outputs=_outputs(),
+            candidates=invalid,
+            canonical_manifest_schema=_MANIFEST_SCHEMA,
+            contribution=_contribution(),
+            count_ceiling=8,
+            receiver_id="principal",
+            revision_digest="b" * 64,
+            invocation_id="run",
+            expires_at=NOW + timedelta(minutes=1),
+            now=NOW,
+        )
+
+    assert (
+        store.active_records(
+            kind="sealed_artifact_private_output_set", owner="host", now=NOW
+        )
+        == ()
+    )
