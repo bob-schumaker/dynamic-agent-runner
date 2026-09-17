@@ -8,9 +8,14 @@ from datetime import datetime
 from dynamic_agent_runner import HostToolBinding
 
 from dynamic_agent_runner.workflow_host.action_ledger import WorkflowActionLedger
-from dynamic_agent_runner.workflow_host.approvals import WorkflowApprovalStore
+from dynamic_agent_runner.workflow_host.action_ledger import ExternalAction
+from dynamic_agent_runner.workflow_host.approvals import (
+    WorkflowApproval,
+    WorkflowApprovalStore,
+)
 from dynamic_agent_runner.workflow_host.authorized_tools import (
     LocalActionApprovalBroker,
+    LocalApprovalDecision,
 )
 from dynamic_agent_runner.workflow_host.descriptor import DeclaredReviewedCapabilityTool
 from dynamic_agent_runner.workflow_host.registration import WorkflowRegistration
@@ -33,6 +38,44 @@ from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 
 class ReviewedCapabilityToolBindingError(ValueError):
     """Raised when a reviewed capability cannot safely bind to one workflow run."""
+
+
+class _ReviewedCapabilityLocalApprovalAdapter:
+    """Present one reviewed reservation through the normal local broker."""
+
+    def __init__(
+        self,
+        *,
+        declaration: DeclaredReviewedCapabilityTool,
+        registration: WorkflowRegistration,
+        run_id: str,
+        broker: LocalActionApprovalBroker,
+    ) -> None:
+        self._declaration = declaration
+        self._registration = registration
+        self._run_id = run_id
+        self._broker = broker
+
+    def decide(
+        self, *, approval: WorkflowApproval, reservation_digest: str
+    ) -> LocalApprovalDecision:
+        """Keep the reservation digest in DAR while presenting one safe action."""
+
+        del reservation_digest
+        action = ExternalAction(
+            workflow_id=self._registration.workflow_id,
+            registration_digest=self._registration.registration_digest,
+            profile_id=self._registration.profile_id,
+            snapshot_id=self._declaration.template_digest,
+            connection_generation=0,
+            trace_correlation=self._run_id,
+            tool_id=self._declaration.tool_id,
+            remote_tool_name=self._declaration.capability_id,
+            side_effect=self._declaration.side_effect,
+            normalized_arguments={},
+            workspace_artifact_hashes={},
+        )
+        return self._broker.decide(action=action, approval=approval)
 
 
 def create_reviewed_capability_tool_binding(
@@ -71,10 +114,16 @@ def create_reviewed_capability_tool_binding(
     ):
         raise ReviewedCapabilityToolBindingError("reviewed capability is unavailable")
     try:
+        reviewed_approval_broker = _ReviewedCapabilityLocalApprovalAdapter(
+            declaration=declaration,
+            registration=registration,
+            run_id=run_id,
+            broker=approval_broker,
+        )
         executor = extension.executor(
             ledger=ledger,
             approvals=approvals,
-            approval_broker=approval_broker,
+            approval_broker=reviewed_approval_broker,
             reviewed_templates=reviewed_templates,
             artifacts=artifacts,
             store=store,

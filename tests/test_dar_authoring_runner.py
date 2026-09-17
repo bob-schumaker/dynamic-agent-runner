@@ -39,7 +39,10 @@ from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
     ReviewedCapabilityTemplateOutput,
     reviewed_capability_template_digest,
 )
-from dynamic_agent_runner.workflow_host.action_ledger import WorkflowActionLedger  # noqa: E402
+from dynamic_agent_runner.workflow_host.action_ledger import (  # noqa: E402
+    ExternalAction,
+    WorkflowActionLedger,
+)
 from dynamic_agent_runner.workflow_host.approvals import WorkflowApprovalStore  # noqa: E402
 from dynamic_agent_runner.workflow_host.authorized_tools import (  # noqa: E402
     LocalActionApprovalBroker,
@@ -1814,8 +1817,18 @@ def test_runner_binds_reviewed_tool_to_an_opaque_binary_artifact(
     assert len(executor.references) == 1
 
 
+@pytest.mark.parametrize(
+    "outcome",
+    (
+        LocalApprovalDecision.APPROVED,
+        LocalApprovalDecision.DENIED,
+        LocalApprovalDecision.CANCELLED,
+        None,
+        RuntimeError("terminal unavailable"),
+    ),
+)
 def test_runner_exposes_one_declared_reviewed_capability_tool(  # noqa: C901 - full binding path.
-    tmp_path: Path,
+    tmp_path: Path, outcome: LocalApprovalDecision | None | RuntimeError
 ) -> None:
     class Host:
         def resolve(self, **_kwargs: object) -> object:
@@ -1965,17 +1978,27 @@ def test_runner_exposes_one_declared_reviewed_capability_tool(  # noqa: C901 - f
         prepared.prepared_input_id, registration=registration, now=NOW
     )
 
+    class Broker:
+        def __init__(self) -> None:
+            self.actions: list[object] = []
+            self.approvals: list[object] = []
+
+        def decide(self, *, action: object, approval: object) -> LocalApprovalDecision:
+            self.actions.append(action)
+            self.approvals.append(approval)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome  # type: ignore[return-value]
+
+    broker = Broker()
+
     registry = runner._tool_registry(  # type: ignore[attr-defined]
         policy,
         registration,
         package_root=revision.package_root,
         sealed=sealed,
         run_id="test-run",
-        approval_broker=type(
-            "Broker",
-            (),
-            {"decide": lambda *_args, **_kwargs: LocalApprovalDecision.APPROVED},
-        )(),
+        approval_broker=broker,
         now=NOW,
     )
 
@@ -1991,11 +2014,21 @@ def test_runner_exposes_one_declared_reviewed_capability_tool(  # noqa: C901 - f
     )
     result = registry.invoke_tool("build_vector_index", {"job_handle": job.job_handle})
 
-    assert result.success is True
-    assert result.output["status"] == "published"
+    assert len(broker.actions) == len(broker.approvals) == 1
+    action = broker.actions[0]
+    assert isinstance(action, ExternalAction)
+    assert action.remote_tool_name == "vector_index.build.v1"
+    assert action.side_effect == "write"
+    assert action.normalized_arguments == {}
+    if outcome is LocalApprovalDecision.APPROVED:
+        assert result.success is True
+        assert result.output["status"] == "published"
+        assert host.calls == 1
+    else:
+        assert result.success is False
+        assert host.calls == 0
     assert "index_digest" not in json.dumps(result.output)
     assert job.member_binding_digest not in json.dumps(result.output)
-    assert host.calls == 1
 
 
 def _approval_runner(
