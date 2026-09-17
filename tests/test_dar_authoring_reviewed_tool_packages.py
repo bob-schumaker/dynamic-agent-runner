@@ -17,10 +17,18 @@ from dynamic_agent_runner.workflow_host.capabilities import (
     ReviewedCapabilityTemplate,
     ReviewedCapabilityTemplateRegistry,
     ReviewedCapabilityTemplateOutput,
+    reviewed_capability_manifest_schema_digest,
     reviewed_capability_template_digest,
 )
 from dynamic_agent_runner.workflow_host.descriptor import DeclaredArtifactTool
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore
+
+
+_MANIFEST_SCHEMA = {
+    "additionalProperties": False,
+    "properties": {"index_digest": {"type": "string"}},
+    "type": "object",
+}
 
 
 def _binding() -> ReviewedToolPackageBinding:
@@ -33,7 +41,10 @@ def _binding() -> ReviewedToolPackageBinding:
 
 
 def _template(
-    *, extension_binding: str = "host-vector-index-v1", enabled: bool = True
+    *,
+    extension_binding: str = "host-vector-index-v1",
+    enabled: bool = True,
+    canonical_manifest_schema: dict[str, object] | None = None,
 ) -> ReviewedCapabilityTemplate:
     outputs = (
         ReviewedCapabilityTemplateOutput(
@@ -52,6 +63,8 @@ def _template(
         "compensate",
         "query_current_outcome",
     )
+    manifest_schema = canonical_manifest_schema or _MANIFEST_SCHEMA
+    manifest_schema_digest = reviewed_capability_manifest_schema_digest(manifest_schema)
     return ReviewedCapabilityTemplate(
         capability_id="vector_index.build.v1",
         contract_version="1",
@@ -66,6 +79,8 @@ def _template(
             extension_binding=extension_binding,
             recovery_operations=operations,
             success_receipt_schema_digest="d" * 64,
+            canonical_manifest_schema=manifest_schema,
+            canonical_manifest_schema_digest=manifest_schema_digest,
             generation_id_max_bytes=128,
             artifact_handle_max_bytes=128,
             count_ceiling=1024,
@@ -80,6 +95,8 @@ def _template(
         extension_binding=extension_binding,
         recovery_operations=operations,
         success_receipt_schema_digest="d" * 64,
+        canonical_manifest_schema=manifest_schema,
+        canonical_manifest_schema_digest=manifest_schema_digest,
         generation_id_max_bytes=128,
         artifact_handle_max_bytes=128,
         count_ceiling=1024,
@@ -118,6 +135,48 @@ def test_reviewed_template_registration_rejects_a_changed_host_binding(
         templates.resolve(
             capability_id="vector_index.build.v1",
             current_template=_template(extension_binding="host-vector-index-v2"),
+        )
+
+
+def test_reviewed_template_registration_rejects_an_open_manifest_schema(
+    tmp_path: Path,
+) -> None:
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=PrivateStateStore(tmp_path / "state"), owner="local-user"
+    )
+
+    with pytest.raises(ReviewedToolPackageError, match="invalid"):
+        templates.create(
+            template=_template(
+                canonical_manifest_schema={
+                    "properties": {"index_digest": {"type": "string"}},
+                    "type": "object",
+                }
+            )
+        )
+
+
+def test_reviewed_template_resolution_rejects_a_changed_manifest_schema(
+    tmp_path: Path,
+) -> None:
+    templates = ReviewedCapabilityTemplateControlPlane(
+        store=PrivateStateStore(tmp_path / "state"), owner="local-user"
+    )
+    templates.create(template=_template())
+
+    with pytest.raises(ReviewedToolPackageError, match="unavailable"):
+        templates.resolve(
+            capability_id="vector_index.build.v1",
+            current_template=_template(
+                canonical_manifest_schema={
+                    "additionalProperties": False,
+                    "properties": {
+                        "index_digest": {"type": "string"},
+                        "source_records": {"type": "integer"},
+                    },
+                    "type": "object",
+                }
+            ),
         )
 
 

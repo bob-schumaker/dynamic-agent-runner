@@ -76,6 +76,8 @@ def reviewed_capability_template_digest(
     extension_binding: str,
     recovery_operations: tuple[str, ...],
     success_receipt_schema_digest: str,
+    canonical_manifest_schema: Mapping[str, object],
+    canonical_manifest_schema_digest: str,
     generation_id_max_bytes: int,
     artifact_handle_max_bytes: int,
     count_ceiling: int,
@@ -104,6 +106,10 @@ def reviewed_capability_template_digest(
             ],
             "recovery_operations": list(recovery_operations),
             "required_dependency": required_dependency,
+            "canonical_manifest_schema": _canonical_mapping(
+                canonical_manifest_schema, "canonical_manifest_schema"
+            ),
+            "canonical_manifest_schema_digest": canonical_manifest_schema_digest,
             "success_receipt_schema_digest": success_receipt_schema_digest,
             "generation_id_max_bytes": generation_id_max_bytes,
             "artifact_handle_max_bytes": artifact_handle_max_bytes,
@@ -115,6 +121,14 @@ def reviewed_capability_template_digest(
         separators=(",", ":"),
     ).encode()
     return hashlib.sha256(canonical).hexdigest()
+
+
+def reviewed_capability_manifest_schema_digest(schema: Mapping[str, object]) -> str:
+    """Return the canonical digest for one closed manifest schema."""
+
+    return hashlib.sha256(
+        _canonical_json(_canonical_mapping(schema, "canonical_manifest_schema"))
+    ).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -132,6 +146,8 @@ class ReviewedCapabilityTemplate:
     extension_binding: str
     recovery_operations: tuple[str, ...]
     success_receipt_schema_digest: str
+    canonical_manifest_schema: Mapping[str, object]
+    canonical_manifest_schema_digest: str
     generation_id_max_bytes: int
     artifact_handle_max_bytes: int
     count_ceiling: int
@@ -163,6 +179,18 @@ class ReviewedCapabilityTemplate:
         _text(self.extension_binding, "extension_binding")
         _canonical_strings(self.recovery_operations, "recovery_operations")
         _digest(self.success_receipt_schema_digest, "success_receipt_schema_digest")
+        schema = _canonical_mapping(
+            self.canonical_manifest_schema, "canonical_manifest_schema"
+        )
+        _digest(
+            self.canonical_manifest_schema_digest,
+            "canonical_manifest_schema_digest",
+        )
+        if (
+            self.canonical_manifest_schema_digest
+            != reviewed_capability_manifest_schema_digest(schema)
+        ):
+            raise CapabilityError("canonical manifest schema digest does not match")
         _positive_int(self.generation_id_max_bytes, "generation_id_max_bytes")
         _positive_int(self.artifact_handle_max_bytes, "artifact_handle_max_bytes")
         _positive_int(self.count_ceiling, "count_ceiling")
@@ -182,6 +210,8 @@ class ReviewedCapabilityTemplate:
             extension_binding=self.extension_binding,
             recovery_operations=tuple(self.recovery_operations),
             success_receipt_schema_digest=self.success_receipt_schema_digest,
+            canonical_manifest_schema=schema,
+            canonical_manifest_schema_digest=self.canonical_manifest_schema_digest,
             generation_id_max_bytes=self.generation_id_max_bytes,
             artifact_handle_max_bytes=self.artifact_handle_max_bytes,
             count_ceiling=self.count_ceiling,
@@ -191,6 +221,7 @@ class ReviewedCapabilityTemplate:
             raise CapabilityError("reviewed capability template digest does not match")
         object.__setattr__(self, "input_fields", tuple(self.input_fields))
         object.__setattr__(self, "outputs", outputs)
+        object.__setattr__(self, "canonical_manifest_schema", MappingProxyType(schema))
         object.__setattr__(self, "recovery_operations", tuple(self.recovery_operations))
         object.__setattr__(
             self, "failure_classifications", tuple(self.failure_classifications)
@@ -247,6 +278,9 @@ def validate_vector_index_build_template(template: ReviewedCapabilityTemplate) -
             ("index_manifest", "application/json"),
             ("coverage_report", "application/json"),
         )
+        or template.canonical_manifest_schema.get("type") != "object"
+        or template.canonical_manifest_schema.get("additionalProperties") is not False
+        or not isinstance(template.canonical_manifest_schema.get("properties"), Mapping)
         or set(template.recovery_operations)
         != {
             "begin_pending_publication",
@@ -571,6 +605,18 @@ def _canonical_json(value: object) -> bytes:
     ).encode("utf-8")
 
 
+def _canonical_mapping(value: object, name: str) -> dict[str, object]:
+    if not isinstance(value, Mapping):
+        raise CapabilityError(f"{name} must be a mapping")
+    try:
+        normalized = json.loads(_canonical_json(dict(value)))
+    except (TypeError, ValueError, json.JSONDecodeError) as error:
+        raise CapabilityError(f"{name} is invalid") from error
+    if not isinstance(normalized, dict) or not normalized:
+        raise CapabilityError(f"{name} is invalid")
+    return normalized
+
+
 def _contract_key(contract: CapabilityContract) -> tuple[str, str, str]:
     return (
         contract.capability_id,
@@ -589,7 +635,9 @@ def _normalize(value: object) -> object:
         return {str(key): _normalize(item) for key, item in value.items()}
     if isinstance(value, list | tuple):
         return [_normalize(item) for item in value]
-    if isinstance(value, int) and not isinstance(value, bool):
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, int):
         return value
     raise CapabilityError("capability canonical JSON value is invalid")
 

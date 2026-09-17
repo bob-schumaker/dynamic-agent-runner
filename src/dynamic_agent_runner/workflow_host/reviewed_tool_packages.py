@@ -333,6 +333,8 @@ def _template_payload(template: ReviewedCapabilityTemplate) -> dict[str, object]
         "contract_version": template.contract_version,
         "template_digest": template.template_digest,
         "extension_binding": template.extension_binding,
+        "canonical_manifest_schema": dict(template.canonical_manifest_schema),
+        "canonical_manifest_schema_digest": template.canonical_manifest_schema_digest,
     }
 
 

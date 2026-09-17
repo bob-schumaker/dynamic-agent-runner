@@ -19,9 +19,17 @@ from dynamic_agent_runner.workflow_host.capabilities import (
     ReviewedCapabilityTemplateOutput,
     ReviewedCapabilityTemplateRegistry,
     UnavailableCapability,
+    reviewed_capability_manifest_schema_digest,
     reviewed_capability_template_digest,
     validate_vector_index_build_template,
 )
+
+
+_MANIFEST_SCHEMA = {
+    "additionalProperties": False,
+    "properties": {"index_digest": {"type": "string"}},
+    "type": "object",
+}
 
 
 def _contract(*, features: tuple[str, ...] = ("image", "text")) -> CapabilityContract:
@@ -65,6 +73,8 @@ def _reviewed_template(
     *,
     template_digest: str | None = None,
     outputs: tuple[ReviewedCapabilityTemplateOutput, ...] | None = None,
+    canonical_manifest_schema: dict[str, object] | None = None,
+    canonical_manifest_schema_digest: str | None = None,
     recovery_operations: tuple[str, ...] = (
         "acknowledge_visibility",
         "begin_pending_publication",
@@ -81,6 +91,11 @@ def _reviewed_template(
     ),
     enabled: bool = True,
 ) -> ReviewedCapabilityTemplate:
+    manifest_schema = canonical_manifest_schema or _MANIFEST_SCHEMA
+    manifest_schema_digest = (
+        canonical_manifest_schema_digest
+        or reviewed_capability_manifest_schema_digest(manifest_schema)
+    )
     output_contract = outputs or (
         ReviewedCapabilityTemplateOutput(
             role="index_generation",
@@ -116,6 +131,8 @@ def _reviewed_template(
             extension_binding=extension_binding,
             recovery_operations=recovery_operations,
             success_receipt_schema_digest="d" * 64,
+            canonical_manifest_schema=manifest_schema,
+            canonical_manifest_schema_digest=manifest_schema_digest,
             generation_id_max_bytes=generation_id_max_bytes,
             artifact_handle_max_bytes=artifact_handle_max_bytes,
             count_ceiling=count_ceiling,
@@ -130,6 +147,8 @@ def _reviewed_template(
         extension_binding=extension_binding,
         recovery_operations=recovery_operations,
         success_receipt_schema_digest="d" * 64,
+        canonical_manifest_schema=manifest_schema,
+        canonical_manifest_schema_digest=manifest_schema_digest,
         generation_id_max_bytes=generation_id_max_bytes,
         artifact_handle_max_bytes=artifact_handle_max_bytes,
         count_ceiling=count_ceiling,
@@ -179,6 +198,8 @@ def test_reviewed_template_digest_binds_its_canonical_contract() -> None:
         extension_binding=template.extension_binding,
         recovery_operations=template.recovery_operations,
         success_receipt_schema_digest=template.success_receipt_schema_digest,
+        canonical_manifest_schema=template.canonical_manifest_schema,
+        canonical_manifest_schema_digest=template.canonical_manifest_schema_digest,
         generation_id_max_bytes=template.generation_id_max_bytes,
         artifact_handle_max_bytes=template.artifact_handle_max_bytes,
         count_ceiling=template.count_ceiling,
@@ -192,6 +213,11 @@ def test_reviewed_template_rejects_a_stale_contract_digest() -> None:
         _reviewed_template(template_digest="a" * 64)
 
 
+def test_reviewed_template_rejects_a_stale_manifest_schema_digest() -> None:
+    with pytest.raises(CapabilityError, match="schema digest"):
+        _reviewed_template(canonical_manifest_schema_digest="a" * 64)
+
+
 def test_reviewed_template_rejects_no_failure_classification() -> None:
     with pytest.raises(CapabilityError, match="failure_classifications"):
         _reviewed_template(failure_classifications=())
@@ -201,6 +227,18 @@ def test_vector_index_template_requires_its_closed_host_extension_contract() -> 
     template = _reviewed_template()
 
     validate_vector_index_build_template(template)
+
+
+def test_vector_index_template_requires_a_closed_manifest_schema() -> None:
+    template = _reviewed_template(
+        canonical_manifest_schema={
+            "properties": {"index_digest": {"type": "string"}},
+            "type": "object",
+        }
+    )
+
+    with pytest.raises(CapabilityError, match="template"):
+        validate_vector_index_build_template(template)
 
 
 @pytest.mark.parametrize(

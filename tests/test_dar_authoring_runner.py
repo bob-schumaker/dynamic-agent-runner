@@ -37,6 +37,7 @@ from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
     ProviderAvailability,
     ReviewedCapabilityTemplate,
     ReviewedCapabilityTemplateOutput,
+    reviewed_capability_manifest_schema_digest,
     reviewed_capability_template_digest,
 )
 from dynamic_agent_runner.workflow_host.action_ledger import (  # noqa: E402
@@ -1912,12 +1913,20 @@ def test_runner_exposes_one_declared_reviewed_capability_tool(  # noqa: C901 - f
             "query_current_outcome",
         ),
         "success_receipt_schema_digest": "d" * 64,
+        "canonical_manifest_schema": {
+            "additionalProperties": False,
+            "properties": {"index_digest": {"type": "string"}},
+            "type": "object",
+        },
         "generation_id_max_bytes": 128,
         "artifact_handle_max_bytes": 128,
         "count_ceiling": 1024,
         "failure_classifications": ("host_failure",),
         "enabled": True,
     }
+    values["canonical_manifest_schema_digest"] = (
+        reviewed_capability_manifest_schema_digest(values["canonical_manifest_schema"])
+    )
     template = ReviewedCapabilityTemplate(
         template_digest=reviewed_capability_template_digest(**values), **values
     )
