@@ -2,7 +2,7 @@
 
 # Reviewed Vector-Index Host Extension Tasks
 
-Status: In progress
+Status: Complete
 
 ## Prerequisites
 
@@ -419,7 +419,7 @@ Status: In progress
     and no sealed member or reservation digest enters model-visible arguments,
     traces, or the terminal action display.
 
-- [ ] T020 [verification] Re-run the complete regression and static-validation
+- [x] T020 [verification] Re-run the complete regression and static-validation
   gate after the outstanding approval and manifest-schema contracts are green.
   - Spec: FR-3; FR-5; Required Verification; Acceptance Criteria.
   - Plan: Validation Strategy; S3 exit; S4.2.
@@ -433,11 +433,11 @@ Status: In progress
     broker path, no non-approved outcome dispatches the host extension, and
     only content valid under the registered canonical-manifest schema reaches
     `host_pending`.
-  - Current result: blocked on the unrelated benchmark dependency-closure
-    assertion in `tests/test_tool_descriptor_benchmark_measurements.py`;
-    `poetry run pytest -q` reached 2708 passed and 1 skipped before that test
-    observed installed `cloudpickle` in NLTK's closure. `poetry run ruff check
-    src tests` and `git diff --check` pass.
+  - Completed evidence: `poetry run pytest -q` passed 2709 tests with one
+    skipped and seven deselected in 67.29 seconds after the fixed dependency
+    benchmark was updated for `joblib`'s admitted `cloudpickle` dependency.
+    `poetry run ruff check src tests`, `poetry run pre-commit run --files
+    <changed files>`, and `git diff --check` pass.
 
 - [x] T021 [tests, RED/GREEN] Bind the reviewed template's canonical-manifest
   schema and digest at registration, resolution, and execution admission.
