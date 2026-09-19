@@ -194,7 +194,7 @@ def test_generated_router_preserves_the_public_plugin_interface_and_receipts() -
 
 
 def test_plugin_payload_pins_the_released_dar_runtime_version() -> None:
-    expected = "0.1.19"
+    expected = "0.1.20"
     source_payload = PLUGIN_ROOT / "payload" / "dar-workflow-authoring"
     generated_payload = (
         GENERATED_ROOT / "references" / "modules" / "dar-workflow-authoring"
@@ -218,7 +218,7 @@ def test_runtime_release_contract_binds_only_the_dar_runtime_selector() -> None:
     receipt = verifier.validate_runtime_release_contract(
         project_file=REPO_ROOT / "pyproject.toml",
         descriptor_file=RUNTIME_RELEASE_DESCRIPTOR,
-        wheel_file=REPO_ROOT / "dist" / "dynamic_agent_runner-0.1.19-py3-none-any.whl",
+        wheel_file=REPO_ROOT / "dist" / "dynamic_agent_runner-0.1.20-py3-none-any.whl",
         payload_roots=(
             PLUGIN_ROOT / "payload" / "dar-workflow-authoring",
             GENERATED_ROOT / "references" / "modules" / "dar-workflow-authoring",
@@ -229,8 +229,8 @@ def test_runtime_release_contract_binds_only_the_dar_runtime_selector() -> None:
         ),
     )
 
-    assert receipt.runtime_version == "0.1.19"
-    assert receipt.wheel_filename == "dynamic_agent_runner-0.1.19-py3-none-any.whl"
+    assert receipt.runtime_version == "0.1.20"
+    assert receipt.wheel_filename == "dynamic_agent_runner-0.1.20-py3-none-any.whl"
     assert len(receipt.wheel_metadata_sha256) == 64
     assert receipt.plugin_versions == ("0.1.5", "0.1.5")
     assert receipt.plugin_versions != (receipt.runtime_version,) * 2
@@ -292,12 +292,12 @@ def test_runtime_release_contract_allows_a_plugin_only_version_change(
     receipt = verifier.validate_runtime_release_contract(
         project_file=REPO_ROOT / "pyproject.toml",
         descriptor_file=RUNTIME_RELEASE_DESCRIPTOR,
-        wheel_file=REPO_ROOT / "dist" / "dynamic_agent_runner-0.1.19-py3-none-any.whl",
+        wheel_file=REPO_ROOT / "dist" / "dynamic_agent_runner-0.1.20-py3-none-any.whl",
         payload_roots=(PLUGIN_ROOT / "payload" / "dar-workflow-authoring",),
         plugin_manifest_files=(plugin_manifest,),
     )
 
-    assert receipt.runtime_version == "0.1.19"
+    assert receipt.runtime_version == "0.1.20"
     assert receipt.plugin_versions == ("99.0.0",)
     assert (REPO_ROOT / "pyproject.toml").read_bytes() == project_bytes
     assert RUNTIME_RELEASE_DESCRIPTOR.read_bytes() == descriptor_bytes
@@ -325,6 +325,12 @@ def test_runtime_release_preparation_rewrites_only_payload_runtime_selectors(
     )
     payload_root = tmp_path / "dar-workflow-authoring"
     shutil.copytree(PLUGIN_ROOT / "payload" / "dar-workflow-authoring", payload_root)
+    for source in payload_root.rglob("*"):
+        if source.is_file():
+            source.write_text(
+                source.read_text(encoding="utf-8").replace("0.1.20", "0.1.19"),
+                encoding="utf-8",
+            )
     plugin_manifest = tmp_path / "plugin.json"
     plugin_manifest.write_text(
         (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"),

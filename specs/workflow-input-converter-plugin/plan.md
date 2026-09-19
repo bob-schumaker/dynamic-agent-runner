@@ -3,8 +3,9 @@
 ## Status
 
 S1 through S4 and the S5 JSON boundary, manually authorized floorplan gate, and
-regression evidence are delivered. T5.6 has a verified local package build, but
-an explicit unreleased version and publish target remain in
+regression evidence are delivered. T5.6.1 and T5.6.2 have a verified local
+package build and deterministic next-version bump, but the repository release
+workflow and receipt remain in
 [`tasks.md`](tasks.md). DAR loads a sealed Python converter package through the
 standard runner interface. OS-level isolation is future hardening owned by
 `../local-tool-sandbox-hardening/spec.md`, not a converter-package admission
@@ -257,14 +258,25 @@ inference mode, redacted response metadata, and its fixed-input benchmark.
 
 ### Readiness Conclusion
 
-The feature has passed T5.6 local package preparation but is not released. The
-sealed converter boundary, strict JSON admission, terminal processor chain,
-manual floorplan gate, regression evidence, and package integrity checks are
-complete. Publication requires an explicit unreleased version and publish
-target; the current `0.1.18` version is behind existing `0.1.31` repository
-tags. The Apple Metal addendum is complete: its MPS placement-order benchmark
+The feature has passed T5.6 local package preparation and version
+selection. The sealed converter
+boundary, strict JSON admission, terminal processor chain, manual floorplan
+gate, regression evidence, and package integrity checks are complete. The
+configured release index listed `0.1.19`, and T5.6.2 selected `0.1.20` from
+that index. The remaining work is the repository-driven OCI release workflow.
+The package index, not repository tags or the checked-out
+version, is authoritative for the bump. Release delivery is performed by
+pushing the versioned commit to `develop`, completing the DevOps SCM pull
+request, merging to `main`, and waiting for the main-branch build; it is not a
+direct package
+upload from this checkout. The Apple Metal addendum is complete: its MPS
+placement-order benchmark
 preserved the terminal contract and improved warm generation by 7.1%, without
 introducing dtype or compilation changes.
+
+This plan is ready to execute under its stated gates. The next execution step
+is T5.6.3: push the versioned commit to `develop`, complete the DevOps SCM
+pull request, merge to `main`, and wait for the main-branch OCI build.
 
 ## Deferred Decisions
 

@@ -3,7 +3,7 @@
     {
       "disposition": "release_preparation_input",
       "output_path": null,
-      "sha256": "e96dd42cb787ace2ccbdc88f407be31f17f11452819c675874838e30ba45477f",
+      "sha256": "258b81d746f892cc1038f46160214e19878637987606d943706327ea1be44534",
       "source_path": ".codex-plugin/dar-runtime-release.json"
     },
     {
@@ -63,7 +63,7 @@
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/workflow-descriptor.yaml",
-      "sha256": "c2af7302eed0dde171a5eedc4be1403f9a36547ca42aef167b98818a9c22bdce",
+      "sha256": "571f890899654c94d8b4a97974ed8d7dfc0569934392072fc0a14d68847d2c95",
       "source_path": "payload/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/workflow-descriptor.yaml"
     },
     {
@@ -93,7 +93,7 @@
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/workflow-descriptor.yaml",
-      "sha256": "33380cdf9c57f33bcf3ad7991f86793b472c09e43e8a3cf8f56ad81dae74fe69",
+      "sha256": "98c5264b5a0242faedb6c88724ac7f3a82768d4cfe7be0cbc3c78f5c644b5864",
       "source_path": "payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/workflow-descriptor.yaml"
     },
     {
@@ -117,7 +117,7 @@
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-templates/workflow-descriptor.yaml",
-      "sha256": "a460501e36d44e0dbf594dcdd48c882e7d1290891ea18ff1df45ba97f30aa69f",
+      "sha256": "2b96e3ee39fea5b07440f03468c4bf8cd7866afa5e6fbf1140dd53e8f910633d",
       "source_path": "payload/dar-workflow-authoring/references/dar-authoring-templates/workflow-descriptor.yaml"
     },
     {
@@ -147,25 +147,25 @@
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-authoring-write-mcp-template/workflow-descriptor.yaml",
-      "sha256": "d3f6a2bf44c618dfc194e0620f8f5d0fd50913605a00391373f9e53634226826",
+      "sha256": "9fd2c5c85f4ade13a12b3ca62c3355037d7f94d443ba5bba0656c347bac5e95c",
       "source_path": "payload/dar-workflow-authoring/references/dar-authoring-write-mcp-template/workflow-descriptor.yaml"
     },
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-development.md",
-      "sha256": "8e03c9ca41fc0250eee09e67b3ee8535b1ef80b085371fdd434538aee1eba825",
+      "sha256": "148dea5deb283b0eb4f617d15b1326c6e77e4328554d682ea05ff8d97c9a2d64",
       "source_path": "payload/dar-workflow-authoring/references/dar-runtime-profile/agent-development.md"
     },
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-evaluation.md",
-      "sha256": "afb9c43a925b4b16b05843df56fc35e38344e4e0b07582916bf6ac578c664fd7",
+      "sha256": "340b19053e914573af53eb50576c6f6bc3d13dfb3f32c1c76dd3f12bd64045e0",
       "source_path": "payload/dar-workflow-authoring/references/dar-runtime-profile/agent-evaluation.md"
     },
     {
       "disposition": "private_module_support",
       "output_path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-tool-contract-design.md",
-      "sha256": "ea358e461603a97ae8a74b9c3d94117a527c3854aca94ed00bbe2fa426c15697",
+      "sha256": "ba853df1413d56047d205c178805442ce7679546ce6a84f5f0b9d9fd009c2a56",
       "source_path": "payload/dar-workflow-authoring/references/dar-runtime-profile/agent-tool-contract-design.md"
     },
     {
