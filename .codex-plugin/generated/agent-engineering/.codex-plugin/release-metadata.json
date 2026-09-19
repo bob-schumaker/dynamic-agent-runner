@@ -5,7 +5,7 @@
   "migration_contract_version": null,
   "owned_integration_root": null,
   "packager_format_version": 1,
-  "payload_fingerprint": "4837fa180d9fefb6ee95301ff28ec6abd0625556cad5a62f25b8c7b056a111cd",
+  "payload_fingerprint": "d63b2c8fdfecb37bac324be882881a060b45a8ce1d8d4205277dbd33d206b88f",
   "rollback_compatibility_hints": null,
   "runtime_compatibility_version": "1",
   "verification_targets": []
