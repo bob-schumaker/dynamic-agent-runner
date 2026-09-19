@@ -4,8 +4,8 @@
 
 - Feature slug: `workflow-input-converter-plugin`
 - Status: implemented and validated through the manual floorplan gate; the
-  Apple Metal addendum and host-owned debug diagnostics are complete. Release
-  task T5.6 and capability-catalog integration remain pending.
+  Apple Metal addendum, host-owned debug diagnostics, and T5.6 release are
+  complete. Capability-catalog integration remains pending.
 - Owner: dynamic-agent-runner workflow-host and local-model boundaries
 - Related specifications:
   - `specs/model-execution-plugin-interface/spec.md`

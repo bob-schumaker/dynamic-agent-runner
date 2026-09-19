@@ -212,7 +212,7 @@ the standard runner interface. Docker and OS-level isolation are deferred to
   retained raw digest `542480e5b328509e60c0552c01806cc2afb8769bff63c4f3f6a0babc8409f57f`
   was admitted as `189d07a5449fe548c2ad7559f93f541e79d92be2807e72eef1eafbed8a3f41e0`
   with `none,none` processor reports, then returned validated SVG.
-- [ ] T5.6 [release] Update validation evidence and feature status, then
+- [x] T5.6 [release] Update validation evidence and feature status, then
   package/release only after every prior task is complete. Record OS isolation
   as deferred future hardening rather than a release blocker.
   - [x] T5.6.1 [local package] Build `dynamic-agent-runner==0.1.19` with
@@ -233,11 +233,21 @@ the standard runner interface. Docker and OS-level isolation are deferred to
     plugin inputs, classification manifest, direct-plugin baseline, and focused
     release tests. `poetry.lock` was verified with `poetry check --lock` and
     required no version-only edit.
-  - [ ] T5.6.3 [repository release] Update the selected version and its
+  - [x] T5.6.3 [repository release] Update the selected version and its
     generated release inputs, push the release commit to `develop`, create and
     complete the DevOps SCM pull request, merge it to `main`, and wait for the
     main-branch OCI build to publish the package. Then record the resulting
     immutable artifact identity, package-index evidence, and release receipt.
+    Recorded 2026-09-19: commit `8e6e215b00a27f6d3ae64fe8e14cd332da644a02`
+    was pushed to `develop`; PR
+    `ocid1.devopspullrequest.oc1.phx.amaaaaaaw4vcxbyaz3tq3puzkmg3dlpcenqn2sklxrzojbn6maxtzemnhomq`
+    merged to `main`; merge commit was
+    `e94e2da33c0fada31552ae169b3f776c02482377`; main build
+    `e0d67934-8fbb-4861-a618-3ae32fb14be9` succeeded; and the configured
+    package index exposed `0.1.20` with wheel SHA-256
+    `cc96f92bef46f267854adcfbc500c76735a4a2208acd489fb7c751b33012a9d4`
+    and sdist SHA-256
+    `7d2edc1948e7a23b22a140ad0a8e6b18e06425b7022a4dc34b1028af0244a4cb`.
 
 ## T5.7 — Apple Metal Execution Addendum
 
