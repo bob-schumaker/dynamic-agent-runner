@@ -57,6 +57,13 @@
   executor/retry/output-contract/token-budget/tracing/behavior-override/
   capability-status/approval/MCP/guardrail/CLI behavior; follow-on runtime
   expansion should be planned as a new scoped slice.
+- The approved external-model-adapter boundary is transport-neutral:
+  `DARExternalAdapterProtocol` is the exported BYOM seam, while the
+  receiver-owned registry performs exact descriptor admission and projects a
+  validated adapter into the existing `ModelAdapter` path. The first plugin
+  target is an optional text-only Chrome Built-in AI/Gemini Nano bridge;
+  existing OpenAI, LiteLLM, AFM, MLX, llama.cpp, and local-runner paths remain
+  separate until a concrete migration is authorized.
 
 ## Observed Patterns
 

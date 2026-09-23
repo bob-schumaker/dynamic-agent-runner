@@ -84,6 +84,10 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   adapter construction remain import-safe on other platforms, while generation
   fails before model resolution or dependency loading when `platform.system()`
   is not `Darwin`
+- the approved external-model-adapter first slice adds no provider dependency:
+  the exported `DARExternalAdapterProtocol` reuses DAR's existing request,
+  response, and model-adapter shapes; the receiver-owned registry and optional
+  Chrome plugin are planned under `specs/external-model-adapter-protocol/`
 - keep default OpenAI/Codex auth discovery inside
   `src/dynamic_agent_runner/openai_client.py`; support `OPENAI_API_KEY`, trusted
   Codex user-level API-key/auth-token auth, and ordered ChatGPT/Codex backend
@@ -207,6 +211,8 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   in `b247e11`; memory-bank OpenAI context was refreshed in `bef8817`;
   implementation-readiness planning artifacts and README alignment were committed
   in `2979342`; Slice 0 was marked complete in `ea5a88a`.
+- The external adapter protocol corpus was approved and made
+  implementation-ready in `916d8324`.
 - Dependency files were reconciled in `d2766c0`: the official `openai`
   package is present, and required `ocihelper`, `ai-tools-core`, and
   `openai-tools-core` dependencies are absent.
