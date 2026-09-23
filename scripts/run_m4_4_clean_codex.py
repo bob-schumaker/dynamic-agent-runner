@@ -80,6 +80,24 @@ from m4_4_scenarios import (  # noqa: E402 - repository test corpus import.
 )
 
 
+class _RetryingTemporaryDirectory(tempfile.TemporaryDirectory):
+    """Retry teardown while a just-finished uv child releases cache files."""
+
+    def cleanup(self) -> None:
+        last_error: OSError | None = None
+        for attempt in range(5):
+            try:
+                super().cleanup()
+                return
+            except OSError as error:
+                last_error = error
+                if attempt == 4:
+                    raise
+                time.sleep(0.1 * (attempt + 1))
+        if last_error is not None:  # pragma: no cover - loop always returns/raises.
+            raise last_error
+
+
 class HarnessError(ValueError):
     """Raised when M4.4 cannot produce a valid redacted acceptance record."""
 
@@ -813,7 +831,7 @@ def run_scenario(
         reviewer_decision,
         timeout,
     )
-    with tempfile.TemporaryDirectory(
+    with _RetryingTemporaryDirectory(
         dir="/private/tmp", prefix="m44-clean-codex-"
     ) as temporary:
         root = Path(temporary)
