@@ -321,6 +321,31 @@ result = run_agent_workflow(
 If the compatible provider requires authentication, set `api_key` on
 `LocalOpenAIEndpointConfig`. If it does not, the key may be omitted.
 
+For a direct BYOM adapter with strict single-model identity and no registry or
+CLI lifecycle, use the explicit external factory:
+
+```python
+from dynamic_agent_runner import (
+    OpenAICompatibleExternalConfig,
+    create_openai_compatible_external_adapter,
+)
+
+external_adapter = create_openai_compatible_external_adapter(
+    OpenAICompatibleExternalConfig(
+        adapter_id="ollama.workstation",
+        base_url="http://127.0.0.1:11434/v1",
+        model_alias="local-model",
+        service_model_id="qwen3:8b",
+        canonical_model_id="ollama/qwen3:8b",
+    ),
+)
+```
+
+The caller owns service startup and shutdown. Dynamic registry binding,
+install/remove commands, streaming, embeddings, and provider-family
+certification remain deferred; the adapter advertises only the capabilities
+explicitly configured by the caller.
+
 For direct in-process llama.cpp local models, provide a llama.cpp adapter and
 strict coverage when the workflow must stay local:
 
