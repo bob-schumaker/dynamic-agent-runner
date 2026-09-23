@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # DAR External Adapter Protocol Implementation Plan
 
-Status: approved; implementation not started
+Status: implemented; validation recorded in `validation.md`
 
 ## Authority and scope
 
