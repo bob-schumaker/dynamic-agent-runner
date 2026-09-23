@@ -145,6 +145,28 @@ Use `run_agent_workflow_async(...)` in async applications, or construct a
 `WorkflowExecutionContext` when several runs share the same loaded workflow and
 runtime collaborators.
 
+## External model adapters
+
+The exported `DARExternalAdapterProtocol` is the fail-closed BYOM seam for
+receiver-approved external models. Install an explicitly approved local
+adapter artifact before selecting it:
+
+```bash
+dynamic-agent-runner adapter install \
+  --state-root /path/to/dar-state \
+  /path/to/dar-external-adapter.whl
+dynamic-agent-runner adapter list --state-root /path/to/dar-state
+dynamic-agent-runner adapter remove dar.chrome.external \
+  --state-root /path/to/dar-state
+```
+
+BYOM callers can pass an object implementing the exported protocol through the
+existing `model_adapter` argument. DAR validates its descriptor, health,
+capabilities, limits, request context, response, and tool boundary before
+dispatch. Protocol v1 is text-only and final-response-only; adapters never
+receive tool handlers or approval objects. Invalid, unavailable, removed, or
+identity-mismatched adapters fail closed and do not fall back to OpenAI.
+
 Use direct execution for a single stateless run, `WorkflowExecutionContext` for
 reusing a loaded workflow with stable collaborators, and `AgentSession` when the
 caller needs retained prompt history or restartable in-memory session state.

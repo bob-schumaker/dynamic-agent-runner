@@ -11,6 +11,9 @@ from typing import Any, Sequence, TextIO
 from dynamic_agent_runner.api import run_agent_workflow
 from dynamic_agent_runner.errors import DynamicAgentRunnerError
 from dynamic_agent_runner.registry import ToolRegistry, create_local_workspace_registry
+from dynamic_agent_runner.workflow_host.external_adapter_registry import (
+    ExternalAdapterRegistry,
+)
 
 
 def main(
@@ -27,8 +30,11 @@ def main(
     stdin = stdin or sys.stdin
     stdout = stdout or sys.stdout
     stderr = stderr or sys.stderr
+    raw_argv = list(argv) if argv is not None else sys.argv[1:]
+    if raw_argv and raw_argv[0] == "adapter":
+        return _adapter_main(raw_argv[1:], stdout=stdout, stderr=stderr)
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw_argv)
 
     try:
         prompt = _resolve_prompt(args, stdin)
@@ -96,6 +102,52 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     return parser
+
+
+def _adapter_main(argv: Sequence[str], *, stdout: TextIO, stderr: TextIO) -> int:
+    normalized_argv = list(argv)
+    state_root: str | None = None
+    if "--state-root" in normalized_argv:
+        index = normalized_argv.index("--state-root")
+        if index + 1 >= len(normalized_argv):
+            print(
+                "dynamic-agent-runner: error: --state-root requires a value",
+                file=stderr,
+            )
+            return 1
+        state_root = normalized_argv[index + 1]
+        del normalized_argv[index : index + 2]
+    parser = argparse.ArgumentParser(prog="dynamic-agent-runner adapter")
+    commands = parser.add_subparsers(dest="adapter_command", required=True)
+    install = commands.add_parser("install")
+    install.add_argument("approved_local_plugin", type=Path)
+    remove = commands.add_parser("remove")
+    remove.add_argument("adapter_id")
+    commands.add_parser("list")
+    try:
+        args = parser.parse_args(normalized_argv)
+        if state_root is None:
+            raise ValueError("--state-root is required")
+        registry = ExternalAdapterRegistry(Path(state_root))
+        if args.adapter_command == "install":
+            receipt = registry.install(args.approved_local_plugin)
+            print(json.dumps(receipt.to_mapping(), sort_keys=True), file=stdout)
+            return 0
+        if args.adapter_command == "remove":
+            registry.remove(args.adapter_id)
+            print(json.dumps({"removed": args.adapter_id}, sort_keys=True), file=stdout)
+            return 0
+        print(
+            json.dumps(
+                {"adapters": [receipt.to_mapping() for receipt in registry.list()]},
+                sort_keys=True,
+            ),
+            file=stdout,
+        )
+        return 0
+    except (DynamicAgentRunnerError, OSError, ValueError) as exc:
+        print(f"dynamic-agent-runner: error: {exc}", file=stderr)
+        return 1
 
 
 def _resolve_prompt(args: argparse.Namespace, stdin: TextIO) -> str:
