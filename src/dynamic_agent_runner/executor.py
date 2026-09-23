@@ -34,6 +34,10 @@ from dynamic_agent_runner.errors import (
     ToolRegistryError,
     WorkflowExecutionError,
 )
+from dynamic_agent_runner.external_adapter import (
+    ExternalModelAdapterFacade,
+    is_external_adapter,
+)
 from dynamic_agent_runner.guardrails import (
     GuardrailDecision,
     GuardrailResult,
@@ -2025,6 +2029,8 @@ async def _create_model_response_async(
     adapter: ModelAdapter,
     request: Any,
 ) -> ModelResponse:
+    if isinstance(adapter, ExternalModelAdapterFacade):
+        return await adapter.create_response_async(request)
     if inspect.iscoroutinefunction(adapter.create_response):
         return await adapter.create_response(request)
     response = await asyncio.to_thread(adapter.create_response, request)
@@ -4505,8 +4511,43 @@ def _normalize_model_adapters(
     if value is None:
         return ()
     if callable(getattr(value, "create_response", None)):
-        return (value,)
-    return tuple(value)
+        candidates = (value,)
+    else:
+        try:
+            candidates = tuple(value)
+        except TypeError as error:
+            raise WorkflowExecutionError(
+                "model_adapter must be an adapter or sequence"
+            ) from error
+    normalized: list[ModelAdapter] = []
+    external_ids: set[str] = set()
+    external_models: set[str] = set()
+    for candidate in candidates:
+        if is_external_adapter(candidate):
+            try:
+                facade = ExternalModelAdapterFacade(candidate)
+            except Exception as error:  # noqa: BLE001 - public boundary is redacted.
+                raise WorkflowExecutionError(
+                    "external model adapter is invalid"
+                ) from error
+            descriptor = facade.descriptor
+            if (
+                descriptor.adapter_id in external_ids
+                or descriptor.model_alias in external_models
+            ):
+                raise WorkflowExecutionError(
+                    "duplicate external model adapter identity"
+                )
+            external_ids.add(descriptor.adapter_id)
+            external_models.add(descriptor.model_alias)
+            normalized.append(facade)
+            continue
+        if not callable(getattr(candidate, "create_response", None)):
+            raise WorkflowExecutionError(
+                "model_adapter sequence contains an invalid adapter"
+            )
+        normalized.append(candidate)
+    return tuple(normalized)
 
 
 def _normalize_model_adapter_coverage(value: str | None) -> str:
@@ -4526,7 +4567,7 @@ def _execution_policy_model_map(
     return value if isinstance(value, Mapping) else {}
 
 
-def _select_model_and_adapter(
+def _select_model_and_adapter(  # noqa: C901 - selection has explicit fallback gates.
     node: PreparedNode,
     adapters: Sequence[ModelAdapter],
     model_map: Mapping[str, Any],
@@ -4537,6 +4578,33 @@ def _select_model_and_adapter(
     normalized_adapters = tuple(adapters)
     required_features = _required_model_features(node)
     coverage = _normalize_model_adapter_coverage(model_adapter_coverage)
+    external_adapters = tuple(
+        adapter
+        for adapter in normalized_adapters
+        if isinstance(adapter, ExternalModelAdapterFacade)
+    )
+    if external_adapters:
+        if len(external_adapters) != 1:
+            raise WorkflowExecutionError(
+                "external adapter selection is ambiguous for this workflow"
+            )
+        external = external_adapters[0]
+        descriptor = external.descriptor
+        if not required_features.issubset(descriptor.capabilities):
+            raise _raise_missing_capability_adapter_error(
+                node,
+                model_label="external adapter model",
+                model_name=descriptor.model_alias,
+                required_features=required_features,
+            )
+        if requested_model is None:
+            return descriptor.model_alias, external
+        if requested_model != descriptor.model_alias:
+            raise WorkflowExecutionError(
+                f"external adapter selected model {descriptor.model_alias!r}; "
+                f"workflow node {node.id!r} requested {requested_model!r}"
+            )
+        return descriptor.model_alias, external
 
     if requested_model is None:
         return _select_default_model_and_adapter_for_missing_model(

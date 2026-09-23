@@ -164,6 +164,17 @@ from dynamic_agent_runner.openai_client import (
     create_official_openai_client,
     normalize_openai_response,
 )
+from dynamic_agent_runner.external_adapter import (
+    CancellationHandle,
+    DARExternalAdapterProtocol,
+    DARExternalRequestContext,
+    ExternalAdapterCancelledError,
+    ExternalAdapterError,
+    ExternalAdapterUnavailableError,
+    ExternalAdapterValidationError,
+    ExternalModelAdapterDescriptor,
+    ExternalModelAdapterHealth,
+)
 from dynamic_agent_runner.litellm_client import (
     AsyncLiteLLMClientProvider,
     AsyncLiteLLMCodexClientProvider,
@@ -336,6 +347,15 @@ __all__ = [
     "OpenAIClientProtocol",
     "OpenAIMessage",
     "OpenAIModelRequest",
+    "CancellationHandle",
+    "DARExternalAdapterProtocol",
+    "DARExternalRequestContext",
+    "ExternalAdapterCancelledError",
+    "ExternalAdapterError",
+    "ExternalAdapterUnavailableError",
+    "ExternalAdapterValidationError",
+    "ExternalModelAdapterDescriptor",
+    "ExternalModelAdapterHealth",
     "OpenAIProviderConfig",
     "ToolRegistryError",
     "ToolHookContext",
