@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Mapping
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import (
+    Future,
+    ThreadPoolExecutor,
+    TimeoutError as FutureTimeoutError,
+)
 from dataclasses import dataclass, replace
 import hashlib
 import inspect
@@ -453,9 +457,23 @@ class ExternalModelAdapterFacade:
         except Exception as error:  # noqa: BLE001 - provider boundary is redacted.
             raise ExternalAdapterError("external adapter request failed") from error
 
-    async def _dispatch_async(self, request: OpenAIModelRequest) -> ModelResponse:
+    async def _dispatch_async(self, request: OpenAIModelRequest) -> ModelResponse:  # noqa: C901 - dispatch owns one bounded async boundary.
         prepared = self._prepare_request(request)
-        health = self._health()
+        loop = asyncio.get_running_loop()
+        health_future = _EXTERNAL_DISPATCHER.submit(self._run_health)
+        try:
+            health_timeout = self._health_timeout_seconds()
+            if health_timeout is None:
+                health = await asyncio.wrap_future(health_future, loop=loop)
+            else:
+                health = await asyncio.wait_for(
+                    asyncio.wrap_future(health_future, loop=loop),
+                    timeout=health_timeout,
+                )
+        except asyncio.TimeoutError as error:
+            raise ExternalAdapterUnavailableError(
+                "external adapter health timed out"
+            ) from error
         if health.status != "ready":
             raise ExternalAdapterUnavailableError("external adapter is unavailable")
         _check_context(prepared.adapter_context)
@@ -489,6 +507,21 @@ class ExternalModelAdapterFacade:
             raise ExternalAdapterError("external adapter request failed") from error
 
     def _health(self) -> ExternalModelAdapterHealth:
+        future = _EXTERNAL_DISPATCHER.submit(self._run_health)
+        try:
+            timeout = self._health_timeout_seconds()
+            health = future.result(timeout=timeout)
+        except FutureTimeoutError as error:
+            raise ExternalAdapterUnavailableError(
+                "external adapter health timed out"
+            ) from error
+        except ExternalAdapterError:
+            raise
+        if not isinstance(health, ExternalModelAdapterHealth):
+            raise ExternalAdapterValidationError("adapter returned invalid health")
+        return health
+
+    def _run_health(self) -> ExternalModelAdapterHealth:
         try:
             health = self._adapter.health()
         except ExternalAdapterError:
@@ -500,6 +533,16 @@ class ExternalModelAdapterFacade:
         if not isinstance(health, ExternalModelAdapterHealth):
             raise ExternalAdapterValidationError("adapter returned invalid health")
         return health
+
+    def _health_timeout_seconds(self) -> float | None:
+        timeout = getattr(self._adapter, "health_timeout_seconds", None)
+        if timeout is None:
+            return None
+        if not isinstance(timeout, (int, float)) or timeout <= 0:
+            raise ExternalAdapterValidationError(
+                "invalid external adapter health timeout"
+            )
+        return float(timeout)
 
     def _issue_dispatch_token(
         self, request: OpenAIModelRequest, mode: ExternalAdapterMode

@@ -175,6 +175,16 @@ from dynamic_agent_runner.external_adapter import (
     ExternalModelAdapterDescriptor,
     ExternalModelAdapterHealth,
 )
+from dynamic_agent_runner.openai_compatible_external import (
+    AsyncOpenAICompatibleExternalAdapter,
+    OpenAICompatibleAsyncTransport,
+    OpenAICompatibleExternalAdapter,
+    OpenAICompatibleExternalConfig,
+    OpenAICompatibleSyncTransport,
+    create_async_openai_compatible_external_adapter,
+    create_openai_compatible_external_adapter,
+    validate_external_base_url,
+)
 from dynamic_agent_runner.litellm_client import (
     AsyncLiteLLMClientProvider,
     AsyncLiteLLMCodexClientProvider,
@@ -412,6 +422,14 @@ __all__ = [
     "execute_workflow",
     "execute_workflow_async",
     "normalize_openai_response",
+    "AsyncOpenAICompatibleExternalAdapter",
+    "OpenAICompatibleAsyncTransport",
+    "OpenAICompatibleExternalAdapter",
+    "OpenAICompatibleExternalConfig",
+    "OpenAICompatibleSyncTransport",
+    "create_async_openai_compatible_external_adapter",
+    "create_openai_compatible_external_adapter",
+    "validate_external_base_url",
     "validate_registry_tool_references",
     "openai_tool_schema",
     "tool_from_function",

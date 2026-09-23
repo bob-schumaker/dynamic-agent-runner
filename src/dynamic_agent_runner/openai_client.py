@@ -73,6 +73,10 @@ class OpenAIProviderConfig:
     chatgpt_account_id: str | None = field(default=None, repr=False)
     discover_default_auth: bool = True
     codex_auth_preference: str = "api_key_first"
+    timeout_seconds: float | None = None
+    trust_env: bool | None = None
+    follow_redirects: bool | None = None
+    suppress_auth_header: bool = False
 
 
 class OpenAIClientProvider(Protocol):
@@ -122,7 +126,7 @@ class SDKBackedAsyncOpenAIClientProvider:
             raise ModelExecutionError(
                 "official openai package is not available"
             ) from exc
-        return AsyncOpenAI(**_provider_config_to_client_kwargs(self.config))
+        return AsyncOpenAI(**_provider_config_to_async_client_kwargs(self.config))
 
 
 @dataclass(frozen=True)
@@ -1239,6 +1243,10 @@ def _resolve_default_openai_provider_defaults(
                 chatgpt_account_id=config.chatgpt_account_id,
                 discover_default_auth=config.discover_default_auth,
                 codex_auth_preference=config.codex_auth_preference,
+                timeout_seconds=config.timeout_seconds,
+                trust_env=config.trust_env,
+                follow_redirects=config.follow_redirects,
+                suppress_auth_header=config.suppress_auth_header,
             )
         )
 
@@ -1282,6 +1290,10 @@ def _resolve_default_openai_provider_defaults(
             chatgpt_account_id=chatgpt_account_id,
             discover_default_auth=config.discover_default_auth,
             codex_auth_preference=config.codex_auth_preference,
+            timeout_seconds=config.timeout_seconds,
+            trust_env=config.trust_env,
+            follow_redirects=config.follow_redirects,
+            suppress_auth_header=config.suppress_auth_header,
         ),
         chatgpt_token=chatgpt_token,
     )
@@ -1537,7 +1549,67 @@ def _provider_config_to_client_kwargs(config: OpenAIProviderConfig) -> dict[str,
         kwargs["base_url"] = config.base_url
     if config.api_key is not None:
         kwargs["api_key"] = config.api_key
+    elif config.suppress_auth_header:
+        kwargs["api_key"] = "dar-no-auth"
+    if (
+        config.timeout_seconds is not None
+        or config.trust_env is not None
+        or config.follow_redirects is not None
+    ):
+        try:
+            import httpx
+        except Exception as exc:  # pragma: no cover - openai imports httpx too.
+            raise ModelExecutionError(
+                "httpx is required for explicit transport controls"
+            ) from exc
+        event_hooks = (
+            {"request": [_strip_auth_header]} if config.suppress_auth_header else None
+        )
+        kwargs["http_client"] = httpx.Client(
+            timeout=config.timeout_seconds,
+            trust_env=True if config.trust_env is None else config.trust_env,
+            follow_redirects=(
+                True if config.follow_redirects is None else config.follow_redirects
+            ),
+            event_hooks=event_hooks,
+        )
     return kwargs
+
+
+def _provider_config_to_async_client_kwargs(
+    config: OpenAIProviderConfig,
+) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {}
+    if config.base_url is not None:
+        kwargs["base_url"] = config.base_url
+    if config.api_key is not None:
+        kwargs["api_key"] = config.api_key
+    elif config.suppress_auth_header:
+        kwargs["api_key"] = "dar-no-auth"
+    if (
+        config.timeout_seconds is not None
+        or config.trust_env is not None
+        or config.follow_redirects is not None
+    ):
+        import httpx
+
+        kwargs["http_client"] = httpx.AsyncClient(
+            timeout=config.timeout_seconds,
+            trust_env=True if config.trust_env is None else config.trust_env,
+            follow_redirects=(
+                True if config.follow_redirects is None else config.follow_redirects
+            ),
+            event_hooks=(
+                {"request": [_strip_auth_header]}
+                if config.suppress_auth_header
+                else None
+            ),
+        )
+    return kwargs
+
+
+def _strip_auth_header(request: Any) -> None:
+    request.headers.pop("Authorization", None)
 
 
 def _chatgpt_provider_config_to_client_kwargs(
