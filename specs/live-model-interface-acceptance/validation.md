@@ -100,6 +100,26 @@ establish an endpoint/model-configuration cause or a DAR adapter discrepancy.
 It supports no adapter modification. T5.2 remains the separate compatibility
 resolution decision, limited to this artifact, vLLM version, and candidate set.
 
+## T5.2 Compatibility Resolution
+
+Using the retained paired B0--B2 direct-control and DAR receipts above, the
+tested endpoint is unsupported for this acceptance target. No candidate
+produced the required schema-valid `create_record` call followed by final text
+in both DAR sync and async modes. The conclusion is limited to:
+
+- model: `mlx-community/Qwen3-4B-Instruct-2507-nvfp4`
+- revision: `111ab717db337468c86004a79bd9df19c6e3986d`
+- server: vLLM Metal `0.28.0`
+- parser/template: `qwen3_xml` with the tokenizer-provided template
+- candidates: B0 automatic detection, B1 explicit `string`, and B2 explicit
+  `openai` content format
+- scenario/modes: S1 sync and async
+
+The paired evidence does not show a conforming direct control that DAR fails
+to match, so no DAR adapter task is opened under T5.2. This is not a general
+compatibility claim for other model revisions, vLLM versions, parsers,
+templates, generation settings, or scenarios.
+
 ## Cross-target S1--S5 receipt completion — 2026-08-30
 
 The manually gated S1--S5 receipt matrix now has one classified full receipt

@@ -1,6 +1,6 @@
 # Live Model-Interface Acceptance Tasks
 
-Status: T1--T5.1 complete; T5.2 compatibility resolution pending
+Status: T1--T5.2 complete; B0--B2 endpoint combination recorded unsupported
 
 ## Authority and Route
 
@@ -154,7 +154,7 @@ Status: T1--T5.1 complete; T5.2 compatibility resolution pending
     authorize a durable package or launchd configuration change, a new
     provider-specific capture interface, or additional candidates.
 
-- [ ] T5.2 [manual compatibility resolution] Address the model/parser behavior
+- [x] T5.2 [manual compatibility resolution] Address the model/parser behavior
       mismatch only after T5.1 records its configuration-specific evidence.
   - Prerequisite: T5.1 identifies either one configuration that satisfies S1
     in sync and async mode, or a reproducible failure for its tested
@@ -170,6 +170,11 @@ Status: T1--T5.1 complete; T5.2 compatibility resolution pending
   - Acceptance: `validation.md` records one of those three evidence-backed
     outcomes. It makes no general compatibility claim beyond the exact model
     revision, vLLM version, parser/template configuration, and S1 modes tested.
+  - Completed evidence: the retained T5.1 B0--B2 paired controls show no
+    candidate satisfying S1 in both DAR modes. This acceptance target is
+    recorded as unsupported for the exact pinned model revision, vLLM Metal
+    0.28.0, `qwen3_xml`, and the B0--B2 content-format candidates; no DAR
+    adapter task is opened because the direct controls also fail S1.
   - Boundary: no speculative parser substitution, durable launchd/package
     configuration change, model download, or DAR adapter modification. Any
     source change requires its separately authorized task.
