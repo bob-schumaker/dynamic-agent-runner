@@ -66,6 +66,12 @@ class SlowHealthApple(FakeApple):
         return ExternalModelAdapterHealth("ready")
 
 
+class LazyClientApple(FakeApple):
+    @property
+    def client(self):
+        raise AssertionError("factory must not trigger lazy native client creation")
+
+
 class FakeLlamaBackend:
     def create_chat_completion(self, **kwargs: object) -> object:
         return {"choices": [{"message": {"content": "llama"}}]}
@@ -102,6 +108,9 @@ def test_external_factories_reject_alias_ambiguity_and_invalid_timeout() -> None
         create_apple_foundation_external_adapter(
             FakeApple(), adapter_id="apple.test", health_timeout_seconds=121
         )
+    create_apple_foundation_external_adapter(
+        LazyClientApple(), adapter_id="apple.no-lazy-client"
+    )
 
 
 def test_facade_health_timeout_and_worker_saturation_fail_closed(monkeypatch) -> None:

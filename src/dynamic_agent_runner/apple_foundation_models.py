@@ -169,7 +169,10 @@ def create_apple_foundation_external_adapter(
         raise ExternalAdapterValidationError(
             "Apple external adapter requires exactly one model alias"
         )
-    config = getattr(getattr(native_adapter, "client", None), "responses", None)
+    # Inspect only the already-bound client; do not trigger the adapter's lazy
+    # client property while constructing an immutable external wrapper.
+    bound_client = getattr(native_adapter, "__dict__", {}).get("_client")
+    config = getattr(bound_client, "responses", None)
     config = getattr(config, "_config", None)
     identity_inputs = {
         "alias": aliases[0],
