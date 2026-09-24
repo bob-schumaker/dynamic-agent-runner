@@ -3,7 +3,7 @@ name = "dar-chrome-external-adapter"
 version = "0.1.0"
 description = "Optional DAR adapter for Chrome Built-in AI"
 requires-python = ">=3.13,<3.15"
-dependencies = ["dynamic-agent-runner>=0.1.20"]
+dependencies = ["dynamic-agent-runner>=0.2.21"]
 
 [tool.poetry]
 packages = [{ include = "dar_chrome_external_adapter" }]
