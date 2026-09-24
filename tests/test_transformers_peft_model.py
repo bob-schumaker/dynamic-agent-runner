@@ -1465,6 +1465,10 @@ def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
 def test_converter_adapter_accepts_option1_canonical_input_without_protocol_messages(
     tmp_path: Path,
 ) -> None:
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        PackedModelInput,
+    )
+
     recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
     paths = {
         artifact.role: tmp_path / artifact.group / artifact.filename
@@ -1488,9 +1492,9 @@ def test_converter_adapter_accepts_option1_canonical_input_without_protocol_mess
 
         def pack(
             self, *, messages: tuple[object, ...], payload: bytes, context: object
-        ) -> object:
+        ) -> PackedModelInput:
             calls["pack"] = (messages, payload, context)
-            return {"input_ids": SimpleNamespace(shape=(1, 2))}
+            return PackedModelInput({"input_ids": SimpleNamespace(shape=(1, 2))})
 
     adapter = _bound_packed_adapter(
         PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
