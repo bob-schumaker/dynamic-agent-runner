@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -25,6 +27,14 @@ from dynamic_agent_runner.workflow_host.local_model_runners import (
     LocalModelRunnerCatalog,
 )
 from dynamic_agent_runner.workflow_host.host import LocalWorkflowHost
+from dynamic_agent_runner.workflow_host.sealed_artifact_output_handler import (
+    SealedArtifactOutputHandler,
+)
+from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
+    SealedArtifactOutput,
+    SealedArtifactOutputHandleService,
+)
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
     GenerationDeadline,
 )
@@ -35,6 +45,10 @@ from dynamic_agent_runner.workflow_host.generation_worker import (
 
 def _digest(seed: str) -> str:
     return hashlib.sha256(seed.encode()).hexdigest()
+
+
+_PUBLICATION_NOW = datetime(2026, 9, 24, tzinfo=UTC)
+_PUBLICATION_DESCRIPTOR = _digest("publication-descriptor")
 
 
 def _limits() -> MultimodalRunnerLimits:
@@ -104,6 +118,88 @@ def _context() -> DARGenerationRequestContext:
         cancellation_supported=False,
         worker_protocol="generation-worker-v1",
     )
+
+
+def _publication_descriptor() -> MultimodalRunnerDescriptor:
+    return MultimodalRunnerDescriptor(
+        **{
+            **_descriptor().to_mapping(),
+            "runner_id": "multimodal-publication-test",
+            "output_modalities": ("image",),
+            "contract_digest": "",
+        }
+    )
+
+
+def _publication_request() -> SealedMultimodalRequest:
+    return _request_for_descriptor(_publication_descriptor())
+
+
+def _publication_result() -> MultimodalRunnerResult:
+    request = _publication_request()
+    return MultimodalRunnerResult(
+        status="completed",
+        text=None,
+        output_handles=(
+            SealedMultimodalHandle(
+                value="sealed:output-one",
+                role="result",
+                package_id=request.package_id,
+                package_revision_digest=request.package_revision_digest,
+                invocation_id=request.invocation_id,
+                material_lock_digest=request.descriptor.material_lock_digest,
+                converter_digest=request.descriptor.converter_digest,
+            ),
+        ),
+        generated_tokens=1,
+        output_bytes=3,
+        coverage={"image": 1},
+        worker_reaped=True,
+        package_id=request.package_id,
+        package_revision_digest=request.package_revision_digest,
+        material_lock_digest=request.descriptor.material_lock_digest,
+        converter_digest=request.descriptor.converter_digest,
+        contract_digest=request.descriptor.contract_digest,
+    )
+
+
+def _publication_handler(tmp_path):
+    return SealedArtifactOutputHandler(
+        service=SealedArtifactOutputHandleService(
+            store=PrivateStateStore(tmp_path / "state"), owner="host"
+        ),
+        declaration_resolver=lambda workflow_id, package_id, digest: (
+            (SealedArtifactOutput("result", "image/png", 16, None),)
+            if (workflow_id, package_id, digest)
+            == ("floorplan", "floorplan-from-image", _PUBLICATION_DESCRIPTOR)
+            else None
+        ),
+    )
+
+
+class _PublicationMaterializer:
+    def __init__(self, content: bytes = b"png") -> None:
+        self.content = content
+        self.calls: list[SealedMultimodalHandle] = []
+
+    def resolve(
+        self,
+        handle: SealedMultimodalHandle,
+        *,
+        package_id: str,
+        package_revision_digest: str,
+        invocation_id: str,
+        descriptor_digest: str,
+        expires_at: datetime,
+        now: datetime,
+    ) -> tuple[str, str, bytes]:
+        self.calls.append(handle)
+        assert handle.package_id == package_id
+        assert handle.package_revision_digest == package_revision_digest
+        assert handle.invocation_id == invocation_id
+        assert descriptor_digest == _PUBLICATION_DESCRIPTOR
+        assert now < expires_at
+        return handle.role, "image/png", self.content
 
 
 def test_descriptor_uses_closed_canonical_json_and_sha256_digest() -> None:
@@ -621,3 +717,104 @@ def test_dispatch_preserves_budget_exhausted_terminal_result() -> None:
         reap_worker=lambda: None,
     )
     assert result.status == "budget_exhausted"
+
+
+def test_host_materializer_publishes_opaque_output_handles(tmp_path) -> None:
+    request = _publication_request()
+    result = _publication_result()
+    materializer = _PublicationMaterializer()
+    handles = object.__new__(LocalWorkflowHost).publish_multimodal_result(
+        result,
+        request=request,
+        workflow_id="floorplan",
+        receiver_id="host",
+        descriptor_digest=_PUBLICATION_DESCRIPTOR,
+        expires_at=_PUBLICATION_NOW + timedelta(minutes=1),
+        now=_PUBLICATION_NOW,
+        materializer=materializer,
+        output_handler=_publication_handler(tmp_path),
+    )
+    assert len(handles) == 1
+    assert handles[0].role == "result"
+    assert handles[0].media_type == "image/png"
+    assert materializer.calls == [result.output_handles[0]]
+
+
+def test_host_publication_bypasses_materializer_for_text_result(tmp_path) -> None:
+    request = _request()
+    materializer = _PublicationMaterializer()
+    result = MultimodalRunnerResult(
+        status="completed",
+        text="ok",
+        output_handles=(),
+        generated_tokens=1,
+        output_bytes=2,
+        coverage={},
+        worker_reaped=True,
+        package_id=request.package_id,
+        package_revision_digest=request.package_revision_digest,
+        material_lock_digest=request.descriptor.material_lock_digest,
+        converter_digest=request.descriptor.converter_digest,
+        contract_digest=request.descriptor.contract_digest,
+    )
+    handles = object.__new__(LocalWorkflowHost).publish_multimodal_result(
+        result,
+        request=request,
+        workflow_id="floorplan",
+        receiver_id="host",
+        descriptor_digest=_PUBLICATION_DESCRIPTOR,
+        expires_at=_PUBLICATION_NOW + timedelta(minutes=1),
+        now=_PUBLICATION_NOW,
+        materializer=materializer,
+        output_handler=_publication_handler(tmp_path),
+    )
+    assert handles == ()
+    assert materializer.calls == []
+
+
+def test_host_publication_rejects_foreign_result_before_materialization(tmp_path) -> None:
+    request = _publication_request()
+    result = replace(
+        _publication_result(),
+        package_id="foreign-package",
+        output_handles=(
+            replace(
+                _publication_result().output_handles[0],
+                package_id="foreign-package",
+            ),
+        ),
+    )
+    materializer = _PublicationMaterializer()
+    with pytest.raises(ValueError, match="publication failed"):
+        object.__new__(LocalWorkflowHost).publish_multimodal_result(
+            result,
+            request=request,
+            workflow_id="floorplan",
+            receiver_id="host",
+            descriptor_digest=_PUBLICATION_DESCRIPTOR,
+            expires_at=_PUBLICATION_NOW + timedelta(minutes=1),
+            now=_PUBLICATION_NOW,
+            materializer=materializer,
+            output_handler=_publication_handler(tmp_path),
+        )
+    assert materializer.calls == []
+
+
+def test_host_publication_redacts_materializer_failure(tmp_path) -> None:
+    class FailingMaterializer(_PublicationMaterializer):
+        def resolve(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            raise RuntimeError("/private/model/output-bytes")
+
+    with pytest.raises(ValueError, match="publication failed") as error:
+        object.__new__(LocalWorkflowHost).publish_multimodal_result(
+            _publication_result(),
+            request=_publication_request(),
+            workflow_id="floorplan",
+            receiver_id="host",
+            descriptor_digest=_PUBLICATION_DESCRIPTOR,
+            expires_at=_PUBLICATION_NOW + timedelta(minutes=1),
+            now=_PUBLICATION_NOW,
+            materializer=FailingMaterializer(),
+            output_handler=_publication_handler(tmp_path),
+        )
+    assert "/private" not in str(error.value)

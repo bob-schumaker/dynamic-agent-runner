@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 import platform
-from typing import Any, Sequence
+from typing import Any, Protocol, Sequence
 from typing import Mapping
 
 from dynamic_agent_runner.apple_foundation_models import (
@@ -79,6 +79,7 @@ from dynamic_agent_runner.multimodal_model_runner import (
     MultimodalRunnerBinding,
     MultimodalRunnerDescriptor,
     MultimodalRunnerResult,
+    SealedMultimodalHandle,
     SealedMultimodalRequest,
 )
 from dynamic_agent_runner.workflow_host.model_execution_binding import (
@@ -210,7 +211,12 @@ from dynamic_agent_runner.workflow_host.sealed_artifact_preparation import (
 )
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactHandleService,
+    SealedArtifactOutputHandle,
     SealedArtifactOutputHandleService,
+)
+from dynamic_agent_runner.workflow_host.sealed_artifact_output_handler import (
+    SealedArtifactOutputHandler,
+    SealedArtifactOutputStageRequest,
 )
 from dynamic_agent_runner.workflow_host.sealed_artifact_workflow_runner import (
     SealedArtifactCallbackResolver,
@@ -251,6 +257,22 @@ _SEALED_ARTIFACT_OUTPUT_TTL = timedelta(minutes=5)
 
 class LocalWorkflowHostError(ValueError):
     """Raised when required human-owned host configuration is unavailable."""
+
+
+class MultimodalOutputMaterializer(Protocol):
+    """Resolve one private multimodal output handle to candidate bytes."""
+
+    def resolve(
+        self,
+        handle: SealedMultimodalHandle,
+        *,
+        package_id: str,
+        package_revision_digest: str,
+        invocation_id: str,
+        descriptor_digest: str,
+        expires_at: datetime,
+        now: datetime,
+    ) -> tuple[str, str, bytes]: ...
 
 
 class DiscoveredOAuthSetupError(LocalWorkflowHostError):
@@ -1361,6 +1383,90 @@ class LocalWorkflowHost:
         return self._multimodal_runner_catalog.resolve_multimodal_runner(
             runner_id, expected_descriptor=expected_descriptor
         )
+
+    def publish_multimodal_result(
+        self,
+        result: MultimodalRunnerResult,
+        *,
+        request: SealedMultimodalRequest,
+        workflow_id: str,
+        receiver_id: str,
+        descriptor_digest: str,
+        expires_at: datetime,
+        now: datetime,
+        materializer: MultimodalOutputMaterializer,
+        output_handler: SealedArtifactOutputHandler,
+    ) -> tuple[SealedArtifactOutputHandle, ...]:
+        """Materialize and atomically publish one completed runner result."""
+
+        if not isinstance(result, MultimodalRunnerResult) or result.status != "completed":
+            return ()
+        if (
+            result.package_id != request.package_id
+            or result.package_revision_digest != request.package_revision_digest
+            or result.material_lock_digest != request.descriptor.material_lock_digest
+            or result.converter_digest != request.descriptor.converter_digest
+            or result.contract_digest != request.descriptor.contract_digest
+        ):
+            raise LocalWorkflowHostError("multimodal result publication failed")
+        if result.text is not None:
+            return ()
+        private = None
+        try:
+            if not isinstance(output_handler, SealedArtifactOutputHandler):
+                raise TypeError("output handler is unavailable")
+            resolve = getattr(materializer, "resolve", None)
+            if not callable(resolve):
+                raise TypeError("output materializer is unavailable")
+            candidates = tuple(
+                resolve(
+                    handle,
+                    package_id=request.package_id,
+                    package_revision_digest=request.package_revision_digest,
+                    invocation_id=request.invocation_id,
+                    descriptor_digest=descriptor_digest,
+                    expires_at=expires_at,
+                    now=now,
+                )
+                for handle in result.output_handles
+            )
+            if (
+                not candidates
+                or sum(len(candidate[2]) for candidate in candidates)
+                != result.output_bytes
+                or any(
+                    not isinstance(candidate, tuple)
+                    or len(candidate) != 3
+                    or not isinstance(candidate[0], str)
+                    or not isinstance(candidate[1], str)
+                    or not isinstance(candidate[2], bytes)
+                    for candidate in candidates
+                )
+            ):
+                raise ValueError("materialized output is invalid")
+            private = output_handler.stage_declared(
+                SealedArtifactOutputStageRequest(
+                    receiver_id=receiver_id,
+                    workflow_id=workflow_id,
+                    package_id=request.package_id,
+                    revision_digest=request.package_revision_digest,
+                    invocation_id=request.invocation_id,
+                    descriptor_digest=descriptor_digest,
+                    outputs=candidates,
+                    expires_at=expires_at,
+                ),
+                now=now,
+            )
+            return output_handler.promote(private, now=now)
+        except Exception as error:  # noqa: BLE001 - redact publication failures.
+            if private is not None:
+                try:
+                    output_handler.discard(private, now=now)
+                except Exception:
+                    pass
+            raise LocalWorkflowHostError(
+                "multimodal result publication failed"
+            ) from error
 
     def dispatch_multimodal_runner(
         self,

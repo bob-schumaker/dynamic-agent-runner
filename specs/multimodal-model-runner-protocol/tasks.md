@@ -269,7 +269,7 @@ Status: In Progress
     freeze and verify the host-owned materializer seam without adding a second
     publication registry or exposing candidate bytes.
 
-- [ ] T010b [tests, RED] Specify the Option 1 materializer and publication
+- [x] T010b [tests, GREEN] Specify the Option 1 materializer and publication
   vectors before adding its host adapter.
   - Spec: Result contract; host ownership of staging and publication.
   - Plan: M4; Architecture and Data Flow.
@@ -296,8 +296,11 @@ Status: In Progress
     and output-count limits are enforced; text results bypass materialization;
     foreign, expired, unsupported, and materializer-failure cases produce no
     public handle.
+  - Completed evidence: focused materializer/publication vectors pass — 4
+    tests; the RED collection first failed on the missing host publication
+    entry point, then passed after the adapter landed.
 
-- [ ] T010c [implementation] Add the receiver-owned Option 1 host adapter.
+- [x] T010c [implementation] Add the receiver-owned Option 1 host adapter.
   - Spec: Result contract; initial migration target; no raw output leakage.
   - Plan: M4; Architecture and Data Flow.
   - Depends on: T010b.
@@ -320,6 +323,11 @@ Status: In Progress
     `promote` exactly once; any failure calls handler-owned discard as
     applicable and returns a redacted failure without public handles or
     candidate bytes.
+  - Completed evidence: `LocalWorkflowHost.publish_multimodal_result` now
+    enforces identity, invokes the injected materializer once per opaque
+    output, stages through `SealedArtifactOutputHandler`, promotes only after
+    the dispatch cleanup gate, and maps publication failures to one redacted
+    host error.
 
 - [ ] T010d [tests, GREEN] Prove Option 1 publication ordering and redaction.
   - Spec: acceptance criteria 3–5 and cleanup ownership.
