@@ -7,6 +7,7 @@ import pytest
 
 from dynamic_agent_runner import (
     ModelResponse,
+    ModelToolCall,
     ModelExecutionError,
     OpenAIModelRequest,
     create_apple_foundation_external_adapter,
@@ -30,6 +31,8 @@ from dynamic_agent_runner.mlx_models import (
     AsyncMLXLocalModelAdapter,
     MLXLocalModelAdapter,
     MLXLocalModelConfig,
+    MLXToolCallCandidate,
+    MLXToolCodecResponse,
 )
 
 
@@ -86,6 +89,27 @@ class FakeLlamaBackend:
 class FakeMLXBackend:
     def generate(self, request: OpenAIModelRequest, **kwargs: object) -> str:
         return "mlx"
+
+
+class FakeMLXToolBackend(FakeMLXBackend):
+    tool_codec_versions = frozenset({"codec-v1"})
+
+    def generate_rendered(self, prompt: str, **kwargs: object) -> str:
+        return "tool-output"
+
+
+class FakeMLXToolCodec:
+    version = "codec-v1"
+
+    def render(self, request: OpenAIModelRequest) -> str:
+        return "rendered"
+
+    def decode(self, generated: str) -> MLXToolCodecResponse:
+        return MLXToolCodecResponse(
+            tool_call=MLXToolCallCandidate(
+                name="lookup", arguments='{"key":"value"}', id="call-1"
+            )
+        )
 
 
 def test_apple_external_adapter_is_async_only_and_omits_callback_tools() -> None:
@@ -334,6 +358,52 @@ def test_mlx_text_only_binding_denies_tools_and_structured_output(
                 model="mlx-test",
                 messages=({"role": "user", "content": "hello"},),
                 response_format={"type": "json_schema"},
+            )
+        )
+
+
+def test_mlx_exact_codec_advertises_and_normalizes_tool_calls(tmp_path: Path) -> None:
+    model_path = tmp_path / "mlx"
+    model_path.mkdir()
+    for filename in ("config.json", "tokenizer.model", "weights.npz"):
+        (model_path / filename).write_bytes(b"fake")
+    native = MLXLocalModelAdapter(
+        MLXLocalModelConfig(model_aliases=("mlx-tools",), model_path=model_path),
+        backend=FakeMLXToolBackend(),
+        platform_system=lambda: "Darwin",
+        tool_codec=FakeMLXToolCodec(),
+    )
+    adapter = create_mlx_external_adapter(native, adapter_id="mlx.tools")
+    assert "tool_calling" in adapter.describe().capabilities
+    result = ExternalModelAdapterFacade(adapter).create_response(
+        OpenAIModelRequest(
+            model="mlx-tools",
+            messages=({"role": "user", "content": "hello"},),
+            tools=({"type": "function", "name": "lookup"},),
+        )
+    )
+    assert result.tool_calls == (
+        ModelToolCall(id="call-1", name="lookup", arguments='{"key":"value"}'),
+    )
+
+
+def test_apple_binding_without_structured_capability_denies_json_schema() -> None:
+    class TextOnlyApple(FakeApple):
+        capabilities = {"structured_output": False}
+
+    facade = ExternalModelAdapterFacade(
+        create_apple_foundation_external_adapter(
+            TextOnlyApple(), adapter_id="apple.text-only"
+        )
+    )
+    with pytest.raises(ExternalAdapterError):
+        asyncio.run(
+            facade.create_response_async(
+                OpenAIModelRequest(
+                    model="apple-test",
+                    messages=({"role": "user", "content": "hello"},),
+                    response_format={"type": "json_schema"},
+                )
             )
         )
 
