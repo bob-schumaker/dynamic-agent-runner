@@ -409,7 +409,7 @@ Status: In Progress
     focused result/handler suites provide the normalized, redacted handoff;
     no raw candidate bytes or multimodal handles enter the public tuple.
 
-- [ ] T013 [tests, GREEN] Prove result transfer, redaction, and cleanup
+- [x] T013 [tests, GREEN] Prove result transfer, redaction, and cleanup
   compatibility.
   - Spec: acceptance criteria 3–5.
   - Plan: M4 exit; Verification Matrix.
@@ -426,8 +426,13 @@ Status: In Progress
     only publication gating; sealed-artifact output-handle service integration
     remains. Host publication ordering is verified with a deterministic fake
     publisher and cleanup event trace.
-  - Readiness state: open until T012 composes the completed handler with the
-    result publication path and the focused suite proves the composed boundary.
+  - Readiness state: complete for the current Option 1 publication seam; the
+    composed suite proves result transfer, redaction, cleanup, and legacy
+    compatibility.
+  - Completed evidence: composed multimodal, handler, sealed-runner, and
+    admission suites pass — 65 tests; foreign/replayed results, false
+    attestation, counter mismatch, cleanup failure, and legacy direct-service
+    behavior remain green.
 
 - [ ] T014 [tests, RED] Add floorplan host-composition compatibility vectors.
   - Spec: initial migration target and floorplan ownership acceptance criterion.
