@@ -295,6 +295,63 @@ def test_llama_and_mlx_factories_reject_multi_alias_bindings(tmp_path: Path) -> 
         create_mlx_external_adapter(mlx, adapter_id="mlx.multi")
 
 
+def test_llama_and_mlx_binding_changes_change_descriptor_identity(
+    tmp_path: Path,
+) -> None:
+    llama_path = tmp_path / "model.gguf"
+    llama_path.write_bytes(b"fake")
+    llama_base = LlamaCppLocalModelAdapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-test",),
+            model_path=llama_path,
+            allow_network=False,
+            model_kwargs={"chat_format": "chatml"},
+        ),
+        backend=FakeLlamaBackend(),
+    )
+    llama_changed = LlamaCppLocalModelAdapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-test",),
+            model_path=llama_path,
+            allow_network=False,
+            model_kwargs={"chat_format": "chatml-function-calling"},
+        ),
+        backend=FakeLlamaBackend(),
+    )
+    first = create_llama_cpp_external_adapter(llama_base, adapter_id="llama.one")
+    second = create_llama_cpp_external_adapter(llama_changed, adapter_id="llama.two")
+    assert first.describe().canonical_model_id != second.describe().canonical_model_id
+    assert first.describe().contract_digest != second.describe().contract_digest
+
+    mlx_path = tmp_path / "mlx"
+    mlx_path.mkdir()
+    for filename in ("config.json", "tokenizer.model", "weights.npz"):
+        (mlx_path / filename).write_bytes(b"fake")
+    mlx_base = MLXLocalModelAdapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-test",), model_path=mlx_path, generation_kwargs={}
+        ),
+        backend=FakeMLXBackend(),
+        platform_system=lambda: "Darwin",
+    )
+    mlx_changed = MLXLocalModelAdapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-test",),
+            model_path=mlx_path,
+            generation_kwargs={"temperature": 0.2},
+        ),
+        backend=FakeMLXBackend(),
+        platform_system=lambda: "Darwin",
+    )
+    first_mlx = create_mlx_external_adapter(mlx_base, adapter_id="mlx.one")
+    second_mlx = create_mlx_external_adapter(mlx_changed, adapter_id="mlx.two")
+    assert (
+        first_mlx.describe().canonical_model_id
+        != second_mlx.describe().canonical_model_id
+    )
+    assert first_mlx.describe().contract_digest != second_mlx.describe().contract_digest
+
+
 def test_mlx_external_adapters_match_sync_and_async_modes(tmp_path: Path) -> None:
     model_path = tmp_path / "mlx"
     model_path.mkdir()
