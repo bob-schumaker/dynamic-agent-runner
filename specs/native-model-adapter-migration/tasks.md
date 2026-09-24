@@ -305,7 +305,7 @@ provider conformance slices.
   - Validation: exact command above
   - Evidence: all affected tests pass without live provider calls.
 
-- [x] T7.3 [validation] Run repository gates: `poetry run pytest -q`,
+- [ ] T7.3 [validation] Run repository gates: `poetry run pytest -q`,
   `poetry run ruff check src tests`, and `poetry build`.
   - Spec: final acceptance and non-goals
   - Plan: M7 exit gate
@@ -314,7 +314,7 @@ provider conformance slices.
   - Validation: exact commands above
   - Evidence: full suite, Ruff, and package build are green.
 
-- [x] T7.4 [review] Perform final spec/plan/tasks/code/validation drift review
+- [ ] T7.4 [review] Perform final spec/plan/tasks/code/validation drift review
   and record any provider capability that remains native-only before declaring
   the migration slice complete.
   - Spec: migration and removal gates

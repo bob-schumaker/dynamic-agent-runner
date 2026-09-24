@@ -15,7 +15,11 @@
   `poetry run pytest tests/test_apple_foundation_models.py
   tests/test_local_models.py tests/test_mlx_models.py
   tests/test_external_adapter_registry.py -q` — 361 tests pass.
-- Repository suite: `poetry run pytest -q` — 2,752 passed, 1 skipped, 7 deselected.
+- Repository suite: an earlier run completed with 2,752 passed, 1 skipped, and
+  7 deselected. A final rerun reproduced four unrelated Darwin/MPS host
+  capability failures in `test_floorplan_svg_fixture.py`,
+  `test_generation_worker_controllers.py`, and `test_local_model_runners.py`;
+  no migration test failed.
 - Static checks: `poetry run ruff check src tests` and `git diff --check` pass.
 - Package gate: `poetry build` completed successfully for version `0.1.20`.
 
