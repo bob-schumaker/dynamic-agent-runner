@@ -6,6 +6,7 @@ from collections.abc import Callable, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 import asyncio
+import hashlib
 import importlib
 import json
 import keyword
@@ -23,6 +24,13 @@ from dynamic_agent_runner.errors import (
     GuardrailExecutionError,
     ModelExecutionError,
     ToolRegistryError,
+)
+from dynamic_agent_runner.external_adapter import (
+    AsyncNativeExternalAdapter,
+    ExternalAdapterValidationError,
+    ExternalModelAdapterHealth,
+    build_external_adapter_descriptor,
+    validate_external_adapter_timeout,
 )
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
@@ -145,6 +153,79 @@ def create_apple_foundation_model_async_adapter(
         client=client,
         models=resolved.model_aliases,
         is_local=True,
+    )
+
+
+def create_apple_foundation_external_adapter(
+    native_adapter: AppleFoundationModelAsyncAdapter,
+    *,
+    adapter_id: str,
+    health_timeout_seconds: float = 30.0,
+) -> AsyncNativeExternalAdapter:
+    """Project one already-constructed Apple adapter onto the v1 protocol."""
+
+    aliases = tuple(getattr(native_adapter, "models", ()))
+    if len(aliases) != 1:
+        raise ExternalAdapterValidationError(
+            "Apple external adapter requires exactly one model alias"
+        )
+    config = getattr(getattr(native_adapter, "client", None), "responses", None)
+    config = getattr(config, "_config", None)
+    identity_inputs = {
+        "alias": aliases[0],
+        "provider": "apple-foundation-models",
+        "sdk_profile": "system-model",
+    }
+    canonical_model_id = (
+        "apple/"
+        + hashlib.sha256(
+            json.dumps(identity_inputs, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    )
+    native_capabilities = getattr(native_adapter, "capabilities", {})
+    structured = bool(native_capabilities.get("structured_output", True))
+    capabilities = {"text_generation"} | (
+        {"structured_output"} if structured else set()
+    )
+    descriptor = build_external_adapter_descriptor(
+        adapter_id=adapter_id,
+        provider_id="apple-foundation-models",
+        model_alias=aliases[0],
+        canonical_model_id=canonical_model_id,
+        execution_modes=frozenset({"async"}),
+        capabilities=frozenset(capabilities),
+        response_formats=frozenset({"text", "json_schema"} if structured else {"text"}),
+    )
+
+    def health() -> ExternalModelAdapterHealth:
+        if callable(getattr(native_adapter, "health", None)):
+            return native_adapter.health()
+        try:
+            _require_macos()
+            sdk = (
+                _load_sdk()
+                if config is None or config.availability_checker is None
+                else None
+            )
+            available, reason = _check_availability(
+                config or AppleFoundationModelConfig(model_aliases=aliases), sdk
+            )
+            return ExternalModelAdapterHealth(
+                "ready" if available else "unavailable",
+                None if available else (reason or "model_unavailable"),
+            )
+        except ModelExecutionError:
+            return ExternalModelAdapterHealth("unavailable", "native_unavailable")
+        except Exception:
+            return ExternalModelAdapterHealth("failed", "native_health_failed")
+
+    return AsyncNativeExternalAdapter(
+        native_adapter,
+        descriptor,
+        health_probe=health,
+        health_timeout_seconds=validate_external_adapter_timeout(
+            health_timeout_seconds
+        ),
     )
 
 

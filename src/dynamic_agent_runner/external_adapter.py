@@ -278,6 +278,131 @@ class DARExternalAdapterProtocol(Protocol):
     ) -> ModelResponse | Awaitable[ModelResponse]: ...
 
 
+def validate_external_adapter_timeout(value: object) -> float:
+    """Validate the bounded, non-secret timeout used by provider health probes."""
+
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not math.isfinite(float(value))
+        or not 0 < float(value) <= 120
+    ):
+        raise ExternalAdapterValidationError(
+            "health_timeout_seconds must be in (0, 120]"
+        )
+    return float(value)
+
+
+def build_external_adapter_descriptor(
+    *,
+    adapter_id: str,
+    provider_id: str,
+    model_alias: str,
+    canonical_model_id: str,
+    execution_modes: frozenset[ExternalAdapterMode],
+    capabilities: frozenset[ExternalAdapterCapability],
+    response_formats: frozenset[Literal["text", "json_schema"]] | None = None,
+    limits: Mapping[str, int] | None = None,
+) -> ExternalModelAdapterDescriptor:
+    """Build one immutable v1 descriptor and its canonical digest."""
+
+    values: dict[str, Any] = {
+        "adapter_id": adapter_id,
+        "provider_id": provider_id,
+        "protocol_id": "dar.external-model.v1",
+        "protocol_version": "1.0",
+        "model_alias": model_alias,
+        "canonical_model_id": canonical_model_id,
+        "execution_location": "local",
+        "execution_modes": execution_modes,
+        "input_modalities": frozenset({"text"}),
+        "output_modalities": frozenset({"text"}),
+        "response_formats": response_formats or frozenset({"text"}),
+        "capabilities": capabilities,
+        "limits": limits or {},
+        "contract_digest": "",
+    }
+    provisional = object.__new__(ExternalModelAdapterDescriptor)
+    for key, value in values.items():
+        object.__setattr__(provisional, key, value)
+    values["contract_digest"] = canonical_descriptor_digest(provisional)
+    return ExternalModelAdapterDescriptor(**values)
+
+
+class NativeExternalAdapter:
+    """Small generic protocol boundary for a caller-owned native adapter."""
+
+    protocol_id = "dar.external-model.v1"
+    protocol_version = "1.0"
+
+    def __init__(
+        self,
+        native_adapter: object,
+        descriptor: ExternalModelAdapterDescriptor,
+        *,
+        health_probe: Any,
+        health_timeout_seconds: float,
+    ) -> None:
+        self._native_adapter = native_adapter
+        self._descriptor = descriptor
+        self._health_probe = health_probe
+        self.health_timeout_seconds = validate_external_adapter_timeout(
+            health_timeout_seconds
+        )
+
+    @property
+    def adapter_id(self) -> str:
+        return self._descriptor.adapter_id
+
+    def describe(self) -> ExternalModelAdapterDescriptor:
+        return self._descriptor
+
+    def health(self) -> ExternalModelAdapterHealth:
+        try:
+            result = self._health_probe()
+        except ExternalAdapterError:
+            raise
+        except ModelExecutionError:
+            return ExternalModelAdapterHealth("unavailable", "native_unavailable")
+        except Exception:
+            return ExternalModelAdapterHealth("failed", "native_health_failed")
+        if not isinstance(result, ExternalModelAdapterHealth):
+            raise ExternalAdapterValidationError("native health returned invalid state")
+        return result
+
+    def create_response(
+        self, request: OpenAIModelRequest
+    ) -> ModelResponse | Awaitable[ModelResponse]:
+        try:
+            result = self._native_adapter.create_response(request)
+        except ExternalAdapterError:
+            raise
+        except ModelExecutionError as error:
+            raise ExternalAdapterError("native model request failed") from error
+        except Exception as error:  # noqa: BLE001 - native boundary is redacted.
+            raise ExternalAdapterError("native model request failed") from error
+        return result
+
+
+class AsyncNativeExternalAdapter(NativeExternalAdapter):
+    """Async-preserving variant used by native async provider bindings."""
+
+    async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        try:
+            result = self._native_adapter.create_response(request)
+            if not inspect.isawaitable(result):
+                raise ExternalAdapterError(
+                    "native async adapter returned a sync result"
+                )
+            return await result
+        except ExternalAdapterError:
+            raise
+        except ModelExecutionError as error:
+            raise ExternalAdapterError("native model request failed") from error
+        except Exception as error:  # noqa: BLE001 - native boundary is redacted.
+            raise ExternalAdapterError("native model request failed") from error
+
+
 def is_external_adapter(value: object) -> bool:
     return all(
         callable(getattr(value, name, None))
@@ -538,11 +663,7 @@ class ExternalModelAdapterFacade:
         timeout = getattr(self._adapter, "health_timeout_seconds", None)
         if timeout is None:
             return None
-        if not isinstance(timeout, (int, float)) or timeout <= 0:
-            raise ExternalAdapterValidationError(
-                "invalid external adapter health timeout"
-            )
-        return float(timeout)
+        return validate_external_adapter_timeout(timeout)
 
     def _issue_dispatch_token(
         self, request: OpenAIModelRequest, mode: ExternalAdapterMode
@@ -683,6 +804,10 @@ __all__ = [
     "ExternalModelAdapterDescriptor",
     "ExternalModelAdapterFacade",
     "ExternalModelAdapterHealth",
+    "AsyncNativeExternalAdapter",
+    "NativeExternalAdapter",
+    "build_external_adapter_descriptor",
     "canonical_descriptor_digest",
     "is_external_adapter",
+    "validate_external_adapter_timeout",
 ]

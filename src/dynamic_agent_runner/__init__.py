@@ -91,6 +91,7 @@ from dynamic_agent_runner.local_models import (
     create_llama_cpp_local_async_embedding_adapter,
     create_llama_cpp_local_adapter,
     create_llama_cpp_local_async_adapter,
+    create_llama_cpp_external_adapter,
     create_llama_cpp_local_embedding_adapter,
     create_local_async_openai_adapter,
     create_local_openai_adapter,
@@ -106,6 +107,8 @@ from dynamic_agent_runner.mlx_models import (
     MLXToolCodecResponse,
     create_mlx_local_adapter,
     create_mlx_local_async_adapter,
+    create_mlx_external_adapter,
+    create_mlx_async_external_adapter,
 )
 from dynamic_agent_runner.mlx_local_embedding import (
     AsyncMLXLocalEmbeddingAdapter,
@@ -126,6 +129,7 @@ from dynamic_agent_runner.qwen3_mlx_tools import (
 from dynamic_agent_runner.apple_foundation_models import (
     AppleFoundationModelConfig,
     create_apple_foundation_model_async_adapter,
+    create_apple_foundation_external_adapter,
     preflight_apple_foundation_models,
 )
 from dynamic_agent_runner.mcp import (
@@ -366,6 +370,10 @@ __all__ = [
     "ExternalAdapterValidationError",
     "ExternalModelAdapterDescriptor",
     "ExternalModelAdapterHealth",
+    "create_apple_foundation_external_adapter",
+    "create_llama_cpp_external_adapter",
+    "create_mlx_external_adapter",
+    "create_mlx_async_external_adapter",
     "OpenAIProviderConfig",
     "ToolRegistryError",
     "ToolHookContext",

@@ -28,6 +28,13 @@ from dynamic_agent_runner.errors import (
     LocalModelResolutionError,
     ModelExecutionError,
 )
+from dynamic_agent_runner.external_adapter import (
+    ExternalAdapterValidationError,
+    ExternalModelAdapterHealth,
+    NativeExternalAdapter,
+    build_external_adapter_descriptor,
+    validate_external_adapter_timeout,
+)
 from dynamic_agent_runner.hugging_face_support import (
     download_hub_file,
     download_hub_snapshot,
@@ -1138,6 +1145,78 @@ def create_llama_cpp_local_async_adapter(
         dependency_loader=dependency_loader,
         download_file=download_file,
         download_snapshot=download_snapshot,
+    )
+
+
+def create_llama_cpp_external_adapter(
+    native_adapter: LlamaCppLocalModelAdapter,
+    *,
+    adapter_id: str,
+    health_timeout_seconds: float = 30.0,
+) -> NativeExternalAdapter:
+    """Project one caller-owned llama.cpp adapter onto the v1 protocol."""
+
+    aliases = tuple(getattr(native_adapter, "models", ()))
+    if len(aliases) != 1:
+        raise ExternalAdapterValidationError(
+            "llama.cpp external adapter requires exactly one model alias"
+        )
+    config = getattr(native_adapter, "_config", None)
+    if not isinstance(config, LlamaCppLocalModelConfig):
+        raise ExternalAdapterValidationError(
+            "llama.cpp adapter configuration is unavailable"
+        )
+    resolved_path = getattr(native_adapter, "_resolved_model_path", None)
+    material_identity = getattr(
+        resolved_path, "as_posix", lambda: str(config.model_path)
+    )()
+    canonical_model_id = (
+        "llama.cpp/"
+        + hashlib.sha256(
+            json.dumps(
+                {
+                    "material": material_identity,
+                    "sha256": config.expected_model_sha256,
+                    "configuration": llama_cpp_configuration_fingerprint(config),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+    )
+    model_kwargs = config.model_kwargs or {}
+    capabilities = {"text_generation", "structured_output"}
+    if model_kwargs.get("chat_format") == "chatml-function-calling":
+        capabilities.add("tool_calling")
+    descriptor = build_external_adapter_descriptor(
+        adapter_id=adapter_id,
+        provider_id="llama.cpp",
+        model_alias=aliases[0],
+        canonical_model_id=canonical_model_id,
+        execution_modes=frozenset({"sync"}),
+        capabilities=frozenset(capabilities),
+        response_formats=frozenset({"text", "json_schema"}),
+    )
+
+    def health() -> ExternalModelAdapterHealth:
+        if callable(getattr(native_adapter, "health", None)):
+            return native_adapter.health()
+        path = (
+            getattr(native_adapter, "_resolved_model_path", None) or config.model_path
+        )
+        if not isinstance(path, Path) or not path.exists():
+            return ExternalModelAdapterHealth("unavailable", "material_unavailable")
+        if getattr(native_adapter, "_backend", None) is None:
+            return ExternalModelAdapterHealth("unavailable", "runtime_unavailable")
+        return ExternalModelAdapterHealth("ready")
+
+    return NativeExternalAdapter(
+        native_adapter,
+        descriptor,
+        health_probe=health,
+        health_timeout_seconds=validate_external_adapter_timeout(
+            health_timeout_seconds
+        ),
     )
 
 

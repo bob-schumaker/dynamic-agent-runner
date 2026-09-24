@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import platform
 import threading
@@ -24,6 +25,14 @@ from dynamic_agent_runner.local_models import (
 )
 from dynamic_agent_runner.errors import ModelExecutionError
 from dynamic_agent_runner.errors import LocalModelResolutionError
+from dynamic_agent_runner.external_adapter import (
+    AsyncNativeExternalAdapter,
+    ExternalAdapterValidationError,
+    ExternalModelAdapterHealth,
+    NativeExternalAdapter,
+    build_external_adapter_descriptor,
+    validate_external_adapter_timeout,
+)
 from dynamic_agent_runner.openai_client import (
     ModelResponse,
     ModelToolCall,
@@ -387,6 +396,120 @@ def create_mlx_local_async_adapter(
         download_file=download_file,
         download_snapshot=download_snapshot,
         tool_codec=tool_codec,
+    )
+
+
+def _create_mlx_external_descriptor(
+    native_adapter: MLXLocalModelAdapter | AsyncMLXLocalModelAdapter,
+    *,
+    adapter_id: str,
+    execution_modes: frozenset[str],
+) -> tuple[object, object]:
+    aliases = tuple(getattr(native_adapter, "models", ()))
+    if len(aliases) != 1:
+        raise ExternalAdapterValidationError(
+            "MLX external adapter requires exactly one model alias"
+        )
+    sync_native = getattr(native_adapter, "_sync_adapter", native_adapter)
+    config = getattr(sync_native, "_config", None)
+    if not isinstance(config, MLXLocalModelConfig):
+        raise ExternalAdapterValidationError("MLX adapter configuration is unavailable")
+    codec = getattr(sync_native, "_tool_codec", None)
+    backend = getattr(sync_native, "_backend", None)
+    codec_version = getattr(codec, "version", None)
+    codec_enabled = _backend_supports_tool_codec(backend, codec)
+    identity = {
+        "model_path": str(config.model_path),
+        "model_id": config.expected_model_id,
+        "model_format": config.model_format,
+        "generation": dict(config.generation_kwargs or {}),
+        "codec": codec_version if codec_enabled else None,
+    }
+    canonical_model_id = (
+        "mlx/"
+        + hashlib.sha256(
+            json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    )
+    capabilities = {"text_generation"}
+    if codec_enabled:
+        capabilities.add("tool_calling")
+    descriptor = build_external_adapter_descriptor(
+        adapter_id=adapter_id,
+        provider_id="mlx",
+        model_alias=aliases[0],
+        canonical_model_id=canonical_model_id,
+        execution_modes=execution_modes,  # type: ignore[arg-type]
+        capabilities=frozenset(capabilities),
+        response_formats=frozenset({"text"}),
+    )
+    return sync_native, descriptor
+
+
+def _mlx_health(native_adapter: object) -> ExternalModelAdapterHealth:
+    if callable(getattr(native_adapter, "health", None)):
+        return native_adapter.health()
+    sync_native = getattr(native_adapter, "_sync_adapter", native_adapter)
+    try:
+        _ensure_supported_platform(sync_native._platform_system())
+        path = (
+            getattr(sync_native, "_resolved_model_path", None)
+            or sync_native._config.model_path
+        )
+        if not isinstance(path, Path) or not path.exists():
+            return ExternalModelAdapterHealth("unavailable", "material_unavailable")
+        if getattr(sync_native, "_backend", None) is None:
+            return ExternalModelAdapterHealth("unavailable", "runtime_unavailable")
+        return ExternalModelAdapterHealth("ready")
+    except ModelExecutionError:
+        return ExternalModelAdapterHealth("unavailable", "native_unavailable")
+    except Exception:
+        return ExternalModelAdapterHealth("failed", "native_health_failed")
+
+
+def create_mlx_external_adapter(
+    native_adapter: MLXLocalModelAdapter,
+    *,
+    adapter_id: str,
+    health_timeout_seconds: float = 30.0,
+) -> NativeExternalAdapter:
+    """Project one caller-owned synchronous MLX adapter onto v1."""
+
+    _, descriptor = _create_mlx_external_descriptor(
+        native_adapter,
+        adapter_id=adapter_id,
+        execution_modes=frozenset({"sync"}),
+    )
+    return NativeExternalAdapter(
+        native_adapter,
+        descriptor,
+        health_probe=lambda: _mlx_health(native_adapter),
+        health_timeout_seconds=validate_external_adapter_timeout(
+            health_timeout_seconds
+        ),
+    )
+
+
+def create_mlx_async_external_adapter(
+    native_adapter: AsyncMLXLocalModelAdapter,
+    *,
+    adapter_id: str,
+    health_timeout_seconds: float = 30.0,
+) -> AsyncNativeExternalAdapter:
+    """Project one caller-owned asynchronous MLX adapter onto v1."""
+
+    _, descriptor = _create_mlx_external_descriptor(
+        native_adapter,
+        adapter_id=adapter_id,
+        execution_modes=frozenset({"async"}),
+    )
+    return AsyncNativeExternalAdapter(
+        native_adapter,
+        descriptor,
+        health_probe=lambda: _mlx_health(native_adapter),
+        health_timeout_seconds=validate_external_adapter_timeout(
+            health_timeout_seconds
+        ),
     )
 
 
