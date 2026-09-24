@@ -458,7 +458,7 @@ Status: In Progress
   - Completed evidence: RED commits `b69c11dc` and `5442cc5f` first failed on
     the absent sealed-input capability and canonical-input adapter entry point;
     the focused protocol/Transformer/converter/authoring command now passes
-    with 179 tests. The vectors prove one-shot converter-input resolution,
+    with 180 tests. The vectors prove one-shot converter-input resolution,
     exact identity forwarding, private canonical payload handling, and
     workflow-owned validation boundaries.
 

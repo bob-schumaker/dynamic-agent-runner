@@ -282,7 +282,9 @@ The Option 1 implementation slices are complete through T016:
   deferred adapter path.
 - `5dee1d3c` records T014–T016 completion evidence; `255d5267` refreshes the
   converter asset digest after the converter-local decoder was added.
-- Focused migration coverage passes: 179 tests for protocol/floorplan/
+- `408ae6ee` adds fail-closed validation when a `converter_input` request lacks
+  a receiver-owned materializer.
+- Focused migration coverage passes: 180 tests for protocol/floorplan/
   authoring compatibility and 162 tests for floorplan/converter/authoring/
   local-runner compatibility.
 - Ruff, `poetry build`, and `git diff --check` pass.
