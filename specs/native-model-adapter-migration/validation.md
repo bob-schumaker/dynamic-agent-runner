@@ -8,13 +8,13 @@ wrapper slice; no current test is being presented as retrospective RED
 evidence.
 
 - RED boundary and provider conformance:
-  `poetry run pytest tests/test_native_model_adapter_migration.py -q` — 3
+  `poetry run pytest tests/test_native_model_adapter_migration.py -q` — 10
   fake-backed tests pass.
 - Shared protocol and public exports:
   `poetry run pytest tests/test_external_adapter_protocol.py
   tests/test_import.py -q` — 19 tests pass.
 - Support-matrix rows:
-  `poetry run pytest tests/test_workflow_model_support_matrix.py -q` — 16 tests
+  `poetry run pytest tests/test_workflow_model_support_matrix.py -q` — 17 tests
   pass, including the three native-provider candidate rows.
 - Provider regressions:
   `poetry run pytest tests/test_apple_foundation_models.py
