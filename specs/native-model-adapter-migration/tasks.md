@@ -27,7 +27,7 @@ Status: Approved
 
 ### Slice 1 — Conformance RED tests and fixtures
 
-- [ ] T1.1 [tests, characterization] Lock the existing façade health and mode
+- [x] T1.1 [tests, characterization] Lock the existing façade health and mode
   behavior with controlled fakes in `tests/test_native_model_adapter_migration.py`.
   - Spec: health, execution-mode, and cancellation requirements
   - Plan: M1; Verification Strategy
@@ -40,7 +40,7 @@ Status: Approved
     sync-dispatch, async-dispatch, and worker-offloaded sync-generation
     behavior is captured without live providers.
 
-- [ ] T1.2 [tests, RED] Add reusable fake Apple, llama.cpp, and MLX native
+- [x] T1.2 [tests, RED] Add reusable fake Apple, llama.cpp, and MLX native
   adapters plus a parity projection that compares canonical content, ordered
   normalized tool calls, response-format behavior, and package-owned error
   class/code while excluding raw payloads and unstable IDs.
@@ -51,7 +51,7 @@ Status: Approved
   - Validation: focused test command above; expected RED for absent wrappers
   - Evidence: provider-independent fixtures and a stable comparison oracle.
 
-- [ ] T1.3 [tests, RED] Define the Apple wrapper contract and failing tests for
+- [x] T1.3 [tests, RED] Define the Apple wrapper contract and failing tests for
   `create_apple_foundation_external_adapter`, including exact-one-alias
   admission, async-only mode, derived identity, structured-output capability,
   omitted callback-only tools, health, and unavailable-SDK behavior.
@@ -64,7 +64,7 @@ Status: Approved
   - Evidence: multi-alias rejection and positive/negative Apple capability
     cases are executable before implementation.
 
-- [ ] T1.4 [tests, RED] Define the llama.cpp wrapper contract and failing
+- [x] T1.4 [tests, RED] Define the llama.cpp wrapper contract and failing
   tests for `create_llama_cpp_external_adapter`, including material/configuration
   identity, sync mode, health, memory-fit/lifecycle preservation, and supported
   versus denied structured-output/tool capability.
@@ -77,7 +77,7 @@ Status: Approved
   - Evidence: exact identity and capability assertions use a fake native
     adapter and never load llama.cpp.
 
-- [ ] T1.5 [tests, RED] Define the MLX sync and async wrapper contracts and
+- [x] T1.5 [tests, RED] Define the MLX sync and async wrapper contracts and
   failing tests for `create_mlx_external_adapter` and
   `create_mlx_async_external_adapter`, including resolved identity, mode
   matching, codec-gated tools, text-only denial, health, late sync results,
@@ -90,7 +90,7 @@ Status: Approved
   - Validation: focused test command; expected RED
   - Evidence: both variants and codec/no-codec paths are covered.
 
-- [ ] T1.6 [tests, RED] Add identity-mismatch and capability-overclaim tests for
+- [x] T1.6 [tests, RED] Add identity-mismatch and capability-overclaim tests for
   every factory, proving callers cannot supply an unrelated model identity or
   advertise unsupported structured output/tools.
   - Spec: identity and capability fail-closed rules
@@ -119,7 +119,7 @@ only because the wrappers/factories are absent.
   - Evidence: helpers preserve v1 digest computation and reject invalid timeout
     or non-secret identity inputs.
 
-- [ ] T2.2 [implementation] Make the façade health-worker contract explicit
+- [x] T2.2 [implementation] Make the façade health-worker contract explicit
   and non-recursive for sync dispatch, async dispatch, and worker-offloaded
   sync generation. Enforce `(0, 120]` health timeout, saturation refusal, and
   late-probe handling without changing the protocol wire ID.
@@ -132,7 +132,7 @@ only because the wrappers/factories are absent.
   - Evidence: blocking fakes prove bounded behavior, no recursive worker
     scheduling, no late success, and no retry/fallback.
 
-- [ ] T2.3 [implementation] Add shared mode/context checks for exact v1
+- [x] T2.3 [implementation] Add shared mode/context checks for exact v1
   `create_response` behavior, including async-only rejection from sync dispatch,
   request-context propagation, deadline checks, and cancellation translation.
   - Spec: common contract
@@ -143,7 +143,7 @@ only because the wrappers/factories are absent.
   - Evidence: sync and async façade paths reject incompatible variants before
     native invocation.
 
-- [ ] T2.4 [tests, GREEN] Rerun the shared contract suite and confirm existing
+- [x] T2.4 [tests, GREEN] Rerun the shared contract suite and confirm existing
   installed-registry exact tuple resolution and OpenAI-compatible external
   adapter behavior remain unchanged.
   - Spec: non-goals and installed-adapter compatibility
@@ -175,7 +175,7 @@ Checkpoint: shared mechanics are green; provider work can proceed independently.
   - Evidence: wrapper never reloads SDK/materials or receives a handler,
     registry, approval object, or callback.
 
-- [ ] T3.2 [tests, GREEN] Make Apple identity, health, structured-output,
+- [x] T3.2 [tests, GREEN] Make Apple identity, health, structured-output,
   callback-tool denial, cancellation, and unavailable-SDK tests pass with fakes.
   - Spec: Apple acceptance criteria and capability matrix
   - Plan: M3 exit gate
@@ -202,7 +202,7 @@ Checkpoint: shared mechanics are green; provider work can proceed independently.
   - Evidence: wrapper delegates to the existing native lifecycle and does not
     introduce a second runtime.
 
-- [ ] T4.2 [tests, GREEN] Make llama.cpp identity, health, capability,
+- [x] T4.2 [tests, GREEN] Make llama.cpp identity, health, capability,
   blocking-generation, late-result, cleanup, and parity tests pass with fakes.
   - Spec: llama.cpp acceptance criteria
   - Plan: M4 exit gate
@@ -229,7 +229,7 @@ Checkpoint: shared mechanics are green; provider work can proceed independently.
   - Evidence: sync and async wrappers preserve caller-controlled material and
     runtime ownership.
 
-- [ ] T5.2 [tests, GREEN] Make MLX mode, identity, health, codec-gated tools,
+- [x] T5.2 [tests, GREEN] Make MLX mode, identity, health, codec-gated tools,
   text-only denial, structured-output, late-result, cancellation, and parity
   tests pass with fakes.
   - Spec: MLX acceptance criteria and capability matrix

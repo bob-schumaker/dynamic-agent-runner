@@ -2,6 +2,11 @@
 
 ## Focused evidence
 
+The current tree contains the conformance tests and their green results. The
+historical pre-implementation RED run was not captured before the first
+wrapper slice; no current test is being presented as retrospective RED
+evidence.
+
 - RED boundary and provider conformance:
   `poetry run pytest tests/test_native_model_adapter_migration.py -q` — 3
   fake-backed tests pass.
