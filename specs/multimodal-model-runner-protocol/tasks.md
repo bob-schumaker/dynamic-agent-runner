@@ -447,6 +447,13 @@ Status: In Progress
   - Evidence: RED cases require the protocol adapter to preserve the existing
     material lock, converter digest, generation budget, sealed image handling,
     and workflow-owned JSON/SVG validation.
+  - Baseline evidence: the existing floorplan/Transformer/converter/authoring
+    compatibility command passes — 146 tests — but it does not exercise a
+    protocol adapter. The approved protocol request carries sealed handles and
+    lifecycle context only, while `TransformersPeftPackedInputAdapter` requires
+    workflow messages/prompts to construct converter input. T014 cannot become
+    RED or proceed to T015 until the spec/plan defines a host-owned prompt or
+    prepacked-input binding; no prompt channel may be invented in DAR.
 
 - [ ] T015 [implementation] Move the floorplan Transformers/PEFT host
   composition behind the protocol adapter.
