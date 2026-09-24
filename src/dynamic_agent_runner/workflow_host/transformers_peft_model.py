@@ -1495,6 +1495,36 @@ class DeferredTransformersPeftSingleImageAdapter:
         self._resolved_packed_adapter().bind_sealed_payload(content=content)
         self._payload_bound = True
 
+    def create_response_from_canonical_payload(
+        self,
+        *,
+        content: bytes,
+        response_format: Mapping[str, object] | None = None,
+        max_tokens: int | None = None,
+    ) -> ModelResponse:
+        """Decode one converter-owned payload before entering the existing adapter."""
+
+        converter = self._converter
+        decode = getattr(converter, "decode_canonical_payload", None)
+        if not isinstance(content, bytes) or not content or not callable(decode):
+            raise ModelExecutionError("sealed converter input is unavailable")
+        try:
+            messages, payload = decode(content)
+            if not isinstance(payload, bytes) or not payload:
+                raise ModelExecutionError("sealed converter input is unavailable")
+            request = build_openai_request(
+                model=self._model_id,
+                messages=messages,
+                response_format=response_format,
+                max_tokens=max_tokens,
+            )
+            self.bind_sealed_payload(content=payload)
+            return self.create_response(request)
+        except ModelExecutionError:
+            raise
+        except Exception as error:  # noqa: BLE001 - converter errors vary.
+            raise ModelExecutionError("sealed converter input is unavailable") from error
+
     def bind_worker_converter_payload(
         self, *, package_root: Path, converter: DeclaredInputConverter, content: bytes
     ) -> None:
