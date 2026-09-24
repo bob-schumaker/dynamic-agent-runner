@@ -434,7 +434,7 @@ Status: In Progress
     attestation, counter mismatch, cleanup failure, and legacy direct-service
     behavior remain green.
 
-- [ ] T014 [tests, RED] Add floorplan host-composition compatibility vectors
+- [x] T014 [tests, RED] Add floorplan host-composition compatibility vectors
   for the Option 1 sealed converter-input binding.
   - Spec: initial migration target and floorplan ownership acceptance criterion.
   - Plan: M5; Current-State Anchors for the Transformers/PEFT runner and
@@ -444,7 +444,7 @@ Status: In Progress
     and the floorplan host composition in
     `src/dynamic_agent_runner/workflow_host/host.py`.
   - Depends on: T013.
-  - Validation: `poetry run pytest tests/test_transformers_peft_model.py tests/test_qwen25_vl_3b_grpo_converter.py tests/test_dar_authoring_runner.py -q` must fail before migration.
+  - Validation: `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_transformers_peft_model.py tests/test_qwen25_vl_3b_grpo_converter.py tests/test_dar_authoring_runner.py -q` must fail before migration.
   - Evidence: RED cases require one receiver-created `converter_input` handle,
     exact package/revision/invocation/descriptor/material/converter binding,
     one-shot materialization to private converter-owned canonical bytes,
@@ -455,8 +455,14 @@ Status: In Progress
     compatibility command passes — 146 tests — but it does not exercise a
     protocol adapter. Option 1 now supplies the missing binding without adding
     a raw prompt channel to DAR.
+  - Completed evidence: RED commits `b69c11dc` and `5442cc5f` first failed on
+    the absent sealed-input capability and canonical-input adapter entry point;
+    the focused protocol/Transformer/converter/authoring command now passes
+    with 179 tests. The vectors prove one-shot converter-input resolution,
+    exact identity forwarding, private canonical payload handling, and
+    workflow-owned validation boundaries.
 
-- [ ] T015 [implementation] Move the floorplan Transformers/PEFT host
+- [x] T015 [implementation] Move the floorplan Transformers/PEFT host
   composition behind the protocol adapter using Option 1.
   - Spec: initial migration target; no domain validation in DAR.
   - Plan: M5; Scope and Boundaries.
@@ -471,8 +477,13 @@ Status: In Progress
     material, generation-budget, floorplan JSON/SVG, or publication semantics
     change; a mismatched protocol or input binding fails before model
     materialization.
+  - Completed evidence: `114e1676` adds the admitted
+    `TransformersPeftMultimodalRunner`; `0216b323` and `ce69bb41` route both
+    eager and deferred Transformers adapters through converter-owned canonical
+    input without exposing protocol messages. The protocol and Transformer
+    focused suites pass with 98 tests.
 
-- [ ] T016 [tests, GREEN] Prove floorplan behavior and legacy-path
+- [x] T016 [tests, GREEN] Prove floorplan behavior and legacy-path
   compatibility after migration.
   - Spec: initial migration target and acceptance criterion 6.
   - Plan: M5 exit; Rejected Alternatives.
@@ -484,6 +495,9 @@ Status: In Progress
     ownership and existing local/text paths remain green. The protocol path
     uses exactly one sealed `converter_input` handle and does not expose its
     canonical payload.
+  - Completed evidence: the migration command passes with 162 tests across
+    Transformer, converter, authoring, and local-runner coverage; the concrete
+    converter decoder is covered by `test_qwen_converter_decodes_its_private_canonical_input`.
 
 - [ ] T017 [validation] Run the complete compatibility gate and record
   acceptance evidence.
@@ -502,10 +516,10 @@ Status: In Progress
     risks. Static inspection records that touched code has no package-selected
     paths, credentials, native runtime objects, unredacted traces/receipts,
     fallback provider selection, or domain validation in DAR.
-  - Partial evidence: repository regression currently passes (2800 passed,
+  - Partial evidence: repository regression previously passed (2800 passed,
     1 skipped, 7 deselected), Ruff and diff checks pass. The gate remains open
-    until T011–T013 and T014–T016 are complete, followed by the final static
-    boundary inspection and package build.
+    until the final static boundary inspection and package build are rerun
+    after the Option 1 migration.
 
 ## Checkpoints
 

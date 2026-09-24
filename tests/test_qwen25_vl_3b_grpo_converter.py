@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import importlib.util
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import ANY
@@ -74,6 +76,21 @@ def test_qwen_converter_packs_one_valid_sealed_image() -> None:
         "return_dict": True,
         "return_tensors": "pt",
     }
+
+
+def test_qwen_converter_decodes_its_private_canonical_input() -> None:
+    converter = _converter_type()(image_decoder=lambda _content: FakeImage())
+    content = json.dumps(
+        {
+            "messages": [{"role": "user", "content": "vectorize"}],
+            "image_base64": base64.b64encode(b"png-bytes").decode("ascii"),
+        }
+    ).encode("utf-8")
+
+    messages, payload = converter.decode_canonical_payload(content)
+
+    assert messages == ({"role": "user", "content": "vectorize"},)
+    assert payload == b"png-bytes"
 
 
 def test_qwen_converter_replays_the_initial_image_for_continuation() -> None:
