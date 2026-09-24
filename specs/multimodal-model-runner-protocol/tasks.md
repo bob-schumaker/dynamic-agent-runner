@@ -26,6 +26,10 @@ Status: In Progress
   worker containment contract — inspected.
 - `specs/sealed-artifact-workflow-runner/spec.md` — sealed input/output and
   cleanup precedent — inspected.
+- `specs/sealed-artifact-output-handler-interface/spec.md` — host-owned staged
+  output lifecycle and redacted error boundary — implementation-ready.
+- `specs/sealed-artifact-output-handler-interface/validation.md` — handler
+  implementation evidence and focused/full test results — inspected.
 
 ## Task List
 
@@ -59,7 +63,7 @@ Status: In Progress
 | M1 | Candidate `src/dynamic_agent_runner/multimodal_model_runner.py` contract values; `src/dynamic_agent_runner/external_adapter.py:canonical_descriptor_digest`; workflow-host canonical JSON helpers | New `tests/test_multimodal_model_runner_protocol.py`; `tests/test_external_adapter_protocol.py` for digest precedent | Contract parsing and digest validation before registration or request staging |
 | M2 | `src/dynamic_agent_runner/workflow_host/local_model_runners.py:LocalModelRunnerCatalog`; `reviewed_capability_host_extension.py:ReviewedCapabilityHostExtension`; `host.py:configure_prepared_transformers_host` | `tests/test_local_model_runners.py`; `tests/test_dar_authoring_host.py` | Descriptor/admission rejection before materialization and worker creation |
 | M3 | `src/dynamic_agent_runner/workflow_host/generation_worker.py:GenerationWorkerSession/GenerationWorkerResult`; `workflow_host/approvals.py`; `state.py`; `reviewed_capability_execution.py`; `host.py` | `tests/test_generation_worker.py`; `tests/test_generation_worker_controllers.py`; new protocol lifecycle cases | Binding/replay rejection before sealed-input ingress and dispatch |
-| M4 | `workflow_host/sealed_artifact_runner.py`; `sealed_artifact_workflow_runner.py`; `reviewed_capability_outputs.py`; `reviewed_capability_publication.py` | `tests/test_sealed_artifact_runner_admission.py`; `tests/test_sealed_artifact_output_handles.py`; `tests/test_sealed_artifact_workflow_runner.py` | Result validation before public output-handle publication |
+| M4 | `workflow_host/sealed_artifact_output_handler.py`; `workflow_host/sealed_artifact_runner.py`; `sealed_artifact_workflow_runner.py`; `reviewed_capability_outputs.py`; `reviewed_capability_publication.py` | `tests/test_sealed_artifact_output_handler.py`; `tests/test_sealed_artifact_output_handles.py`; `tests/test_sealed_artifact_workflow_runner.py` | Result validation before public output-handle publication |
 | M5 | `src/dynamic_agent_runner/workflow_host/transformers_peft_model.py:TransformersGenerateRunner`; `host.py:configure_prepared_transformers_host`; sealed converter fixture | `tests/test_transformers_peft_model.py`; `tests/test_qwen25_vl_3b_grpo_converter.py`; `tests/test_dar_authoring_runner.py` | Protocol identity check before floorplan materialization |
 
 - [x] T002 [tests, RED] Add protocol contract and canonical identity vectors.
@@ -172,7 +176,7 @@ Status: In Progress
     registration/resolution tests assert zero runner dispatches; protocol,
     local-runner, material-admission, and host suites pass (56 tests).
 
-- [ ] T008 [tests, RED] Add sealed-request identity, handle-linearity, and
+- [x] T008 [tests, GREEN] Add sealed-request identity, handle-linearity, and
   lifecycle failure vectors.
   - Spec: acceptance criteria 1–4 and result non-transferability.
   - Plan: M3; Normative Encoding and Lifecycle Invariants.
@@ -192,8 +196,11 @@ Status: In Progress
     vectors are green. Dispatch now produces bounded cancelled and
     deadline-exceeded terminal results before runner invocation; direct
     generation-worker controller integration remains.
+  - Completed evidence: the focused lifecycle command passes after the
+    generation-worker/host cleanup path landed; invalid requests dispatch zero
+    times and no public output is exposed before confirmed cleanup.
 
-- [ ] T009 [implementation] Adapt sealed request/context admission to the
+- [x] T009 [implementation] Adapt sealed request/context admission to the
   existing generation worker and host state seams.
   - Spec: host ownership of staging, budgets, worker containment, cleanup, and
     receipt publication.
@@ -217,6 +224,9 @@ Status: In Progress
     requires confirmed reap. `dispatch_with_worker_cleanup` and
     `LocalWorkflowHost.dispatch_multimodal_runner` now route host calls through
     exact resolution and that cleanup path.
+  - Completed evidence: the focused lifecycle and host suites pass; the
+    request/context adapter, bounded worker cleanup, exact dispatch, and reap
+    ordering are implemented.
 
 - [x] T010 [tests, GREEN] Prove one bounded dispatch and terminal cleanup for
   every lifecycle outcome.
@@ -237,6 +247,27 @@ Status: In Progress
     worker-controller suite and `dispatch_with_worker_cleanup` verify
     terminate/kill/reap integration.
 
+- [ ] T010a [decision] Freeze the multimodal result-to-sealed-output bridge
+  before writing M4 integration tests.
+  - Spec: Result contract; Initial migration target; host ownership of output
+    staging and publication.
+  - Plan: M4; Architecture and Data Flow.
+  - Depends on: T010.
+  - Current gap: `MultimodalRunnerResult.output_handles` contains
+    `SealedMultimodalHandle` values, while `SealedArtifactOutputHandler` needs
+    receiver-owned role/media/bytes candidates in a
+    `SealedArtifactOutputStageRequest`. The current
+    `publish_result(MultimodalRunnerResult)` callback provides neither
+    candidates nor a materializer.
+  - Decision required: define the exact adapter contract covering role/media
+    mapping, opaque-handle resolution and private byte materialization, text
+    candidate handling, package/revision/invocation/descriptor/expiry binding,
+    foreign/expired/unsupported/materializer failures, and whether public
+    results replace multimodal handles with `SealedArtifactOutputHandle` values.
+  - Evidence: an amended spec/plan section plus a named host-owned resolver or
+    materializer and a focused fake fixture; no implementation may invent a
+    second publication registry or expose candidate bytes.
+
 - [ ] T011 [tests, RED] Add normalized result, sealed-output, accounting, and
   redaction vectors.
   - Spec: result contract and acceptance criteria 3–5.
@@ -247,7 +278,11 @@ Status: In Progress
     in `src/dynamic_agent_runner/workflow_host/sealed_artifact_runner.py`,
     `sealed_artifact_workflow_runner.py`, `reviewed_capability_outputs.py`,
     and `reviewed_capability_publication.py`.
-  - Depends on: T010.
+  - Depends on: T010a.
+  - Handler prerequisite: commit `570bd953` completed the
+    `sealed-artifact-output-handler-interface`; use its four-operation handler
+    and `SealedArtifactPrivateTransitionResult` seam for new publication flows
+    rather than the legacy service `discard` path.
   - Validation: `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_sealed_artifact_output_handles.py tests/test_sealed_artifact_runner_admission.py -q` must fail before result shaping.
   - Evidence: RED cases cover normalized text, opaque output handles,
     aggregate token/byte/coverage scalars, byte/handle limits, worker-reaped
@@ -258,6 +293,8 @@ Status: In Progress
     foreign-result rejection; binding now also enforces declared output
     modalities, input coverage keys, and effective generation budgets;
     sealed-artifact service vectors remain.
+  - Readiness state: open. The handler is available, but composed multimodal
+    result-to-sealed-output vectors have not yet been added.
 
 - [ ] T012 [implementation] Implement result validation and redacted receipt
   shaping through existing sealed-artifact services.
@@ -281,6 +318,10 @@ Status: In Progress
     remains, with `LocalWorkflowHost.dispatch_multimodal_runner` now exposing
     a completed-only publication callback for the existing host services;
     host-level publication ordering is covered by protocol tests.
+  - Readiness state: open. The current callback accepts normalized protocol
+    results, while no production callback yet carries private output candidates
+    for the handler to stage; the integration seam must be frozen before this
+    task can pass.
 
 - [ ] T013 [tests, GREEN] Prove result transfer, redaction, and cleanup
   compatibility.
@@ -299,6 +340,8 @@ Status: In Progress
     only publication gating; sealed-artifact output-handle service integration
     remains. Host publication ordering is verified with a deterministic fake
     publisher and cleanup event trace.
+  - Readiness state: open until T012 composes the completed handler with the
+    result publication path and the focused suite proves the composed boundary.
 
 - [ ] T014 [tests, RED] Add floorplan host-composition compatibility vectors.
   - Spec: initial migration target and floorplan ownership acceptance criterion.
@@ -355,9 +398,10 @@ Status: In Progress
     risks. Static inspection records that touched code has no package-selected
     paths, credentials, native runtime objects, unredacted traces/receipts,
     fallback provider selection, or domain validation in DAR.
-  - Partial evidence: repository regression currently passes (2780 passed,
-    1 skipped, 7 deselected), Ruff, package build, and diff checks pass. The
-    gate remains open until T010, T013, and T016 are complete.
+  - Partial evidence: repository regression currently passes (2800 passed,
+    1 skipped, 7 deselected), Ruff and diff checks pass. The gate remains open
+    until T011–T013 and T014–T016 are complete, followed by the final static
+    boundary inspection and package build.
 
 ## Checkpoints
 

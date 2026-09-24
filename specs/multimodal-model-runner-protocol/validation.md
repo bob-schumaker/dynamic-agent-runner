@@ -85,8 +85,8 @@ Ponytail conclusion: **lean enough to execute**.
 | T005/T006/T007 | `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_local_model_runners.py tests/test_workflow_model_material_admission.py tests/test_dar_authoring_host.py -q` | pass: 56 tests; exact catalog admission, host composition, drift refusal, and zero dispatch evidence |
 | T005/T006/T007 | `poetry run ruff check src/dynamic_agent_runner/multimodal_model_runner.py src/dynamic_agent_runner/workflow_host/local_model_runners.py src/dynamic_agent_runner/workflow_host/host.py tests/test_multimodal_model_runner_protocol.py` | pass |
 | T010 | `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_generation_worker.py tests/test_generation_worker_controllers.py -q` | pass: 103 tests; bounded lifecycle and cleanup matrix |
-| T011 | `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_sealed_artifact_output_handles.py tests/test_sealed_artifact_runner_admission.py -q` | pass: 39 tests; normalized result, opaque output, accounting, and redaction vectors |
-| T013 | `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_sealed_artifact_output_handles.py tests/test_sealed_artifact_runner_admission.py tests/test_sealed_artifact_workflow_runner.py -q` | pass: 44 tests; transfer, redaction, and cleanup compatibility |
+| T011 | `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_sealed_artifact_output_handles.py tests/test_sealed_artifact_runner_admission.py -q` | pass: 39 protocol/sealed-service tests; composed multimodal-to-handler publication was not exercised |
+| T013 | `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_sealed_artifact_output_handles.py tests/test_sealed_artifact_runner_admission.py tests/test_sealed_artifact_workflow_runner.py -q` | pass: 44 protocol/sealed-service tests; composed handler transfer remains open |
 | Floorplan baseline | `poetry run pytest tests/test_transformers_peft_model.py tests/test_qwen25_vl_3b_grpo_converter.py tests/test_dar_authoring_runner.py tests/test_local_model_runners.py -q` | pass: 160 tests; pre-migration floorplan and legacy compatibility baseline |
 | Regression | `poetry run pytest -q` | pass: 2787 passed, 1 skipped, 7 deselected |
 | Package | `poetry run ruff check src tests`; `poetry build`; `git diff --check` | pass |
@@ -182,3 +182,39 @@ authoring.
 - Existing adjacent specifications define reusable host machinery but do not
   define this protocol's wire schemas or error contract.
 - No live model, provider, network, or external tool call was made.
+
+## Current task-list readiness review
+
+This review was rerun after commit `570bd953` completed the sealed-artifact
+output handler.
+
+### Council deliberation
+
+Ada, Feynman, and Torvalds agreed that the handler dependency is now available
+and that T008/T009 evidence should be marked complete. They found the task
+artifact not ready for final handoff because T010a has not yet frozen the
+multimodal-result-to-sealed-output bridge, T011–T013 still lack composed
+multimodal-to-sealed-output tests, and T014–T016 still lack the floorplan
+migration and compatibility evidence. The stale T010 dependency state and the
+old 2780-test count were corrected in `tasks.md`.
+
+Council conclusion: **not yet ready; continue with M4/M5 implementation gates**.
+
+### Ponytail review
+
+Ponytail review found no task to delete. The smallest continuation is to use
+the completed four-operation handler and its private transition seam in M4,
+then perform one narrow floorplan host-composition migration. No second
+publication registry, provider abstraction, or worker lifecycle authority is
+needed.
+
+Ponytail conclusion: **lean enough to continue, not yet ready to close**.
+
+### Current evidence
+
+- T008/T009 are now marked complete with focused lifecycle/cleanup evidence.
+- Repository regression is currently **2800 passed, 1 skipped, 7 deselected**;
+  Ruff and `git diff --check` pass.
+- T010a–T013 and T014–T016 remain open; no readiness claim is made until the
+  bridge contract is explicit, their focused tests and migration evidence pass,
+  and the final package/static validation gate passes.
