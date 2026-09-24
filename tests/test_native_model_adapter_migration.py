@@ -207,6 +207,45 @@ def test_llama_external_adapter_projects_identity_and_sync_response(
     )
 
 
+def test_sync_async_offload_does_not_schedule_health_recursively(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from concurrent.futures import Future
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_bytes(b"fake")
+    native = LlamaCppLocalModelAdapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-test",), model_path=model_path, allow_network=False
+        ),
+        backend=FakeLlamaBackend(),
+    )
+    facade = ExternalModelAdapterFacade(
+        create_llama_cpp_external_adapter(native, adapter_id="llama.offload")
+    )
+
+    class RecordingDispatcher:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def submit(self, function, *args):
+            self.calls.append(function.__name__)
+            future = Future()
+            try:
+                future.set_result(function(*args))
+            except BaseException as error:
+                future.set_exception(error)
+            return future
+
+    dispatcher = RecordingDispatcher()
+    import dynamic_agent_runner.external_adapter as external_adapter_module
+
+    monkeypatch.setattr(external_adapter_module, "_EXTERNAL_DISPATCHER", dispatcher)
+    result = asyncio.run(facade.create_response_async(_request("llama-test")))
+    assert result.content == "llama"
+    assert dispatcher.calls == ["_run_health", "_dispatch_sync_prepared"]
+
+
 def test_llama_and_mlx_factories_reject_multi_alias_bindings(tmp_path: Path) -> None:
     llama_path = tmp_path / "model.gguf"
     llama_path.write_bytes(b"fake")

@@ -469,8 +469,12 @@ class ExternalModelAdapterFacade:
     async def create_response_async(self, request: OpenAIModelRequest) -> ModelResponse:
         if inspect.iscoroutinefunction(self._adapter.create_response):
             return await self._dispatch_async(request)
+        prepared = self._prepare_request(request)
+        health = await self._dispatch_health_async()
+        if health.status != "ready":
+            raise ExternalAdapterUnavailableError("external adapter is unavailable")
         loop = asyncio.get_running_loop()
-        future = _EXTERNAL_DISPATCHER.submit(self._dispatch_sync, request)
+        future = _EXTERNAL_DISPATCHER.submit(self._dispatch_sync_prepared, prepared)
         return await asyncio.wrap_future(future, loop=loop)
 
     def _prepare_request(  # noqa: C901 - admission validates one public request boundary.
@@ -560,6 +564,12 @@ class ExternalModelAdapterFacade:
         health = self._health()
         if health.status != "ready":
             raise ExternalAdapterUnavailableError("external adapter is unavailable")
+        return self._dispatch_sync_prepared(prepared)
+
+    def _dispatch_sync_prepared(
+        self,
+        prepared: OpenAIModelRequest,
+    ) -> ModelResponse:
         _check_context(prepared.adapter_context)
         token = self._issue_dispatch_token(prepared, "sync")
         self._consume_dispatch_token(token.token_id, prepared, "sync")
@@ -578,21 +588,7 @@ class ExternalModelAdapterFacade:
 
     async def _dispatch_async(self, request: OpenAIModelRequest) -> ModelResponse:  # noqa: C901 - dispatch owns one bounded async boundary.
         prepared = self._prepare_request(request)
-        loop = asyncio.get_running_loop()
-        health_future = _EXTERNAL_DISPATCHER.submit(self._run_health)
-        try:
-            health_timeout = self._health_timeout_seconds()
-            if health_timeout is None:
-                health = await asyncio.wrap_future(health_future, loop=loop)
-            else:
-                health = await asyncio.wait_for(
-                    asyncio.wrap_future(health_future, loop=loop),
-                    timeout=health_timeout,
-                )
-        except asyncio.TimeoutError as error:
-            raise ExternalAdapterUnavailableError(
-                "external adapter health timed out"
-            ) from error
+        health = await self._dispatch_health_async()
         if health.status != "ready":
             raise ExternalAdapterUnavailableError("external adapter is unavailable")
         _check_context(prepared.adapter_context)
@@ -624,6 +620,24 @@ class ExternalModelAdapterFacade:
             raise
         except Exception as error:  # noqa: BLE001 - provider boundary is redacted.
             raise ExternalAdapterError("external adapter request failed") from error
+
+    async def _dispatch_health_async(self) -> ExternalModelAdapterHealth:
+        loop = asyncio.get_running_loop()
+        health_future = _EXTERNAL_DISPATCHER.submit(self._run_health)
+        try:
+            health_timeout = self._health_timeout_seconds()
+            if health_timeout is None:
+                health = await asyncio.wrap_future(health_future, loop=loop)
+            else:
+                health = await asyncio.wait_for(
+                    asyncio.wrap_future(health_future, loop=loop),
+                    timeout=health_timeout,
+                )
+        except asyncio.TimeoutError as error:
+            raise ExternalAdapterUnavailableError(
+                "external adapter health timed out"
+            ) from error
+        return health
 
     def _health(self) -> ExternalModelAdapterHealth:
         future = _EXTERNAL_DISPATCHER.submit(self._run_health)
