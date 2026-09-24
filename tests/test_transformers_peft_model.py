@@ -1462,6 +1462,52 @@ def test_converter_adapter_runs_one_packed_generation_and_clears_payload(
     assert adapter._sealed_payload is None
 
 
+def test_converter_adapter_accepts_option1_canonical_input_without_protocol_messages(
+    tmp_path: Path,
+) -> None:
+    recipe = QWEN25_VL_3B_FLOORPLAN_GRPO_TRANSFORMERS_PEFT_RECIPE
+    paths = {
+        artifact.role: tmp_path / artifact.group / artifact.filename
+        for artifact in recipe.artifacts
+    }
+    calls: dict[str, object] = {}
+
+    class Runner:
+        input_context = object()
+
+        def generate(self, _packed: object, *, max_new_tokens: int) -> str:
+            calls["max_new_tokens"] = max_new_tokens
+            return "generated floorplan"
+
+    class Converter:
+        def decode_canonical_payload(
+            self, content: bytes
+        ) -> tuple[tuple[dict[str, str], ...], bytes]:
+            assert content == b"converter-owned-canonical-input"
+            return (({"role": "user", "content": "vectorize"},), b"image")
+
+        def pack(
+            self, *, messages: tuple[object, ...], payload: bytes, context: object
+        ) -> object:
+            calls["pack"] = (messages, payload, context)
+            return {"input_ids": SimpleNamespace(shape=(1, 2))}
+
+    adapter = _bound_packed_adapter(
+        PreparedArtifactSet(recipe, paths), converter=Converter(), runner=Runner()
+    )
+    response = adapter.create_response_from_canonical_payload(
+        content=b"converter-owned-canonical-input", max_tokens=12
+    )
+
+    assert response.content == "generated floorplan"
+    assert calls["pack"] == (
+        ({"role": "user", "content": "vectorize"},),
+        b"image",
+        Runner.input_context,
+    )
+    assert adapter._sealed_payload is None
+
+
 def test_converter_adapter_rejects_unbound_generation_budget_before_packing(
     tmp_path: Path,
 ) -> None:
