@@ -4,7 +4,7 @@
 
 - Feature slug: `external-model-adapter-protocol`
 - Artifact type: first-slice interface and implementation specification
-- Status: approved
+- Status: implemented; validation recorded in `validation.md`
 - Owner: dynamic-agent-runner model-provider boundary
 
 ## Objective

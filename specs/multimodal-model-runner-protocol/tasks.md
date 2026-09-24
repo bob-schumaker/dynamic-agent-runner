@@ -4,8 +4,8 @@ Status: Complete
 
 ## Prerequisites
 
-- Spec: `spec.md` — approved
-- Plan: `plan.md` — approved
+- Spec: `spec.md` — implemented v1
+- Plan: `plan.md` — implemented
 - Data model: none; v1 contract values are owned by the protocol module and
   existing material/worker/sealed-artifact contracts.
 - Contracts: none beyond `spec.md` and the related specifications listed in

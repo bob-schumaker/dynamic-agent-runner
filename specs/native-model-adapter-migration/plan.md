@@ -1,6 +1,6 @@
 # Native Model Adapter Migration Implementation Plan
 
-Status: Approved
+Status: Implemented; validation recorded in `validation.md`
 
 ## Spec trace
 

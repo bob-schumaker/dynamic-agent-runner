@@ -5,7 +5,7 @@
 ## Metadata
 
 - Feature slug: `reviewed-vector-index-host-extension`
-- Status: in progress
+- Status: implemented; validation recorded in `tasks.md`
 - Owner: dynamic-agent-runner host-extension, capability, sealed-artifact, and workflow-package boundaries
 - Related specifications:
   - `specs/workflow-capability-requirements/spec.md`

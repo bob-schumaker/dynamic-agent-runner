@@ -2,7 +2,7 @@
 
 ## Status
 
-- State: implementation complete; all required validation gates are green
+- State: implemented; validation recorded in `validation.md`
 - Source spec: `specs/openai-compatible-external-adapter/spec.md`
 - Technical plan: `specs/openai-compatible-external-adapter/plan.md`
 - Primary implementation area: `src/dynamic_agent_runner/openai_compatible_external.py`
@@ -12,22 +12,22 @@
 
 ## Slice 1 — RED boundary and façade-mode tests
 
-- [ ] T1.1 [tests, RED] Add focused tests for the public configuration shape,
+- [x] T1.1 [tests, RED] Add focused tests for the public configuration shape,
   required identity fields, bounded timeout, private API-key handling, and
   package-owned validation errors.
   - Primary file: `tests/test_openai_compatible_external.py`
   - Cover repr, equality/hash, descriptors, traces, diagnostics, and
     serialization without exposing the API key.
-- [ ] T1.2 [tests, RED] Add URL-admission vectors for HTTPS, loopback-IP HTTP,
+- [x] T1.2 [tests, RED] Add URL-admission vectors for HTTPS, loopback-IP HTTP,
   non-loopback HTTP, unsupported schemes, userinfo, query, fragment, ports,
   IPv4/IPv6 loopback, redirect policy, and ambient proxy rejection.
-- [ ] T1.3 [tests, RED] Add fake inventory tests for exact service-model
+- [x] T1.3 [tests, RED] Add fake inventory tests for exact service-model
   admission, missing/duplicate/malformed IDs, bounded health timeout, and
   context-independent health semantics.
-- [ ] T1.4 [tests, RED] Add separate sync and async mode tests covering façade
+- [x] T1.4 [tests, RED] Add separate sync and async mode tests covering façade
   dispatch compatibility, async task cancellation, sync late-result discard,
   bounded-worker occupancy, and health offload in async workflows.
-- [ ] T1.5 [tests, RED] Add an executor/coordinator integration test in which a
+- [x] T1.5 [tests, RED] Add an executor/coordinator integration test in which a
   fake model returns a tool call, DAR performs approval/lifecycle/tracing and
   invokes the handler exactly once, then sends the follow-on request. Assert
   the adapter and transport receive no handler, approval, registry, or
@@ -39,15 +39,15 @@ contracts without requiring a live service.
 
 ## Slice 2 — Admission, contracts, and error boundaries
 
-- [ ] T2.1 [implementation] Add the immutable non-secret configuration,
+- [x] T2.1 [implementation] Add the immutable non-secret configuration,
   package-owned errors, identity validation, timeout bounds, and private API-key
   storage in `openai_compatible_external.py`.
   - Preserve the approved fields and never include the key in public or
     diagnostic values.
-- [ ] T2.2 [implementation] Add one shared URL canonicalization/validation
+- [x] T2.2 [implementation] Add one shared URL canonicalization/validation
   helper enforcing the approved scheme, loopback, userinfo/query/fragment,
   redirect, and proxy rules before client construction.
-- [ ] T2.3a [design gate] Record the v1 execution-mode decision before
+- [x] T2.3a [design gate] Record the v1 execution-mode decision before
   defining transports: expose separate sync and async factories/adapters named
   `create_openai_compatible_external_adapter` and
   `create_async_openai_compatible_external_adapter`, keep sync health
@@ -56,10 +56,10 @@ contracts without requiring a live service.
   timeout) because frozen v1 `health()` cannot await async `list_models`.
   Assign the required async façade health offload in T4.2. A single adapter
   object must not pretend to support both façade dispatch modes.
-- [ ] T2.3 [implementation] Define narrow sync and async transport protocols
+- [x] T2.3 [implementation] Define narrow sync and async transport protocols
   with `list_models(timeout_seconds)` and `create_response(request,
   deadline_monotonic, cancellation)`; use a finite string-ID inventory shape.
-- [ ] T2.4 [implementation] Add bounded health and exact service-model
+- [x] T2.4 [implementation] Add bounded health and exact service-model
   admission. Health uses only the configured timeout and returns redacted,
   package-owned unavailable/failed states; it never uses mutable per-call
   adapter state. The façade is the single bounded-worker owner for health in
@@ -68,7 +68,7 @@ contracts without requiring a live service.
   capacity remains occupied until return. Add a fake probe that blocks beyond
   the timeout and the synchronous health-probe fixture required by the async
   adapter mode.
-- [ ] T2.5 [implementation] Add redacted translation for admission, health,
+- [x] T2.5 [implementation] Add redacted translation for admission, health,
   timeout, cancellation, malformed-response, and transport failures with no
   fallback or retry.
 
@@ -78,7 +78,7 @@ consulted.
 
 ## Slice 3 — Explicit sync/async transport construction
 
-- [ ] T3.1 [discovery] Inspect the existing `openai_client.py` seams and record
+- [x] T3.1 [discovery] Inspect the existing `openai_client.py` seams and record
   whether they can provide explicit timeout, no-proxy, redirect, cancellation,
   and intentional no-key local-client controls without changing default
   OpenAI/LiteLLM behavior.
@@ -87,21 +87,21 @@ consulted.
     acceptable outcomes are reuse with the required controls, a narrowly scoped
     explicit transport seam, or stop/escalate because the controls are
     unavailable. Do not modify the default provider path as part of discovery.
-- [ ] T3.2 [implementation] Implement the selected explicit sync client
+- [x] T3.2 [implementation] Implement the selected explicit sync client
   factory. It must use caller-supplied endpoint/key or deliberate no-key local
   mode, disable ambient auth/proxy behavior, apply timeout/redirect controls,
   and never call `create_default_openai_provider(...)` or LiteLLM fallback.
-- [ ] T3.3 [implementation] Implement the matching explicit async client
+- [x] T3.3 [implementation] Implement the matching explicit async client
   factory, its task-cancellation bridge, and its separate synchronous bounded
   health probe. Keep sync and async adapter modes separate and
   façade-compatible.
-- [ ] T3.4 [implementation] Translate the DAR request to the finite supported
+- [x] T3.4 [implementation] Translate the DAR request to the finite supported
   OpenAI-compatible wire subset, replace `model_alias` with the verified
   `service_model_id` exactly once, and return one normalized `ModelResponse`.
   - Do not forward DAR-only context/deadline fields as provider kwargs.
   - Keep raw removal, metadata allowlisting, JSON-schema validation, and
     tool-call capability validation in the external façade.
-- [ ] T3.5 [tests, GREEN] Prove recorded client-factory settings for timeout,
+- [x] T3.5 [tests, GREEN] Prove recorded client-factory settings for timeout,
   `trust_env=False`/no proxy, redirect behavior, no-key/no-environment-auth,
   exact service model, ordered messages, tool choice, and malformed response
   handling.
@@ -111,29 +111,29 @@ recorded; legacy OpenAI/LiteLLM construction tests remain green.
 
 ## Slice 4 — Protocol adapter and coordinator integration
 
-- [ ] T4.1 [implementation] Add the sync and async protocol adapter variants
+- [x] T4.1 [implementation] Add the sync and async protocol adapter variants
   with the configured descriptor: fixed provider ID, one model alias, canonical
   model ID, text-only modalities, structured-output capability, and explicit
   tool-calling capability.
-- [ ] T4.2 [implementation] Wire adapter dispatch through the existing
+- [x] T4.2 [implementation] Wire adapter dispatch through the existing
   `ExternalModelAdapterFacade`, including health offload in both sync and async
   dispatch, request context, deadline/cancellation, single-use dispatch,
   redaction, and failure classification. Add the minimal façade change that
   routes synchronous health through its one bounded worker, plus a focused
   regression test; do not change `DARExternalAdapterProtocol` or its wire ID.
-- [ ] T4.3 [tests, GREEN] Prove pre-dispatch rejection for invalid identity,
+- [x] T4.3 [tests, GREEN] Prove pre-dispatch rejection for invalid identity,
   disabled tools, unsupported response modes, and failed health; prove
   post-dispatch classification for timeout, cancellation, malformed response,
   and service rejection.
-- [ ] T4.3a [tests, contract proof] Add a focused proof that the existing
+- [x] T4.3a [tests, contract proof] Add a focused proof that the existing
   façade enforces
   requested JSON Schema semantics after transport normalization, including
   valid and invalid JSON responses. Run this proof before any conditional
   façade implementation change.
-- [ ] T4.3b [implementation] If T4.3a exposes missing behavior, make only the
+- [x] T4.3b [implementation] If T4.3a exposes missing behavior, make only the
   minimal façade change required to enforce that contract; do not move schema
   validation into the adapter or transport.
-- [ ] T4.4 [tests, GREEN] Run the actual executor/coordinator tool cycle from
+- [x] T4.4 [tests, GREEN] Run the actual executor/coordinator tool cycle from
   T1.5 and verify exactly-once handler execution, approval/lifecycle/tracing,
   follow-on model request, and no adapter-held callback references.
 
@@ -142,14 +142,14 @@ executor-level tool re-entry tests pass.
 
 ## Slice 5 — Public surface and migration documentation
 
-- [ ] T5.1 [implementation] Export the approved config and sync/async factory
+- [x] T5.1 [implementation] Export the approved config and sync/async factory
   helpers from `src/dynamic_agent_runner/__init__.py` without exporting the
   private API key or transport internals.
-- [ ] T5.2 [docs] Add a concise README example showing direct BYOM construction
+- [x] T5.2 [docs] Add a concise README example showing direct BYOM construction
   and strict model-adapter coverage. State that service lifecycle, registry
   binding, CLI install/remove, and family certification remain caller-owned or
   deferred.
-- [ ] T5.3 [tests, GREEN] Add import/API tests and verify existing local
+- [x] T5.3 [tests, GREEN] Add import/API tests and verify existing local
   endpoint helpers and adapter-selection paths remain unchanged.
 
 Exit gate: public imports and documentation hooks pass; no legacy endpoint or
@@ -157,23 +157,23 @@ OpenAI/LiteLLM default behavior changes.
 
 ## Slice 6 — Validation and handoff evidence
 
-- [ ] T6.1 [validation] Create or finalize
+- [x] T6.1 [validation] Create or finalize
   `specs/openai-compatible-external-adapter/validation.md` with the discovery
   decision, focused test result, redaction/security evidence, and any
   explicitly deferred service-compatibility claims.
-- [ ] T6.2 [validation] Run focused tests:
+- [x] T6.2 [validation] Run focused tests:
   `poetry run pytest tests/test_openai_compatible_external.py -q`.
-- [ ] T6.3 [validation] Run affected regressions:
+- [x] T6.3 [validation] Run affected regressions:
 
   ```text
   poetry run pytest tests/test_external_adapter_protocol.py \
     tests/test_openai_client.py tests/test_executor.py tests/test_cli.py -q
   ```
 
-- [ ] T6.4 [validation] Run repository gates:
+- [x] T6.4 [validation] Run repository gates:
   `poetry run pytest -q`, `poetry run ruff check src tests`, and
   `poetry build`.
-- [ ] T6.5 [validation] Run concrete artifact hooks:
+- [x] T6.5 [validation] Run concrete artifact hooks:
 
   ```text
   poetry run pre-commit run --files \
@@ -188,7 +188,7 @@ OpenAI/LiteLLM default behavior changes.
     tests/test_openai_compatible_external.py
   ```
 
-- [ ] T6.6 [review] Confirm spec, plan, tasks, implementation, and validation
+- [x] T6.6 [review] Confirm spec, plan, tasks, implementation, and validation
   evidence agree; record exact outcomes before declaring the slice complete.
 - [x] T6.7 [bug, tests RED/GREEN] Repair the M4.4 clean-Codex harness teardown
   race where a just-finished `uv` actor releases cache files after the scenario

@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `sealed-artifact-output-handler-interface`
-- Status: implementation-ready
+- Status: implemented; validation recorded in `validation.md`
 - Owner: dynamic-agent-runner workflow-host sealed-artifact boundary
 - Related specifications:
   - `specs/sealed-artifact-workflow-runner/spec.md`

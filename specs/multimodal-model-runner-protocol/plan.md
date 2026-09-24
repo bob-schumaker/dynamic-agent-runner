@@ -1,6 +1,6 @@
 # DAR Multimodal Model Runner Protocol Implementation Plan
 
-Status: Approved
+Status: Implemented; validation recorded in `validation.md`
 
 ## Spec Trace
 

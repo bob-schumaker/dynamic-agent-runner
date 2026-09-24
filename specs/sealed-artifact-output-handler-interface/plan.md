@@ -1,6 +1,6 @@
 # Sealed Artifact Output Handler Interface Implementation Plan
 
-Status: proposed
+Status: Implemented; validation recorded in `validation.md`
 
 ## Spec trace
 

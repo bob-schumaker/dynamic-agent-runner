@@ -1,7 +1,6 @@
 # DAR Multimodal Model Runner Protocol Validation
 
-Status: historical review — superseded by explicit spec approval; implementation
-not started
+Status: implemented v1; focused and full validation recorded below
 
 The earlier Council/Ponytail review recorded the gaps that the approved plan
 must close. Its findings remain implementation risks and are not a rejection
@@ -85,22 +84,21 @@ Ponytail conclusion: **lean enough to execute**.
 | T005/T006/T007 | `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_local_model_runners.py tests/test_workflow_model_material_admission.py tests/test_dar_authoring_host.py -q` | pass: 56 tests; exact catalog admission, host composition, drift refusal, and zero dispatch evidence |
 | T005/T006/T007 | `poetry run ruff check src/dynamic_agent_runner/multimodal_model_runner.py src/dynamic_agent_runner/workflow_host/local_model_runners.py src/dynamic_agent_runner/workflow_host/host.py tests/test_multimodal_model_runner_protocol.py` | pass |
 | T010 | `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_generation_worker.py tests/test_generation_worker_controllers.py -q` | pass: 103 tests; bounded lifecycle and cleanup matrix |
-| T011 | `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_sealed_artifact_output_handles.py tests/test_sealed_artifact_runner_admission.py -q` | pass: 39 protocol/sealed-service tests; composed multimodal-to-handler publication was not exercised |
-| T013 | `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_sealed_artifact_output_handles.py tests/test_sealed_artifact_runner_admission.py tests/test_sealed_artifact_workflow_runner.py -q` | pass: 44 protocol/sealed-service tests; composed handler transfer remains open |
+| T011 | `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_sealed_artifact_output_handler.py tests/test_sealed_artifact_output_handles.py tests/test_sealed_artifact_runner_admission.py -q` | pass: 60 result, handler, and admission tests; promoted opaque handles, aggregate byte mismatch, declaration ceilings, foreign results, and redacted failures are covered |
+| T013 | `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_sealed_artifact_output_handler.py tests/test_sealed_artifact_output_handles.py tests/test_sealed_artifact_runner_admission.py tests/test_sealed_artifact_workflow_runner.py -q` | pass: 65 composed tests; result transfer, redaction, cleanup failure, replay/foreign rejection, and legacy direct-service behavior remain green |
 | Floorplan baseline | `poetry run pytest tests/test_transformers_peft_model.py tests/test_qwen25_vl_3b_grpo_converter.py tests/test_dar_authoring_runner.py tests/test_local_model_runners.py -q` | pass: 160 tests; pre-migration floorplan and legacy compatibility baseline |
 | Regression | `poetry run pytest -q` | pass: 2787 passed, 1 skipped, 7 deselected |
 | Package | `poetry run ruff check src tests`; `poetry build`; `git diff --check` | pass |
 | Static boundary review | `rg -n "Path|credential|prompt|process_id|native|provider|fallback|SVG|JSON"` over changed runtime owners | reviewed: matches are pre-existing host/workflow concerns or private provider-boundary labels; no raw value is added to protocol mappings or receipts |
 | Contract hardening | `poetry run pytest tests/test_multimodal_model_runner_protocol.py -q` | pass: 21 tests; path-like invocation identifiers rejected at the sealed boundary |
 
-The implementation now includes receiver-owned catalog registration and host
-composition for one exact runner, plus protocol-level replay and foreign-result
-guards. The binding now sequences input clearing, reservation release, and
+The implementation includes receiver-owned catalog registration and host
+composition for one exact runner, protocol-level replay and foreign-result
+guards, Option 1 sealed-output publication, and the floorplan converter-input
+migration. The binding sequences input clearing, reservation release, and
 worker reap before returning a normalized result and fails closed on cleanup
 errors. Pre-dispatch cancellation and deadline gates return redacted terminal
-results without runner calls. Direct generation-worker controller integration, sealed-output
-publication is exposed through a completed-only host callback, and floorplan
-migration remain pending later tasks.
+results without runner calls.
 
 ## Historical proposal review (superseded)
 

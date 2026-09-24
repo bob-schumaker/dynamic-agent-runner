@@ -1,6 +1,21 @@
 # Sealed Artifact Output Handler Interface Validation
 
-Status: implementation-ready
+Status: implemented; validation recorded below
+
+The review sections below are historical design-readiness evidence. The
+handler implementation and focused migration tests are now present in the
+repository; they are not a pending implementation handoff.
+
+## Implementation evidence
+
+- `poetry run pytest tests/test_sealed_artifact_output_handler.py -q` passes.
+- The handler is implemented in
+  `src/dynamic_agent_runner/workflow_host/sealed_artifact_output_handler.py`.
+- Multimodal publication composes the handler through the receiver-owned
+  `LocalWorkflowHost.publish_multimodal_result` seam and returns only promoted
+  opaque handles.
+- The full repository validation and package gates are recorded by the
+  multimodal protocol validation artifact.
 
 ## Review scope
 

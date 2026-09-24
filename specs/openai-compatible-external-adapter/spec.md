@@ -4,8 +4,8 @@
 
 - Feature slug: `openai-compatible-external-adapter`
 - Mode: `guided`
-- Artifact type: proposed SDD feature specification
-- Status: approved; Council and Ponytail findings addressed
+- Artifact type: implemented SDD feature specification
+- Status: implemented; validation recorded in `validation.md`
 - Owner: dynamic-agent-runner model-provider boundary
 - Related artifacts:
   - [`external-model-adapter-protocol`](../external-model-adapter-protocol/spec.md)
@@ -336,8 +336,9 @@ this feature.
   adapter variants are separate façade-compatible modes, with sync late-result
   semantics explicitly non-abortable. This clarifies execution against the
   existing façade without changing the public protocol or approved config.
-- Current disposition: approved; `plan.md` is the next reviewable artifact and
-  `tasks.md` remains gated on plan approval.
+- Current disposition: implemented; `plan.md`, `tasks.md`, and `validation.md`
+  record the completed direct-adapter slice and its deferred live-certification
+  boundary.
 
 ## Approval gate
 

@@ -4,7 +4,7 @@
 
 - Feature slug: `native-model-adapter-migration`
 - Artifact type: cross-provider migration specification
-- Status: approved
+- Status: implemented; validation recorded in `validation.md`
 - Owner: dynamic-agent-runner model-provider boundary
 - Related artifacts:
   - [`external-model-adapter-protocol`](../external-model-adapter-protocol/spec.md)

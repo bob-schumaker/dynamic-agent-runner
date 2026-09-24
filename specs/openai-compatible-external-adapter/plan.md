@@ -1,14 +1,14 @@
 # OpenAI-Compatible External Adapter Implementation Plan
 
-Status: Approved
+Status: Implemented; validation recorded in `validation.md`
 
 ## Spec Trace
 
 - Spec: `specs/openai-compatible-external-adapter/spec.md`
 - Protocol authority: `specs/external-model-adapter-protocol/spec.md`
 - Repository guardrails: `AGENTS.md` and `AGENTS.local.md`
-- Planning mode: guided; implementation must not begin until this plan and its
-  later task breakdown are approved
+- Planning mode: guided; implementation and validation are complete for the
+  approved direct-adapter slice
 
 ## Objective
 
@@ -327,11 +327,11 @@ this slice.
 - 2026-09-23 Ponytail review: removed redundant discovery wording, replaced
   placeholder commands, kept one adapter module and one transport boundary,
   and avoided new registry or provider-family abstractions.
-- Current disposition: findings addressed; ready for plan approval. No
-  `tasks.md` has been created.
+- Current disposition: findings addressed; the approved task breakdown and
+  implementation evidence are recorded in `tasks.md` and `validation.md`.
 
 ## Plan approval
 
 - Status: approved by user; task breakdown created in `tasks.md`
-- Notes: implementation remains gated on the TDD RED checkpoint and the
-  discovery gate for explicit SDK/HTTP controls.
+- Notes: the TDD RED checkpoint, discovery gate, implementation, and validation
+  evidence are complete for the direct adapter slice.

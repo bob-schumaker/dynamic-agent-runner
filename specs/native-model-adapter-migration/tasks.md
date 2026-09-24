@@ -1,6 +1,6 @@
 # Native Model Adapter Migration Tasks
 
-Status: Approved
+Status: Complete
 
 ## Prerequisites
 

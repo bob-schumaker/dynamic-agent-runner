@@ -4,8 +4,8 @@ Status: Complete
 
 ## Prerequisites
 
-- Spec: `spec.md` — implementation-ready
-- Plan: `plan.md` — reviewed and ready for task-list authoring
+- Spec: `spec.md` — implemented
+- Plan: `plan.md` — implemented
 - Validation: `validation.md` — Council and Ponytail review recorded
 - Existing service: `src/dynamic_agent_runner/workflow_host/sealed_artifact_runner.py`
 

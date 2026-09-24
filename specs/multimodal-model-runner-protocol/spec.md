@@ -4,7 +4,7 @@
 
 - Feature slug: `multimodal-model-runner-protocol`
 - Artifact type: new host-extension interface specification
-- Status: approved
+- Status: implemented v1; validation recorded in `validation.md`
 - Amendment: Option 1 sealed converter-input binding is normative for v1.
 - Owner: dynamic-agent-runner workflow-host boundary
 - Related artifacts:

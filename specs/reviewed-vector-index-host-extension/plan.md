@@ -4,9 +4,10 @@
 
 ## Status
 
-In-progress implementation plan derived from `spec.md`. The reviewed contract
-is the entry criterion; T001 established the exact test-fixture shape. The plan
-does not authorize an MLX, vault, index, or publication implementation.
+Implemented plan derived from `spec.md`. The reviewed contract
+was the entry criterion; T001 established the exact test-fixture shape. The
+implemented boundary does not authorize an MLX, vault, index, or publication
+implementation outside the host extension.
 
 ## Goal
 
