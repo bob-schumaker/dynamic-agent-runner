@@ -12,7 +12,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from jsonschema import Draft202012Validator, SchemaError, ValidationError
 
@@ -159,6 +159,14 @@ class SealedArtifactPrivateOutputSet:
 
     private_set_id: str
     expires_at: datetime
+
+
+@dataclass(frozen=True)
+class SealedArtifactPrivateTransitionResult:
+    """Result of one handler-owned atomic private output transition."""
+
+    status: Literal["promoted", "discarded", "missing", "conflict"]
+    handles: tuple[SealedArtifactOutputHandle, ...] = ()
 
 
 def parse_sealed_artifact_runner_descriptor(
@@ -1103,6 +1111,118 @@ class SealedArtifactOutputHandleService:
                 ) from replay_error
         except (TypeError, ValueError) as error:
             raise SealedArtifactHandleError("output handle is unavailable") from error
+
+    def transition_private_output(  # noqa: C901
+        self,
+        private: SealedArtifactPrivateOutputSet,
+        *,
+        operation: str,
+        now: datetime,
+    ) -> SealedArtifactPrivateTransitionResult:
+        """Atomically resolve one handler-owned private output transition.
+
+        This seam is intentionally separate from ``discard`` so legacy callers
+        retain their historical promoted-successor revocation behavior.
+        """
+
+        if not isinstance(private, SealedArtifactPrivateOutputSet) or operation not in {
+            "promote",
+            "discard",
+        }:
+            raise SealedArtifactHandleError("output handle is invalid")
+        if operation == "discard":
+            try:
+                self._store.transition(
+                    private.private_set_id,
+                    expected_kind="sealed_artifact_private_output_set",
+                    owner=self._owner,
+                    expected_state="active",
+                    new_state="revoked",
+                    now=now,
+                )
+                return SealedArtifactPrivateTransitionResult("discarded")
+            except OpaqueRecordError:
+                pass
+            try:
+                self._store.load_state(
+                    private.private_set_id,
+                    expected_kind="sealed_artifact_private_output_set",
+                    owner=self._owner,
+                    expected_state="revoked",
+                    now=now,
+                )
+                return SealedArtifactPrivateTransitionResult("discarded")
+            except OpaqueRecordError:
+                matches = self._matching_promoted_outputs(private, now=now)
+                if len(matches) == 1:
+                    return SealedArtifactPrivateTransitionResult("promoted", matches[0])
+                if len(matches) > 1:
+                    return SealedArtifactPrivateTransitionResult("conflict")
+                return SealedArtifactPrivateTransitionResult("missing")
+
+        try:
+            staged = self._store.load(
+                private.private_set_id,
+                expected_kind="sealed_artifact_private_output_set",
+                owner=self._owner,
+                now=now,
+            )
+            output_set_id, _ = self._store.consume_and_issue_or_reuse(
+                private.private_set_id,
+                expected_kind="sealed_artifact_private_output_set",
+                owner=self._owner,
+                expected_payload=staged.payload,
+                new_kind="sealed_artifact_output_set",
+                new_payload={
+                    **staged.payload,
+                    "private_set_id": private.private_set_id,
+                    "replay_key": private.private_set_id,
+                },
+                replay_key=private.private_set_id,
+                conflict_keys={"private_set_id": private.private_set_id},
+                expires_at=staged.expires_at,
+                now=now,
+            )
+            published = self._store.load(
+                output_set_id,
+                expected_kind="sealed_artifact_output_set",
+                owner=self._owner,
+                now=now,
+            )
+            values = published.payload.get("outputs")
+            if not isinstance(values, list):
+                raise ValueError
+            return SealedArtifactPrivateTransitionResult(
+                "promoted",
+                _output_handles(output_set_id, values, published.expires_at),
+            )
+        except OpaqueRecordError:
+            matches = self._matching_promoted_outputs(private, now=now)
+            if len(matches) == 1:
+                return SealedArtifactPrivateTransitionResult("promoted", matches[0])
+            if len(matches) > 1:
+                return SealedArtifactPrivateTransitionResult("conflict")
+            return SealedArtifactPrivateTransitionResult("missing")
+        except (TypeError, ValueError) as error:
+            raise SealedArtifactHandleError("output handle is unavailable") from error
+
+    def _matching_promoted_outputs(
+        self,
+        private: SealedArtifactPrivateOutputSet,
+        *,
+        now: datetime,
+    ) -> tuple[tuple[SealedArtifactOutputHandle, ...], ...]:
+        matches: list[tuple[SealedArtifactOutputHandle, ...]] = []
+        for output_set_id, record in self._store.active_records(
+            kind="sealed_artifact_output_set", owner=self._owner, now=now
+        ):
+            if record.payload.get("private_set_id") != private.private_set_id:
+                continue
+            values = record.payload.get("outputs")
+            if not isinstance(values, list):
+                raise SealedArtifactHandleError("output handle is unavailable")
+            matches.append(_output_handles(output_set_id, values, record.expires_at))
+        return tuple(matches)
 
     def read(
         self,

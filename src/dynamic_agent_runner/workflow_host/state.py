@@ -476,6 +476,7 @@ class PrivateStateStore:
             )
             if source.payload != expected_copy:
                 raise OpaqueRecordError("opaque record binding does not match")
+            replay_matches: list[str] = []
             for existing_handle, existing_raw in records.items():
                 if existing_raw.get("owner") != owner:
                     continue
@@ -489,14 +490,20 @@ class PrivateStateStore:
                 except OpaqueRecordError:
                     continue
                 if record.payload.get("replay_key") == replay_key:
-                    self._change_state_in_records(records, handle, "consumed")
-                    return existing_handle, True
+                    replay_matches.append(existing_handle)
+                    continue
                 if any(
                     record.payload.get(key) == value
                     for key, value in conflict_keys.items()
                 ):
                     self._change_state_in_records(records, handle, "consumed")
                     raise OpaqueRecordError("opaque record reservation conflicts")
+            if len(replay_matches) > 1:
+                self._change_state_in_records(records, handle, "consumed")
+                raise OpaqueRecordError("opaque record replay conflicts")
+            if replay_matches:
+                self._change_state_in_records(records, handle, "consumed")
+                return replay_matches[0], True
             raw_record = records.get(handle)
             if raw_record is None:
                 raise OpaqueRecordError("unknown or forged opaque record")
