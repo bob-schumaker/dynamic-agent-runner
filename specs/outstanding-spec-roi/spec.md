@@ -30,13 +30,13 @@ These are the items with the clearest path to action today:
 
 | Rank | Spec work | Current state | Why it is actionable |
 | --- | --- | --- | --- |
-| 1 | `openai-compatible-external-adapter` | Approved; task breakdown ready; T1 RED tasks are open | Provides one explicitly configured external adapter for Ollama, vLLM, LM Studio, and llama.cpp servers. It has a defined DAR-owned boundary, fake-transport test strategy, and no need to make external services part of unit tests. |
-| 2 | `live-model-interface-acceptance` T5.2 | T5.1 complete; one manual compatibility-resolution task remains | The remaining work is bounded to the tested Qwen3/vLLM 0.28.0 B0--B2 evidence. It should record a passing configuration, record the tested combination as unsupported, or open a separate adapter task if DAR diverges from a conforming endpoint. |
-| 3 | Apple Foundation Models A2 B5 | A1--A4 implemented; bridged-wrapper `Annotated` regression remains open | This is a narrow SDK compatibility gate, not a reason to expand the adapter surface. Resolve it only with the pinned SDK/runtime evidence and preserve the existing fake-only unit-test boundary. |
+| 1 | `live-model-interface-acceptance` T5.2 | T5.1 complete; one manual compatibility-resolution task remains | The remaining work is bounded to the tested Qwen3/vLLM 0.28.0 B0--B2 evidence. It should record a passing configuration, record the tested combination as unsupported, or open a separate adapter task if DAR diverges from a conforming endpoint. |
+| 2 | Apple Foundation Models A2 B5 | A1--A4 implemented; bridged-wrapper `Annotated` regression remains open | This is a narrow SDK compatibility gate, not a reason to expand the adapter surface. Resolve it only with the pinned SDK/runtime evidence and preserve the existing fake-only unit-test boundary. |
+| 3 | `memory-aware-context-pipeline` exit gate | First passive-context slice implemented; reassessment pending | Decide whether memory semantics remain distinct from RAG using the existing metadata, capability, provenance, and no-implicit-save evidence before authorizing any richer slice. |
 
-The first item is the next implementation-ready feature. T5.2 and B5 are
-evidence or compatibility gates and should not be silently converted into
-general adapter changes.
+The first item is the next implementation-ready acceptance task. B5 is a
+compatibility gate, and the memory-aware item is a scope decision; neither
+should be silently converted into general adapter changes.
 
 ## Highest-value future candidates
 
@@ -89,15 +89,15 @@ real unimplemented boundary.
 
 ## Recommended order
 
-1. Execute the approved `openai-compatible-external-adapter` task breakdown,
-   beginning with its fake-only RED boundary and URL/inventory admission tests.
-2. Complete `live-model-interface-acceptance` T5.2 using only the recorded
+1. Complete `live-model-interface-acceptance` T5.2 using only the recorded
    B0--B2 compatibility evidence.
-3. Resolve Apple A2 B5 as a pinned SDK compatibility gate; create a new task
+2. Resolve Apple A2 B5 as a pinned SDK compatibility gate; create a new task
    only if the evidence identifies a DAR-owned adapter defect.
+3. Reassess the first-slice boundary of `memory-aware-context-pipeline` before
+   authorizing richer memory behavior.
 4. If a caller supplies concrete pressure, evaluate the first slice of
-   `memory-aware-context-pipeline`, `sandbox-workspace-runtime`, or
-   `live-guardrail-execution` as separate scoped work.
+   `sandbox-workspace-runtime` or `live-guardrail-execution` as separate scoped
+   work.
 
 ## Deferral guidance
 
@@ -113,8 +113,9 @@ spec exists.
 - The status and completion claims agree with `specs/README.md` and the owning
   task artifacts as of 2026-09-24.
 - Completed Apple A1--A4 work is not ranked as outstanding; only B5 remains.
-- The approved external adapter is identified as the first implementation-ready
-  feature.
+- The implemented external adapter is excluded from outstanding work.
+- Live acceptance T5.2 is identified as the first implementation-ready
+  acceptance task.
 - Live acceptance T5.2 and Apple B5 remain bounded evidence gates rather than
   implicit authorization for source changes.
 - Deferred work preserves DAR's generic runtime boundary and caller ownership.
