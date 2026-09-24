@@ -20,7 +20,7 @@ evidence.
   `poetry run pytest tests/test_apple_foundation_models.py
   tests/test_local_models.py tests/test_mlx_models.py
   tests/test_external_adapter_registry.py -q` — 361 tests pass.
-- Combined migration/protocol/provider/matrix command — 405 tests pass.
+- Combined migration/protocol/provider/matrix command — 406 tests pass.
 - Repository suite: an earlier run completed with 2,752 passed, 1 skipped, and
   7 deselected. A final rerun reproduced four unrelated Darwin/MPS host
   capability failures in `test_floorplan_svg_fixture.py`,
@@ -41,7 +41,9 @@ The façade owns generic admission, JSON-schema validation, bounded health,
 deadline/cancellation handling, response normalization, tracing, and removal.
 The wrappers never receive tool handlers, approval objects, or callbacks. Late
 blocking native work remains bounded by the façade worker and produces no late
-result, retry, or fallback.
+result, retry, or fallback. Sync adapters used through async workflows probe
+health before submitting generation, avoiding recursive use of the bounded
+worker pool.
 
 ## Deferred native-only capabilities
 
