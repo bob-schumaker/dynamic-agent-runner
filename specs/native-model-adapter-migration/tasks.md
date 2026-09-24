@@ -106,7 +106,7 @@ only because the wrappers/factories are absent.
 
 ### Slice 2 — Shared protocol mechanics and façade ownership
 
-- [ ] T2.1 [implementation] Add minimal generic descriptor, canonical identity,
+- [x] T2.1 [implementation] Add minimal generic descriptor, canonical identity,
   timeout validation, and redacted native-error helpers in
   `src/dynamic_agent_runner/external_adapter.py`.
   - Spec: common contract and identity/health rules
@@ -163,7 +163,7 @@ Checkpoint: shared mechanics are green; provider work can proceed independently.
 
 ### Slice 3 — Apple wrapper
 
-- [ ] T3.1 [implementation] Implement `create_apple_foundation_external_adapter`
+- [x] T3.1 [implementation] Implement `create_apple_foundation_external_adapter`
   beside the existing Apple adapter. Accept one resolved alias, derive identity
   and capabilities from the native binding, preserve Apple preflight, and return
   an async-only v1 wrapper without callback objects.
@@ -190,7 +190,7 @@ Checkpoint: shared mechanics are green; provider work can proceed independently.
 
 ### Slice 4 — Direct llama.cpp wrapper
 
-- [ ] T4.1 [implementation] Implement `create_llama_cpp_external_adapter`
+- [x] T4.1 [implementation] Implement `create_llama_cpp_external_adapter`
   beside the direct llama.cpp adapter. Derive canonical identity from prepared
   material/configuration, preserve memory-fit/loading/cleanup, and expose only
   proven chat/template capabilities.
@@ -217,7 +217,7 @@ Checkpoint: shared mechanics are green; provider work can proceed independently.
 
 ### Slice 5 — MLX wrappers
 
-- [ ] T5.1 [implementation] Implement `create_mlx_external_adapter` and
+- [x] T5.1 [implementation] Implement `create_mlx_external_adapter` and
   `create_mlx_async_external_adapter` beside the existing MLX adapters. Derive
   identity/capabilities from resolved native material and gate tools on the
   exact versioned `MLXToolCodec`.
@@ -247,7 +247,7 @@ provider conformance slices.
 
 ### Slice 6 — Opt-in integration and support evidence
 
-- [ ] T6.1 [implementation] Export the four approved wrapper factories from
+- [x] T6.1 [implementation] Export the four approved wrapper factories from
   `src/dynamic_agent_runner/__init__.py` without exporting native transport
   internals or secrets.
   - Spec: public BYOM seam
@@ -257,7 +257,7 @@ provider conformance slices.
   - Validation: `poetry run pytest tests/test_import.py -q`
   - Evidence: public imports work and existing native factories remain present.
 
-- [ ] T6.2 [tests, GREEN] Add three text-adapter candidate rows to
+- [x] T6.2 [tests, GREEN] Add three text-adapter candidate rows to
   `tests/fixtures/workflow-model-support-matrix/native-model-adapter-migration.json`
   and classifier assertions in `tests/test_workflow_model_support_matrix.py`.
   Record row ownership and non-transferable identity fields in
@@ -270,7 +270,7 @@ provider conformance slices.
   - Evidence: rows classify exact adapter/material/ABI identity and reject
     stale or transferable evidence.
 
-- [ ] T6.3 [docs] Document caller-owned BYOM construction, native lifecycle,
+- [x] T6.3 [docs] Document caller-owned BYOM construction, native lifecycle,
   capability omissions, and deferred registry/default-path migration in
   `README.md` without changing existing provider instructions.
   - Spec: migration and removal gates
@@ -282,7 +282,7 @@ provider conformance slices.
 
 ### Slice 7 — Validation and handoff
 
-- [ ] T7.1 [validation] Record focused migration evidence in
+- [x] T7.1 [validation] Record focused migration evidence in
   `specs/native-model-adapter-migration/validation.md`, including RED/GREEN
   checkpoints, provider capability results, health behavior, and deferred
   native-only capabilities.
@@ -293,7 +293,7 @@ provider conformance slices.
   - Validation: inspect the traceability matrix and command results
   - Evidence: every acceptance criterion maps to a test or explicit evidence.
 
-- [ ] T7.2 [validation] Run affected provider and protocol regressions:
+- [x] T7.2 [validation] Run affected provider and protocol regressions:
   `poetry run pytest tests/test_external_adapter_protocol.py
   tests/test_external_adapter_registry.py tests/test_apple_foundation_models.py
   tests/test_local_models.py tests/test_mlx_models.py

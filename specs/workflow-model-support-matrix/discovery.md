@@ -64,3 +64,14 @@ unrelated artifacts would duplicate their common support-state contract.
   substitutes for a different package or material closure.
   Sandboxed write/shell execution and runner-owned RAG remain excluded until
   their owning contracts are implemented and admitted.
+
+## Native text-adapter migration rows
+
+The migration fixture `tests/fixtures/workflow-model-support-matrix/native-model-adapter-migration.json`
+records three opt-in candidate rows. Each row is owned by the caller-resolved
+native binding and carries a non-transferable identity placeholder: Apple
+system-model binding, llama.cpp material/configuration binding, or MLX
+material/configuration binding. MLX tool capability remains conditional on the
+exact versioned codec and backend pair. These rows are support evidence only;
+they do not authorize registry binding, default routing, or reuse of one
+provider's material identity for another.

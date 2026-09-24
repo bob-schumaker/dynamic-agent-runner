@@ -167,6 +167,31 @@ dispatch. Protocol v1 is text-only and final-response-only; adapters never
 receive tool handlers or approval objects. Invalid, unavailable, removed, or
 identity-mismatched adapters fail closed and do not fall back to OpenAI.
 
+Native providers have opt-in caller-owned protocol factories. Construct the
+native adapter with its resolved model/material configuration, then wrap that
+immutable binding:
+
+```python
+from dynamic_agent_runner import (
+    create_llama_cpp_external_adapter,
+    create_llama_cpp_local_adapter,
+)
+
+native = create_llama_cpp_local_adapter(resolved_llama_config)
+model_adapter = create_llama_cpp_external_adapter(
+    native,
+    adapter_id="llama.cpp.workstation",
+)
+```
+
+The Apple factory is async-only; llama.cpp is sync and is worker-offloaded by
+the existing façade; MLX offers matching sync and async factories. Factories
+derive the model identity and capabilities from the native binding, and reject
+unsupported structured output or tools before dispatch. Native loading,
+downloads, lifecycle, registry install/remove, streaming, embeddings, and
+callback-based Apple tools remain outside this migration and stay on their
+existing provider paths.
+
 Use direct execution for a single stateless run, `WorkflowExecutionContext` for
 reusing a loaded workflow with stable collaborators, and `AgentSession` when the
 caller needs retained prompt history or restartable in-memory session state.
