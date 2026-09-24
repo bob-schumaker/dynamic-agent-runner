@@ -267,6 +267,27 @@ never serialized into results, receipts, or traces.
 
 The floorplan migration tasks now use this binding to preserve the existing
 `TransformersPeftPackedInputAdapter` and workflow-owned domain validation
-without adding prompt semantics to DAR. T014–T016 remain open for runtime RED,
-implementation, and GREEN evidence; this amendment removes the contract-level
-blocker only.
+without adding prompt semantics to DAR. At amendment time T014–T016 remained
+open for runtime RED, implementation, and GREEN evidence; the current evidence
+below records their subsequent completion and the remaining T017 gate.
+
+## Current T017 implementation evidence
+
+The Option 1 implementation slices are complete through T016:
+
+- `b69c11dc` and `5442cc5f` add RED coverage for the receiver materializer and
+  canonical floorplan input.
+- `cb2804a8`, `0216b323`, `114e1676`, and `ce69bb41` implement the dispatch
+  capability, canonical-input adapter, admitted Transformers runner, and
+  deferred adapter path.
+- `5dee1d3c` records T014–T016 completion evidence; `255d5267` refreshes the
+  converter asset digest after the converter-local decoder was added.
+- Focused migration coverage passes: 179 tests for protocol/floorplan/
+  authoring compatibility and 162 tests for floorplan/converter/authoring/
+  local-runner compatibility.
+- Ruff, `poetry build`, and `git diff --check` pass.
+- The unfiltered repository run reports `2811 passed, 1 failed, 1 skipped,
+  7 deselected`; the sole failure is the pre-existing M4.4 isolated-actor
+  harness test. Its isolated rerun passes (`1 passed`), and the suite with
+  that test excluded passes (`2811 passed, 1 skipped, 8 deselected`). T017 is
+  therefore not marked complete.

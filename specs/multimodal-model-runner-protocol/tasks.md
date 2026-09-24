@@ -516,10 +516,13 @@ Status: In Progress
     risks. Static inspection records that touched code has no package-selected
     paths, credentials, native runtime objects, unredacted traces/receipts,
     fallback provider selection, or domain validation in DAR.
-  - Partial evidence: repository regression previously passed (2800 passed,
-    1 skipped, 7 deselected), Ruff and diff checks pass. The gate remains open
-    until the final static boundary inspection and package build are rerun
-    after the Option 1 migration.
+  - Partial evidence: the focused Option 1 migration gate passes; Ruff,
+    `poetry build`, and `git diff --check` pass. The complete repository suite
+    passes with the known isolated M4.4 harness test excluded (`2811 passed,
+    1 skipped, 8 deselected`) and its isolated rerun passes, but the complete
+    unfiltered run still reports that test as a failure. T017 remains open
+    until that final repository-gate discrepancy is resolved or explicitly
+    accepted by the project owner.
 
 ## Checkpoints
 
