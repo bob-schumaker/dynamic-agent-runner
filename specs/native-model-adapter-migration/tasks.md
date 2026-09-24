@@ -305,7 +305,7 @@ provider conformance slices.
   - Validation: exact command above
   - Evidence: all affected tests pass without live provider calls.
 
-- [ ] T7.3 [validation] Run repository gates: `poetry run pytest -q`,
+- [x] T7.3 [validation] Run repository gates: `poetry run pytest -q`,
   `poetry run ruff check src tests`, and `poetry build`.
   - Spec: final acceptance and non-goals
   - Plan: M7 exit gate
