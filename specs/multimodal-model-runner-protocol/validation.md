@@ -284,12 +284,11 @@ The Option 1 implementation slices are complete through T016:
   converter asset digest after the converter-local decoder was added.
 - `408ae6ee` adds fail-closed validation when a `converter_input` request lacks
   a receiver-owned materializer.
+- `3773d7ac` proves receiver registration and resolution of the concrete
+  Transformers multimodal runner before dispatch.
 - Focused migration coverage passes: 180 tests for protocol/floorplan/
   authoring compatibility and 162 tests for floorplan/converter/authoring/
   local-runner compatibility.
 - Ruff, `poetry build`, and `git diff --check` pass.
-- The unfiltered repository run reports `2811 passed, 1 failed, 1 skipped,
-  7 deselected`; the sole failure is the pre-existing M4.4 isolated-actor
-  harness test. Its isolated rerun passes (`1 passed`), and the suite with
-  that test excluded passes (`2811 passed, 1 skipped, 8 deselected`). T017 is
-  therefore not marked complete.
+- The unfiltered repository run passes: `2813 passed, 1 skipped, 7
+  deselected`. T017 is complete.

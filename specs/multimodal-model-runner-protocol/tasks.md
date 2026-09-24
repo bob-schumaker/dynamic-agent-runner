@@ -499,7 +499,7 @@ Status: In Progress
     Transformer, converter, authoring, and local-runner coverage; the concrete
     converter decoder is covered by `test_qwen_converter_decodes_its_private_canonical_input`.
 
-- [ ] T017 [validation] Run the complete compatibility gate and record
+- [x] T017 [validation] Run the complete compatibility gate and record
   acceptance evidence.
   - Spec: all acceptance criteria.
   - Plan: M6; Verification Matrix; Risks and Mitigations.
@@ -516,13 +516,12 @@ Status: In Progress
     risks. Static inspection records that touched code has no package-selected
     paths, credentials, native runtime objects, unredacted traces/receipts,
     fallback provider selection, or domain validation in DAR.
-  - Partial evidence: the focused Option 1 migration gate passes; Ruff,
-    `poetry build`, and `git diff --check` pass. The complete repository suite
-    passes with the known isolated M4.4 harness test excluded (`2811 passed,
-    1 skipped, 8 deselected`) and its isolated rerun passes, but the complete
-    unfiltered run still reports that test as a failure. T017 remains open
-    until that final repository-gate discrepancy is resolved or explicitly
-    accepted by the project owner.
+  - Completed evidence: the focused Option 1 migration gate, full repository
+    suite (`2813 passed, 1 skipped, 7 deselected`), Ruff, `poetry build`, and
+    `git diff --check` all pass. Static review confirms that the protocol path
+    has no package-selected paths, credentials, native runtime objects,
+    unredacted traces/receipts, fallback provider selection, or workflow-domain
+    validation in DAR.
 
 ## Checkpoints
 
