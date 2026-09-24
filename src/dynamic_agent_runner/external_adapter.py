@@ -360,8 +360,6 @@ class NativeExternalAdapter:
     def health(self) -> ExternalModelAdapterHealth:
         try:
             result = self._health_probe()
-        except ExternalAdapterError:
-            raise
         except ModelExecutionError:
             return ExternalModelAdapterHealth("unavailable", "native_unavailable")
         except Exception:
@@ -375,8 +373,6 @@ class NativeExternalAdapter:
     ) -> ModelResponse | Awaitable[ModelResponse]:
         try:
             result = self._native_adapter.create_response(request)
-        except ExternalAdapterError:
-            raise
         except ModelExecutionError as error:
             raise ExternalAdapterError("native model request failed") from error
         except Exception as error:  # noqa: BLE001 - native boundary is redacted.
@@ -395,8 +391,6 @@ class AsyncNativeExternalAdapter(NativeExternalAdapter):
                     "native async adapter returned a sync result"
                 )
             return await result
-        except ExternalAdapterError:
-            raise
         except ModelExecutionError as error:
             raise ExternalAdapterError("native model request failed") from error
         except Exception as error:  # noqa: BLE001 - native boundary is redacted.

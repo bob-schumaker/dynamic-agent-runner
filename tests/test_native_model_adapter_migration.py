@@ -7,6 +7,7 @@ import pytest
 
 from dynamic_agent_runner import (
     ModelResponse,
+    ModelExecutionError,
     OpenAIModelRequest,
     create_apple_foundation_external_adapter,
     create_llama_cpp_external_adapter,
@@ -70,6 +71,11 @@ class LazyClientApple(FakeApple):
     @property
     def client(self):
         raise AssertionError("factory must not trigger lazy native client creation")
+
+
+class FailingApple(FakeApple):
+    async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        raise ModelExecutionError("secret model path and prompt")
 
 
 class FakeLlamaBackend:
@@ -157,6 +163,19 @@ def test_parity_projection_excludes_unstable_response_metadata() -> None:
         content="same", response_id="mlx-unstable", raw={"provider": "b"}
     )
     assert project(first) == project(second)
+
+
+def test_native_errors_are_redacted_at_the_external_boundary() -> None:
+    adapter = create_apple_foundation_external_adapter(
+        FailingApple(), adapter_id="apple.failure"
+    )
+    with pytest.raises(ExternalAdapterError) as error:
+        asyncio.run(
+            ExternalModelAdapterFacade(adapter).create_response_async(
+                _request("apple-test")
+            )
+        )
+    assert "secret model path" not in str(error.value)
 
 
 def test_llama_external_adapter_projects_identity_and_sync_response(
