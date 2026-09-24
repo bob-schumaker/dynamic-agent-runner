@@ -587,6 +587,60 @@ def test_option1_resolves_one_sealed_converter_input_before_runner_dispatch() ->
     assert resolved == [b"private-canonical-payload"]
 
 
+def test_transformers_option1_runner_enters_through_protocol_with_private_payload() -> None:
+    from dynamic_agent_runner.openai_client import ModelResponse
+    from dynamic_agent_runner.workflow_host.transformers_peft_model import (
+        TransformersPeftMultimodalRunner,
+    )
+
+    descriptor = _descriptor()
+    request = replace(
+        _request(),
+        handles=(
+            *_request().handles,
+            SealedMultimodalHandle(
+                value="sealed:converter-input",
+                role="converter_input",
+                package_id="floorplan-from-image",
+                package_revision_digest=_digest("revision"),
+                invocation_id="invocation-1",
+                material_lock_digest=descriptor.material_lock_digest,
+                converter_digest=descriptor.converter_digest,
+            ),
+        ),
+    )
+    seen: list[bytes] = []
+
+    class Adapter:
+        def create_response_from_canonical_payload(self, *, content: bytes):
+            seen.append(content)
+            return ModelResponse(content='{"walls":[]}', metadata={})
+
+    class Materializer:
+        expires_at = _PUBLICATION_NOW + timedelta(minutes=5)
+        now = _PUBLICATION_NOW
+
+        def resolve(self, _handle, **_kwargs):
+            return b"private-canonical-payload"
+
+    runner = TransformersPeftMultimodalRunner(
+        descriptor=descriptor,
+        adapter=Adapter(),
+    )
+    binding = admit_multimodal_runner(runner, expected_descriptor=descriptor)
+    result = binding.dispatch(
+        request,
+        context=_context(),
+        input_materializer=Materializer(),
+        clear_inputs=lambda: None,
+        release_reservation=lambda: None,
+        reap_worker=lambda: None,
+    )
+
+    assert result.text == '{"walls":[]}'
+    assert seen == [b"private-canonical-payload"]
+
+
 def test_binding_rejects_foreign_result_identity() -> None:
     class ForeignRunner(_FakeRunner):
         def run(
