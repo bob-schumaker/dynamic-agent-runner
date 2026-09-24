@@ -231,3 +231,26 @@ coordinator is warranted.
 - T010a is complete by decision; T010b–T013 and T014–T016 remain open. No
   readiness claim is made until the exact Option 1 bridge contract/tests,
   migration evidence, and final package/static validation gate pass.
+
+## Implementation slices
+
+The Option 1 bridge is now implemented and committed in reviewable slices:
+
+- `16b69703` adds the receiver-owned materializer contract and
+  `LocalWorkflowHost.publish_multimodal_result`.
+- `d961770c` proves cleanup/reap → materialize → stage → promote ordering and
+  promotion-failure discard/redaction.
+- `bddcba45` adds aggregate accounting and declaration-limit rejection vectors.
+- `b186cb00` proves composed protocol, handler, sealed-runner, and legacy
+  compatibility behavior.
+
+Current focused evidence is 23 handler/output tests, 65 composed protocol and
+sealed-output tests, and 146 floorplan/Transformer/converter/authoring tests;
+the full repository suite remains 2800 passed, 1 skipped, 7 deselected.
+
+M5 remains blocked by an approved-contract mismatch, not an untested code path:
+the protocol `run()` request contains sealed handles and lifecycle context, but
+the existing Transformers/PEFT adapter requires workflow messages/prompts to
+construct converter input. T014–T016 need an explicit host-owned prompt or
+prepacked-input binding in the spec/plan before a protocol adapter can be
+implemented without leaking workflow semantics into DAR.
