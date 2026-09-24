@@ -434,7 +434,8 @@ Status: In Progress
     attestation, counter mismatch, cleanup failure, and legacy direct-service
     behavior remain green.
 
-- [ ] T014 [tests, RED] Add floorplan host-composition compatibility vectors.
+- [ ] T014 [tests, RED] Add floorplan host-composition compatibility vectors
+  for the Option 1 sealed converter-input binding.
   - Spec: initial migration target and floorplan ownership acceptance criterion.
   - Plan: M5; Current-State Anchors for the Transformers/PEFT runner and
     converter.
@@ -444,19 +445,19 @@ Status: In Progress
     `src/dynamic_agent_runner/workflow_host/host.py`.
   - Depends on: T013.
   - Validation: `poetry run pytest tests/test_transformers_peft_model.py tests/test_qwen25_vl_3b_grpo_converter.py tests/test_dar_authoring_runner.py -q` must fail before migration.
-  - Evidence: RED cases require the protocol adapter to preserve the existing
-    material lock, converter digest, generation budget, sealed image handling,
-    and workflow-owned JSON/SVG validation.
+  - Evidence: RED cases require one receiver-created `converter_input` handle,
+    exact package/revision/invocation/descriptor/material/converter binding,
+    one-shot materialization to private converter-owned canonical bytes,
+    sealed image handling, the existing generation budget, and workflow-owned
+    JSON/SVG validation. They also reject raw prompt/message fields and prove
+    no canonical payload enters a result, receipt, or trace.
   - Baseline evidence: the existing floorplan/Transformer/converter/authoring
     compatibility command passes — 146 tests — but it does not exercise a
-    protocol adapter. The approved protocol request carries sealed handles and
-    lifecycle context only, while `TransformersPeftPackedInputAdapter` requires
-    workflow messages/prompts to construct converter input. T014 cannot become
-    RED or proceed to T015 until the spec/plan defines a host-owned prompt or
-    prepacked-input binding; no prompt channel may be invented in DAR.
+    protocol adapter. Option 1 now supplies the missing binding without adding
+    a raw prompt channel to DAR.
 
 - [ ] T015 [implementation] Move the floorplan Transformers/PEFT host
-  composition behind the protocol adapter.
+  composition behind the protocol adapter using Option 1.
   - Spec: initial migration target; no domain validation in DAR.
   - Plan: M5; Scope and Boundaries.
   - Files/components: `src/dynamic_agent_runner/workflow_host/host.py`,
@@ -464,9 +465,12 @@ Status: In Progress
     converter fixtures, and `src/dynamic_agent_runner/multimodal_model_runner.py`.
   - Depends on: T014.
   - Validation: T014 focused command passes; `poetry run ruff check src tests`.
-  - Evidence: no model-loading, converter, material, generation-budget,
-    floorplan JSON/SVG, or publication semantics change; a mismatched protocol
-    identity fails before model materialization.
+  - Evidence: the receiver-owned materializer resolves only the bound
+    `converter_input` handle to private converter-owned canonical bytes; no
+    raw prompt/message channel is introduced. No model-loading, converter,
+    material, generation-budget, floorplan JSON/SVG, or publication semantics
+    change; a mismatched protocol or input binding fails before model
+    materialization.
 
 - [ ] T016 [tests, GREEN] Prove floorplan behavior and legacy-path
   compatibility after migration.
@@ -477,7 +481,9 @@ Status: In Progress
   - Depends on: T015.
   - Validation: `poetry run pytest tests/test_transformers_peft_model.py tests/test_qwen25_vl_3b_grpo_converter.py tests/test_dar_authoring_runner.py tests/test_local_model_runners.py -q`.
   - Evidence: the floorplan workflow retains its domain validation/publication
-    ownership and existing local/text paths remain green.
+    ownership and existing local/text paths remain green. The protocol path
+    uses exactly one sealed `converter_input` handle and does not expose its
+    canonical payload.
 
 - [ ] T017 [validation] Run the complete compatibility gate and record
   acceptance evidence.

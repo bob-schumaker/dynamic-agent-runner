@@ -91,7 +91,10 @@ parallel abstraction.
 2. Package admission binds the exact descriptor and package/revision identity;
    runtime revalidates the same tuple immediately before dispatch.
 3. Host-owned staging resolves receiver-created sealed handles and logical
-   roles. Raw paths, credentials, prompts, native objects, and model bytes stay
+   roles. For multimodal packing, the workflow supplies a converter-owned
+   canonical payload through one `converter_input` handle; the receiver's
+   input materializer resolves it privately after binding checks. Raw paths,
+   credentials, prompts/messages, native objects, and model bytes stay
    private to the receiver/worker.
 4. The existing generation-budget resolver and `generation-worker-v1` (or a
    reviewed cancellation-capable runner) contain packing, loading, generation,
@@ -111,8 +114,13 @@ The v1 contract module must define immutable, runtime-validated values for:
   output-contract digests, canonical resource limits, and contract digest.
 - `MultimodalRunnerHealth`: bounded, redacted readiness state with no material
   loading or private locator disclosure.
-- `SealedMultimodalRequest`: receiver-created opaque handles, logical roles,
-  package/revision/invocation bindings, and no raw material or runtime objects.
+- `SealedMultimodalRequest`: receiver-created opaque handles, logical roles
+  including the one-shot `converter_input` role when packed input is needed,
+  package/revision/invocation bindings, and no raw material, prompt/message, or
+  runtime objects.
+- `SealedMultimodalInputMaterializer`: receiver-owned capability that resolves
+  a bound `converter_input` handle to private converter-owned canonical bytes;
+  it returns no path, native object, or workflow-visible value.
 - `DARGenerationRequestContext`: effective budget, deadline/cancellation
   bindings, selected execution device, and private invocation identity.
 - `MultimodalRunnerResult`: normalized text or sealed output handles, aggregate
@@ -136,7 +144,7 @@ vectors.
 | Canonical bytes | Encode a closed mapping as UTF-8 JSON with `ensure_ascii=True`, `sort_keys=True`, and compact separators `(',', ':')`; arrays are already canonicalized by the owning value. |
 | Digest | SHA-256 of canonical bytes, rendered as exactly 64 lowercase hexadecimal characters; a declared digest is accepted only when it equals the recomputed digest. |
 | Identity tuple | `(protocol_id, protocol_version, runner_id, contract_digest, material_lock_digest, execution_abi_digest, converter_digest, output_contract_digest, package_id, package_revision_digest, invocation_id)`; any change invalidates admission or a pending dispatch. |
-| Input-handle linearity | A receiver-created input handle is bound to one invocation and logical role, consumed at most once, cleared on every terminal path, and never serialized into a workflow-visible result. |
+| Input-handle linearity | A receiver-created input handle is bound to one invocation and logical role, consumed at most once, cleared on every terminal path, and never serialized into a workflow-visible result. The `converter_input` handle additionally binds the descriptor, material lock, converter digest, issuer, and expiry. |
 | Terminal states | `rejected` (pre-worker), `completed`, `budget_exhausted`, `cancelled`, `deadline_exceeded`, `runner_failed`, and `cleanup_failed`; only `completed` may publish an output handle. |
 | Cleanup ordering | A terminal result is constructed only after private input clearing, reservation release, worker terminate/kill as needed, and confirmed reap. Cleanup failure produces `cleanup_failed`, no output handle, and a redacted receipt. |
 | Attestation | `worker_reaped` is true only after the existing worker controller confirms reap; a missing, false, or foreign attestation rejects the result. Aggregate token/byte counters must equal the host-side recomputation. |
@@ -230,13 +238,17 @@ the floorplan host composition in `workflow_host/host.py`, existing converter
 fixtures, and their focused tests.
 
 1. Write RED compatibility tests proving the existing prepared
-   Transformers/PEFT runner enters through the protocol adapter with the same
-   material lock, converter digest, generation budget, and workflow-owned
-   output validation.
-2. Move only host composition behind the protocol. Do not change model loading,
-   converter semantics, floorplan JSON/SVG validation, or publication policy.
+   Transformers/PEFT runner enters through the protocol adapter with one
+   bound `converter_input` handle and the same material lock, converter digest,
+   generation budget, and workflow-owned output validation. Include negative
+   vectors for raw prompt/message fields and mismatched input bindings.
+2. Move only host composition behind the protocol. Resolve the sealed,
+   converter-owned canonical payload through the receiver materializer; do not
+   change model loading, converter semantics, floorplan JSON/SVG validation,
+   or publication policy.
 3. Prove legacy local-runner and text-adapter paths remain unchanged and that a
-   mismatched protocol identity fails before model materialization.
+   mismatched protocol or converter-input identity fails before model
+   materialization.
 
 Exit: the floorplan path uses the protocol without changing its domain output
 or sealed-material behavior; protocol conformance remains independently green.

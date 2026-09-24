@@ -254,3 +254,19 @@ the existing Transformers/PEFT adapter requires workflow messages/prompts to
 construct converter input. T014–T016 need an explicit host-owned prompt or
 prepacked-input binding in the spec/plan before a protocol adapter can be
 implemented without leaking workflow semantics into DAR.
+
+## Option 1 contract amendment
+
+The corpus is amended to make Option 1 normative: packed multimodal input is
+provided through one receiver-created `converter_input` handle. A
+receiver-owned input materializer resolves that handle to private,
+converter-owned canonical payload bytes after checking package, revision,
+invocation, descriptor, material-lock, converter, issuer, role, and expiry
+bindings. The protocol carries no raw prompt/message field, and the payload is
+never serialized into results, receipts, or traces.
+
+The floorplan migration tasks now use this binding to preserve the existing
+`TransformersPeftPackedInputAdapter` and workflow-owned domain validation
+without adding prompt semantics to DAR. T014–T016 remain open for runtime RED,
+implementation, and GREEN evidence; this amendment removes the contract-level
+blocker only.
