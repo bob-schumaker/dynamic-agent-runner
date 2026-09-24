@@ -16,7 +16,9 @@ from dynamic_agent_runner import (
 from dynamic_agent_runner.external_adapter import (
     ExternalAdapterCancelledError,
     ExternalAdapterError,
+    ExternalAdapterUnavailableError,
     ExternalAdapterValidationError,
+    ExternalModelAdapterHealth,
     ExternalModelAdapterFacade,
 )
 from dynamic_agent_runner.local_models import (
@@ -54,6 +56,14 @@ class SlowApple(FakeApple):
     async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         await asyncio.sleep(0.05)
         return ModelResponse(content="late")
+
+
+class SlowHealthApple(FakeApple):
+    def health(self):
+        import time
+
+        time.sleep(0.05)
+        return ExternalModelAdapterHealth("ready")
 
 
 class FakeLlamaBackend:
@@ -94,6 +104,52 @@ def test_external_factories_reject_alias_ambiguity_and_invalid_timeout() -> None
         )
 
 
+def test_facade_health_timeout_and_worker_saturation_fail_closed(monkeypatch) -> None:
+    timed = create_apple_foundation_external_adapter(
+        SlowHealthApple(), adapter_id="apple.slow-health", health_timeout_seconds=0.001
+    )
+    with pytest.raises(ExternalAdapterUnavailableError, match="health timed out"):
+        asyncio.run(
+            ExternalModelAdapterFacade(timed).create_response_async(
+                _request("apple-test")
+            )
+        )
+
+    class SaturatedDispatcher:
+        def submit(self, *_args, **_kwargs):
+            raise ExternalAdapterUnavailableError(
+                "external adapter worker capacity is full"
+            )
+
+    import dynamic_agent_runner.external_adapter as external_adapter_module
+
+    facade = ExternalModelAdapterFacade(
+        create_apple_foundation_external_adapter(FakeApple(), adapter_id="apple.full")
+    )
+    monkeypatch.setattr(
+        external_adapter_module, "_EXTERNAL_DISPATCHER", SaturatedDispatcher()
+    )
+    with pytest.raises(ExternalAdapterUnavailableError, match="capacity is full"):
+        asyncio.run(facade.create_response_async(_request("apple-test")))
+
+
+def test_parity_projection_excludes_unstable_response_metadata() -> None:
+    def project(response: ModelResponse) -> tuple[object, ...]:
+        return (
+            response.content,
+            tuple((call.name, call.arguments) for call in response.tool_calls),
+            response.metadata.get("finish_reason"),
+        )
+
+    first = ModelResponse(
+        content="same", response_id="apple-unstable", raw={"provider": "a"}
+    )
+    second = ModelResponse(
+        content="same", response_id="mlx-unstable", raw={"provider": "b"}
+    )
+    assert project(first) == project(second)
+
+
 def test_llama_external_adapter_projects_identity_and_sync_response(
     tmp_path: Path,
 ) -> None:
@@ -113,6 +169,39 @@ def test_llama_external_adapter_projects_identity_and_sync_response(
         .content
         == "llama"
     )
+    assert (
+        asyncio.run(
+            ExternalModelAdapterFacade(adapter).create_response_async(
+                _request("llama-test")
+            )
+        ).content
+        == "llama"
+    )
+
+
+def test_llama_and_mlx_factories_reject_multi_alias_bindings(tmp_path: Path) -> None:
+    llama_path = tmp_path / "model.gguf"
+    llama_path.write_bytes(b"fake")
+    llama = LlamaCppLocalModelAdapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("one", "two"), model_path=llama_path, allow_network=False
+        ),
+        backend=FakeLlamaBackend(),
+    )
+    with pytest.raises(ExternalAdapterValidationError):
+        create_llama_cpp_external_adapter(llama, adapter_id="llama.multi")
+
+    mlx_path = tmp_path / "mlx"
+    mlx_path.mkdir()
+    for filename in ("config.json", "tokenizer.model", "weights.npz"):
+        (mlx_path / filename).write_bytes(b"fake")
+    mlx = MLXLocalModelAdapter(
+        MLXLocalModelConfig(model_aliases=("one", "two"), model_path=mlx_path),
+        backend=FakeMLXBackend(),
+        platform_system=lambda: "Darwin",
+    )
+    with pytest.raises(ExternalAdapterValidationError):
+        create_mlx_external_adapter(mlx, adapter_id="mlx.multi")
 
 
 def test_mlx_external_adapters_match_sync_and_async_modes(tmp_path: Path) -> None:
