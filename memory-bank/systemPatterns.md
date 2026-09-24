@@ -62,8 +62,11 @@
   receiver-owned registry performs exact descriptor admission and projects a
   validated adapter into the existing `ModelAdapter` path. The first plugin
   target is an optional text-only Chrome Built-in AI/Gemini Nano bridge;
-  existing OpenAI, LiteLLM, AFM, MLX, llama.cpp, and local-runner paths remain
-  separate until a concrete migration is authorized.
+  existing OpenAI and LiteLLM paths remain separate, while the approved
+  `native-model-adapter-migration` corpus authorizes caller-constructed AFM,
+  MLX, and direct llama.cpp text wrappers without changing native loading or
+  default routing. Embeddings and multimodal/sealed runners remain separate
+  future protocol families rather than extensions of the text-only v1 contract.
 
 ## Observed Patterns
 

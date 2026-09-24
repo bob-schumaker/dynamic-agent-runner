@@ -3,12 +3,16 @@
 
 ## Current Focus
 
-- `external-model-adapter-protocol` is approved and implementation-ready in
-  `916d8324`. The v1 boundary is a fail-closed, text-only
-  `DARExternalAdapterProtocol` with receiver-owned install/remove/list
-  lifecycle, an exported BYOM seam, exact model identity admission, and one
-  optional Chrome Built-in AI/Gemini Nano plugin target. Implementation has
-  not started; AFM, Ollama, and existing provider rewrites remain deferred.
+- `external-model-adapter-protocol` remains the approved v1 boundary from
+  `916d8324`: fail-closed, text-only `DARExternalAdapterProtocol`,
+  receiver-owned install/remove/list lifecycle, exported BYOM seam, exact
+  identity admission, and an optional Chrome Built-in AI/Gemini Nano target.
+  Commit `4a412e7a` adds the approved `native-model-adapter-migration` spec,
+  plan, and tasks for caller-constructed AFM, direct llama.cpp, and MLX text
+  wrappers. Runtime implementation has not started. The embedding and
+  multimodal protocol specs are proposed future extensions; Ollama remains
+  covered by the existing OpenAI-compatible endpoint path rather than a native
+  provider rewrite.
 - `reviewed-vector-index-host-extension` is complete. DAR now supplies generic
   reviewed-capability registration, admission, approval, sealed-artifact
   staging, bounded redacted receipts, and recovery-aware publication. The
