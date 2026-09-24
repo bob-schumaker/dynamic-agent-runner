@@ -1,6 +1,6 @@
 # DAR Multimodal Model Runner Protocol Tasks
 
-Status: In Progress
+Status: Complete
 
 ## Prerequisites
 
