@@ -75,8 +75,26 @@ class DARMultimodalModelRunnerProtocol(Protocol):
         request: "SealedMultimodalRequest",
         *,
         context: "DARGenerationRequestContext",
+        input_materializer: "SealedMultimodalInputMaterializer | None" = None,
     ) -> "MultimodalRunnerResult":
         """Translate one admitted sealed request to the provider call."""
+
+
+class SealedMultimodalInputMaterializer(Protocol):
+    """Receiver-owned capability for one sealed converter-input handle."""
+
+    def resolve(
+        self,
+        handle: "SealedMultimodalHandle",
+        *,
+        package_id: str,
+        package_revision_digest: str,
+        invocation_id: str,
+        descriptor_digest: str,
+        expires_at: object,
+        now: object,
+    ) -> bytes:
+        """Resolve one bound handle to private converter-owned canonical bytes."""
 
 
 def _canonical_json(value: object) -> bytes:
@@ -604,18 +622,29 @@ class MultimodalRunnerBinding:
         request: SealedMultimodalRequest,
         *,
         context: DARGenerationRequestContext,
+        input_materializer: SealedMultimodalInputMaterializer | None = None,
     ) -> MultimodalRunnerResult:
         self._claim(request, context)
-        return self._invoke(request, context=context)
+        return self._invoke(
+            request, context=context, input_materializer=input_materializer
+        )
 
     def _invoke(
         self,
         request: SealedMultimodalRequest,
         *,
         context: DARGenerationRequestContext,
+        input_materializer: SealedMultimodalInputMaterializer | None = None,
     ) -> MultimodalRunnerResult:
         try:
-            result = self.runner.run(request, context=context)
+            if input_materializer is None:
+                result = self.runner.run(request, context=context)
+            else:
+                result = self.runner.run(
+                    request,
+                    context=context,
+                    input_materializer=input_materializer,
+                )
         except MultimodalRunnerProtocolError:
             raise
         except Exception as error:  # noqa: BLE001 - provider boundary is redacted.
@@ -635,6 +664,7 @@ class MultimodalRunnerBinding:
         clear_inputs: Callable[[], object],
         release_reservation: Callable[[], object],
         reap_worker: Callable[[], object],
+        input_materializer: SealedMultimodalInputMaterializer | None = None,
         should_cancel: Callable[[], bool] | None = None,
         deadline_expired: Callable[[], bool] | None = None,
     ) -> MultimodalRunnerResult:
@@ -663,7 +693,11 @@ class MultimodalRunnerBinding:
         result: MultimodalRunnerResult | None = None
         run_error: Exception | None = None
         try:
-            result = self._invoke(request, context=context)
+            result = self._invoke(
+                request,
+                context=context,
+                input_materializer=input_materializer,
+            )
         except Exception as error:  # noqa: BLE001 - terminal mapping is redacted.
             run_error = error
         cleanup_error: Exception | None = None
@@ -693,6 +727,7 @@ class MultimodalRunnerBinding:
         controller: object,
         deadline: object,
         clock: Callable[[], float],
+        input_materializer: SealedMultimodalInputMaterializer | None = None,
         should_cancel: Callable[[], bool] | None = None,
         deadline_expired: Callable[[], bool] | None = None,
     ) -> MultimodalRunnerResult:
@@ -712,6 +747,7 @@ class MultimodalRunnerBinding:
                 deadline=deadline,
                 clock=clock,
             ),
+            input_materializer=input_materializer,
             should_cancel=should_cancel,
             deadline_expired=deadline_expired,
         )

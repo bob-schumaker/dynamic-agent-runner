@@ -79,6 +79,7 @@ from dynamic_agent_runner.multimodal_model_runner import (
     MultimodalRunnerBinding,
     MultimodalRunnerDescriptor,
     MultimodalRunnerResult,
+    SealedMultimodalInputMaterializer,
     SealedMultimodalHandle,
     SealedMultimodalRequest,
 )
@@ -1478,6 +1479,7 @@ class LocalWorkflowHost:
         clear_inputs: Callable[[], object],
         release_reservation: Callable[[], object],
         reap_worker: Callable[[], object],
+        input_materializer: SealedMultimodalInputMaterializer | None = None,
         publish_result: Callable[[MultimodalRunnerResult], object] | None = None,
         should_cancel: Callable[[], bool] | None = None,
         deadline_expired: Callable[[], bool] | None = None,
@@ -1493,6 +1495,7 @@ class LocalWorkflowHost:
             clear_inputs=clear_inputs,
             release_reservation=release_reservation,
             reap_worker=reap_worker,
+            input_materializer=input_materializer,
             should_cancel=should_cancel,
             deadline_expired=deadline_expired,
         )
