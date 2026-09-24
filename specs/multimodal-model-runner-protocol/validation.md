@@ -191,22 +191,24 @@ output handler.
 ### Council deliberation
 
 Ada, Feynman, and Torvalds agreed that the handler dependency is now available
-and that T008/T009 evidence should be marked complete. They found the task
-artifact not ready for final handoff because T010a has not yet frozen the
-multimodal-result-to-sealed-output bridge, T011–T013 still lack composed
-multimodal-to-sealed-output tests, and T014–T016 still lack the floorplan
+and that T008/T009 evidence should be marked complete. The user then selected
+Option 1 for the result-to-sealed-output bridge, so T010a is complete and its
+follow-on materializer/adapter tasks are now explicit. The task artifact is
+still not ready for final handoff because T010b–T010d and T011–T013 lack their
+composed publication evidence, while T014–T016 still lack the floorplan
 migration and compatibility evidence. The stale T010 dependency state and the
 old 2780-test count were corrected in `tasks.md`.
 
-Council conclusion: **not yet ready; continue with M4/M5 implementation gates**.
+Council conclusion: **not yet ready; continue with the Option 1 M4/M5
+implementation gates**.
 
 ### Ponytail review
 
 Ponytail review found no task to delete. The smallest continuation is to use
-the completed four-operation handler and its private transition seam in M4,
-then perform one narrow floorplan host-composition migration. No second
-publication registry, provider abstraction, or worker lifecycle authority is
-needed.
+the completed four-operation handler and its private transition seam in the
+Option 1 adapter, then perform one narrow floorplan host-composition
+migration. No second publication registry, provider abstraction, or worker
+lifecycle authority is needed.
 
 Ponytail conclusion: **lean enough to continue, not yet ready to close**.
 
@@ -215,6 +217,6 @@ Ponytail conclusion: **lean enough to continue, not yet ready to close**.
 - T008/T009 are now marked complete with focused lifecycle/cleanup evidence.
 - Repository regression is currently **2800 passed, 1 skipped, 7 deselected**;
   Ruff and `git diff --check` pass.
-- T010a–T013 and T014–T016 remain open; no readiness claim is made until the
-  bridge contract is explicit, their focused tests and migration evidence pass,
-  and the final package/static validation gate passes.
+- T010a is complete by decision; T010b–T013 and T014–T016 remain open. No
+  readiness claim is made until the Option 1 bridge tests, migration evidence,
+  and final package/static validation gate pass.

@@ -63,7 +63,7 @@ Status: In Progress
 | M1 | Candidate `src/dynamic_agent_runner/multimodal_model_runner.py` contract values; `src/dynamic_agent_runner/external_adapter.py:canonical_descriptor_digest`; workflow-host canonical JSON helpers | New `tests/test_multimodal_model_runner_protocol.py`; `tests/test_external_adapter_protocol.py` for digest precedent | Contract parsing and digest validation before registration or request staging |
 | M2 | `src/dynamic_agent_runner/workflow_host/local_model_runners.py:LocalModelRunnerCatalog`; `reviewed_capability_host_extension.py:ReviewedCapabilityHostExtension`; `host.py:configure_prepared_transformers_host` | `tests/test_local_model_runners.py`; `tests/test_dar_authoring_host.py` | Descriptor/admission rejection before materialization and worker creation |
 | M3 | `src/dynamic_agent_runner/workflow_host/generation_worker.py:GenerationWorkerSession/GenerationWorkerResult`; `workflow_host/approvals.py`; `state.py`; `reviewed_capability_execution.py`; `host.py` | `tests/test_generation_worker.py`; `tests/test_generation_worker_controllers.py`; new protocol lifecycle cases | Binding/replay rejection before sealed-input ingress and dispatch |
-| M4 | `workflow_host/sealed_artifact_output_handler.py`; `workflow_host/sealed_artifact_runner.py`; `sealed_artifact_workflow_runner.py`; `reviewed_capability_outputs.py`; `reviewed_capability_publication.py` | `tests/test_sealed_artifact_output_handler.py`; `tests/test_sealed_artifact_output_handles.py`; `tests/test_sealed_artifact_workflow_runner.py` | Result validation before public output-handle publication |
+| M4 | `workflow_host/host.py` Option 1 materializer adapter; `workflow_host/sealed_artifact_output_handler.py`; `workflow_host/sealed_artifact_runner.py`; `sealed_artifact_workflow_runner.py`; `reviewed_capability_outputs.py`; `reviewed_capability_publication.py` | `tests/test_multimodal_model_runner_protocol.py`; `tests/test_sealed_artifact_output_handler.py`; `tests/test_sealed_artifact_output_handles.py`; `tests/test_sealed_artifact_workflow_runner.py` | Result validation and private materialization before public output-handle publication |
 | M5 | `src/dynamic_agent_runner/workflow_host/transformers_peft_model.py:TransformersGenerateRunner`; `host.py:configure_prepared_transformers_host`; sealed converter fixture | `tests/test_transformers_peft_model.py`; `tests/test_qwen25_vl_3b_grpo_converter.py`; `tests/test_dar_authoring_runner.py` | Protocol identity check before floorplan materialization |
 
 - [x] T002 [tests, RED] Add protocol contract and canonical identity vectors.
@@ -247,8 +247,10 @@ Status: In Progress
     worker-controller suite and `dispatch_with_worker_cleanup` verify
     terminate/kill/reap integration.
 
-- [ ] T010a [decision] Freeze the multimodal result-to-sealed-output bridge
-  before writing M4 integration tests.
+- [x] T010a [decision] Select Option 1 for the multimodal
+  result-to-sealed-output bridge: a receiver-owned materializer resolves
+  runner handles to private candidates, then the host stages and promotes them
+  through `SealedArtifactOutputHandler`.
   - Spec: Result contract; Initial migration target; host ownership of output
     staging and publication.
   - Plan: M4; Architecture and Data Flow.
@@ -259,14 +261,59 @@ Status: In Progress
     `SealedArtifactOutputStageRequest`. The current
     `publish_result(MultimodalRunnerResult)` callback provides neither
     candidates nor a materializer.
-  - Decision required: define the exact adapter contract covering role/media
-    mapping, opaque-handle resolution and private byte materialization, text
-    candidate handling, package/revision/invocation/descriptor/expiry binding,
-    foreign/expired/unsupported/materializer failures, and whether public
-    results replace multimodal handles with `SealedArtifactOutputHandle` values.
-  - Evidence: an amended spec/plan section plus a named host-owned resolver or
-    materializer and a focused fake fixture; no implementation may invent a
-    second publication registry or expose candidate bytes.
+  - Decision: public results replace multimodal output handles with
+    `SealedArtifactOutputHandle` values only after private materialization,
+    declaration validation, staging, cleanup/reap confirmation, and atomic
+    promotion. Text results do not invoke the materializer.
+  - Completed evidence: the user selected Option 1; the follow-on tasks below
+    freeze and verify the host-owned materializer seam without adding a second
+    publication registry or exposing candidate bytes.
+
+- [ ] T010b [tests, RED] Specify the Option 1 materializer and publication
+  vectors before adding its host adapter.
+  - Spec: Result contract; host ownership of staging and publication.
+  - Plan: M4; Architecture and Data Flow.
+  - Depends on: T010a.
+  - Files/components: new focused cases in
+    `tests/test_multimodal_model_runner_protocol.py` and
+    `tests/test_sealed_artifact_output_handler.py`, using a deterministic fake
+    materializer and the existing declaration resolver.
+  - Validation: the focused publication command must fail before the adapter
+    exists.
+  - Evidence: vectors require each output handle to resolve exactly once to a
+    private `(role, media_type, bytes)` candidate; declaration role/media and
+    max-byte limits, package/revision/invocation/descriptor/expiry bindings,
+    and output-count limits are enforced; text results bypass materialization;
+    foreign, expired, unsupported, and materializer-failure cases produce no
+    public handle.
+
+- [ ] T010c [implementation] Add the receiver-owned Option 1 host adapter.
+  - Spec: Result contract; initial migration target; no raw output leakage.
+  - Plan: M4; Architecture and Data Flow.
+  - Depends on: T010b.
+  - Files/components: `src/dynamic_agent_runner/workflow_host/host.py`,
+    `src/dynamic_agent_runner/workflow_host/sealed_artifact_output_handler.py`,
+    and the protocol result/receipt owner. The adapter may accept one
+    host-provided materializer callable or protocol, but must not create a
+    registry, provider abstraction, or second publication service.
+  - Validation: T010b focused cases pass; `poetry run ruff check src tests`.
+  - Evidence: completed artifact results resolve privately, construct a
+    `SealedArtifactOutputStageRequest`, call `stage_declared`, and call
+    `promote` exactly once after confirmed cleanup; any failure calls
+    handler-owned discard/reap as applicable and returns a redacted failure
+    without public handles or candidate bytes.
+
+- [ ] T010d [tests, GREEN] Prove Option 1 publication ordering and redaction.
+  - Spec: acceptance criteria 3–5 and cleanup ownership.
+  - Plan: M4 exit; Verification Matrix.
+  - Depends on: T010c.
+  - Files/components: multimodal protocol, host, sealed-output handler, and
+    receipt/tracing tests.
+  - Validation: run the focused multimodal, handler, and sealed-output suites.
+  - Evidence: deterministic event traces prove materialize → stage → input
+    clear/release/reap → promote for success; failure paths prove discard or
+    reap before any public handle; receipts contain only normalized text,
+    opaque promoted handles, aggregate counters, and redacted classifications.
 
 - [ ] T011 [tests, RED] Add normalized result, sealed-output, accounting, and
   redaction vectors.
@@ -278,7 +325,7 @@ Status: In Progress
     in `src/dynamic_agent_runner/workflow_host/sealed_artifact_runner.py`,
     `sealed_artifact_workflow_runner.py`, `reviewed_capability_outputs.py`,
     and `reviewed_capability_publication.py`.
-  - Depends on: T010a.
+  - Depends on: T010d.
   - Handler prerequisite: commit `570bd953` completed the
     `sealed-artifact-output-handler-interface`; use its four-operation handler
     and `SealedArtifactPrivateTransitionResult` seam for new publication flows
@@ -293,8 +340,8 @@ Status: In Progress
     foreign-result rejection; binding now also enforces declared output
     modalities, input coverage keys, and effective generation budgets;
     sealed-artifact service vectors remain.
-  - Readiness state: open. The handler is available, but composed multimodal
-    result-to-sealed-output vectors have not yet been added.
+  - Readiness state: open until T010b–T010d establish the Option 1 bridge and
+    the remaining normalized-result vectors are added.
 
 - [ ] T012 [implementation] Implement result validation and redacted receipt
   shaping through existing sealed-artifact services.
@@ -387,7 +434,7 @@ Status: In Progress
   - Plan: M6; Verification Matrix; Risks and Mitigations.
   - Files/components: all changed source/tests plus
     `specs/multimodal-model-runner-protocol/validation.md`.
-  - Depends on: T004, T007, T010, T013, and T016.
+  - Depends on: T004, T007, T010d, T013, and T016.
   - Validation: run the exact focused commands in `plan.md`, perform the
     static inspection checklist below, then
     `poetry run pytest -q`, `poetry run ruff check src tests`, `poetry build`,
