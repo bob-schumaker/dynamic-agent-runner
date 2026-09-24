@@ -278,8 +278,18 @@ Status: In Progress
     `tests/test_multimodal_model_runner_protocol.py` and
     `tests/test_sealed_artifact_output_handler.py`, using a deterministic fake
     materializer and the existing declaration resolver.
-  - Validation: the focused publication command must fail before the adapter
-    exists.
+  - Materializer contract: one receiver-owned
+    `resolve(handle, *, package_id, package_revision_digest, invocation_id,
+    descriptor_digest, expires_at, now)` operation accepts only a
+    `SealedMultimodalHandle` plus the authoritative binding and returns exactly
+    `(role, media_type, bytes)`. It resolves each handle once, keeps bytes
+    process-private, returns no path/native object, and maps foreign, expired,
+    unsupported, and missing values to package-owned publication errors.
+  - Validation: `poetry run pytest -q
+    tests/test_multimodal_model_runner_protocol.py
+    tests/test_sealed_artifact_output_handler.py -k
+    'materializer or publication or sealed_output'` must fail before the
+    adapter exists.
   - Evidence: vectors require each output handle to resolve exactly once to a
     private `(role, media_type, bytes)` candidate; declaration role/media and
     max-byte limits, package/revision/invocation/descriptor/expiry bindings,
@@ -293,15 +303,23 @@ Status: In Progress
   - Depends on: T010b.
   - Files/components: `src/dynamic_agent_runner/workflow_host/host.py`,
     `src/dynamic_agent_runner/workflow_host/sealed_artifact_output_handler.py`,
-    and the protocol result/receipt owner. The adapter may accept one
-    host-provided materializer callable or protocol, but must not create a
-    registry, provider abstraction, or second publication service.
+    and the protocol result/receipt owner. Add one named host entry point,
+    `publish_multimodal_result`, with the materializer and handler injected by
+    the receiver; do not leave callable-versus-protocol choice to each caller.
+    The adapter must not create a registry, provider abstraction, or second
+    publication service.
   - Validation: T010b focused cases pass; `poetry run ruff check src tests`.
-  - Evidence: completed artifact results resolve privately, construct a
+  - Result handoff: keep `MultimodalRunnerResult` as the private normalized
+    runner value; return a separate host-owned publication tuple of
+    `SealedArtifactOutputHandle` values for receipts/workflow egress. Never
+    place candidate bytes or the pre-publication multimodal handles in that
+    public tuple.
+  - Evidence: after the existing dispatch cleanup/reap gate, completed
+    artifact results resolve privately, construct a
     `SealedArtifactOutputStageRequest`, call `stage_declared`, and call
-    `promote` exactly once after confirmed cleanup; any failure calls
-    handler-owned discard/reap as applicable and returns a redacted failure
-    without public handles or candidate bytes.
+    `promote` exactly once; any failure calls handler-owned discard as
+    applicable and returns a redacted failure without public handles or
+    candidate bytes.
 
 - [ ] T010d [tests, GREEN] Prove Option 1 publication ordering and redaction.
   - Spec: acceptance criteria 3–5 and cleanup ownership.
@@ -309,9 +327,14 @@ Status: In Progress
   - Depends on: T010c.
   - Files/components: multimodal protocol, host, sealed-output handler, and
     receipt/tracing tests.
-  - Validation: run the focused multimodal, handler, and sealed-output suites.
-  - Evidence: deterministic event traces prove materialize → stage → input
-    clear/release/reap → promote for success; failure paths prove discard or
+  - Validation: `poetry run pytest -q
+    tests/test_multimodal_model_runner_protocol.py
+    tests/test_sealed_artifact_output_handler.py
+    tests/test_sealed_artifact_output_handles.py
+    tests/test_sealed_artifact_runner_admission.py -k
+    'materializer or publication or sealed_output or cleanup'`.
+  - Evidence: deterministic event traces prove input clear/release/reap →
+    materialize → stage → promote for success; failure paths prove discard or
     reap before any public handle; receipts contain only normalized text,
     opaque promoted handles, aggregate counters, and redacted classifications.
 
@@ -330,7 +353,7 @@ Status: In Progress
     `sealed-artifact-output-handler-interface`; use its four-operation handler
     and `SealedArtifactPrivateTransitionResult` seam for new publication flows
     rather than the legacy service `discard` path.
-  - Validation: `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_sealed_artifact_output_handles.py tests/test_sealed_artifact_runner_admission.py -q` must fail before result shaping.
+  - Validation: `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_sealed_artifact_output_handler.py tests/test_sealed_artifact_output_handles.py tests/test_sealed_artifact_runner_admission.py -q` must fail before result shaping.
   - Evidence: RED cases cover normalized text, opaque output handles,
     aggregate token/byte/coverage scalars, byte/handle limits, worker-reaped
     attestation, foreign results, and absence of raw sensitive values in
@@ -361,14 +384,11 @@ Status: In Progress
     model bytes remain private.
   - Partial evidence: `MultimodalRunnerResult.to_redacted_mapping` exposes the
     normalized receipt shape and binding validation enforces identity and
-    output/modality/budget limits; sealed-artifact publication integration
-    remains, with `LocalWorkflowHost.dispatch_multimodal_runner` now exposing
-    a completed-only publication callback for the existing host services;
-    host-level publication ordering is covered by protocol tests.
-  - Readiness state: open. The current callback accepts normalized protocol
-    results, while no production callback yet carries private output candidates
-    for the handler to stage; the integration seam must be frozen before this
-    task can pass.
+    output/modality/budget limits; the T010c publication adapter still must
+    replace private multimodal handles with promoted handler handles in the
+    host-owned egress tuple.
+  - Readiness state: open until T010b–T010d establish and prove the named
+    materializer/publication entry point.
 
 - [ ] T013 [tests, GREEN] Prove result transfer, redaction, and cleanup
   compatibility.
@@ -378,7 +398,7 @@ Status: In Progress
     sealed-artifact output/runner tests, and existing tracing/receipt tests
     identified by T001.
   - Depends on: T012.
-  - Validation: `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_sealed_artifact_output_handles.py tests/test_sealed_artifact_runner_admission.py tests/test_sealed_artifact_workflow_runner.py -q`.
+  - Validation: `poetry run pytest tests/test_multimodal_model_runner_protocol.py tests/test_sealed_artifact_output_handler.py tests/test_sealed_artifact_output_handles.py tests/test_sealed_artifact_runner_admission.py tests/test_sealed_artifact_workflow_runner.py -q`.
   - Evidence: normalized valid results pass; foreign/replayed results, false
     attestation, counter mismatch, and cleanup failure fail closed without
     public output handles.

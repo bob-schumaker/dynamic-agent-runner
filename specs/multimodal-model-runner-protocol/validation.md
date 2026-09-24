@@ -186,7 +186,8 @@ authoring.
 ## Current task-list readiness review
 
 This review was rerun after commit `570bd953` completed the sealed-artifact
-output handler.
+output handler and after Option 1 was selected for the multimodal publication
+bridge.
 
 ### Council deliberation
 
@@ -199,8 +200,14 @@ composed publication evidence, while T014–T016 still lack the floorplan
 migration and compatibility evidence. The stale T010 dependency state and the
 old 2780-test count were corrected in `tasks.md`.
 
-Council conclusion: **not yet ready; continue with the Option 1 M4/M5
-implementation gates**.
+The fresh Council pass found the dependency chain correct but not yet
+implementation-ready. T010b–T010d still needed an exact materializer
+signature, one named host entry point, explicit private-result/public-handoff
+types, exact focused commands, and ordering aligned with the existing
+cleanup-before-callback dispatch API.
+
+Council conclusion: **not yet ready; the remaining gaps are now concrete M4
+contract and evidence tasks**.
 
 ### Ponytail review
 
@@ -211,6 +218,10 @@ migration. No second publication registry, provider abstraction, or worker
 lifecycle authority is needed.
 
 Ponytail conclusion: **lean enough to continue, not yet ready to close**.
+The review found no task to delete: T010b–T010d are the minimum split needed
+to keep the materializer contract, adapter implementation, and ordering proof
+separately verifiable. No second registry, provider abstraction, or lifecycle
+coordinator is warranted.
 
 ### Current evidence
 
@@ -218,5 +229,5 @@ Ponytail conclusion: **lean enough to continue, not yet ready to close**.
 - Repository regression is currently **2800 passed, 1 skipped, 7 deselected**;
   Ruff and `git diff --check` pass.
 - T010a is complete by decision; T010b–T013 and T014–T016 remain open. No
-  readiness claim is made until the Option 1 bridge tests, migration evidence,
-  and final package/static validation gate pass.
+  readiness claim is made until the exact Option 1 bridge contract/tests,
+  migration evidence, and final package/static validation gate pass.
