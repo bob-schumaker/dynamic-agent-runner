@@ -408,6 +408,24 @@ def test_apple_binding_without_structured_capability_denies_json_schema() -> Non
         )
 
 
+def test_apple_capability_profile_changes_canonical_identity() -> None:
+    structured = create_apple_foundation_external_adapter(
+        FakeApple(), adapter_id="apple.structured"
+    )
+
+    class TextOnlyApple(FakeApple):
+        capabilities = {"structured_output": False}
+
+    text_only = create_apple_foundation_external_adapter(
+        TextOnlyApple(), adapter_id="apple.text-only"
+    )
+    assert (
+        structured.describe().canonical_model_id
+        != text_only.describe().canonical_model_id
+    )
+    assert structured.describe().contract_digest != text_only.describe().contract_digest
+
+
 def test_async_deadline_cancels_without_late_response() -> None:
     adapter = create_apple_foundation_external_adapter(
         SlowApple(), adapter_id="apple.slow"

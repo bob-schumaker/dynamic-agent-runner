@@ -174,10 +174,13 @@ def create_apple_foundation_external_adapter(
     bound_client = getattr(native_adapter, "__dict__", {}).get("_client")
     config = getattr(bound_client, "responses", None)
     config = getattr(config, "_config", None)
+    native_capabilities = getattr(native_adapter, "capabilities", {})
+    structured = bool(native_capabilities.get("structured_output", True))
     identity_inputs = {
         "alias": aliases[0],
         "provider": "apple-foundation-models",
         "sdk_profile": "system-model",
+        "capability_profile": {"structured_output": structured},
     }
     canonical_model_id = (
         "apple/"
@@ -185,8 +188,6 @@ def create_apple_foundation_external_adapter(
             json.dumps(identity_inputs, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
     )
-    native_capabilities = getattr(native_adapter, "capabilities", {})
-    structured = bool(native_capabilities.get("structured_output", True))
     capabilities = {"text_generation"} | (
         {"structured_output"} if structured else set()
     )
