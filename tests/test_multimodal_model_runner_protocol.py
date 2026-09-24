@@ -914,3 +914,37 @@ def test_host_publication_discards_staged_output_on_promotion_failure(tmp_path) 
         "promote",
         "discard",
     ]
+
+
+def test_host_publication_rejects_aggregate_byte_mismatch(tmp_path) -> None:
+    result = replace(_publication_result(), output_bytes=4)
+    with pytest.raises(ValueError, match="publication failed"):
+        object.__new__(LocalWorkflowHost).publish_multimodal_result(
+            result,
+            request=_publication_request(),
+            workflow_id="floorplan",
+            receiver_id="host",
+            descriptor_digest=_PUBLICATION_DESCRIPTOR,
+            expires_at=_PUBLICATION_NOW + timedelta(minutes=1),
+            now=_PUBLICATION_NOW,
+            materializer=_PublicationMaterializer(),
+            output_handler=_publication_handler(tmp_path),
+        )
+
+
+def test_host_publication_rejects_candidate_over_declared_limit(tmp_path) -> None:
+    content = b"x" * 17
+    result = replace(_publication_result(), output_bytes=len(content))
+    with pytest.raises(ValueError, match="publication failed") as error:
+        object.__new__(LocalWorkflowHost).publish_multimodal_result(
+            result,
+            request=_publication_request(),
+            workflow_id="floorplan",
+            receiver_id="host",
+            descriptor_digest=_PUBLICATION_DESCRIPTOR,
+            expires_at=_PUBLICATION_NOW + timedelta(minutes=1),
+            now=_PUBLICATION_NOW,
+            materializer=_PublicationMaterializer(content),
+            output_handler=_publication_handler(tmp_path),
+        )
+    assert content.decode() not in str(error.value)

@@ -350,7 +350,7 @@ Status: In Progress
     promotion, and promotion failure discards the private set without leaking
     candidate bytes.
 
-- [ ] T011 [tests, RED] Add normalized result, sealed-output, accounting, and
+- [x] T011 [tests, GREEN] Add normalized result, sealed-output, accounting, and
   redaction vectors.
   - Spec: result contract and acceptance criteria 3–5.
   - Plan: M4; Planned Contract Surface.
@@ -375,10 +375,13 @@ Status: In Progress
     foreign-result rejection; binding now also enforces declared output
     modalities, input coverage keys, and effective generation budgets;
     sealed-artifact service vectors remain.
-  - Readiness state: open until T010b–T010d establish the Option 1 bridge and
-    the remaining normalized-result vectors are added.
+  - Readiness state: complete; the Option 1 bridge and normalized-result
+    vectors are green.
+  - Completed evidence: focused result/handler/admission command passes — 60
+    tests; vectors cover promoted opaque handles, aggregate byte mismatch,
+    declaration byte ceilings, foreign results, and redacted failures.
 
-- [ ] T012 [implementation] Implement result validation and redacted receipt
+- [x] T012 [implementation] Implement result validation and redacted receipt
   shaping through existing sealed-artifact services.
   - Spec: result contract and workflow/host authority split.
   - Plan: M4; Architecture and Data Flow.
@@ -399,8 +402,12 @@ Status: In Progress
     output/modality/budget limits; the T010c publication adapter still must
     replace private multimodal handles with promoted handler handles in the
     host-owned egress tuple.
-  - Readiness state: open until T010b–T010d establish and prove the named
-    materializer/publication entry point.
+  - Readiness state: complete for the current host-owned publication seam; the
+    adapter validates identity and aggregate bytes, keeps candidate bytes
+    private, and returns only promoted `SealedArtifactOutputHandle` values.
+  - Completed evidence: `LocalWorkflowHost.publish_multimodal_result` and the
+    focused result/handler suites provide the normalized, redacted handoff;
+    no raw candidate bytes or multimodal handles enter the public tuple.
 
 - [ ] T013 [tests, GREEN] Prove result transfer, redaction, and cleanup
   compatibility.
