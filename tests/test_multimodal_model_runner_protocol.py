@@ -18,6 +18,7 @@ from dynamic_agent_runner.multimodal_model_runner import (
     MultimodalRunnerLimits,
     MultimodalRunnerProtocolError,
     MultimodalRunnerResult,
+    SealedMultimodalInputMaterializer,
     SealedMultimodalHandle,
     SealedMultimodalRequest,
     admit_multimodal_runner,
@@ -523,6 +524,67 @@ def test_binding_consumes_one_invocation_and_rejects_replay_before_dispatch() ->
     with pytest.raises(MultimodalRunnerAdmissionError):
         binding.run(_request(), context=context)
     assert runner.run_calls == 1
+
+
+def test_option1_resolves_one_sealed_converter_input_before_runner_dispatch() -> None:
+    descriptor = _descriptor()
+    revision = _digest("revision")
+    request = replace(
+        _request(),
+        handles=(
+            *_request().handles,
+            SealedMultimodalHandle(
+                value="sealed:converter-input",
+                role="converter_input",
+                package_id="floorplan-from-image",
+                package_revision_digest=revision,
+                invocation_id="invocation-1",
+                material_lock_digest=descriptor.material_lock_digest,
+                converter_digest=descriptor.converter_digest,
+            ),
+        ),
+    )
+    resolved: list[bytes] = []
+
+    class Materializer(SealedMultimodalInputMaterializer):
+        def resolve(self, handle, **kwargs):
+            assert handle.role == "converter_input"
+            assert kwargs == {
+                "package_id": request.package_id,
+                "package_revision_digest": request.package_revision_digest,
+                "invocation_id": request.invocation_id,
+                "descriptor_digest": descriptor.contract_digest,
+                "expires_at": _PUBLICATION_NOW + timedelta(minutes=5),
+                "now": _PUBLICATION_NOW,
+            }
+            resolved.append(b"private-canonical-payload")
+            return resolved[-1]
+
+    class Runner(_FakeRunner):
+        def run(self, request, *, context, input_materializer):
+            assert callable(getattr(input_materializer, "resolve", None))
+            assert input_materializer.resolve(
+                next(handle for handle in request.handles if handle.role == "converter_input"),
+                package_id=request.package_id,
+                package_revision_digest=request.package_revision_digest,
+                invocation_id=request.invocation_id,
+                descriptor_digest=request.descriptor.contract_digest,
+                expires_at=_PUBLICATION_NOW + timedelta(minutes=5),
+                now=_PUBLICATION_NOW,
+            ) == b"private-canonical-payload"
+            return super().run(request, context=context)
+
+    runner = Runner(descriptor)
+    binding = admit_multimodal_runner(runner, expected_descriptor=descriptor)
+    binding.dispatch(
+        request,
+        context=_context(),
+        input_materializer=Materializer(),
+        clear_inputs=lambda: None,
+        release_reservation=lambda: None,
+        reap_worker=lambda: None,
+    )
+    assert resolved == [b"private-canonical-payload"]
 
 
 def test_binding_rejects_foreign_result_identity() -> None:
