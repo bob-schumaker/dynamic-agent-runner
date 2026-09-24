@@ -624,6 +624,7 @@ class MultimodalRunnerBinding:
         context: DARGenerationRequestContext,
         input_materializer: SealedMultimodalInputMaterializer | None = None,
     ) -> MultimodalRunnerResult:
+        self._validate_input_materializer(request, input_materializer)
         self._claim(request, context)
         return self._invoke(
             request, context=context, input_materializer=input_materializer
@@ -673,6 +674,7 @@ class MultimodalRunnerBinding:
         callbacks = (clear_inputs, release_reservation, reap_worker)
         if any(not callable(callback) for callback in callbacks):
             raise MultimodalRunnerProtocolError("cleanup_failed")
+        self._validate_input_materializer(request, input_materializer)
         self._claim(request, context)
         cancelled = should_cancel is not None and should_cancel()
         expired = deadline_expired is not None and deadline_expired()
@@ -764,6 +766,23 @@ class MultimodalRunnerBinding:
                 "multimodal runner invocation replayed"
             )
         self._consumed_invocations.add(request.invocation_id)
+
+    @staticmethod
+    def _validate_input_materializer(
+        request: SealedMultimodalRequest,
+        input_materializer: SealedMultimodalInputMaterializer | None,
+    ) -> None:
+        converter_inputs = tuple(
+            handle for handle in request.handles if handle.role == "converter_input"
+        )
+        if converter_inputs and (
+            len(converter_inputs) != 1
+            or input_materializer is None
+            or not callable(getattr(input_materializer, "resolve", None))
+        ):
+            raise MultimodalRunnerAdmissionError(
+                "sealed converter input materializer is unavailable"
+            )
 
 
 def admit_multimodal_runner(

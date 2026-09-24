@@ -587,6 +587,33 @@ def test_option1_resolves_one_sealed_converter_input_before_runner_dispatch() ->
     assert resolved == [b"private-canonical-payload"]
 
 
+def test_option1_rejects_converter_input_without_receiver_materializer() -> None:
+    descriptor = _descriptor()
+    request = replace(
+        _request(),
+        handles=(
+            *_request().handles,
+            SealedMultimodalHandle(
+                value="sealed:converter-input",
+                role="converter_input",
+                package_id="floorplan-from-image",
+                package_revision_digest=_digest("revision"),
+                invocation_id="invocation-1",
+                material_lock_digest=descriptor.material_lock_digest,
+                converter_digest=descriptor.converter_digest,
+            ),
+        ),
+    )
+    binding = admit_multimodal_runner(
+        _FakeRunner(descriptor), expected_descriptor=descriptor
+    )
+
+    with pytest.raises(
+        MultimodalRunnerAdmissionError, match="materializer is unavailable"
+    ):
+        binding.run(request, context=_context())
+
+
 def test_transformers_option1_runner_enters_through_protocol_with_private_payload() -> None:
     from dynamic_agent_runner.openai_client import ModelResponse
     from dynamic_agent_runner.workflow_host.transformers_peft_model import (
