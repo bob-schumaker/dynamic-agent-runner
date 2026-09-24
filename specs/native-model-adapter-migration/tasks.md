@@ -314,7 +314,7 @@ provider conformance slices.
   - Validation: exact commands above
   - Evidence: full suite, Ruff, and package build are green.
 
-- [ ] T7.4 [review] Perform final spec/plan/tasks/code/validation drift review
+- [x] T7.4 [review] Perform final spec/plan/tasks/code/validation drift review
   and record any provider capability that remains native-only before declaring
   the migration slice complete.
   - Spec: migration and removal gates

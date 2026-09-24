@@ -51,3 +51,16 @@ Registry configuration binding, default-provider routing, model downloads,
 streaming, embeddings, multimodal output, persistent sessions, and native
 callback tool execution remain deferred. The existing native factories remain
 available until a separate parity/provenance decision authorizes removal.
+
+## Final drift review
+
+- The v1 protocol ID and descriptor digest algorithm are unchanged.
+- The four factories are exported alongside, and do not replace, the existing
+  native factories.
+- No native provider is registered as a default, installed through the CLI, or
+  bound through the installed-adapter registry.
+- The implementation does not add model downloads, endpoint discovery,
+  streaming, embeddings, multimodal output, persistent sessions, or callback
+  tool execution to the external text protocol.
+- The only open handoff item is T7.3: the repository-wide suite is blocked by
+  four unrelated Darwin/MPS host-capability failures documented above.
