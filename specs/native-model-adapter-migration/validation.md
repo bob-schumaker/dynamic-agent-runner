@@ -8,7 +8,7 @@ wrapper slice; no current test is being presented as retrospective RED
 evidence.
 
 - RED boundary and provider conformance:
-  `poetry run pytest tests/test_native_model_adapter_migration.py -q` — 10
+  `poetry run pytest tests/test_native_model_adapter_migration.py -q` — 13
   fake-backed tests pass.
 - Shared protocol and public exports:
   `poetry run pytest tests/test_external_adapter_protocol.py
@@ -20,7 +20,7 @@ evidence.
   `poetry run pytest tests/test_apple_foundation_models.py
   tests/test_local_models.py tests/test_mlx_models.py
   tests/test_external_adapter_registry.py -q` — 361 tests pass.
-- Combined migration/protocol/provider/matrix command — 406 tests pass.
+- Combined migration/protocol/provider/matrix command — 408 tests pass.
 - Repository suite: an earlier run completed with 2,752 passed, 1 skipped, and
   7 deselected. A final rerun reproduced four unrelated Darwin/MPS host
   capability failures in `test_floorplan_svg_fixture.py`,
