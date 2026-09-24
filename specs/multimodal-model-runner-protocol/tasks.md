@@ -329,7 +329,7 @@ Status: In Progress
     the dispatch cleanup gate, and maps publication failures to one redacted
     host error.
 
-- [ ] T010d [tests, GREEN] Prove Option 1 publication ordering and redaction.
+- [x] T010d [tests, GREEN] Prove Option 1 publication ordering and redaction.
   - Spec: acceptance criteria 3–5 and cleanup ownership.
   - Plan: M4 exit; Verification Matrix.
   - Depends on: T010c.
@@ -345,6 +345,10 @@ Status: In Progress
     materialize → stage → promote for success; failure paths prove discard or
     reap before any public handle; receipts contain only normalized text,
     opaque promoted handles, aggregate counters, and redacted classifications.
+  - Completed evidence: the focused publication command passes — 11 tests;
+    event traces prove cleanup/reap precedes materialization, stage, and
+    promotion, and promotion failure discards the private set without leaking
+    candidate bytes.
 
 - [ ] T011 [tests, RED] Add normalized result, sealed-output, accounting, and
   redaction vectors.

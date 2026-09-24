@@ -29,10 +29,12 @@ from dynamic_agent_runner.workflow_host.local_model_runners import (
 from dynamic_agent_runner.workflow_host.host import LocalWorkflowHost
 from dynamic_agent_runner.workflow_host.sealed_artifact_output_handler import (
     SealedArtifactOutputHandler,
+    SealedArtifactOutputStageRequest,
 )
 from dynamic_agent_runner.workflow_host.sealed_artifact_runner import (
     SealedArtifactOutput,
     SealedArtifactOutputHandleService,
+    SealedArtifactPrivateOutputSet,
 )
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
@@ -177,9 +179,28 @@ def _publication_handler(tmp_path):
     )
 
 
+def _recording_publication_handler(
+    tmp_path, events: list[str], *, fail_promote: bool = False
+) -> SealedArtifactOutputHandler:
+    return _RecordingOutputHandler(
+        service=SealedArtifactOutputHandleService(
+            store=PrivateStateStore(tmp_path / "state"), owner="host"
+        ),
+        declaration_resolver=lambda workflow_id, package_id, digest: (
+            (SealedArtifactOutput("result", "image/png", 16, None),)
+            if (workflow_id, package_id, digest)
+            == ("floorplan", "floorplan-from-image", _PUBLICATION_DESCRIPTOR)
+            else None
+        ),
+        events=events,
+        fail_promote=fail_promote,
+    )
+
+
 class _PublicationMaterializer:
-    def __init__(self, content: bytes = b"png") -> None:
+    def __init__(self, content: bytes = b"png", events: list[str] | None = None) -> None:
         self.content = content
+        self.events = events
         self.calls: list[SealedMultimodalHandle] = []
 
     def resolve(
@@ -193,6 +214,8 @@ class _PublicationMaterializer:
         expires_at: datetime,
         now: datetime,
     ) -> tuple[str, str, bytes]:
+        if self.events is not None:
+            self.events.append("materialize")
         self.calls.append(handle)
         assert handle.package_id == package_id
         assert handle.package_revision_digest == package_revision_digest
@@ -200,6 +223,33 @@ class _PublicationMaterializer:
         assert descriptor_digest == _PUBLICATION_DESCRIPTOR
         assert now < expires_at
         return handle.role, "image/png", self.content
+
+
+class _RecordingOutputHandler(SealedArtifactOutputHandler):
+    def __init__(self, *args, events: list[str], fail_promote: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.events = events
+        self.fail_promote = fail_promote
+
+    def stage_declared(
+        self, request: SealedArtifactOutputStageRequest, *, now: datetime
+    ) -> SealedArtifactPrivateOutputSet:
+        self.events.append("stage")
+        return super().stage_declared(request, now=now)
+
+    def promote(
+        self, private: SealedArtifactPrivateOutputSet, *, now: datetime
+    ):
+        self.events.append("promote")
+        if self.fail_promote:
+            raise RuntimeError("private promotion failure")
+        return super().promote(private, now=now)
+
+    def discard(
+        self, private: SealedArtifactPrivateOutputSet, *, now: datetime
+    ) -> None:
+        self.events.append("discard")
+        super().discard(private, now=now)
 
 
 def test_descriptor_uses_closed_canonical_json_and_sha256_digest() -> None:
@@ -818,3 +868,49 @@ def test_host_publication_redacts_materializer_failure(tmp_path) -> None:
             output_handler=_publication_handler(tmp_path),
         )
     assert "/private" not in str(error.value)
+
+
+def test_host_publication_orders_cleanup_materialize_stage_and_promote(tmp_path) -> None:
+    events = ["clear", "release", "reap"]
+    materializer = _PublicationMaterializer(events=events)
+    handles = object.__new__(LocalWorkflowHost).publish_multimodal_result(
+        _publication_result(),
+        request=_publication_request(),
+        workflow_id="floorplan",
+        receiver_id="host",
+        descriptor_digest=_PUBLICATION_DESCRIPTOR,
+        expires_at=_PUBLICATION_NOW + timedelta(minutes=1),
+        now=_PUBLICATION_NOW,
+        materializer=materializer,
+        output_handler=_recording_publication_handler(tmp_path, events),
+    )
+    assert len(handles) == 1
+    assert events == ["clear", "release", "reap", "materialize", "stage", "promote"]
+
+
+def test_host_publication_discards_staged_output_on_promotion_failure(tmp_path) -> None:
+    events = ["clear", "release", "reap"]
+    with pytest.raises(ValueError, match="publication failed") as error:
+        object.__new__(LocalWorkflowHost).publish_multimodal_result(
+            _publication_result(),
+            request=_publication_request(),
+            workflow_id="floorplan",
+            receiver_id="host",
+            descriptor_digest=_PUBLICATION_DESCRIPTOR,
+            expires_at=_PUBLICATION_NOW + timedelta(minutes=1),
+            now=_PUBLICATION_NOW,
+            materializer=_PublicationMaterializer(events=events),
+            output_handler=_recording_publication_handler(
+                tmp_path, events, fail_promote=True
+            ),
+        )
+    assert str(error.value) == "multimodal result publication failed"
+    assert events == [
+        "clear",
+        "release",
+        "reap",
+        "materialize",
+        "stage",
+        "promote",
+        "discard",
+    ]
