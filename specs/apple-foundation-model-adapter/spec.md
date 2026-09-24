@@ -8,7 +8,9 @@
 - Artifact type: authoritative SDD feature specification
 - Status: A1–A4 implementation complete; A3 C4 eligible-Mac Fastmail read-only
   acceptance complete; standalone direct release gate established; pytest-native
-  SDK checks remain diagnostic
+  SDK checks remain diagnostic; B5.2 bounded investigation complete, but native
+  required-first tool-choice binding is blocked until macOS 27+ and a bridge
+  that exposes `ToolCallingMode`
 - Version: `0.5`
 - Date: 2026-07-01
 - Owner: dynamic-agent-runner model-provider boundary
@@ -212,7 +214,12 @@ callbacks.
 
 Later releases require separate approval and plan slices for:
 
+- stable package-owned availability reason codes and remediation metadata for
+  Apple preflight and adapter health results
 - provider-native text-delta streaming through DAR's public event stream
+- private native required-first tool-choice binding; blocked until a macOS 27+
+  host and a supported bridge expose `GenerationOptions.ToolCallingMode`, then
+  re-run B5.2's controlled selection and post-callback completion evidence
 - image or other multimodal input
 - persistent or resumed Apple SDK sessions and transcript translation
 - durable cross-process approval pause/resume of an in-flight Apple session when

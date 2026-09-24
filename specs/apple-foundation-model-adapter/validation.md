@@ -246,6 +246,35 @@ focused evidence separates those causes.
   neither the requested JSON value nor an equivalent JSON object. This isolates
   prompt-only JSON conformance from the tool-exposure/continuation failure.
 
+## B5.2 Native tool-choice binding investigation — 2026-09-24
+
+- Bridge inspection: the installed distribution is `apple-fm-sdk==0.2.1`, but
+  its Python module reports stale `__version__ == 0.1.0` and exports
+  `GenerationOptions` with sampling, temperature, and maximum-response-token
+  fields only. `ToolCallingMode` is absent from the Python surface. No model
+  session or generation API was invoked.
+- Native SDK inspection: the installed macOS 27.0 Foundation Models Swift
+  interface declares `GenerationOptions.ToolCallingMode.allowed`,
+  `.required`, and `.disallowed`, plus the corresponding initializer and
+  `LanguageModelSession` profile. The declarations are annotated
+  `@available(macOS 27.0, *)`.
+- No-generation probe: an isolated Swift probe compiled against the installed
+  SDK and ran on the designated host (`macOS 26.6.2`, arm64). Its only output
+  was `available=false` from an `if #available(macOS 27.0, *)` guard. The probe
+  did not construct `SystemLanguageModel`, `LanguageModelSession`, or invoke
+  generation.
+- Bounded outcome: **native API unavailable** on the current eligible-for-A1
+  host, and the current Python bridge does not bind the API. Therefore selection
+  behavior and a required-to-allowed completion path cannot be tested on this
+  host. This is an implementation-environment blocker for a private native
+  binding, not evidence that native tool choice explains the earlier S5
+  behavioral mismatch.
+- Acceptance consequence: B5.2's investigation is complete with the bounded
+  unavailable-API outcome. No DAR production binding, public tool-choice
+  configuration, or fallback was added. Revisit only on a macOS 27+ host with
+  a bridge that exposes the native field; then repeat the controlled selection
+  and post-callback completion comparisons before authorizing implementation.
+
 ## B5.1 Bridged-wrapper construction regression — 2026-08-30
 
 - Added the marked, construction-only real-SDK regression test for the
