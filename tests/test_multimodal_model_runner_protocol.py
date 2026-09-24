@@ -78,8 +78,7 @@ def _descriptor() -> MultimodalRunnerDescriptor:
 
 
 def _request() -> SealedMultimodalRequest:
-    descriptor = _descriptor()
-    return _request_for_descriptor(descriptor)
+    return _request_for_descriptor(_descriptor())
 
 
 def _request_for_descriptor(
@@ -530,7 +529,7 @@ def test_option1_resolves_one_sealed_converter_input_before_runner_dispatch() ->
     descriptor = _descriptor()
     revision = _digest("revision")
     request = replace(
-        _request(),
+        _request_for_descriptor(descriptor),
         handles=(
             *_request().handles,
             SealedMultimodalHandle(
@@ -620,11 +619,17 @@ def test_transformers_option1_runner_enters_through_protocol_with_private_payloa
         TransformersPeftMultimodalRunner,
     )
 
-    descriptor = _descriptor()
+    descriptor = MultimodalRunnerDescriptor(
+        **{
+            **_descriptor().to_mapping(),
+            "runner_id": "transformers-protocol-test",
+            "contract_digest": "",
+        }
+    )
     request = replace(
-        _request(),
+        _request_for_descriptor(descriptor),
         handles=(
-            *_request().handles,
+            *_request_for_descriptor(descriptor).handles,
             SealedMultimodalHandle(
                 value="sealed:converter-input",
                 role="converter_input",
@@ -654,7 +659,11 @@ def test_transformers_option1_runner_enters_through_protocol_with_private_payloa
         descriptor=descriptor,
         adapter=Adapter(),
     )
-    binding = admit_multimodal_runner(runner, expected_descriptor=descriptor)
+    catalog = LocalModelRunnerCatalog(())
+    catalog.register_multimodal_runner(runner, expected_descriptor=descriptor)
+    binding = catalog.resolve_multimodal_runner(
+        descriptor.runner_id, expected_descriptor=descriptor
+    )
     result = binding.dispatch(
         request,
         context=_context(),
