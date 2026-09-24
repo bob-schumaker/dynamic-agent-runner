@@ -4,7 +4,7 @@
 
 - Feature slug: `multimodal-model-runner-protocol`
 - Artifact type: new host-extension interface specification
-- Status: proposed
+- Status: approved
 - Owner: dynamic-agent-runner workflow-host boundary
 - Related artifacts:
   - [`external-model-adapter-protocol`](../external-model-adapter-protocol/spec.md)

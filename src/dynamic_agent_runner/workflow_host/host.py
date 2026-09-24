@@ -73,6 +73,14 @@ from dynamic_agent_runner.workflow_host.local_model_runners import (
     LocalModelRunner,
     LocalModelRunnerCatalog,
 )
+from dynamic_agent_runner.multimodal_model_runner import (
+    DARMultimodalModelRunnerProtocol,
+    DARGenerationRequestContext,
+    MultimodalRunnerBinding,
+    MultimodalRunnerDescriptor,
+    MultimodalRunnerResult,
+    SealedMultimodalRequest,
+)
 from dynamic_agent_runner.workflow_host.model_execution_binding import (
     ModelExecutionBinding,
     ModelRunnerProvider,
@@ -1000,6 +1008,7 @@ class LocalWorkflowHost:
         sealed_artifact_preparation: SealedArtifactInputPreparationService
         | None = None,
         sealed_artifact_runner: SealedArtifactWorkflowRunner | None = None,
+        multimodal_runner_catalog: LocalModelRunnerCatalog | None = None,
     ) -> None:
         self._configuration = configuration
         self._sources = sources
@@ -1021,6 +1030,7 @@ class LocalWorkflowHost:
         self._descriptor_validators = descriptor_validators
         self._sealed_artifact_preparation = sealed_artifact_preparation
         self._sealed_artifact_runner = sealed_artifact_runner
+        self._multimodal_runner_catalog = multimodal_runner_catalog
 
     @classmethod
     def open(  # noqa: C901 - host composition validates independent deployment seams.
@@ -1035,6 +1045,9 @@ class LocalWorkflowHost:
         reviewed_capability_templates: Sequence[ReviewedCapabilityTemplate] = (),
         reviewed_capability_extensions: Sequence[ReviewedCapabilityHostExtension] = (),
         local_model_runners: Sequence[LocalModelRunner] = (),
+        multimodal_runners: Sequence[
+            tuple[DARMultimodalModelRunnerProtocol, MultimodalRunnerDescriptor]
+        ] = (),
         model_runner_registry: ModelRunnerRegistry | None = None,
         capability_catalog: CapabilityCatalog | None = None,
         descriptor_validators: ExecutionDescriptorValidatorRegistry | None = None,
@@ -1219,6 +1232,11 @@ class LocalWorkflowHost:
             if sealed_artifact_callback_resolver is not None
             else None
         )
+        local_runner_catalog = LocalModelRunnerCatalog(local_model_runners)
+        for multimodal_runner, expected_descriptor in multimodal_runners:
+            local_runner_catalog.register_multimodal_runner(
+                multimodal_runner, expected_descriptor=expected_descriptor
+            )
         return cls(
             configuration=configuration,
             sources=PackageSourceSelectionPolicy(
@@ -1250,7 +1268,7 @@ class LocalWorkflowHost:
                             else None
                         )
                     ),
-                    runners=LocalModelRunnerCatalog(local_model_runners),
+                    runners=local_runner_catalog,
                     generation_worker_factory=generation_worker_factory,
                     generation_worker_controller=generation_worker_controller,
                 ),
@@ -1306,6 +1324,7 @@ class LocalWorkflowHost:
             descriptor_validators=descriptor_validators,
             sealed_artifact_preparation=sealed_preparation,
             sealed_artifact_runner=sealed_runner,
+            multimodal_runner_catalog=local_runner_catalog,
         )
 
     def select_package(self, path: Path, *, now: datetime) -> str:
@@ -1314,6 +1333,71 @@ class LocalWorkflowHost:
         if path.suffix.lower() == ".zip":
             return self._sources.select_zip(path, now=now)
         return self._sources.select_directory(path, now=now)
+
+    def register_multimodal_runner(
+        self,
+        runner: DARMultimodalModelRunnerProtocol,
+        *,
+        expected_descriptor: MultimodalRunnerDescriptor,
+    ) -> None:
+        """Register one exact multimodal runner in the receiver catalog."""
+
+        if self._multimodal_runner_catalog is None:
+            raise LocalWorkflowHostError("multimodal runner catalog is unavailable")
+        self._multimodal_runner_catalog.register_multimodal_runner(
+            runner, expected_descriptor=expected_descriptor
+        )
+
+    def resolve_multimodal_runner(
+        self,
+        runner_id: str,
+        *,
+        expected_descriptor: MultimodalRunnerDescriptor,
+    ) -> MultimodalRunnerBinding:
+        """Resolve one admitted runner without loading model material."""
+
+        if self._multimodal_runner_catalog is None:
+            raise LocalWorkflowHostError("multimodal runner catalog is unavailable")
+        return self._multimodal_runner_catalog.resolve_multimodal_runner(
+            runner_id, expected_descriptor=expected_descriptor
+        )
+
+    def dispatch_multimodal_runner(
+        self,
+        runner_id: str,
+        *,
+        expected_descriptor: MultimodalRunnerDescriptor,
+        request: SealedMultimodalRequest,
+        context: DARGenerationRequestContext,
+        clear_inputs: Callable[[], object],
+        release_reservation: Callable[[], object],
+        reap_worker: Callable[[], object],
+        publish_result: Callable[[MultimodalRunnerResult], object] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
+        deadline_expired: Callable[[], bool] | None = None,
+    ) -> MultimodalRunnerResult:
+        """Dispatch only through the receiver-admitted binding and cleanup path."""
+
+        binding = self.resolve_multimodal_runner(
+            runner_id, expected_descriptor=expected_descriptor
+        )
+        result = binding.dispatch(
+            request,
+            context=context,
+            clear_inputs=clear_inputs,
+            release_reservation=release_reservation,
+            reap_worker=reap_worker,
+            should_cancel=should_cancel,
+            deadline_expired=deadline_expired,
+        )
+        if publish_result is not None and result.status == "completed":
+            try:
+                publish_result(result)
+            except Exception as error:  # noqa: BLE001 - host publication is redacted.
+                raise LocalWorkflowHostError(
+                    "multimodal result publication failed"
+                ) from error
+        return result
 
     def configure_reviewed_tool_package(
         self, *, package_name: str, binding: ReviewedToolPackageBinding
