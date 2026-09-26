@@ -1,6 +1,6 @@
 [project]
 name = "dynamic-agent-runner"
-version = "0.2.21"
+version = "0.1.21"
 description = ""
 authors = [
     {name = "Bob Schumaker",email = "bob.schumaker@oracle.com"}

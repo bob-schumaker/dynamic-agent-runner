@@ -123,7 +123,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "571f890899654c94d8b4a97974ed8d7dfc0569934392072fc0a14d68847d2c95",
+      "content_hash": "017425108177be5dba370aa9e931ce96b25fc86a46aedb6383821c5ad79d2e36",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -178,7 +178,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "98c5264b5a0242faedb6c88724ac7f3a82768d4cfe7be0cbc3c78f5c644b5864",
+      "content_hash": "d8e386558fb590cd5e530ce73fe37e7ed6142863c6e72a1113d1616cf7a780e0",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -222,7 +222,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "2b96e3ee39fea5b07440f03468c4bf8cd7866afa5e6fbf1140dd53e8f910633d",
+      "content_hash": "d7f8c3c063ddef948993ff06afcc9297679381f87c2bc1e220cc08b51c9162f4",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -277,7 +277,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "9fd2c5c85f4ade13a12b3ca62c3355037d7f94d443ba5bba0656c347bac5e95c",
+      "content_hash": "fe83aaf1bf370f9ec2c8dffcc573366d78c130fe57c8e0f3ccc00539a3b75fea",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -299,7 +299,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "148dea5deb283b0eb4f617d15b1326c6e77e4328554d682ea05ff8d97c9a2d64",
+      "content_hash": "08256ff94e6e01eeea5e8c2630ebe69554db4bbf481ceea42de801454b74ee07",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -310,7 +310,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "340b19053e914573af53eb50576c6f6bc3d13dfb3f32c1c76dd3f12bd64045e0",
+      "content_hash": "b31743311bc5957b397a991e7c21f8a015574e29c3b119eafd5847d807242a2c",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -321,7 +321,7 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "ba853df1413d56047d205c178805442ce7679546ce6a84f5f0b9d9fd009c2a56",
+      "content_hash": "4541403a4d113be50026ce4ecbdf349b4a8693fb35641aed4130c39458e925d1",
       "file_mode": "0o644",
       "file_type": "file",
       "ownership_class": null,
@@ -795,5 +795,5 @@
   ],
   "format_version": 1,
   "packager_format_version": 1,
-  "payload_fingerprint": "62ba28a41c1cb195a45b081e715c30db0ea8d0e8ee00356df369aadc1ac13ed3"
+  "payload_fingerprint": "8f8517c1331aeac546e8a69aa9b2e4559cd85af389468f6e377fcf32cb8c0959"
 }
