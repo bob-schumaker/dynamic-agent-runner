@@ -18,7 +18,6 @@
 import os
 import subprocess
 import sys
-from datetime import date
 from urllib.parse import urlparse
 
 import tomllib
@@ -134,35 +133,8 @@ def _load_author(project_metadata: dict) -> str:
     )
 
 
-def _load_author_name(project_metadata: dict) -> str:
-    """Read the author name without email metadata."""
-    authors = project_metadata.get("authors") or []
-    if authors:
-        author = authors[0]
-        if isinstance(author, dict):
-            return author.get("name", "")
-        return str(author)
-
-    return _git_config_value("user.name")
-
-
-def _load_copyright(author_name: str) -> str:
-    """Build a project-neutral copyright string."""
-    copyright_holders = []
-    company = _git_config_value("user.company")
-    if company:
-        copyright_holders.append(company)
-    if author_name:
-        copyright_holders.append(author_name)
-
-    if not copyright_holders:
-        return str(date.today().year)
-    return f"{date.today().year}, {' and '.join(copyright_holders)}"
-
-
 _project_metadata = _load_project_metadata()
 _author = _load_author(_project_metadata)
-_author_name = _load_author_name(_project_metadata)
 
 
 # -- Project information -----------------------------------------------------
@@ -173,7 +145,7 @@ project = (
     or os.path.basename(REPO_ROOT)
 )
 author = _author
-copyright = _load_copyright(_author_name)
+copyright = "Copyright (c) 2015–2026, The Software Cobbler."
 
 # The full version, including alpha/beta/rc tags
 release = _project_metadata.get("version", "local")

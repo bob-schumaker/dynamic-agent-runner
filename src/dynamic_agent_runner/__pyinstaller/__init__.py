@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright (c) 2022, Oracle Corporation. All rights reserved.
+# Copyright (c) 2015–2026, The Software Cobbler.
 #
 # Author(s):
 #   Bob Schumaker <bob.schumaker@oracle.com>
