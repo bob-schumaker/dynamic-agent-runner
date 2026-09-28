@@ -114,7 +114,9 @@ def build_history_messages(item: Mapping[str, Any]) -> list[dict[str, str]]:
     if not (len(sessions) == len(session_ids) == len(dates)):
         raise ContextEvaluationError("dataset session structure is invalid")
     messages: list[dict[str, str]] = []
-    for session_id, session_date, session in zip(session_ids, dates, sessions, strict=True):
+    for session_index, (session_id, session_date, session) in enumerate(
+        zip(session_ids, dates, sessions, strict=True)
+    ):
         if not isinstance(session, Sequence) or isinstance(session, (str, bytes, bytearray)):
             raise ContextEvaluationError("dataset session turns are invalid")
         for turn_index, turn in enumerate(session):
@@ -126,7 +128,7 @@ def build_history_messages(item: Mapping[str, Any]) -> list[dict[str, str]]:
                 raise ContextEvaluationError("dataset turn is invalid")
             messages.append(
                 {
-                    "id": f"{question_id}:{session_id}:{turn_index}",
+                    "id": f"{question_id}:{session_index}:{session_id}:{turn_index}",
                     "role": str(turn["role"]),
                     "content": turn["content"],
                     "session_id": str(session_id),
@@ -417,12 +419,12 @@ def _evaluate_condition(
 def _evidence_ids(item: Mapping[str, Any]) -> set[str]:
     evidence: set[str] = set()
     question_id = str(item["question_id"])
-    for session_id, session in zip(
-        item["haystack_session_ids"], item["haystack_sessions"], strict=True
+    for session_index, (session_id, session) in enumerate(
+        zip(item["haystack_session_ids"], item["haystack_sessions"], strict=True)
     ):
         for turn_index, turn in enumerate(session):
             if turn.get("has_answer") is True:
-                evidence.add(f"{question_id}:{session_id}:{turn_index}")
+                evidence.add(f"{question_id}:{session_index}:{session_id}:{turn_index}")
     return evidence
 
 

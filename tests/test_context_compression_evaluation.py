@@ -79,11 +79,36 @@ def test_history_view_removes_question_gold_and_evidence_labels() -> None:
     assert "SECRET ANSWER" not in serialized
     assert "has_answer" not in serialized
     assert [message["id"] for message in messages] == [
-        "item-1:s1:0",
-        "item-1:s1:1",
-        "item-1:s2:0",
-        "item-1:s2:1",
+        "item-1:0:s1:0",
+        "item-1:0:s1:1",
+        "item-1:1:s2:0",
+        "item-1:1:s2:1",
     ]
+
+
+def test_repeated_session_ids_keep_message_and_evidence_ids_unique() -> None:
+    item = _item()
+    item["haystack_session_ids"] = ["same", "same"]
+    messages = build_history_messages(item)
+    assert len({message["id"] for message in messages}) == len(messages)
+
+    metrics = aggregate_results(
+        [item],
+        [
+            {
+                "question_id": "item-1",
+                "question_type": "multi-session",
+                "condition": "model_guided",
+                "budget": 10,
+                "correct": True,
+                "retained_message_ids": [messages[0]["id"]],
+                "input_tokens": 20,
+                "retained_tokens": 10,
+            }
+        ],
+    )
+
+    assert metrics["model_guided"][10]["evidence_turn_recall"] == 1.0
 
 
 def test_answer_prompt_preserves_timestamps_and_uses_answer_tokenizer() -> None:
