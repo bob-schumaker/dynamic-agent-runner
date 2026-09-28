@@ -13,7 +13,7 @@
   "answer_model": "mlx-community/Qwen3-4B-Instruct-2507-4bit@50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
   "approval_date": null,
   "approval_scope": "download exact pinned public artifacts from Hugging Face and run all inference in process; send no benchmark data to model endpoints",
-  "approval_source": "Pending explicit approval for the exact local-only run: pinned Qwen answer model, Von compactor, and Llama 3.1 8B MLX judge; 4,500 local judge calls; no benchmark-derived data sent to model endpoints.",
+  "approval_source": "Pending approval for revised exact run receipt after adding pinned pydantic 2.13.5 to the DMS-13 runtime.",
   "approved": false,
   "budgets_history_tokens": [
     8192,
@@ -28,12 +28,12 @@
   "expected_remote_judge_calls": 0,
   "expected_von_turn_scores": 122462,
   "external_data_fields": [],
-  "harness_sha256": "ceb2932f5697adf46063ae7926dbbf9e4331fb90d7a6fd92e596d8f1e30eb00e",
-  "manifest_sha256": "3aa2f56e50c4300d155e6cdcd7d4671bf300b57fe66d0b48946582a1b14002e6",
-  "preflight_sha256": "d016c5cc32901fb71f209b92eeee873aa2eca3b7ff8ad4bd4979ac23cf2128d3",
+  "harness_sha256": "f3154e44f487e7afd5dd9cf71fb20a95ce5b77d13773fe4b486be4bbbc3a97e1",
+  "manifest_sha256": "2937bc4b1ab6dbd6ec22793ad2d6066c5f5e404c68814c08499260497b420251",
+  "preflight_sha256": "dd9b75cddc8bd1dd06b449ac44912edcec2940b088bca1ae48a51e20aa224040",
   "primary_budget_history_tokens": 32768,
   "reserved_generation_tokens": 512,
-  "runtime_lock_sha256": "24956255add4cb2723714489566b7aa43906316fa19c59c1077eb81f4ec1fade",
+  "runtime_lock_sha256": "6c2acc5c4ab2d93503348e70301e467ccae4e147e59fb770e25204e1624fe201",
   "scorer_model": "mlx-community/Llama-3.1-8B-Instruct-4bit@90215b22ec18e72f623dde2ea7af4097025160e2",
   "scorer_model_files": {
     ".gitattributes": "34448b82c17d60fec9b65b1f093c115ddbaadc04beb1b0140b6bfed2e012a930",
@@ -48,5 +48,11 @@
   "scorer_model_license": "Llama 3.1 Community License",
   "scorer_model_size_bytes": 4517489037,
   "scorer_runtime": "MLX-LM in-process",
+  "superseded_approval": {
+    "approval_date": "2026-09-28T21:08:07Z",
+    "approved": true,
+    "receipt_sha256": "40fc5892c3df67558aa3d285bcc99b5d91eea03d4003e807746fb135c200cbce",
+    "result": "Execution stopped before benchmark inference because the approved runtime lacked Von required dependency pydantic."
+  },
   "von_source_revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54"
 }

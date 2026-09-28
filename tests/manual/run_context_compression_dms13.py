@@ -30,13 +30,14 @@ ANSWER_MODEL_SHA256 = "2a73c6c248601ab904e035548abd8e6abb65ea27dcb5f342fb0a8910e
 MANIFEST_RELATIVE = Path("specs/decision-model-support/evaluation/dms13-corpus-manifest.json")
 PREFLIGHT_RELATIVE = Path("specs/decision-model-support/evaluation/preflight-dms13-run-2026-09-28.json")
 RUNTIME_LOCK_RELATIVE = Path("specs/decision-model-support/evaluation/dms13-runtime/poetry.lock")
-RUNTIME_LOCK_SHA256 = "24956255add4cb2723714489566b7aa43906316fa19c59c1077eb81f4ec1fade"
+RUNTIME_LOCK_SHA256 = "6c2acc5c4ab2d93503348e70301e467ccae4e147e59fb770e25204e1624fe201"
 RUNTIME_PACKAGES = {
     "accelerate": "1.15.0",
     "huggingface-hub": "1.32.0",
     "mlx": "0.32.2",
     "mlx-lm": "0.31.3",
     "numpy": "2.5.3",
+    "pydantic": "2.13.5",
     "tokenizers": "0.23.2",
     "torch": "2.14.0",
     "transformers": "5.17.0",

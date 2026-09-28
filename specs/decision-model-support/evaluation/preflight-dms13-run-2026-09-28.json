@@ -4,17 +4,17 @@
     "revision": "50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
     "weights_sha256": "2a73c6c248601ab904e035548abd8e6abb65ea27dcb5f342fb0a8910eb44173f"
   },
-  "answer_model_weights_cached_in_dms13_model_cache": false,
+  "answer_model_weights_cached_in_dms13_model_cache": true,
   "benchmark_inference_performed": false,
   "benchmark_manifest": "specs/decision-model-support/evaluation/dms13-corpus-manifest.json",
-  "benchmark_model_weights_loaded": false,
+  "benchmark_model_weights_loaded": true,
   "blockers": [
-    "approval for the exact local-only DMS-13 run remains outstanding"
+    "revised exact run approval for the Pydantic-enabled runtime is pending"
   ],
   "candidate_run_approved": false,
   "compactor_model_revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
   "conversation_turns": 122462,
-  "created_at_utc": "2026-09-28T20:51:34.221771+00:00",
+  "created_at_utc": "2026-09-28T21:16:54.335476Z",
   "dataset_revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
   "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
   "execution_mode": "in-process MLX Qwen3 answerer and Llama 3.1 8B judge; CPU Von compactor; no model server",
@@ -29,12 +29,12 @@
     },
     {
       "path": "tests/manual/run_context_compression_dms13.py",
-      "sha256": "937231dc7dac3abd317968e7aae8b03ce7cc9de5e724b9d9392803eae299df37"
+      "sha256": "75013cc60a701aa75aa04b939b69d0086bdc603bbe0f4b2d607568df93a8835c"
     }
   ],
   "host": {
     "architecture": "arm64",
-    "free_storage_bytes": 42151620608,
+    "free_storage_bytes": 36014010368,
     "ram_bytes": 38654705664,
     "required_free_storage_bytes": 8589934592,
     "storage_path": "/private/tmp",
@@ -44,7 +44,7 @@
   "judge_data_egress": "none; all benchmark-derived judge prompts are processed locally",
   "judge_data_egress_checked_at_utc": "2026-09-28T20:51:34.244959+00:00",
   "longmemeval_source_revision": "9e0b455f4ef0e2ab8f2e582289761153549043fc",
-  "manifest_sha256": "3aa2f56e50c4300d155e6cdcd7d4671bf300b57fe66d0b48946582a1b14002e6",
+  "manifest_sha256": "2937bc4b1ab6dbd6ec22793ad2d6066c5f5e404c68814c08499260497b420251",
   "metal_available": true,
   "official_scorer_sha256": "ecce9c4c79dc89d99534ac17b383a5cbb5b9f0c69ee98adaf0684742e3d95251",
   "package_versions_match_lock": true,
@@ -54,6 +54,7 @@
     "mlx": "0.32.2",
     "mlx-lm": "0.31.3",
     "numpy": "2.5.3",
+    "pydantic": "2.13.5",
     "tokenizers": "0.23.2",
     "torch": "2.14.0",
     "transformers": "5.17.0"
@@ -62,7 +63,7 @@
   "python": "3.14.7",
   "run_allowed": false,
   "runtime_executable": "/private/tmp/dms13-poetry-envs/dms13-local-evaluation-runtime-3EepRVVB-py3.14/bin/python",
-  "runtime_lock_sha256": "24956255add4cb2723714489566b7aa43906316fa19c59c1077eb81f4ec1fade",
+  "runtime_lock_sha256": "6c2acc5c4ab2d93503348e70301e467ccae4e147e59fb770e25204e1624fe201",
   "scorer_approved": false,
   "scorer_model": "mlx-community/Llama-3.1-8B-Instruct-4bit@90215b22ec18e72f623dde2ea7af4097025160e2",
   "scorer_model_files": {
@@ -85,5 +86,6 @@
   "scorer_model_snapshot_path": "/private/tmp/dms13-local-llama-judge-90215b22",
   "scorer_model_snapshot_verified": true,
   "scorer_runtime": "MLX-LM in-process",
+  "von_model_loaded_for_compatibility_smoke": true,
   "von_source_revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54"
 }

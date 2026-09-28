@@ -434,10 +434,10 @@ competency run before an explicit production admission decision.
   the already-approved DMS-01 criteria.
 - [ ] Obtain updated run-level approval for the exact benchmark, answer model,
   compactor, runtime, local Llama scorer/artifacts, budgets, thresholds, and
-  harness revision before benchmark inference. The revised run makes zero
-  external judge calls and sends no benchmark-derived data to model endpoints;
-  pinned public weights may be downloaded from Hugging Face. The pending exact
-  receipt is `evaluation/dms13-run-approval-2026-09-28.json`.
+  harness revision before benchmark inference. The initial approved attempt
+  stopped before inference because the combined runtime lacked Von's required
+  Pydantic dependency. The runtime now pins Pydantic 2.13.5; the revised exact
+  receipt is pending in `evaluation/dms13-run-approval-2026-09-28.json`.
 - [x] Add fake-only tests for benchmark loading/identity, history-only
   compactor inputs, gold/evidence isolation, matched answer-tokenizer budgets,
   baseline parity, scoring aggregation, and redacted receipts. Implement the
@@ -449,10 +449,10 @@ competency run before an explicit production admission decision.
 - [ ] Run the model-guided compaction condition and baselines with the pinned
   local MLX Llama judge. The refreshed preflight and pending approval receipt
   bind the local model files, host/runtime, scorer, harness, and 4,500 local
-  judge calls. The judge model snapshot has been downloaded and digest-verified;
-  no benchmark inference has occurred. Obtain approval for the exact receipt,
-  then run and record results and disposition in `model-evaluation.md`. Do not
-  infer DMS-01 passage or production admission from this track.
+  judge calls. Qwen, Von, and Llama snapshots are downloaded and pinned; no
+  benchmark inference has occurred. Obtain approval for the revised exact
+  receipt, then run and record results and disposition in `model-evaluation.md`.
+  Do not infer DMS-01 passage or production admission from this track.
 
 ## DMS-14 Published General Decision Transfer and Mac Runtime Comparison
 

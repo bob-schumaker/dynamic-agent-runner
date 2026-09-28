@@ -72,11 +72,13 @@ production profile.
 
 The combined Python 3.14.7 runtime pins Von's Torch/Transformers path, the Qwen
 MLX reader, and the Llama MLX judge in
-[`evaluation/dms13-runtime/`](evaluation/dms13-runtime/); its lock SHA-256 is
-`24956255add4cb2723714489566b7aa43906316fa19c59c1077eb81f4ec1fade`. The lock
-resolves and passes `poetry check --lock`. The isolated runtime is installed
-under `/private/tmp/dms13-poetry-envs`; package versions and the pinned Von source
-import were verified together, and Metal is available. The initial runtime
+[`evaluation/dms13-runtime/`](evaluation/dms13-runtime/); its updated lock
+SHA-256 is
+`6c2acc5c4ab2d93503348e70301e467ccae4e147e59fb770e25204e1624fe201`. It also
+pins Von's required `pydantic==2.13.5`, resolved from the pinned Von source
+lock. The isolated runtime is installed under `/private/tmp/dms13-poetry-envs`;
+all pinned packages and all three model loads were verified, and Metal is
+available. The initial runtime
 [preflight receipt](evaluation/preflight-dms13-2026-09-27.json) verifies the
 runtime setup. The run-specific
 [preflight receipt](evaluation/preflight-dms13-run-2026-09-28.json) binds the
@@ -85,10 +87,13 @@ The local Llama scorer is pinned to
 `mlx-community/Llama-3.1-8B-Instruct-4bit@90215b22ec18e72f623dde2ea7af4097025160e2`;
 all eight files and digests are recorded in the manifest and preflight. Its
 model weights are 4,517,489,037 bytes under the Llama 3.1 Community License.
-The load-only compatibility check passed in the existing MLX runtime; no judge
-prompt was run. The DMS-13 runtime lock no longer includes the OpenAI package.
-The refreshed run receipt binds zero remote judge calls and 4,500 in-process
-local judge calls; it remains pending exact run approval.
+The DMS-13 runtime lock does not include the OpenAI package. The first approved
+attempt stopped before evaluation because the lock omitted Von's Pydantic
+dependency; it made no benchmark inference or judge calls. The revised
+preflight passes with Pydantic pinned and binds the updated lock. The prior
+approval is retained as superseded in the receipt, and the revised receipt is
+pending approval. It binds zero remote judge calls and 4,500 in-process local
+judge calls.
 
 The [pinned official evaluator](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/src/evaluation/evaluate_qa.py)
 supports GPT-4o, GPT-4o mini, and local Llama 3.1 70B behind an

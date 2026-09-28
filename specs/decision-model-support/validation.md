@@ -690,8 +690,9 @@ The manual runner now scores with the pinned LongMemEval prompt using
 SHA-256 uses streaming reads to avoid loading full weight files into memory. It
 makes 4,500 local judge calls, expects zero remote judge calls, and stores only
 boolean labels and aggregate metrics. The DMS-13 Poetry runtime no longer
-includes the OpenAI package; its updated lock SHA-256 is
-`24956255add4cb2723714489566b7aa43906316fa19c59c1077eb81f4ec1fade`.
+includes the OpenAI package; it now pins Von's required `pydantic==2.13.5`.
+The revised Poetry lock SHA-256 is
+`6c2acc5c4ab2d93503348e70301e467ccae4e147e59fb770e25204e1624fe201`.
 
 Validation:
 
@@ -699,17 +700,24 @@ Validation:
 - GREEN: `poetry run pytest tests/test_context_compression_dms13_runner.py tests/test_context_compression_evaluation.py -q` — 22 passed.
 - `poetry run ruff check scripts/evaluate_context_compression.py tests/manual/run_context_compression_dms13.py tests/test_context_compression_dms13_runner.py` — passed.
 - Isolated runtime `poetry check --lock` — passed with existing Poetry metadata deprecation warnings.
-- Pinned-runtime preflight and runtime-package verification — passed; OpenAI is absent.
+- Pinned-runtime package verification and load-only smoke for Qwen, Llama, and
+  Von — passed; Metal is available and OpenAI is absent.
 - The regenerated run preflight binds the exact model snapshot and current
-harness/runtime, confirms Metal and 42,151,620,608 free storage bytes, and
-remains `run_allowed: false` pending exact approval. Its current manifest,
-preflight, harness, and runtime-lock SHA-256 values are `3aa2f56e50c4300d155e6cdcd7d4671bf300b57fe66d0b48946582a1b14002e6`,
-`d016c5cc32901fb71f209b92eeee873aa2eca3b7ff8ad4bd4979ac23cf2128d3`,
-`ceb2932f5697adf46063ae7926dbbf9e4331fb90d7a6fd92e596d8f1e30eb00e`, and
-`24956255add4cb2723714489566b7aa43906316fa19c59c1077eb81f4ec1fade`.
+harness/runtime, and remains `run_allowed: false` pending approval of the
+revised exact receipt. An initial approved attempt stopped before evaluation
+because the runtime lacked Von's Pydantic dependency; no benchmark prompts were
+processed and no judge calls occurred. After pinning Pydantic 2.13.5, the
+updated preflight and all three load-only checks passed. Its current manifest,
+preflight, harness, and runtime-lock SHA-256 values are
+`2937bc4b1ab6dbd6ec22793ad2d6066c5f5e404c68814c08499260497b420251`,
+`dd9b75cddc8bd1dd06b449ac44912edcec2940b088bca1ae48a51e20aa224040`,
+`f3154e44f487e7afd5dd9cf71fb20a95ce5b77d13773fe4b486be4bbbc3a97e1`, and
+`6c2acc5c4ab2d93503348e70301e467ccae4e147e59fb770e25204e1624fe201`.
 
 The pending run receipt binds the local judge, 4,500 local calls, zero remote
-judge calls, and zero benchmark-data egress. The local model is not the
+judge calls, and zero benchmark-data egress. The earlier approval is recorded
+as superseded; the revised receipt requires updated approval because its
+runtime lock and harness hashes changed. The local model is not the
 LongMemEval authors' official Llama 3.1 70B server or GPT-4o scorer, so its
 results are exploratory and not directly comparable. No benchmark inference or
 judge call has occurred.
