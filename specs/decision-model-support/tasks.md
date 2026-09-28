@@ -430,9 +430,9 @@ support is added.
   tokens from its context window, and report full-history cases that exceed its
   context window separately. Exact tokenizer measurements and proposed matched
   budgets are recorded in the manifest. The combined direct-local runtime is
-  pinned in `evaluation/dms13-runtime/`; runtime installation and exact host
-  preflight remain prerequisites to the approved run. No local model server is
-  part of the profile.
+  pinned and installed in `/private/tmp/dms13-py-venvs`; exact host preflight
+  passed and is recorded in `evaluation/preflight-dms13-2026-09-27.json`. No
+  local model server is part of the profile.
 - [x] Define answer metrics, evidence-turn recall from the benchmark's released
   `has_answer` annotations, retained-token ratio, per-question-category
   reporting, and runtime/memory measurements. The official scorer options and

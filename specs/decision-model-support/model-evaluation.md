@@ -70,9 +70,13 @@ The combined Python 3.14.7 runtime proposal pins Von's Torch/Transformers path,
 the Qwen MLX reader, and the scorer client in
 [`evaluation/dms13-runtime/`](evaluation/dms13-runtime/); its lock SHA-256 is
 `f490719fd8d20b7fb25dc5099732137353d8335e99e7cea275dd56affdb06aa5`. The lock
-resolves and passes `poetry check --lock`, but it has not been installed and
-the exact DMS13 Metal preflight remains outstanding. Neither local model uses
-a server in this proposal.
+resolves and passes `poetry check --lock`. The isolated runtime is installed
+under `/private/tmp/dms13-py-venvs`; package versions and the pinned Von source
+import were verified together, and Metal is available. The exact DMS13
+[preflight receipt](evaluation/preflight-dms13-2026-09-27.json) passes host,
+runtime, and storage checks. Qwen reader weights are not cached; 49.3 GiB was
+free for the 2.26 GB snapshot. Neither local model uses a server in this
+proposal. Inference and external judging remain unapproved.
 
 The [pinned official evaluator](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/src/evaluation/evaluate_qa.py)
 supports `gpt-4o-2024-08-06`, `gpt-4o-mini-2024-07-18`, and local Llama 3.1 70B

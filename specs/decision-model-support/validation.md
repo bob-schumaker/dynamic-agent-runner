@@ -271,13 +271,18 @@ published evaluation route most closely. Its 4,500 calls would send each
 question, gold answer, and candidate answer externally. The pinned scorer file
 SHA-256 is recorded in the manifest. This remains a proposal: no judge was
 approved, and no inference or judging has run. A combined direct-local Poetry
+approved, and no inference or judging has run. A combined direct-local Poetry
 runtime is pinned in `evaluation/dms13-runtime/`; `poetry lock` and
-`poetry check --lock` passed. Its lock SHA-256 is
-`f490719fd8d20b7fb25dc5099732137353d8335e99e7cea275dd56affdb06aa5`. The
-current command environment does not expose a Metal device to `mlx-lm`, so
-exact DMS13 hardware preflight and runtime installation remain outstanding.
-The proposed answerer, exploratory Von compactor, scorer, budgets, metrics,
-and thresholds are bound in the corpus manifest and `model-evaluation.md`.
+`poetry check --lock` passed. It was installed under `/private/tmp` and
+preflighted with the pinned Von source imports. The exact locked package
+versions match, Metal is available, host RAM is 36 GiB, and `/private/tmp` had
+49.3 GiB free. The preflight receipt
+`evaluation/preflight-dms13-2026-09-27.json` records `preflight_passed: true`
+and `run_allowed: false` because the scorer/run approval is outstanding. The
+Qwen reader weights are not cached; no DMS13 model weights were loaded and no
+inference was performed. The proposed answerer, exploratory Von compactor,
+scorer, budgets, metrics, and thresholds are bound in the corpus manifest and
+`model-evaluation.md`.
 
 Added a benchmark-specific, callback-driven harness that removes questions,
 gold answers, and evidence annotations from compactor inputs; enforces matched

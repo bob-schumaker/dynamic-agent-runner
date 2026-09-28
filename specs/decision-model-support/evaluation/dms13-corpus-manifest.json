@@ -113,8 +113,11 @@
       "transformers": "5.17.0"
     },
     "boundary": "One in-process local runtime for Von CPU compaction and Qwen MLX reading; no local model server. The separate scorer, if approved, is the OpenAI API.",
-    "lock_validation": "poetry check --lock passed; runtime packages have not been installed from this lock and no model weights have been downloaded.",
-    "hardware_preflight": "pending; DMS-14 host evidence exists, but DMS-13 must verify the exact run profile and Metal availability before inference"
+    "lock_validation": "poetry check --lock passed; the isolated runtime was installed under /private/tmp/dms13-py-venvs and its exact package versions were verified.",
+    "preflight_receipt": "evaluation/preflight-dms13-2026-09-27.json",
+    "preflight_status": "passed for runtime, pinned Von source, 36 GiB RAM, 49.3 GiB free storage, and Metal; run_allowed remains false pending scorer and run approval",
+    "qwen_weights_cached": false,
+    "answer_model_weights_downloaded": false
   },
   "proposed_protocol": {
     "budgets_history_tokens": [8192, 16384, 32768, 65536],
