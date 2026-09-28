@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from pathlib import Path
+import re
 from typing import Any
 
 from dynamic_agent_runner.errors import WorkflowValidationError
@@ -12,6 +13,7 @@ from dynamic_agent_runner.models import (
     LoadedAgentWorkflow,
     ManifestObject,
     PRIMITIVE_NODE_KINDS,
+    RuntimeEdge,
     RuntimeManifest,
     RuntimeNode,
     ToolDefinition,
@@ -30,7 +32,12 @@ from dynamic_agent_runner.skill_sources import (
 
 SUPPORTED_FORMAT_VERSION = 1
 SUPPORTED_PACKAGE_TYPE = "dynamic_agent_design"
-SUPPORTED_DECISION_SUBTYPES = ("tool_response_compare", "simple_check", "llm_route")
+SUPPORTED_DECISION_SUBTYPES = (
+    "tool_response_compare",
+    "simple_check",
+    "llm_route",
+    "decision_model",
+)
 SUPPORTED_EDGE_KINDS = (
     "sequential",
     "branch",
@@ -481,6 +488,7 @@ def validate_runtime_manifest(
     _extend(errors, _extension_errors(manifest))
     _extend(errors, _node_id_errors(manifest.nodes))
     _extend(errors, _edge_reference_errors(manifest))
+    _extend(errors, _decision_model_node_errors(manifest))
     _extend(errors, _tool_definition_errors(manifest.tools, "runtime manifest tool"))
     _extend(errors, _tool_reference_errors(manifest, tool_index, tool_registry))
     _extend(errors, _llm_prompt_errors(manifest.nodes))
@@ -866,6 +874,134 @@ def _unsupported_runtime_enums(manifest: RuntimeManifest) -> list[str]:
                 f"edge_kind {edge.edge_kind!r}"
             )
     return errors
+
+
+def _decision_model_node_errors(manifest: RuntimeManifest) -> list[str]:
+    errors: list[str] = []
+    for node in manifest.nodes:
+        if node.kind != "decision_step" or node.decision_subtype != "decision_model":
+            continue
+        node_errors, option_ids = _decision_model_entry_errors(node)
+        errors.extend(node_errors)
+        errors.extend(_decision_model_route_errors(node, option_ids, manifest.edges))
+    return errors
+
+
+def _decision_model_entry_errors(node: RuntimeNode) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    raw = node.raw
+    allowed_fields = {
+            "id",
+            "kind",
+            "label",
+            "decision_subtype",
+            "decision_profile",
+            "context_from",
+            "question",
+    }
+    for field_name in raw.keys() - allowed_fields:
+        errors.append(
+            f"decision_model node {node.id!r} has unsupported field {field_name!r}"
+        )
+    profile_id = raw.get("decision_profile")
+    if not isinstance(profile_id, str) or not profile_id.strip():
+        errors.append(f"decision_model node {node.id!r} requires a decision profile")
+    if not _is_safe_decision_context_reference(raw.get("context_from")):
+        errors.append(
+            f"decision_model node {node.id!r} has an unsafe or unbounded context reference"
+        )
+    question_errors, option_ids = _decision_question_errors(node, raw.get("question"))
+    errors.extend(question_errors)
+    return errors, option_ids
+
+
+def _decision_question_errors(
+    node: RuntimeNode,
+    question: object,
+) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    if not isinstance(question, Mapping):
+        return [f"decision_model node {node.id!r} requires exactly one question"], []
+    for field_name in question.keys() - {"id", "text", "options"}:
+        errors.append(
+            f"decision_model node {node.id!r} question has unsupported field {field_name!r}"
+        )
+    if not _is_decision_id(question.get("id")):
+        errors.append(f"decision_model node {node.id!r} question id is invalid")
+    question_text = question.get("text")
+    if not isinstance(question_text, str) or not question_text.strip():
+        errors.append(f"decision_model node {node.id!r} question text is invalid")
+    options = question.get("options")
+    if not isinstance(options, list) or len(options) < 2:
+        return (
+            [*errors, f"decision_model node {node.id!r} question requires at least two options"],
+            [],
+        )
+    option_errors, option_ids = _decision_option_errors(node, options)
+    errors.extend(option_errors)
+    return errors, option_ids
+
+
+def _decision_option_errors(
+    node: RuntimeNode,
+    options: list[object],
+) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    option_ids: list[str] = []
+    for index, option in enumerate(options):
+        if not isinstance(option, Mapping):
+            errors.append(f"decision_model node {node.id!r} option {index} must be a mapping")
+            continue
+        for field_name in option.keys() - {"id", "label"}:
+            errors.append(
+                f"decision_model node {node.id!r} option has unsupported field {field_name!r}"
+            )
+        option_id = option.get("id")
+        if _is_decision_id(option_id):
+            option_ids.append(option_id)
+        else:
+            errors.append(f"decision_model node {node.id!r} option {index} id is invalid")
+        label = option.get("label")
+        if not isinstance(label, str) or not label.strip():
+            errors.append(f"decision_model node {node.id!r} option {index} label is invalid")
+    if len(set(option_ids)) != len(option_ids):
+        errors.append(f"decision_model node {node.id!r} has duplicate option IDs")
+    return errors, option_ids
+
+
+def _decision_model_route_errors(
+    node: RuntimeNode,
+    option_ids: list[str],
+    edges: tuple[RuntimeEdge, ...],
+) -> list[str]:
+    errors: list[str] = []
+    outgoing = [edge for edge in edges if edge.source == node.id]
+    conditions = [edge.condition for edge in outgoing]
+    if any(edge.edge_kind != "branch" for edge in outgoing):
+        errors.append(f"decision_model node {node.id!r} routes must use branch edges")
+    if any(condition is None or not condition.strip() for condition in conditions):
+        errors.append(f"decision_model node {node.id!r} route mapping is incomplete")
+    concrete_conditions = [condition for condition in conditions if condition is not None]
+    if len(set(concrete_conditions)) != len(concrete_conditions):
+        errors.append(f"decision_model node {node.id!r} has duplicate option-to-edge mappings")
+    if set(concrete_conditions) != set(option_ids):
+        errors.append(f"decision_model node {node.id!r} route mapping must match all options")
+    return errors
+
+
+def _is_safe_decision_context_reference(value: object) -> bool:
+    if value == "prompt":
+        return True
+    if not isinstance(value, str) or not value.startswith("node_outputs."):
+        return False
+    slot = value.removeprefix("node_outputs.")
+    return bool(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,127}", slot))
+
+
+def _is_decision_id(value: object) -> bool:
+    return isinstance(value, str) and bool(
+        re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", value)
+    )
 
 
 def _legacy_root_field_errors(manifest: RuntimeManifest) -> list[str]:
@@ -2855,6 +2991,11 @@ def _context_compaction_auto_errors(
     if not isinstance(compaction, Mapping):
         errors.append(f"{label}.context_compaction must be a mapping")
         return
+    _context_decision_scoring_errors(
+        compaction.get("decision_scoring"),
+        f"{label}.context_compaction.decision_scoring",
+        errors,
+    )
     auto = compaction.get("auto")
     if auto is None:
         return
@@ -2919,6 +3060,83 @@ def _context_compaction_auto_errors(
         errors,
     )
     _provider_context_compaction_errors(auto, auto_label, errors)
+
+
+def _context_decision_scoring_errors(
+    value: object,
+    label: str,
+    errors: list[str],
+) -> None:
+    if value is None:
+        return
+    if not isinstance(value, Mapping):
+        errors.append(f"{label} must be a mapping")
+        return
+    allowed_fields = {
+        "enabled",
+        "profile_id",
+        "selection",
+        "threshold",
+        "max_selected_turns",
+        "max_candidates",
+        "batch_size",
+        "fallback",
+    }
+    for field_name in value.keys() - allowed_fields:
+        errors.append(f"{label} has unsupported field {field_name!r}")
+    enabled = value.get("enabled")
+    if not isinstance(enabled, bool):
+        errors.append(f"{label}.enabled must be boolean")
+    if enabled is not True:
+        return
+    _validate_optional_nonblank_string(value, "profile_id", label, errors)
+    if not isinstance(value.get("profile_id"), str) or not value.get("profile_id", "").strip():
+        errors.append(f"{label}.profile_id is required when enabled")
+    selection = value.get("selection")
+    if selection not in {None, "threshold", "bounded_ranking"}:
+        errors.append(f"{label}.selection must be threshold or bounded_ranking")
+    _context_decision_scoring_limits(value, label, errors)
+    _context_decision_scoring_selection(value, label, errors)
+
+
+def _context_decision_scoring_limits(
+    value: Mapping[str, Any], label: str, errors: list[str]
+) -> None:
+    selection = value.get("selection")
+    for field_name in ("max_candidates", "batch_size"):
+        _validate_optional_positive_int(value, field_name, label, errors)
+        if field_name not in value:
+            errors.append(f"{label}.{field_name} is required when enabled")
+    if selection is not None:
+        _validate_optional_positive_int(value, "max_selected_turns", label, errors)
+        if "max_selected_turns" not in value:
+            errors.append(f"{label}.max_selected_turns is required when selection is enabled")
+    elif "max_selected_turns" in value:
+        errors.append(f"{label}.max_selected_turns requires selection")
+    if (
+        isinstance(value.get("max_selected_turns"), int)
+        and isinstance(value.get("max_candidates"), int)
+        and value["max_selected_turns"] > value["max_candidates"]
+    ):
+        errors.append(f"{label}.max_selected_turns cannot exceed max_candidates")
+    if value.get("fallback") != "recency":
+        errors.append(f"{label}.fallback must be recency")
+
+
+def _context_decision_scoring_selection(
+    value: Mapping[str, Any], label: str, errors: list[str]
+) -> None:
+    selection = value.get("selection")
+    if selection == "threshold":
+        threshold = value.get("threshold")
+        if (
+            not isinstance(threshold, int | float)
+            or isinstance(threshold, bool)
+            or not 0.0 <= threshold <= 1.0
+        ):
+            errors.append(f"{label}.threshold must be between 0 and 1 for threshold selection")
+    elif "threshold" in value:
+        errors.append(f"{label}.threshold is only valid for threshold selection")
 
 
 def _provider_context_compaction_errors(

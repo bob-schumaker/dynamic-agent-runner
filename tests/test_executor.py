@@ -26,6 +26,16 @@ from dynamic_agent_runner.context_selection import (
     ContextSelection,
     ContextSelectionCandidate,
 )
+from dynamic_agent_runner.decision_models import (
+    DecisionExecutionLimits,
+    DecisionModelBinding,
+    DecisionModelIdentity,
+    DecisionModelProfile,
+    DecisionModelResult,
+    DecisionModelResultItem,
+    DecisionModelScore,
+    DecisionMode,
+)
 from dynamic_agent_runner.errors import (
     EmbeddingResultError,
     GuardrailExecutionError,
@@ -364,6 +374,582 @@ def make_async_tool(
 
 def workflow_from(data: dict[str, object]) -> LoadedAgentWorkflow:
     return LoadedAgentWorkflow(runtime_manifest=load_runtime_manifest(data))
+
+
+def decision_workflow() -> LoadedAgentWorkflow:
+    return workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "decision-model-agent",
+            "entrypoint": "decide",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "decide",
+                    "kind": "decision_step",
+                    "decision_subtype": "decision_model",
+                    "decision_profile": "local.test.v1",
+                    "context_from": "prompt",
+                    "question": {
+                        "id": "route-choice",
+                        "text": "Choose a route.",
+                        "options": [
+                            {"id": "left", "label": "Left"},
+                            {"id": "right", "label": "Right"},
+                        ],
+                    },
+                },
+                *[
+                    {
+                        "id": target,
+                        "kind": "llm_step",
+                        "prompt": {"user_template": target},
+                    }
+                    for target in ("left", "right")
+                ],
+            ],
+            "edges": [
+                {"source": "decide", "target": target, "edge_kind": "branch", "condition": target}
+                for target in ("left", "right")
+            ],
+        }
+    )
+
+
+def decision_binding(
+    adapter: object,
+    *,
+    modes: frozenset[DecisionMode] = frozenset({DecisionMode.CHOICE}),
+    limits: DecisionExecutionLimits | None = None,
+) -> DecisionModelBinding:
+    return DecisionModelBinding(
+        profile=DecisionModelProfile(
+            identity=DecisionModelIdentity(
+                "local.test.v1", "test-adapter", "test-model", "rev1", "test-runtime"
+            ),
+            max_input_bytes=1024,
+            max_input_tokens=32,
+            max_questions=1,
+            max_options_per_question=2,
+            max_result_bytes=1024,
+            supported_modes=modes,
+        ),
+        adapter=adapter,
+        execution_limits=limits or DecisionExecutionLimits(),
+    )
+
+
+def retention_scoring_binding(adapter: object, *, profile_id: str = "local.retention.v1") -> DecisionModelBinding:
+    return DecisionModelBinding(
+        profile=DecisionModelProfile(
+            identity=DecisionModelIdentity(
+                profile_id, "retention-test", "test-model", "rev1", "test-runtime"
+            ),
+            max_input_bytes=10000,
+            max_input_tokens=1000,
+            max_questions=2,
+            max_options_per_question=2,
+            max_result_bytes=10000,
+            supported_modes=frozenset({DecisionMode.SCORES}),
+        ),
+        adapter=adapter,
+    )
+
+
+def context_scoring_workflow(
+    decision_scoring: dict[str, object] | None,
+) -> LoadedAgentWorkflow:
+    context_compaction: dict[str, object] = {"strategy": "basic"}
+    if decision_scoring is not None:
+        context_compaction["decision_scoring"] = decision_scoring
+    return workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "context-scoring-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": context_compaction,
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+
+def test_decision_model_step_uses_exact_binding_and_routes_to_mapped_edge() -> None:
+    class Adapter:
+        called_with = None
+
+        def decide(self, request: object) -> DecisionModelResult:
+            self.called_with = request
+            return DecisionModelResult(
+                decision_binding(self).profile.identity,
+                (DecisionModelResultItem("route-choice", choice="right"),),
+            )
+
+    decision_adapter = Adapter()
+    binding = decision_binding(decision_adapter)
+    result = execute_workflow(
+        decision_workflow(),
+        prompt="private decision context",
+        model_adapter=make_adapter([{"id": "final", "output_text": "right result"}]),
+        decision_model_bindings={"local.test.v1": binding},
+    )
+
+    assert result.final_result == "right result"
+    assert [execution.node_id for execution in result.state.executions] == ["decide", "right"]
+    assert decision_adapter.called_with.context == "private decision context"
+    assert decision_adapter.called_with.execution_limits.max_input_tokens == 32
+    decision_event = next(event for event in result.state.trace_events if event.event_type == "decision")
+    assert "private decision context" not in str(decision_event.payload)
+
+
+def test_async_decision_model_adapter_is_supported() -> None:
+    class Adapter:
+        async def decide(self, _request: object) -> DecisionModelResult:
+            return DecisionModelResult(
+                decision_binding(self).profile.identity,
+                (DecisionModelResultItem("route-choice", choice="left"),),
+            )
+
+    async def run() -> object:
+        return await execute_workflow_async(
+            decision_workflow(),
+            prompt="Pick",
+            model_adapter=make_async_adapter([{"id": "final", "output_text": "left result"}]),
+            decision_model_bindings={"local.test.v1": decision_binding(Adapter())},
+        )
+
+    result = asyncio.run(run())
+
+    assert result.final_result == "left result"
+    assert [execution.node_id for execution in result.state.executions] == ["decide", "left"]
+
+
+def test_prepare_model_input_scoring_keeps_pins_recent_turns_and_atomic_tool_turns() -> None:
+    class Scorer:
+        requests = []
+
+        def decide(self, request) -> DecisionModelResult:
+            self.requests.append(request)
+            keep_turn = next(
+                message["turn_id"]
+                for message in request.context["candidate_messages"]
+                if "preserve this old turn" in message["content"]
+            )
+            items = []
+            for question in request.questions:
+                keep_score = 4.0 if question.id == keep_turn else 1.0
+                items.append(
+                    DecisionModelResultItem(
+                        question.id,
+                        scores=(
+                            DecisionModelScore("keep", keep_score),
+                            DecisionModelScore("drop", 0.0),
+                        ),
+                        score_semantics="ranking_score",
+                    )
+                )
+            return DecisionModelResult(binding.profile.identity, tuple(items))
+
+    scorer = Scorer()
+    binding = retention_scoring_binding(scorer)
+    workflow = context_scoring_workflow(
+        {
+            "enabled": True,
+            "profile_id": "local.retention.v1",
+            "selection": "bounded_ranking",
+            "max_selected_turns": 1,
+            "max_candidates": 10,
+            "batch_size": 2,
+            "fallback": "recency",
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="continue the active task",
+        session_messages=(
+            OpenAIMessage("system", "pinned instruction"),
+            OpenAIMessage("user", "preserve this old turn"),
+            OpenAIMessage("assistant", "matching old answer"),
+            OpenAIMessage("assistant", "tool call"),
+            OpenAIMessage("tool", "tool result"),
+            OpenAIMessage("user", "recent user"),
+            OpenAIMessage("assistant", "recent answer"),
+        ),
+    )
+    model_adapter = make_adapter([])
+
+    prepared = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(model_adapter,),
+        decision_model_bindings={"local.retention.v1": binding},
+    )
+
+    contents = [message.content for message in prepared.messages]
+    assert "pinned instruction" in contents
+    assert contents[-3:-1] == ["recent user", "recent answer"]
+    assert contents.index("preserve this old turn") < contents.index("matching old answer")
+    assert "tool call" in contents and "tool result" in contents
+    assert prepared.preparation.compaction["decision_scoring"] == {
+        "status": "scored",
+        "scored_turns": 1,
+        "selected_turns": 1,
+    }
+    assert "preserve this old turn" not in str(prepared.preparation.compaction)
+    assert model_adapter.client.responses.calls == []
+
+
+def test_prepare_model_input_low_scores_cannot_remove_pins_recent_or_unresolved_state() -> None:
+    class Scorer:
+        def decide(self, request) -> DecisionModelResult:
+            return DecisionModelResult(
+                binding.profile.identity,
+                tuple(
+                    DecisionModelResultItem(
+                        question.id,
+                        scores=(
+                            DecisionModelScore("keep", 0.0),
+                            DecisionModelScore("drop", 1.0),
+                        ),
+                        score_semantics="ranking_score",
+                    )
+                    for question in request.questions
+                ),
+            )
+
+    scorer = Scorer()
+    binding = retention_scoring_binding(scorer)
+    workflow = context_scoring_workflow(
+        {
+            "enabled": True,
+            "profile_id": "local.retention.v1",
+            "selection": "bounded_ranking",
+            "max_selected_turns": 1,
+            "max_candidates": 10,
+            "batch_size": 2,
+            "fallback": "recency",
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="continue",
+        node_outputs={"prior": {"unresolved": "must remain available"}},
+        session_messages=(
+            OpenAIMessage("system", "pinned instruction"),
+            OpenAIMessage("user", "old candidate"),
+            OpenAIMessage("assistant", "old answer"),
+            OpenAIMessage("user", "recent request"),
+            OpenAIMessage("assistant", "recent response"),
+        ),
+    )
+
+    prepared = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(make_adapter([]),),
+        decision_model_bindings={"local.retention.v1": binding},
+    )
+
+    contents = [message.content for message in prepared.messages]
+    assert "pinned instruction" in contents
+    assert contents[-3:-1] == ["recent request", "recent response"]
+    assert "old candidate" not in contents and "old answer" not in contents
+    assert state.node_outputs["prior"]["unresolved"] == "must remain available"
+    assert prepared.preparation.compaction["decision_scoring"]["selected_turns"] == 0
+
+
+def test_prepare_model_input_scoring_without_selection_is_diagnostic_only() -> None:
+    class Scorer:
+        def decide(self, request) -> DecisionModelResult:
+            return DecisionModelResult(
+                binding.profile.identity,
+                tuple(
+                    DecisionModelResultItem(
+                        question.id,
+                        scores=(
+                            DecisionModelScore("keep", 100.0),
+                            DecisionModelScore("drop", 0.0),
+                        ),
+                        score_semantics="ranking_score",
+                    )
+                    for question in request.questions
+                ),
+            )
+
+    binding = retention_scoring_binding(Scorer())
+    workflow = context_scoring_workflow(
+        {
+            "enabled": True,
+            "profile_id": "local.retention.v1",
+            "max_candidates": 10,
+            "batch_size": 2,
+            "fallback": "recency",
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    prepared = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        WorkflowExecutionState(
+            prompt="continue",
+            session_messages=(
+                OpenAIMessage("user", "old request"),
+                OpenAIMessage("assistant", "old answer"),
+                OpenAIMessage("user", "recent request"),
+                OpenAIMessage("assistant", "recent answer"),
+            ),
+        ),
+        model_adapters=(make_adapter([]),),
+        decision_model_bindings={"local.retention.v1": binding},
+    )
+
+    contents = [message.content for message in prepared.messages]
+    assert "old request" in next(
+        content for content in contents if content.startswith("Compacted earlier session context:")
+    )
+    assert "old request" not in [
+        message.content
+        for message in prepared.messages
+        if message.role in {"user", "assistant"}
+    ]
+    assert "recent request" in contents and "recent answer" in contents
+    assert prepared.preparation.compaction["decision_scoring"] == {
+        "status": "diagnostic_only",
+        "scored_turns": 1,
+        "selected_turns": 0,
+    }
+
+
+@pytest.mark.parametrize("failure", ["missing", "invalid", "abstained", "timeout"])
+def test_prepare_model_input_scoring_failure_falls_back_to_recency(
+    failure: str,
+) -> None:
+    class Scorer:
+        def decide(self, request) -> DecisionModelResult:
+            if failure == "missing":
+                return DecisionModelResult(binding.profile.identity, ())
+            if failure == "invalid":
+                return DecisionModelResult(
+                    binding.profile.identity,
+                    (DecisionModelResultItem("missing", choice="keep"),),
+                )
+            if failure == "abstained":
+                return DecisionModelResult(
+                    binding.profile.identity,
+                    (DecisionModelResultItem(request.questions[0].id, status="abstained"),),
+                )
+            raise TimeoutError("private timeout details")
+
+    scorer = Scorer()
+    binding = retention_scoring_binding(scorer)
+    workflow = context_scoring_workflow(
+        {
+            "enabled": True,
+            "profile_id": "local.retention.v1",
+            "selection": "bounded_ranking",
+            "max_selected_turns": 1,
+            "max_candidates": 10,
+            "batch_size": 2,
+            "fallback": "recency",
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="continue",
+        session_messages=(
+            OpenAIMessage("system", "pinned instruction"),
+            OpenAIMessage("user", "old request"),
+            OpenAIMessage("assistant", "old response"),
+            OpenAIMessage("user", "recent request"),
+            OpenAIMessage("assistant", "recent response"),
+        ),
+    )
+
+    prepared = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(make_adapter([]),),
+        decision_model_bindings={"local.retention.v1": binding},
+    )
+
+    contents = [message.content for message in prepared.messages]
+    assert "pinned instruction" in contents
+    assert contents[-3:-1] == ["recent request", "recent response"]
+    assert "old request" not in contents
+    assert "old response" not in contents
+    assert prepared.preparation.compaction["decision_scoring"] == {
+        "status": "fallback_recency",
+        "scored_turns": 0,
+        "selected_turns": 0,
+    }
+
+
+def test_prepare_model_input_scoring_is_diagnostic_without_policy() -> None:
+    workflow = context_scoring_workflow(None)
+    plan = prepare_execution_plan(workflow)
+    prepared = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        WorkflowExecutionState(
+            prompt="continue",
+            session_messages=(
+                OpenAIMessage("user", "old"),
+                OpenAIMessage("assistant", "old answer"),
+                OpenAIMessage("user", "recent"),
+                OpenAIMessage("assistant", "recent answer"),
+            ),
+        ),
+        model_adapters=(make_adapter([]),),
+    )
+    assert not prepared.preparation.compaction.get("decision_scoring")
+    assert prepared.part_names[-3:] == (
+        "session_message_1",
+        "session_message_2",
+        "user_prompt",
+    )
+
+
+def test_decision_model_step_rejects_missing_binding_and_scores_only_profile() -> None:
+    workflow = decision_workflow()
+    with pytest.raises(WorkflowExecutionError, match="profile"):
+        execute_workflow(workflow, prompt="Pick")
+
+    class Adapter:
+        called = False
+
+        def decide(self, _request: object) -> DecisionModelResult:
+            self.called = True
+            raise AssertionError("scores-only profile must fail before inference")
+
+    adapter = Adapter()
+    with pytest.raises(WorkflowExecutionError, match="choice"):
+        execute_workflow(
+            workflow,
+            prompt="Pick",
+            decision_model_bindings={
+                "local.test.v1": decision_binding(
+                    adapter, modes=frozenset({DecisionMode.SCORES})
+                )
+            },
+        )
+    assert not adapter.called
+
+
+@pytest.mark.parametrize("limit", [DecisionExecutionLimits(max_input_bytes=1)])
+def test_decision_model_host_limit_blocks_inference(limit: DecisionExecutionLimits) -> None:
+    class Adapter:
+        called = False
+
+        def decide(self, _request: object) -> DecisionModelResult:
+            self.called = True
+            raise AssertionError("over-limit request must not reach adapter")
+
+    adapter = Adapter()
+    with pytest.raises(WorkflowExecutionError, match="bounded request"):
+        execute_workflow(
+            decision_workflow(),
+            prompt="Pick",
+            decision_model_bindings={"local.test.v1": decision_binding(adapter, limits=limit)},
+        )
+    assert not adapter.called
+
+
+def test_decision_model_host_result_limit_prevents_routing() -> None:
+    class Adapter:
+        def decide(self, _request: object) -> DecisionModelResult:
+            return DecisionModelResult(
+                decision_binding(self).profile.identity,
+                (DecisionModelResultItem("route-choice", choice="right"),),
+            )
+
+    with pytest.raises(WorkflowExecutionError, match="invalid adapter result"):
+        execute_workflow(
+            decision_workflow(),
+            prompt="Pick",
+            decision_model_bindings={
+                "local.test.v1": decision_binding(
+                    Adapter(), limits=DecisionExecutionLimits(max_result_bytes=1)
+                )
+            },
+        )
+
+
+@pytest.mark.parametrize(
+    "limits",
+    [
+        DecisionExecutionLimits(deadline_monotonic=0.0),
+        DecisionExecutionLimits(cancellation=SimpleNamespace(cancelled=True)),
+    ],
+)
+def test_decision_model_lifecycle_limits_block_inference(
+    limits: DecisionExecutionLimits,
+) -> None:
+    class Adapter:
+        called = False
+
+        def decide(self, _request: object) -> DecisionModelResult:
+            self.called = True
+            raise AssertionError("cancelled or expired request must not reach adapter")
+
+    adapter = Adapter()
+    with pytest.raises(WorkflowExecutionError, match="cancelled|deadline"):
+        execute_workflow(
+            decision_workflow(),
+            prompt="Pick",
+            decision_model_bindings={"local.test.v1": decision_binding(adapter, limits=limits)},
+        )
+    assert not adapter.called
+
+
+def test_decision_model_adapter_and_result_failures_are_redacted() -> None:
+    class FailedAdapter:
+        def decide(self, _request: object) -> DecisionModelResult:
+            raise RuntimeError("adapter leaked private payload")
+
+    with pytest.raises(WorkflowExecutionError, match="adapter failed") as error:
+        execute_workflow(
+            decision_workflow(),
+            prompt="Pick",
+            decision_model_bindings={
+                "local.test.v1": decision_binding(FailedAdapter())
+            },
+        )
+    assert "private payload" not in str(error.value)
+
+    class InvalidAdapter:
+        def decide(self, _request: object) -> DecisionModelResult:
+            return DecisionModelResult(
+                decision_binding(self).profile.identity,
+                (DecisionModelResultItem("route-choice", choice="not-mapped"),),
+            )
+
+    with pytest.raises(WorkflowExecutionError, match="invalid adapter result"):
+        execute_workflow(
+            decision_workflow(),
+            prompt="Pick",
+            decision_model_bindings={"local.test.v1": decision_binding(InvalidAdapter())},
+        )
 
 
 def test_execute_workflow_emits_safe_generation_metadata(

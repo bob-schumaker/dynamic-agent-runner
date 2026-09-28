@@ -111,6 +111,45 @@ def embedding_step_manifest_data() -> dict[str, object]:
     }
 
 
+def decision_model_manifest_data() -> dict[str, object]:
+    return {
+        "format_version": 1,
+        "package_type": "dynamic_agent_design",
+        "package_id": "decision-model-agent",
+        "entrypoint": "decide",
+        "packaging": {"mode": "hybrid_bundle"},
+        "nodes": [
+            {
+                "id": "decide",
+                "kind": "decision_step",
+                "decision_subtype": "decision_model",
+                "decision_profile": "local.test.v1",
+                "context_from": "prompt",
+                "question": {
+                    "id": "route-choice",
+                    "text": "Choose a route.",
+                    "options": [
+                        {"id": "left", "label": "Left"},
+                        {"id": "right", "label": "Right"},
+                    ],
+                },
+            },
+            *[
+                {
+                    "id": target,
+                    "kind": "llm_step",
+                    "prompt": {"user_template": target},
+                }
+                for target in ("left", "right")
+            ],
+        ],
+        "edges": [
+            {"source": "decide", "target": target, "edge_kind": "branch", "condition": target}
+            for target in ("left", "right")
+        ],
+    }
+
+
 def test_valid_runtime_manifest_passes_validation() -> None:
     """A minimally valid manifest passes the Slice 3 validation engine."""
 
@@ -190,6 +229,124 @@ def test_embedding_step_manifest_rejects_outgoing_edge() -> None:
 
     with pytest.raises(WorkflowValidationError, match="terminal"):
         validate_mapping(data)
+
+
+def test_decision_model_node_requires_one_question_and_complete_unique_routes() -> None:
+    validate_mapping(decision_model_manifest_data())
+
+    cases = []
+    missing_question = decision_model_manifest_data()
+    decision_node = missing_question["nodes"][0]
+    assert isinstance(decision_node, dict)
+    del decision_node["question"]
+    cases.append((missing_question, "question"))
+
+    empty_options = decision_model_manifest_data()
+    decision_node = empty_options["nodes"][0]
+    assert isinstance(decision_node, dict)
+    question = decision_node["question"]
+    assert isinstance(question, dict)
+    question["options"] = []
+    cases.append((empty_options, "option"))
+
+    duplicate_options = decision_model_manifest_data()
+    decision_node = duplicate_options["nodes"][0]
+    assert isinstance(decision_node, dict)
+    question = decision_node["question"]
+    assert isinstance(question, dict)
+    question["options"] = [{"id": "left"}, {"id": "left"}]
+    cases.append((duplicate_options, "duplicate"))
+
+    incomplete_routes = decision_model_manifest_data()
+    incomplete_routes["edges"] = incomplete_routes["edges"][:1]
+    cases.append((incomplete_routes, "mapping"))
+
+    duplicate_routes = decision_model_manifest_data()
+    duplicate_routes["edges"][1]["condition"] = "left"
+    cases.append((duplicate_routes, "duplicate"))
+
+    multiple_questions = decision_model_manifest_data()
+    decision_node = multiple_questions["nodes"][0]
+    assert isinstance(decision_node, dict)
+    decision_node["questions"] = [decision_node["question"], decision_node["question"]]
+    cases.append((multiple_questions, "questions"))
+
+    for data, error in cases:
+        with pytest.raises(WorkflowValidationError, match=error):
+            validate_mapping(data)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "error"),
+    [
+        ("decision_profile", None, "profile"),
+        ("decision_profile", "", "profile"),
+        ("context_from", "node_outputs.private.nested", "context"),
+        ("adapter_code", "return 'left'", "adapter_code"),
+        ("model_path", "/models/model.gguf", "model_path"),
+        ("runtime_import", "transformers", "runtime_import"),
+        ("provider_fallback", True, "provider_fallback"),
+    ],
+)
+def test_decision_model_node_rejects_unsafe_binding_and_context_fields(
+    field: str, value: object, error: str
+) -> None:
+    data = decision_model_manifest_data()
+    node = data["nodes"][0]
+    assert isinstance(node, dict)
+    if value is None:
+        node.pop(field)
+    else:
+        node[field] = value
+
+    with pytest.raises(WorkflowValidationError, match=error):
+        validate_mapping(data)
+
+
+def test_context_decision_scoring_policy_requires_bounded_inputs_and_optional_selection() -> None:
+    scoring = {
+        "enabled": True,
+        "profile_id": "local.retention.v1",
+        "selection": "bounded_ranking",
+        "max_selected_turns": 2,
+        "max_candidates": 20,
+        "batch_size": 4,
+        "fallback": "recency",
+    }
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "prepare_model_input": {
+                "session_pruning": {"max_messages": 4},
+                "context_compaction": {"decision_scoring": scoring},
+            },
+        }
+    }
+    validate_mapping(data)
+    diagnostic_only = {key: value for key, value in scoring.items() if key not in {"selection", "max_selected_turns"}}
+    data["runtime"]["execution_policy"]["prepare_model_input"]["context_compaction"]["decision_scoring"] = diagnostic_only
+    validate_mapping(data)
+
+    invalid_policies = [
+        ({**scoring, "selection": "guess"}, "selection"),
+        ({**scoring, "profile_id": ""}, "profile_id"),
+        ({**scoring, "fallback": "drop"}, "fallback"),
+        ({**scoring, "max_candidates": 0}, "max_candidates"),
+        ({**scoring, "batch_size": 0}, "batch_size"),
+        ({**diagnostic_only, "max_selected_turns": 1}, "requires selection"),
+        ({**scoring, "unexpected": True}, "unexpected"),
+        (
+            {**scoring, "selection": "threshold", "threshold": 1.5},
+            "threshold",
+        ),
+    ]
+    for invalid, error in invalid_policies:
+        data["runtime"]["execution_policy"]["prepare_model_input"]["context_compaction"][
+            "decision_scoring"
+        ] = invalid
+        with pytest.raises(WorkflowValidationError, match=error):
+            validate_mapping(data)
 
 
 def test_provider_context_compaction_policy_requires_capability_and_valid_fallback() -> (
