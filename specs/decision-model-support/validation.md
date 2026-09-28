@@ -289,6 +289,10 @@ gold answers, and evidence annotations from compactor inputs; enforces matched
 token budgets and selection ordering; skips answer/scorer calls on context
 overflow; computes category/answerability metrics and paired stratified
 bootstrap intervals; and writes fixed-schema redacted prediction records.
+Added `RankedTurnCompactor` to apply the DMS bounded-ranking rule to complete
+conversation turns while caching each fake or candidate score across budget
+conditions. It accepts a score callback and remains benchmark-specific; it
+does not introduce a reusable model adapter or production binding.
 The first full-corpus fake sweep exposed repeated session IDs within one
 question; message IDs now include session position so selection identity and
 evidence-turn recall remain unique. A second sweep completed 500 items across
@@ -297,7 +301,7 @@ rows, using fake compactor/answer/judge callbacks and no model inference.
 Validation:
 
 - `poetry run pytest tests/test_context_compression_evaluation.py -q`: 11
-  passed.
+  passed before the ranked-turn adapter was added; 12 passed after it was added.
 - `poetry run ruff check scripts/evaluate_context_compression.py tests/test_context_compression_evaluation.py`: passed.
 - `python -m json.tool specs/decision-model-support/evaluation/dms13-corpus-manifest.json`: passed.
 - `git diff --check`: passed.

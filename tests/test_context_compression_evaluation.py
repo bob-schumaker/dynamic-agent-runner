@@ -17,6 +17,7 @@ from evaluate_context_compression import (
     build_redacted_receipt,
     count_answer_prompt_tokens,
     count_history_tokens,
+    RankedTurnCompactor,
     load_dataset,
     paired_accuracy_bootstrap_interval,
     recency_baseline,
@@ -144,6 +145,27 @@ def test_recency_baseline_keeps_whole_user_assistant_turns_within_budget() -> No
 
     assert [message["content"] for message in kept] == ["recent user", "recent answer"]
     assert count_tokens(kept) <= 24
+
+
+def test_ranked_turn_compactor_scores_once_and_keeps_atomic_turns() -> None:
+    messages = build_history_messages(_item())
+    calls = []
+
+    def score_turn(turn):
+        calls.append([message["id"] for message in turn])
+        return 0.9 if turn[0]["content"] == "old user" else 0.2
+
+    def count_tokens(value):
+        return sum(len(message["content"]) for message in value)
+
+    compactor = RankedTurnCompactor(score_turn=score_turn, token_counter=count_tokens)
+    compact_input = {"candidate_messages": messages, "task_context": "generic"}
+    small = compactor(compact_input, 24)
+    large = compactor(compact_input, 48)
+
+    assert small == [messages[0]["id"], messages[1]["id"]]
+    assert large == [message["id"] for message in messages]
+    assert len(calls) == 2
 
 
 def test_aggregate_results_reports_accuracy_evidence_recall_and_token_ratio() -> None:

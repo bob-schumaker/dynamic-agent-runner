@@ -227,6 +227,61 @@ def _conversation_turns(
     return turns
 
 
+class RankedTurnCompactor:
+    """Cache keep/drop turn rankings and select complete turns within budget."""
+
+    def __init__(
+        self,
+        *,
+        score_turn: Callable[[Sequence[Mapping[str, Any]]], float],
+        token_counter: Callable[[Sequence[Mapping[str, Any]]], int],
+    ) -> None:
+        self._score_turn = score_turn
+        self._token_counter = token_counter
+        self._scores: dict[str, float] = {}
+
+    def __call__(self, context: Mapping[str, Any], budget: int) -> list[str]:
+        messages = context.get("candidate_messages")
+        if not isinstance(messages, Sequence) or isinstance(
+            messages, (str, bytes, bytearray)
+        ):
+            raise ContextEvaluationError("compactor history is invalid")
+        turns = _conversation_turns(messages)
+        if any(not turn or not isinstance(turn[0].get("id"), str) for turn in turns):
+            raise ContextEvaluationError("compactor turn identity is invalid")
+        if not isinstance(budget, int) or isinstance(budget, bool) or budget <= 0:
+            raise ContextEvaluationError("history token budget is invalid")
+
+        scores: list[tuple[int, list[Mapping[str, Any]], float]] = []
+        for index, turn in enumerate(turns):
+            turn_id = str(turn[0]["id"])
+            if turn_id not in self._scores:
+                value = self._score_turn(turn)
+                if (
+                    not isinstance(value, int | float)
+                    or isinstance(value, bool)
+                    or not math.isfinite(value)
+                ):
+                    raise ContextEvaluationError("compactor score is invalid")
+                self._scores[turn_id] = float(value)
+            scores.append((index, turn, self._scores[turn_id]))
+
+        chosen: list[tuple[int, list[Mapping[str, Any]]]] = []
+        for index, turn, score in sorted(scores, key=lambda row: (-row[2], row[0])):
+            if score <= 0:
+                continue
+            candidate = [*chosen, (index, turn)]
+            candidate_messages = [
+                message
+                for _turn_index, candidate_turn in candidate
+                for message in candidate_turn
+            ]
+            if _checked_token_count(self._token_counter(candidate_messages)) <= budget:
+                chosen = candidate
+        selected = sorted(chosen)
+        return [str(message["id"]) for _index, turn in selected for message in turn]
+
+
 def recency_baseline(
     messages: Sequence[Mapping[str, Any]],
     *,
