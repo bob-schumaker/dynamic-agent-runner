@@ -79,6 +79,14 @@ class _MpsIpcRuntime(_CpuIpcRuntime):
             raise ValueError("invalid test runtime request")
 
 
+def _has_mps() -> bool:
+    try:
+        import torch
+    except ImportError:
+        return False
+    return torch.backends.mps.is_available()
+
+
 class _CpuOverAuthorizedRuntime(_CpuIpcRuntime):
     def generate(self) -> tuple[bytes, int]:
         return b"{}", 3
@@ -372,7 +380,9 @@ def test_darwin_mps_policy_uses_an_atomic_capacity_reservation() -> None:
     second.release()
 
 
-@pytest.mark.skipif(platform.system() != "Darwin", reason="requires Darwin MPS")
+@pytest.mark.skipif(
+    platform.system() != "Darwin" or not _has_mps(), reason="requires available Darwin MPS"
+)
 def test_darwin_mps_fixture_runs_the_fixed_no_model_worker_lifecycle() -> None:
     from dynamic_agent_runner.workflow_host.generation_worker_controllers import (
         MacMpsGenerationWorkerController,
