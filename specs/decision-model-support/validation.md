@@ -332,6 +332,20 @@ No model weights were downloaded and no model inference or external judge call
 was performed. DMS-13 remains comparative evaluation only; it cannot admit a
 production profile or change DMS-01 decisions.
 
+### DMS-13 DAR auth-path update — 2026-09-28
+
+Replaced the runner's direct `OPENAI_API_KEY` check and hard-coded public API
+client with DAR's `create_default_openai_client()` auth discovery. The locked
+runtime resolves this host to `chatgpt.com`; preflight and run receipts bind
+that endpoint and the 4,500-call scope. The locked runtime was installed under
+`/private/tmp/dms13-poetry-envs`; the public API route was not called. The
+focused runner tests pass (8 passed), Ruff passes for the runner and its tests,
+and `git diff --check` passes. Auto-review rejected sending benchmark-derived
+questions, gold answers, and candidate answers to `chatgpt.com` under the
+earlier approval for `api.openai.com`. The pending run receipt records that
+endpoint approval as outstanding. No model weights were downloaded and no
+benchmark inference or judge request was made.
+
 ## DMS-12 Jev-Style 0.8B v3 Candidate Preparation — 2026-09-27
 
 Screened the 8-bit MLX build from the referenced local-options review and

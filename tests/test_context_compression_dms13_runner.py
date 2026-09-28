@@ -125,6 +125,24 @@ def test_official_judge_prompt_uses_pinned_type_and_abstention_rules() -> None:
     assert prompts[1][4] is True
 
 
+def test_dms13_judge_client_uses_dar_default_openai_auth(monkeypatch) -> None:
+    from dynamic_agent_runner import openai_client
+
+    expected_client = object()
+    calls = []
+
+    def create_client(config=None):
+        calls.append(config)
+        return expected_client
+
+    monkeypatch.setattr(openai_client, "create_default_openai_client", create_client)
+
+    from run_context_compression_dms13 import _create_judge_client
+
+    assert _create_judge_client() is expected_client
+    assert calls == [None]
+
+
 def test_run_approval_must_bind_all_pinned_run_artifacts() -> None:
     expected = {
         "manifest_sha256": "a" * 64,

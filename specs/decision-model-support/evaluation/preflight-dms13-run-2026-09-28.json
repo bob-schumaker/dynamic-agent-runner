@@ -7,15 +7,15 @@
   "answer_weights_cached_in_dms13_model_cache": false,
   "benchmark_manifest": "specs/decision-model-support/evaluation/dms13-corpus-manifest.json",
   "blockers": [
-    "candidate-specific scorer and run approval are outstanding"
+    "user approval for sending benchmark-derived data to the ChatGPT endpoint is outstanding"
   ],
   "candidate_run_approved": false,
   "compactor_model_revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
   "conversation_turns": 122462,
-  "created_at_utc": "2026-09-28T06:09:54.830474+00:00",
+  "created_at_utc": "2026-09-28T19:28:29.087789+00:00",
   "dataset_revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
   "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
-  "execution_mode": "in-process-local-mlx-reader-and-cpu-von-compactor; OpenAI API judge; no model server",
+  "execution_mode": "in-process-local-mlx-reader-and-cpu-von-compactor; DAR default OpenAI auth judge",
   "expected_external_requests": 4500,
   "expected_von_turn_scores": 122462,
   "external_data_fields": [
@@ -30,18 +30,20 @@
     },
     {
       "path": "tests/manual/run_context_compression_dms13.py",
-      "sha256": "48fce0eff94643f1464c36456e5bd9896b16d220ab49ec9edc0333a34f92437e"
+      "sha256": "bd57bde151f4af6dec7de465e81479c6244c3548eb1659fdce74c68f3992ff6e"
     }
   ],
   "host": {
     "architecture": "arm64",
-    "free_storage_bytes": 52034842624,
+    "free_storage_bytes": 45641039872,
     "ram_bytes": 38654705664,
     "required_free_storage_bytes": 8589934592,
     "storage_path": "/private/tmp",
     "system": "macOS-26.6.2-arm64-arm-64bit-Mach-O"
   },
   "inference_performed": false,
+  "judge_auth_path": "DAR default OpenAI client auth discovery",
+  "judge_endpoint_host": "chatgpt.com",
   "longmemeval_source_revision": "9e0b455f4ef0e2ab8f2e582289761153549043fc",
   "manifest_sha256": "cf7d42876947e40db8edfbfbd5c213ab563a15e7dfdea633aa0504022be92dcf",
   "metal_available": true,
@@ -62,7 +64,7 @@
   "preflight_passed": true,
   "python": "3.14.7",
   "run_allowed": false,
-  "runtime_executable": "/Users/roschuma/.local/share/mise/installs/python/3.14.7/bin/python3.14",
+  "runtime_executable": "/private/tmp/dms13-poetry-envs/dms13-local-evaluation-runtime-3EepRVVB-py3.14/bin/python",
   "runtime_lock_sha256": "f490719fd8d20b7fb25dc5099732137353d8335e99e7cea275dd56affdb06aa5",
   "scorer_approved": false,
   "von_source_revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54",

@@ -11,10 +11,10 @@
     "thinking": false
   },
   "answer_model": "mlx-community/Qwen3-4B-Instruct-2507-4bit@50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
-  "approval_date": "2026-09-27",
-  "approval_scope": "pinned local model downloads and inference plus 4500 OpenAI API judge requests",
-  "approval_source": "User approved the exact DMS-13 run scope in conversation.",
-  "approved": true,
+  "approval_date": null,
+  "approval_scope": "pinned local model downloads and inference plus 4500 gpt-4o-2024-08-06 judge requests to chatgpt.com through DAR default OpenAI auth",
+  "approval_source": "Pending explicit approval for sending the pinned benchmark fields to chatgpt.com; the earlier approval covered api.openai.com.",
+  "approved": false,
   "budgets_history_tokens": [
     8192,
     16384,
@@ -31,9 +31,11 @@
     "gold_answer",
     "candidate_answer"
   ],
-  "harness_sha256": "1b998d53965c3d0b71079c06c2b50eb1ebb5d7a40f18e93454dcc63ff7cb04a6",
+  "harness_sha256": "8c392507a4b4d00fe8d3147c37dee43f815d6933df2918be7eff0ddbc3bd40ae",
+  "judge_auth_path": "DAR default OpenAI client auth discovery",
+  "judge_endpoint_host": "chatgpt.com",
   "manifest_sha256": "cf7d42876947e40db8edfbfbd5c213ab563a15e7dfdea633aa0504022be92dcf",
-  "preflight_sha256": "792f6467db983f4a58a539dfb9468068a5c1eee8a65bcf8e18985cc27d2cce06",
+  "preflight_sha256": "cb2e1e5f46fff7bec99f04fc2b0796747406ba7afcc08c159a8ebeb22acebf05",
   "primary_budget_history_tokens": 32768,
   "reserved_generation_tokens": 512,
   "runtime_lock_sha256": "f490719fd8d20b7fb25dc5099732137353d8335e99e7cea275dd56affdb06aa5",

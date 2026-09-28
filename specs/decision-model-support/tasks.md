@@ -443,13 +443,15 @@ competency run before an explicit production admission decision.
   `tests/manual/run_context_compression_dms13.py`; fake tests cover its
   question-blind Von scoring, exact packed-input limit, approval binding, and
   refusal before model-cache creation. No model inference was performed.
-- [ ] Run the approved model-guided compaction condition and baselines.
-  Approval and preflight passed, but execution stopped before download or
-  inference because `OPENAI_API_KEY` is unavailable in the execution
-  environment. Resume with the same bound run after credentials are available;
-  record exact revisions, aggregate metrics, and disposition in
-  `model-evaluation.md`. Do not infer DMS-01 passage or production admission
-  from this track.
+- [ ] Run the model-guided compaction condition and baselines. The scorer now
+  uses DAR's default OpenAI auth discovery, which resolves to `chatgpt.com` on
+  this host. The refreshed preflight, harness, and pending approval receipt bind
+  that endpoint. Auto-review rejected sending benchmark-derived questions,
+  gold answers, and candidate answers to this changed endpoint under the prior
+  public OpenAI API approval. Obtain explicit approval for the exact ChatGPT
+  endpoint scope before download or inference, then record the run and
+  disposition in `model-evaluation.md`. Do not infer DMS-01 passage or
+  production admission from this track.
 
 ## DMS-14 Published General Decision Transfer and Mac Runtime Comparison
 

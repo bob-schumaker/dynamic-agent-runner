@@ -70,15 +70,19 @@ the Qwen MLX reader, and the scorer client in
 [`evaluation/dms13-runtime/`](evaluation/dms13-runtime/); its lock SHA-256 is
 `f490719fd8d20b7fb25dc5099732137353d8335e99e7cea275dd56affdb06aa5`. The lock
 resolves and passes `poetry check --lock`. The isolated runtime is installed
-under `/private/tmp/dms13-py-venvs`; package versions and the pinned Von source
+under `/private/tmp/dms13-poetry-envs`; package versions and the pinned Von source
 import were verified together, and Metal is available. The initial runtime
 [preflight receipt](evaluation/preflight-dms13-2026-09-27.json) verifies the
 runtime setup. The run-specific
 [preflight receipt](evaluation/preflight-dms13-run-2026-09-28.json) binds the
 complete evaluation harness, current host/storage check, and pinned artifacts.
 Qwen reader weights are not cached in the DMS-13 model cache. Neither local
-model uses a server in this proposal. The exact run was approved, but it has
-not started because the required OpenAI API credential is unavailable.
+model uses a server in this proposal. The DMS-13 runner now uses DAR's default
+OpenAI auth discovery; it resolves to the ChatGPT Codex endpoint
+(`chatgpt.com`) on this host. The previous user approval bound the public
+OpenAI API endpoint. Automatic review rejected sending benchmark-derived data
+to the changed ChatGPT endpoint under that approval, so the refreshed run
+receipt remains pending endpoint-specific approval.
 
 The [pinned official evaluator](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/src/evaluation/evaluate_qa.py)
 supports `gpt-4o-2024-08-06`, `gpt-4o-mini-2024-07-18`, and local Llama 3.1 70B
@@ -88,11 +92,12 @@ response containing `yes`. The [official README](https://github.com/xiaowu0162/L
 uses GPT-4o in its evaluation command, so that is the recommended scorer for
 closest comparability. The pinned evaluator's source SHA-256 and scorer
 parameters are in the manifest. Each of the 4,500 planned judge calls sends the
-question, gold answer, and candidate answer to OpenAI. The evaluator would
+question, gold answer, and candidate answer to the configured scorer endpoint.
+The endpoint-specific run receipt currently proposes `chatgpt.com` with
+`gpt-4o-2024-08-06`; this route has not been exercised. The evaluator would
 persist only boolean labels and aggregate metrics, never raw prompts or judge
-responses. The user approved this external data egress and the complete DMS-13
-run on 2026-09-28. The alternative local scorer requires a server and a 70B
-model, which does not fit this direct local run setup.
+responses. The alternative local scorer requires a server and a 70B model,
+which does not fit this direct local run setup.
 
 Proposed primary budget is 32,768 history tokens. Proposed acceptance compares
 paired model-guided and recency outcomes over 10,000 question-type-stratified

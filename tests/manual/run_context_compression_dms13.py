@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import time
+import types
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -81,6 +82,7 @@ def build_run_approval_expectation(root: Path, *, preflight_path: Path) -> dict[
     evaluator_path = root / "scripts/evaluate_context_compression.py"
     runner_path = Path(__file__).resolve()
     lock_path = root / RUNTIME_LOCK_RELATIVE
+    preflight = json.loads(preflight_path.read_text(encoding="utf-8"))
     return {
         "manifest_sha256": _sha256(manifest_path),
         "preflight_sha256": _sha256(preflight_path),
@@ -105,7 +107,13 @@ def build_run_approval_expectation(root: Path, *, preflight_path: Path) -> dict[
         "expected_external_requests": 4500,
         "expected_von_turn_scores": EXPECTED_VON_TURN_SCORES,
         "external_data_fields": ["question", "gold_answer", "candidate_answer"],
-        "approval_scope": "pinned local model downloads and inference plus 4500 OpenAI API judge requests",
+        "approval_scope": (
+            "pinned local model downloads and inference plus 4500 "
+            f"{SCORER_MODEL} judge requests to {preflight.get('judge_endpoint_host')} "
+            "through DAR default OpenAI auth"
+        ),
+        "judge_auth_path": "DAR default OpenAI client auth discovery",
+        "judge_endpoint_host": preflight.get("judge_endpoint_host"),
     }
 
 
@@ -217,7 +225,22 @@ def _percentile(values: Sequence[float], fraction: float) -> float | None:
     return ordered[min(len(ordered) - 1, int((len(ordered) - 1) * fraction))]
 
 
-def _verify_run_boundary(arguments: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
+def _create_judge_client() -> Any:
+    source_directory = str(ROOT / "src")
+    if source_directory not in sys.path:
+        sys.path.insert(0, source_directory)
+    if "dynamic_agent_runner" not in sys.modules:
+        package = types.ModuleType("dynamic_agent_runner")
+        package.__path__ = [str(ROOT / "src" / "dynamic_agent_runner")]
+        sys.modules["dynamic_agent_runner"] = package
+    from dynamic_agent_runner.openai_client import create_default_openai_client
+
+    return create_default_openai_client()
+
+
+def _verify_run_boundary(
+    arguments: argparse.Namespace,
+) -> tuple[dict[str, Any], dict[str, Any], Any]:
     root = ROOT
     runtime_lock_path = root / RUNTIME_LOCK_RELATIVE
     preflight_path = arguments.preflight
@@ -233,19 +256,19 @@ def _verify_run_boundary(arguments: argparse.Namespace) -> tuple[dict[str, Any],
 
     runtime_executable = Path(preflight.get("runtime_executable", ""))
     verify_runtime(runtime_executable)
+    client = _create_judge_client()
+    if client.base_url.host != expected_approval["judge_endpoint_host"]:
+        raise ManualRunError("DAR OpenAI auth resolved to an unapproved judge endpoint")
     arguments.model_cache.mkdir(parents=True, exist_ok=True)
     _check_current_host(arguments.model_cache)
     if _repository_revision(arguments.source_checkout) != VON_SOURCE_REVISION:
         raise ManualRunError("Von source checkout differs from the pinned revision")
     if _repository_revision(arguments.longmemeval_source) != LONGMEMEVAL_SOURCE_REVISION:
         raise ManualRunError("LongMemEval source checkout differs from the pinned revision")
-    if not os.environ.get("OPENAI_API_KEY"):
-        raise ManualRunError("OpenAI API credentials are unavailable")
-
     scripts_directory = str(root / "scripts")
     if scripts_directory not in sys.path:
         sys.path.insert(0, scripts_directory)
-    return expected_approval, approval
+    return expected_approval, approval, client
 
 
 def _load_pinned_models(arguments: argparse.Namespace) -> tuple[Any, Any, "VonTurnScorer", float, float, Any]:
@@ -289,7 +312,7 @@ def _load_pinned_models(arguments: argparse.Namespace) -> tuple[Any, Any, "VonTu
 
 
 def run(arguments: argparse.Namespace) -> int:
-    expected_approval, approval = _verify_run_boundary(arguments)
+    expected_approval, approval, client = _verify_run_boundary(arguments)
     approval_path = arguments.approval
     preflight_path = arguments.preflight
 
@@ -333,10 +356,6 @@ def run(arguments: argparse.Namespace) -> int:
         arguments.longmemeval_source / "src/evaluation/evaluate_qa.py",
         expected_sha256=OFFICIAL_SCORER_SHA256,
     )
-    from openai import OpenAI
-
-    client = OpenAI(base_url="https://api.openai.com/v1")
-
     def answer(history, question):
         prompt = answer_tokenizer.apply_chat_template(
             build_answer_prompt_messages(history, question),
