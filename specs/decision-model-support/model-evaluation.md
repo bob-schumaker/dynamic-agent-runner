@@ -77,8 +77,8 @@ runtime setup. The run-specific
 [preflight receipt](evaluation/preflight-dms13-run-2026-09-28.json) binds the
 complete evaluation harness, current host/storage check, and pinned artifacts.
 Qwen reader weights are not cached in the DMS-13 model cache. Neither local
-model uses a server in this proposal. Inference and external judging remain
-unapproved.
+model uses a server in this proposal. The exact run was approved, but it has
+not started because the required OpenAI API credential is unavailable.
 
 The [pinned official evaluator](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/src/evaluation/evaluate_qa.py)
 supports `gpt-4o-2024-08-06`, `gpt-4o-mini-2024-07-18`, and local Llama 3.1 70B
@@ -90,8 +90,8 @@ closest comparability. The pinned evaluator's source SHA-256 and scorer
 parameters are in the manifest. Each of the 4,500 planned judge calls sends the
 question, gold answer, and candidate answer to OpenAI. The evaluator would
 persist only boolean labels and aggregate metrics, never raw prompts or judge
-responses. This external data egress and the complete DMS13 run remain subject
-to user approval. The alternative local scorer requires a server and a 70B
+responses. The user approved this external data egress and the complete DMS-13
+run on 2026-09-28. The alternative local scorer requires a server and a 70B
 model, which does not fit this direct local run setup.
 
 Proposed primary budget is 32,768 history tokens. Proposed acceptance compares
@@ -99,9 +99,10 @@ paired model-guided and recency outcomes over 10,000 question-type-stratified
 bootstrap samples (seed 13): answer-accuracy noninferiority requires the
 95-percent interval's lower bound to exceed -0.03; evidence-turn recall may
 not be more than 0.05 below recency; and at least one of answer accuracy or
-evidence-turn recall must improve by 0.05 at the primary budget. These values
-are unapproved proposals. DMS-13 remains blocked from inference until the
-scorer, exact run pairing, thresholds, and harness revision are approved.
+evidence-turn recall must improve by 0.05 at the primary budget. The user
+approved these values with the exact run pairing, scorer, and harness revision
+on 2026-09-28. DMS-13 remains blocked only until the approved API credential is
+available; no model inference or judge request has occurred.
 
 ## Host and DAR fit
 
@@ -444,7 +445,7 @@ quality gates. NanoJev remains deferred for its host and licensing constraints.
 | poorjev | Source [rupeshpoojary9/poorjev](https://github.com/rupeshpoojary9/poorjev) at commit `7e684e95db13b90238c63e6ab39e1a016263a168`; local NLI backend pins `MoritzLaurer/deberta-v3-base-zeroshot-v2.0` at Hub revision `8e7e5af5983a0ddb1a5b45a38b129ab69e2258e8`. Its `model.safetensors` is 368,871,908 bytes with LFS SHA-256 `6e8f2af78c828dcbd5243aac40fb87430376f0b8a9c288f4993df3ea3558d557`. This local inference backend maps typed questions to NLI hypotheses and returns option distributions; it fits the DMS decision shape, but its default temperature is 1.0 (no fitted calibration). | Code is MIT; the pinned Hub card declares MIT. Source supports CPU, MPS, and CUDA and documents offline inference after the initial download. The pinned runner truncates premise/hypothesis pairs at 512 tokens; the model config's maximum positions is also 512. README results use a small English support-oriented dataset and do not establish DMS performance. | **Reject for frozen quality thresholds.** Decision accuracy 0.54; retention F1 0.350, keep recall 0.313, and utility gain +0.032 (required +0.05). Scores are uncalibrated. |
 | NanoJev | Source [TianyuCodings/NanoJev](https://github.com/TianyuCodings/NanoJev) at commit `76fdfc9ecdca45a9bcef17991a07d3041a87685a`; checkpoint `C-Tianyu/NanoJev` release `unified-games-v1` peeled to revision `047b927b30882a1138fc504821b82ac145a4b81a`. This is the step-400 `hard_lr1e5` run. Its option-set API is structurally mappable to choice decisions, but its published task focus is Maze, Snake, ViZDoom Basic, and Predict Position. | Repository source includes an MIT license; Hub metadata has no weights license. At the pinned source revision, `DecisionPredictor` rejects any device other than CUDA and calls CUDA APIs; the current host is macOS ARM with no CUDA. No general workflow decision metrics were established. | **Defer: host and license.** The pinned runner cannot execute on this host and weight licensing is undeclared. Do not patch candidate source or download weights for this comparison. |
 | LitJev | Source [zhengxuyu/litjev](https://github.com/zhengxuyu/litjev) at commit `e7fb109a7466da9709028eb9c4e9f16eaeb4e2a3`; exact evaluation base selected as `Qwen/Qwen3-0.6B-Base` at revision `da87bfb608c14b7cf20ba1ce41287e8de496c0cd` (same immutable base used for the Kev-0.6B comparison). The 1,192,135,096-byte weight file has LFS SHA-256 `cd2a512003e2f9f3cd3c32a9c3573f820bb28c940f73c57b1ddaa983d9223eba`. LitJev's in-process `TransformersScorer` exposes the Jev choice/score/noul shape and supports Qwen3; the project default is 27B, so this is an explicit small-checkpoint pairing, not an upstream-tested default. | Code and Qwen base are Apache-2.0. LitJev says probabilities are not calibrated by default. The source provides in-process scoring, so no HTTP server is required for the evaluation. Its exact source lock has SHA-256 `bf0e1ff4aeda5ffe276e58f64edd7324bbaa8cec941fa174312b23e6bab0f1d8` and pins PyTorch 2.11.0. Qwen's config maximum is 32,768 positions; the candidate runner caps input at 16,384 tokens. | **Reject for frozen quality thresholds.** Decision accuracy 0.29; retention F1 0.559 and keep recall 0.50, despite utility gain +0.167. Scores are uncalibrated. |
-| Jev-Style 0.8B v3 (follow-on candidate; not yet run) | Checkpoint and embedded MLX scorer [`chaoliangUNSW/Jev-Style-0.8B-Decision-v3-MLX`](https://huggingface.co/chaoliangUNSW/Jev-Style-0.8B-Decision-v3-MLX/tree/1235ccd1c95d5228a07616cd7e323c9e0532c1dc) at revision `1235ccd1c95d5228a07616cd7e323c9e0532c1dc`; provenance base [`Qwen/Qwen3.5-0.8B-Base`](https://huggingface.co/Qwen/Qwen3.5-0.8B-Base/tree/dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68) at `dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68`. The selected 8-bit `model.safetensors` is 799,973,748 bytes (SHA-256 `36890afff7a9da5b7228d81cd79434088267bd250c9eafab14539e6a5161a5fe`); runtime script `jev_style_decision_mlx.py` is 34,497 bytes (SHA-256 `e3ba700043d764f0fe50931cc3524d8329552bf4f4187f411671fd323e363acf`). The checkpoint manifest also pins tokenizer, readout, and config files. | Model card declares Apache-2.0 weights; it notes some training data has restrictive or unclear terms, which must be considered before redistributing derived artifacts. The embedded runtime exposes direct `JevStyleDecisionMLX.decide_many` for in-process typed choice, score, and yes/no decisions; no server is needed. The reviewed runtime set is Python 3.14.6, `mlx==0.32.2`, `mlx-lm==0.31.3`, `numpy==2.5.3`, `tokenizers==0.23.2`, and `huggingface-hub==1.33.0`; isolated lock SHA-256 is `5bcfab3b03b00500fb9fa2c4ba94a36de52d6453fe0b5312ea10f1cf81ed977d`. It applies a shipped global temperature by default and rejects over-budget input rather than truncating; DMS calibration remains unverified. The model card reports 0.80 GB for 8-bit weights and a 25,600-token limit, but peak inference memory is not reported. | **Pending candidate-specific approval.** The dated [preflight](evaluation/preflight-jevstyle-dms12-2026-09-27.json) verified the frozen fixture, exact model and runtime pins, 36 GiB RAM, 70 GiB free storage, and Metal. `run_allowed` is false solely because the exact candidate run is not yet approved. No weights were downloaded and no frozen DMS cases were run. |
+| Jev-Style 0.8B v3 (completed DMS-12 evaluation) | Checkpoint and embedded MLX scorer [`chaoliangUNSW/Jev-Style-0.8B-Decision-v3-MLX`](https://huggingface.co/chaoliangUNSW/Jev-Style-0.8B-Decision-v3-MLX/tree/1235ccd1c95d5228a07616cd7e323c9e0532c1dc) at revision `1235ccd1c95d5228a07616cd7e323c9e0532c1dc`; provenance base [`Qwen/Qwen3.5-0.8B-Base`](https://huggingface.co/Qwen/Qwen3.5-0.8B-Base/tree/dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68) at `dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68`. The selected 8-bit `model.safetensors` is 799,973,748 bytes (SHA-256 `36890afff7a9da5b7228d81cd79434088267bd250c9eafab14539e6a5161a5fe`); runtime script `jev_style_decision_mlx.py` is 34,497 bytes (SHA-256 `e3ba700043d764f0fe50931cc3524d8329552bf4f4187f411671fd323e363acf`). The checkpoint manifest also pins tokenizer, readout, and config files. | Model card declares Apache-2.0 weights; it notes some training data has restrictive or unclear terms, which must be considered before redistributing derived artifacts. The embedded runtime exposes direct `JevStyleDecisionMLX.decide_many` for in-process typed choice, score, and yes/no decisions; no server is needed. The reviewed runtime set is Python 3.14.6, `mlx==0.32.2`, `mlx-lm==0.31.3`, `numpy==2.5.3`, `tokenizers==0.23.2`, and `huggingface-hub==1.33.0`; isolated lock SHA-256 is `5bcfab3b03b00500fb9fa2c4ba94a36de52d6453fe0b5312ea10f1cf81ed977d`. It applies a shipped global temperature by default and rejects over-budget input rather than truncating; DMS calibration remains unverified. The model card reports 0.80 GB for 8-bit weights and a 25,600-token limit, but peak inference memory is not reported. | **Reject for the frozen DMS-01 gates.** Decision accuracy 0.84; retention utility 0.477 (+0.168 vs. recency), but decision and retention thresholds failed. Full result and receipt follow below. |
 
 Pinned primary-source links: [von source revision](https://github.com/wfzyx/von/tree/fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54),
 [von model revision](https://huggingface.co/wfzyx/von/tree/5df8185a4f2327ad0a7cd117cc4f701ac557b9ae),
@@ -563,8 +564,9 @@ above. No alternative is admitted.
 The earlier Jev-style literature review remains available at
 [references/jev-style-local-options.md](references/jev-style-local-options.md).
 It informed discovery only and does not substitute for the pinned artifact or
-the DMS-01 frozen evaluation. Jev-Style 0.8B v3 remains pending its separate
-candidate-specific approval and preflight.
+the DMS-01 frozen evaluation. Jev-Style 0.8B v3 has since completed its
+separate DMS-12 evaluation and failed the frozen quality gates; see the result
+below.
 
 ## DMS-14 Published Decision Transfer Matrix
 

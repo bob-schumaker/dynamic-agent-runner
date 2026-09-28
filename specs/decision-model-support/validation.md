@@ -644,3 +644,13 @@ downloaded, no inference ran, and no benchmark data was sent externally.
 Resume the same approved run when the credential is available. The absence of
 that credential is the only known execution blocker; DMS-13 remains
 incomplete.
+
+The status audit reconciled the implementation gates in `tasks.md`, `spec.md`,
+`plan.md`, and the candidate table: DMS-04 and DMS-10 are explicit
+quality-gated deferrals, DMS-12 is complete, and the approved DMS-13 run is the
+only remaining open evaluation task. The DMS-14 cohort remains frozen as
+approved; Jev-Style was not added retroactively.
+`git diff --check` passed. The configured `rumdl` pre-commit environment could
+not install because the package mirror does not provide `rumdl==0.1.62`; the
+remaining hooks were invoked with `SKIP=rumdl,rumdl-fmt` and had no applicable
+files. No code tests were run for this documentation-only status correction.

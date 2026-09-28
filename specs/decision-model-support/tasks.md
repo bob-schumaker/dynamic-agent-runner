@@ -38,8 +38,9 @@ Source of truth: `spec.md`. Implementation approach: `plan.md`.
     documentation.
   - **Disposition:** The task list is ready under its stated gates. DMS-15's
     audit can proceed; helper implementation depends on demonstrated reuse.
-    DMS-04 remains stopped, DMS-10 remains deferred, and DMS-12/DMS-13 retain
-    their separate approval and benchmark gates.
+    DMS-04 remains stopped and DMS-10 remains deferred by their candidate
+    quality gates. DMS-12 is complete; DMS-13 has exact run approval but its
+    execution remains blocked by unavailable API credentials.
 
 Tasks are ordered by dependency. Every code task follows TDD: add or update the
 focused test first, observe the expected failure, implement, and rerun until it
@@ -148,22 +149,17 @@ passes. Do not use real model weights in unit tests.
 ## DMS-04 Qwen Local Profile (FR-4)
 
 - Depends on: DMS-01 and DMS-02.
-- [ ] **RED:** Add fake-backed binding tests for the selected Qwen profile,
-  immutable base/adapter materials, unsupported revisions/runtimes, and
-  profile mismatch. Prove no network fetch, remote-code execution, or
-  substitute profile is used, and that host resource/deadline/cancellation
-  limits are enforced. Confirm rejected profiles fail before materialization
-  or model loading.
-- [ ] **GREEN:** Bind the selected Qwen decision adapter through
-  `src/dynamic_agent_runner/workflow_host/model_execution_binding.py`,
-  `src/dynamic_agent_runner/workflow_host/local_model_runners.py`, and
-  `src/dynamic_agent_runner/workflow_host/capabilities.py`, reusing the exact
-  host resource and lifecycle boundaries. Do not add fallback profiles.
-- [ ] Rerun `tests/test_workflow_model_execution_binding.py` and
-  `tests/test_local_model_runners.py`. Complete the separately authorized
-  local competency check for the exact profile; record its artifact and runtime
-  receipt in `model-evaluation.md`. Make the production admit/reject decision
-  only after both the DMS-01 candidate evidence and this exact DAR binding pass.
+- [x] Apply the candidate gate: the completed DMS-01 cohort has no passing
+  Qwen profile, so DMS-04 implementation is stopped as required by `spec.md`.
+  No adapter tests, production binding, competency run, or admission decision
+  are claimed. Reopen only after a newly approved Qwen profile passes the
+  frozen DMS-01 gates.
+
+Deferred implementation requirements, to be reopened only with a passing
+candidate: fake-backed exact-material/profile/runtime binding tests; offline
+loading and resource/deadline/cancellation checks; binding through the host
+model-execution and capability boundaries; and a separately approved local
+competency run before production admission.
 
 ## DMS-05 Internal Compaction Scoring (FR-5, FR-6)
 
@@ -231,10 +227,10 @@ passes. Do not use real model weights in unit tests.
   the frozen quality thresholds, while NanoJev is deferred. Do not expand the
   initial Qwen profile task.
 
-Frozen-fixture evaluation is complete for Von 1.2.0, PoorJev, and LitJev.
-NanoJev is deferred for host and licensing reasons. Jev-Style 0.8B v3 is
-tracked as a separate DMS-12 follow-on evaluation. No alternative production
-support is added.
+Frozen-fixture evaluation is complete for Von 1.2.0, PoorJev, LitJev, and
+Jev-Style 0.8B v3. All failed one or more frozen quality gates. NanoJev is
+deferred for host and licensing reasons. No alternative production support is
+added.
 
 ## DMS-07 Initial Implementation Validation
 
@@ -326,33 +322,18 @@ support is added.
 - Disposition: deferred because DMS-08 failed decision accuracy and retention
   quality gates. Do not add a first-party profile, DAR dependency, or production
   admission for this candidate.
-- [ ] **RED:** Add fake-backed tests in
-  `tests/test_laya_mlx_decision_adapter.py` for exact profile/material/runtime
-  binding, typed request translation, and context-limit rejection without
-  truncation. Map Laya `choice` to one declared option and a complete Laya score
-  vector to DMS `scores` only under the existing score-semantics rules. Cover
-  `noul` probability endpoints and an interior value, malformed probabilities,
-  reordered yes/no options, and missing calibration evidence. Map
-  Laya `noul` only when the request and profile support `scores` and the
-  question has exactly two options with stable `yes` and `no` IDs. Reject
-  non-finite or out-of-range `p_yes` before computing its complement; map
-  `p_yes` and `1-p_yes` by option ID and emit in request order. Use `probability`
-  semantics when valid but uncalibrated; use `calibrated_probability` only when
-  pinned calibration evidence satisfies the contract. Reject other `noul`
-  shapes and prove it cannot satisfy a `choice` request. Test offline loading
-  and host resource/deadline/cancellation enforcement. Prove no substitution,
-  remote code, server lifecycle, or new public result mode is introduced.
-- [ ] **GREEN:** Implement a focused in-process MLX decision adapter using
-  DAR's `DecisionModelAdapter` boundary at
-  `src/dynamic_agent_runner/workflow_host/laya_mlx_decision_adapter.py`, bound
-  through the existing host model-execution and capability boundaries. Reuse
-  the exact reviewed material and host lifecycle; do not route through the
-  text-generation or embedding adapters.
-- [ ] After fake binding and compatibility checks pass, record a candidate-
-  specific preflight and obtain separate approval for the exact local
-  competency run. Make and record an explicit production admit/reject decision
-  against DMS-01 quality criteria and DMS-02/FR-7 binding requirements; do not
-  infer admission from evaluation or adapter tests.
+- [x] Apply the DMS-08 quality gate: Laya-MLX failed decision accuracy and
+  retention thresholds, so DMS-10's adapter, local competency run, and
+  production admission are deferred. Do not add a first-party profile, DAR
+  dependency, or production binding. Reopen only after a newly approved
+  Laya-MLX candidate passes the frozen DMS-01 gates.
+
+Deferred implementation requirements: add fake-backed coverage for exact
+profile/material/runtime binding; typed `choice`, `scores`, and supported
+`noul` mappings; calibration semantics; offline loading; limits and lifecycle.
+Then implement a focused in-process MLX adapter through DAR's host execution
+and capability interfaces, and require exact candidate approval and a passing
+competency run before an explicit production admission decision.
 
 ## DMS-11 Laya-MLX Validation and Handoff
 
@@ -492,8 +473,9 @@ support is added.
 - [x] Freeze the complete candidate cohort and protocol in `model-evaluation.md`
   before inference. Include only exact completed local evaluations already
   recorded there: Kev-0.6B, Kev-0.8B, Von 1.2.0, PoorJev, LitJev, and Laya-MLX.
-  Exclude server-backed Laya, candidates not run, and Jev-Style until DMS-12 is
-  completed and separately scheduled. Pin every source/model/tokenizer/runtime
+  Exclude server-backed Laya, candidates not run, and Jev-Style because it had
+  not completed DMS-12 when this matrix cohort was frozen. Pin every
+  source/model/tokenizer/runtime
   revision and list unsupported pairs before approval; do not add or remove
   candidates after approval.
 - [x] Define a versioned scoring protocol in `model-evaluation.md`: per-task

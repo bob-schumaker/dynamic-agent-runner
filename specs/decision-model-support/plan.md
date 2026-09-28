@@ -7,10 +7,10 @@
 - Plan status: partial implementation; DMS-04 remains stopped because no Qwen
   candidate passed DMS-01. DMS-08 evaluated and rejected Laya-MLX against the
   frozen quality gates, so DMS-10 first-party adapter work is deferred and
-  DMS-11 closes with validation and handoff. DMS-12 has a pinned Jev-Style
-  0.8B v3 follow-on candidate; its run remains behind candidate approval.
-  DMS-13 adds a separate end-to-end LongMemEval-S context-preservation track;
-  its benchmark setup and thresholds are not yet approved and no run is implied.
+  DMS-11 closes with validation and handoff. DMS-12 evaluated Jev-Style 0.8B
+  v3 and rejected it under the frozen quality gates. DMS-13 adds a separate
+  end-to-end LongMemEval-S context-preservation track; its exact run is approved
+  but cannot execute until the required API credential is available.
   DMS-14 completed its approved published general-transfer and Mac-runtime
   matrix. No candidate met both thresholds; results are comparative only and
   do not admit a production profile. DMS-15 adds an audit-first review for
@@ -122,7 +122,8 @@ comparative evidence and admits no production profile.
 
 DMS-15 audits completed candidate paths for repeated, runtime-neutral
 contract-translation logic. It depends on the completed DMS-06, DMS-08, and
-DMS-14 reviews; DMS-12 may supply later evidence but does not block the audit.
+DMS-14 reviews; the separate DMS-12 result does not change its audit boundary
+or the already frozen DMS-14 matrix.
 The audit records either a no-change finding or the specific helper justified
 by reuse across at least two backends. Any helper stays within the existing
 request/result contract and preserves current validation authority. Tests and

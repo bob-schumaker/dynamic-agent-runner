@@ -9,9 +9,10 @@
   work is present. DMS-04 is stopped because no Qwen candidate passed DMS-01.
   DMS-06 measured Von 1.2.0, PoorJev, and LitJev and rejected them for quality
   thresholds; NanoJev remains deferred for host and licensing constraints.
-  Kev-0.8B completed its scoped evaluation and failed quality/calibration
-  gates. The separate DMS-13 LongMemEval-S track is planned but has no
-  approved thresholds or results yet. DMS-14 completed its approved published
+  Kev-0.8B and the separately evaluated Jev-Style 0.8B v3 failed quality
+  gates. The separate DMS-13 LongMemEval-S track has an approved exact run,
+  but no results exist because the required API credential is unavailable.
+  DMS-14 completed its approved published
   general-transfer matrix; no candidate met both thresholds, and the results
   remain comparative evidence without production admission. DMS-15 is an
   audit-first task for reusable adapter helpers; no helper is presumed.
