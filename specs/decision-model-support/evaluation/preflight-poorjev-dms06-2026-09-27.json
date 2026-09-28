@@ -1,0 +1,55 @@
+{
+  "artifacts": [
+    {
+      "id": "MoritzLaurer/deberta-v3-base-zeroshot-v2.0",
+      "revision": "8e7e5af5983a0ddb1a5b45a38b129ab69e2258e8"
+    }
+  ],
+  "blockers": [
+    "candidate-specific PoorJev run approval is absent"
+  ],
+  "candidate_run_approved": false,
+  "created_at_utc": "2026-09-27T03:19:31.460917+00:00",
+  "evaluation_harness_files": [
+    {
+      "id": "scripts/evaluate_decision_models.py",
+      "sha256": "48d0b4620fac49f257acab0619132b0c0268a7ea15a602c38cac0d0bab3dfbf6"
+    },
+    {
+      "id": "tests/manual/run_poorjev_dms06.py",
+      "sha256": "171cec0d2215f414328d76e570db1f5892c3fedc892f0c7fdf3c9c49b5e02b3f"
+    }
+  ],
+  "execution_mode": "external_in_process_cpu",
+  "expected_model_file_sha256": {
+    "model.safetensors": "6e8f2af78c828dcbd5243aac40fb87430376f0b8a9c288f4993df3ea3558d557"
+  },
+  "fixture_criteria_approved": true,
+  "host": {
+    "architecture": "arm64",
+    "free_storage_bytes": 85322506240,
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "required_free_storage_bytes": 2147483648,
+    "storage_path": "/private/tmp/dms06-poorjev-cache",
+    "total_memory_bytes": 38654705664
+  },
+  "input_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+  "remote_code_allowed": false,
+  "run_allowed": false,
+  "runtime": {
+    "available": true,
+    "executable": "/Users/roschuma/.local/share/mise/installs/python/3.14.7/bin/python3.14",
+    "lock_sha256": "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41",
+    "packages": {
+      "accelerate": "1.15.0",
+      "huggingface-hub": "1.32.0",
+      "torch": "2.14.0",
+      "transformers": "5.17.0"
+    },
+    "python_version": "3.14.7"
+  },
+  "source": {
+    "id": "rupeshpoojary9/poorjev",
+    "revision": "7e684e95db13b90238c63e6ab39e1a016263a168"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "accelerator_status": "CPU selected; MPS built but unavailable; CUDA unavailable",
+  "artifacts": [
+    {
+      "id": "jaredpalmer/kev-0.6b",
+      "revision": "dece6dba8d43f0f7ded45e9f5b9df12474d90843"
+    },
+    {
+      "id": "Qwen/Qwen3-0.6B-Base",
+      "revision": "da87bfb608c14b7cf20ba1ce41287e8de496c0cd"
+    }
+  ],
+  "blockers": [],
+  "created_at_utc": "2026-09-26T20:46:23.876334+00:00",
+  "dar_profile_id": null,
+  "evaluation_harness_files": [
+    {
+      "id": "scripts/evaluate_decision_models.py",
+      "sha256": "48d0b4620fac49f257acab0619132b0c0268a7ea15a602c38cac0d0bab3dfbf6"
+    },
+    {
+      "id": "tests/manual/run_kev_dms01.py",
+      "sha256": "842d271e13a59429ea9c1b59a0429eb22467c21441b3efddbe66145c97092bb2"
+    }
+  ],
+  "execution_mode": "external_research_harness",
+  "fixture_criteria_approved": true,
+  "fixture_hashes_valid": true,
+  "harness": {
+    "id": "jaredpalmer/kev:research-archive-2026-09-24",
+    "revision": "41c7b5a384ce93dd88ae0a28c379e947fe716a8d"
+  },
+  "host": {
+    "architecture": "arm64",
+    "available_memory_estimate_bytes": 11209883648,
+    "free_storage_bytes": 32332263424,
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "required_free_storage_bytes": 8589934592,
+    "storage_path": "/private/tmp/dms01-hf-cache",
+    "total_memory_bytes": 38654705664
+  },
+  "input_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+  "labels_sha256": "a87f79b376b7e0c790df78cdd6a623d06450364d6d7c708974c8a953d7b7c7a5",
+  "remote_code_allowed": false,
+  "run_allowed": true,
+  "runtime": {
+    "available": true,
+    "executable": "/private/tmp/dms01-kev/.venv/bin/python",
+    "id": "Kev in-process CPU fp32; Python 3.13.15; torch 2.8.0; transformers 5.17.0; PEFT 0.21.0; uv.lock SHA256 3dc0ed27d55497c7e49952c26e4fc6bd3e4f756a53273d53f2c7ddbb2366938b",
+    "lock_sha256": "3dc0ed27d55497c7e49952c26e4fc6bd3e4f756a53273d53f2c7ddbb2366938b",
+    "packages": {
+      "mlx-lm": "0.31.3",
+      "peft": "0.21.0",
+      "torch": "2.8.0",
+      "transformers": "5.17.0"
+    },
+    "python_version": "3.13.15"
+  }
+}

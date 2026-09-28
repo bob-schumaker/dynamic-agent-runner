@@ -1,0 +1,59 @@
+{
+  "artifacts": [
+    {
+      "id": "Qwen/Qwen3-0.6B-Base",
+      "revision": "da87bfb608c14b7cf20ba1ce41287e8de496c0cd"
+    }
+  ],
+  "blockers": [
+    "candidate-specific LitJev run approval is absent",
+    "exact LitJev runtime packages are unavailable"
+  ],
+  "candidate_run_approved": false,
+  "created_at_utc": "2026-09-27T03:27:33.397094+00:00",
+  "evaluation_harness_files": [
+    {
+      "id": "scripts/evaluate_decision_models.py",
+      "sha256": "48d0b4620fac49f257acab0619132b0c0268a7ea15a602c38cac0d0bab3dfbf6"
+    },
+    {
+      "id": "tests/manual/run_litjev_dms06.py",
+      "sha256": "7e93bd7371bcef989de1a834203ed919f3a9f630595195c60391f0e8848ebc19"
+    }
+  ],
+  "execution_mode": "external_in_process_cpu",
+  "expected_model_file_sha256": {
+    "model.safetensors": "cd2a512003e2f9f3cd3c32a9c3573f820bb28c940f73c57b1ddaa983d9223eba"
+  },
+  "fixture_criteria_approved": true,
+  "host": {
+    "architecture": "arm64",
+    "free_storage_bytes": 85040267264,
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "required_free_storage_bytes": 8589934592,
+    "storage_path": "/private/tmp/dms06-litjev-cache",
+    "total_memory_bytes": 38654705664
+  },
+  "input_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+  "remote_code_allowed": false,
+  "run_allowed": false,
+  "runtime": {
+    "available": false,
+    "executable": "/Users/roschuma/.local/share/mise/installs/python/3.14.7/bin/python3.14",
+    "lock_sha256": "bf0e1ff4aeda5ffe276e58f64edd7324bbaa8cec941fa174312b23e6bab0f1d8",
+    "packages": {
+      "accelerate": null,
+      "huggingface-hub": "1.33.0",
+      "numpy": "2.5.3",
+      "safetensors": "0.8.0",
+      "torch": null,
+      "torchvision": null,
+      "transformers": "5.17.0"
+    },
+    "python_version": "3.14.7"
+  },
+  "source": {
+    "id": "zhengxuyu/litjev",
+    "revision": "e7fb109a7466da9709028eb9c4e9f16eaeb4e2a3"
+  }
+}

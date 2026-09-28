@@ -1,0 +1,33 @@
+{
+  "approval_scope": "one approval for the complete matrix",
+  "completed_rows": 6,
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "failed_rows": 0,
+  "matrix_sha256": "6dd0764bdcd122227ace407820fcb8d5a8cdf3aa73f19562b97e72e7046b24b9",
+  "rows": [
+    {
+      "candidate_id": "kev-0.6b-cpu",
+      "status": "completed"
+    },
+    {
+      "candidate_id": "kev-0.8b-cpu",
+      "status": "completed"
+    },
+    {
+      "candidate_id": "von-cpu",
+      "status": "completed"
+    },
+    {
+      "candidate_id": "poorjev-cpu",
+      "status": "completed"
+    },
+    {
+      "candidate_id": "litjev-cpu",
+      "status": "completed"
+    },
+    {
+      "candidate_id": "laya-mlx-metal",
+      "status": "completed"
+    }
+  ]
+}

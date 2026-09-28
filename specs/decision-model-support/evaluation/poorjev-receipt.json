@@ -1,0 +1,227 @@
+{
+  "calibration": {
+    "decision": {
+      "brier_score": 0.7951330623940862,
+      "count": 200,
+      "ece_10_bins": 0.449669370754301,
+      "passes_thresholds": false,
+      "prevalence_baseline_brier_score": 0.77103,
+      "status": "uncalibrated"
+    },
+    "passes_thresholds": false,
+    "retention": {
+      "brier_score": 0.49365956709757575,
+      "count": 160,
+      "ece_10_bins": 0.49316841922426924,
+      "passes_thresholds": false,
+      "prevalence_baseline_brier_score": 0.25,
+      "status": "uncalibrated"
+    },
+    "status": "uncalibrated"
+  },
+  "candidate": {
+    "artifact_revision": "8e7e5af5983a0ddb1a5b45a38b129ab69e2258e8",
+    "base_model_id": null,
+    "base_revision": null,
+    "device": "cpu",
+    "harness_id": "rupeshpoojary9/poorjev",
+    "harness_revision": "7e684e95db13b90238c63e6ab39e1a016263a168",
+    "model_id": "MoritzLaurer/deberta-v3-base-zeroshot-v2.0",
+    "model_server": false,
+    "precision": "fp32",
+    "runtime": "Python 3.14.7; shared locked research runtime",
+    "runtime_lock_sha256": "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41",
+    "tokenizer_id": "MoritzLaurer/deberta-v3-base-zeroshot-v2.0",
+    "tokenizer_revision": "8e7e5af5983a0ddb1a5b45a38b129ab69e2258e8"
+  },
+  "decision": {
+    "accuracy": 0.54,
+    "by_category": {
+      "exception-precedence": {
+        "accuracy": 0.875,
+        "count": 40,
+        "wilson_95": {
+          "lower": 0.738878801611489,
+          "upper": 0.945404997490546
+        }
+      },
+      "explicit-rule": {
+        "accuracy": 0.175,
+        "count": 40,
+        "wilson_95": {
+          "lower": 0.0874541374603592,
+          "upper": 0.31949990331787714
+        }
+      },
+      "fact-selection": {
+        "accuracy": 1.0,
+        "count": 40,
+        "wilson_95": {
+          "lower": 0.9123783988027135,
+          "upper": 1.0
+        }
+      },
+      "missing-evidence": {
+        "accuracy": 0.0,
+        "count": 40,
+        "wilson_95": {
+          "lower": 0.0,
+          "upper": 0.08762160119728664
+        }
+      },
+      "numeric-boundary": {
+        "accuracy": 0.65,
+        "count": 40,
+        "wilson_95": {
+          "lower": 0.49505880837257693,
+          "upper": 0.7786547112682372
+        }
+      }
+    },
+    "count": 200,
+    "failure_rates": {
+      "abstained": 0.0,
+      "error": 0.0,
+      "invalid": 0.0,
+      "missing": 0.0,
+      "oversize": 0.0,
+      "timeout": 0.0
+    },
+    "passes_thresholds": false,
+    "wilson_95": {
+      "lower": 0.4708228918895333,
+      "upper": 0.6076694820002854
+    }
+  },
+  "evaluated_at_utc": "2026-09-27T03:40:14.882465+00:00",
+  "input_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+  "labels_sha256": "a87f79b376b7e0c790df78cdd6a623d06450364d6d7c708974c8a953d7b7c7a5",
+  "operations": {
+    "cold_latency_ms": 23622.14179104194,
+    "oom": false,
+    "passes_thresholds": true,
+    "peak_rss_bytes": 1116389376,
+    "warm_latency_ms": {
+      "p50": 223.91100006643683,
+      "p95": 970.9023339673877
+    }
+  },
+  "retention": {
+    "baseline": {
+      "false_keep": 43,
+      "keep_f1": 0.37086092715231783,
+      "keep_precision": 0.39436619718309857,
+      "keep_recall": 0.35,
+      "missed_keep": 52,
+      "token_weighted_keep_recall": 0.30816831683168316,
+      "true_drop": 37,
+      "true_keep": 28
+    },
+    "baseline_utility": 0.3086959289644712,
+    "budget_fraction": 0.5,
+    "by_category": {
+      "booking": {
+        "baseline": {
+          "keep_f1": 0.41666666666666663,
+          "keep_precision": 0.5,
+          "keep_recall": 0.375,
+          "token_weighted_keep_recall": 0.3106060606060606
+        },
+        "baseline_utility": 0.3106060606060606,
+        "model": {
+          "keep_f1": 0.6666666666666666,
+          "keep_precision": 1.0,
+          "keep_recall": 0.5,
+          "token_weighted_keep_recall": 0.696969696969697
+        },
+        "model_utility": 0.696969696969697
+      },
+      "invoice": {
+        "baseline": {
+          "keep_f1": 0.3333333333333333,
+          "keep_precision": 0.375,
+          "keep_recall": 0.3125,
+          "token_weighted_keep_recall": 0.2717391304347826
+        },
+        "baseline_utility": 0.2717391304347826,
+        "model": {
+          "keep_f1": 0.0,
+          "keep_precision": 0.0,
+          "keep_recall": 0.0,
+          "token_weighted_keep_recall": 0.0
+        },
+        "model_utility": 0.0
+      },
+      "migration": {
+        "baseline": {
+          "keep_f1": 0.41666666666666663,
+          "keep_precision": 0.5,
+          "keep_recall": 0.375,
+          "token_weighted_keep_recall": 0.3214285714285714
+        },
+        "baseline_utility": 0.3214285714285714,
+        "model": {
+          "keep_f1": 0.5,
+          "keep_precision": 0.5,
+          "keep_recall": 0.5,
+          "token_weighted_keep_recall": 0.2857142857142857
+        },
+        "model_utility": 0.2857142857142857
+      },
+      "release": {
+        "baseline": {
+          "keep_f1": 0.2708333333333333,
+          "keep_precision": 0.3125,
+          "keep_recall": 0.25,
+          "token_weighted_keep_recall": 0.21323529411764708
+        },
+        "baseline_utility": 0.21323529411764708,
+        "model": {
+          "keep_f1": 0.6666666666666666,
+          "keep_precision": 1.0,
+          "keep_recall": 0.5,
+          "token_weighted_keep_recall": 0.6470588235294118
+        },
+        "model_utility": 0.6470588235294118
+      },
+      "renewal": {
+        "baseline": {
+          "keep_f1": 0.5,
+          "keep_precision": 0.625,
+          "keep_recall": 0.4375,
+          "token_weighted_keep_recall": 0.4264705882352941
+        },
+        "baseline_utility": 0.4264705882352941,
+        "model": {
+          "keep_f1": 0.08333333333333333,
+          "keep_precision": 0.125,
+          "keep_recall": 0.0625,
+          "token_weighted_keep_recall": 0.07352941176470588
+        },
+        "model_utility": 0.07352941176470588
+      }
+    },
+    "failure_rates": {
+      "abstained": 0.0,
+      "error": 0.0,
+      "invalid": 0.0,
+      "missing": 0.0,
+      "oversize": 0.0,
+      "timeout": 0.0
+    },
+    "model": {
+      "false_keep": 38,
+      "keep_f1": 0.34965034965034963,
+      "keep_precision": 0.3968253968253968,
+      "keep_recall": 0.3125,
+      "missed_keep": 55,
+      "token_weighted_keep_recall": 0.33910891089108913,
+      "true_drop": 42,
+      "true_keep": 25
+    },
+    "model_utility": 0.3406544435956201,
+    "passes_thresholds": false,
+    "utility_definition": "category-macro token-weighted gold-keep recall",
+    "utility_improvement": 0.031958514631148904
+  }
+}

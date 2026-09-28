@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "dms08-laya-mlx-runtime"
+version = "0.1.0"
+description = "Isolated DMS-08 evaluation runtime"
+authors = ["Dynamic Agent Runner"]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.14,<3.15"
+laya-mlx = { git = "https://github.com/mizorewww/laya-mlx.git", rev = "0a859518634112655cb97c745dbf04f5191aaf13" }
+huggingface-hub = "1.33.0"
+mlx = "0.32.2"
+numpy = "2.5.3"
+tokenizers = "0.23.2"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

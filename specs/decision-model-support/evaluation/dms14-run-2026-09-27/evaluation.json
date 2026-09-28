@@ -1,0 +1,926 @@
+{
+  "candidates": {
+    "kev-0.6b-cpu": {
+      "calibration": {
+        "macro_multiclass_brier": 0.5395343905202068,
+        "n": 684,
+        "status": "available; raw outputs only, calibration not fitted",
+        "top_label_ece_10_bins": 0.16865250762355954
+      },
+      "canonical": {
+        "accuracy": 0.6023391812865497,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.4895833333333333,
+            "correct": 47,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.47413793103448276,
+            "correct": 55,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.45,
+            "correct": 36,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.4827586206896552,
+            "correct": 56,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.5125,
+            "correct": 41,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.8625,
+            "correct": 69,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.9310344827586207,
+            "correct": 108,
+            "total": 116
+          }
+        },
+        "correct": 412,
+        "macro_accuracy": 0.6003591954022989,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.5660909277504106,
+          "upper": 0.6356732348111659
+        },
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 134,
+        "flip_rate": 0.195906432748538,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.6286549707602339,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.5416666666666666,
+            "correct": 52,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.5,
+            "correct": 58,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.475,
+            "correct": 38,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.5172413793103449,
+            "correct": 60,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.625,
+            "correct": 50,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.8625,
+            "correct": 69,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.8879310344827587,
+            "correct": 103,
+            "total": 116
+          }
+        },
+        "correct": 430,
+        "macro_accuracy": 0.6299055829228244,
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      }
+    },
+    "kev-0.8b-cpu": {
+      "calibration": {
+        "macro_multiclass_brier": 0.42054883810112137,
+        "n": 684,
+        "status": "available; raw outputs only, calibration not fitted",
+        "top_label_ece_10_bins": 0.0326855633603899
+      },
+      "canonical": {
+        "accuracy": 0.652046783625731,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.5729166666666666,
+            "correct": 55,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.5689655172413793,
+            "correct": 66,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.7125,
+            "correct": 57,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.49137931034482757,
+            "correct": 57,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.575,
+            "correct": 46,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.7875,
+            "correct": 63,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.8793103448275862,
+            "correct": 102,
+            "total": 116
+          }
+        },
+        "correct": 446,
+        "macro_accuracy": 0.6553674055829228,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.6197247023809523,
+          "upper": 0.6893988608374383
+        },
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 82,
+        "flip_rate": 0.11988304093567251,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.6754385964912281,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.5416666666666666,
+            "correct": 52,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.6293103448275862,
+            "correct": 73,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.6875,
+            "correct": 55,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.5603448275862069,
+            "correct": 65,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.6125,
+            "correct": 49,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.8,
+            "correct": 64,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.896551724137931,
+            "correct": 104,
+            "total": 116
+          }
+        },
+        "correct": 462,
+        "macro_accuracy": 0.6754105090311987,
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      }
+    },
+    "laya-mlx-metal": {
+      "calibration": {
+        "macro_multiclass_brier": 0.5246388457405787,
+        "n": 684,
+        "status": "available; raw outputs only, calibration not fitted",
+        "top_label_ece_10_bins": 0.08575202623779464
+      },
+      "canonical": {
+        "accuracy": 0.5833333333333334,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.46875,
+            "correct": 45,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.5948275862068966,
+            "correct": 69,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.45,
+            "correct": 36,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.25,
+            "correct": 29,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.8,
+            "correct": 64,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.8125,
+            "correct": 65,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.7844827586206896,
+            "correct": 91,
+            "total": 116
+          }
+        },
+        "correct": 399,
+        "macro_accuracy": 0.594365763546798,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.5607861247947455,
+          "upper": 0.6284485324302135
+        },
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 66,
+        "flip_rate": 0.09649122807017543,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.6008771929824561,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.4583333333333333,
+            "correct": 44,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.6120689655172413,
+            "correct": 71,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.4375,
+            "correct": 35,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.35344827586206895,
+            "correct": 41,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.8,
+            "correct": 64,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.8125,
+            "correct": 65,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.7844827586206896,
+            "correct": 91,
+            "total": 116
+          }
+        },
+        "correct": 411,
+        "macro_accuracy": 0.6083333333333333,
+        "status_counts": {
+          "invalid": 1,
+          "ok": 683
+        },
+        "total": 684
+      }
+    },
+    "litjev-cpu": {
+      "calibration": {
+        "macro_multiclass_brier": 0.6338946733025883,
+        "n": 684,
+        "status": "available; raw outputs only, calibration not fitted",
+        "top_label_ece_10_bins": 0.07174389983182278
+      },
+      "canonical": {
+        "accuracy": 0.4152046783625731,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.5208333333333334,
+            "correct": 50,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.19827586206896552,
+            "correct": 23,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.3875,
+            "correct": 31,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.29310344827586204,
+            "correct": 34,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.625,
+            "correct": 50,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.475,
+            "correct": 38,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.5,
+            "correct": 58,
+            "total": 116
+          }
+        },
+        "correct": 284,
+        "macro_accuracy": 0.42853037766830876,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.3920248357963875,
+          "upper": 0.463887777093596
+        },
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 487,
+        "flip_rate": 0.7119883040935673,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.4371345029239766,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.4479166666666667,
+            "correct": 43,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.33620689655172414,
+            "correct": 39,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.475,
+            "correct": 38,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.25,
+            "correct": 29,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.4375,
+            "correct": 35,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.5375,
+            "correct": 43,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.6206896551724138,
+            "correct": 72,
+            "total": 116
+          }
+        },
+        "correct": 299,
+        "macro_accuracy": 0.44354474548440065,
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      }
+    },
+    "poorjev-cpu": {
+      "calibration": {
+        "macro_multiclass_brier": 0.6209819894480877,
+        "n": 684,
+        "status": "available; raw outputs only, calibration not fitted",
+        "top_label_ece_10_bins": 0.08451545373089583
+      },
+      "canonical": {
+        "accuracy": 0.4780701754385965,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.4791666666666667,
+            "correct": 46,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.45689655172413796,
+            "correct": 53,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.45,
+            "correct": 36,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.27586206896551724,
+            "correct": 32,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.675,
+            "correct": 54,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.5875,
+            "correct": 47,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.5086206896551724,
+            "correct": 59,
+            "total": 116
+          }
+        },
+        "correct": 327,
+        "macro_accuracy": 0.4904351395730706,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.45303699712643675,
+          "upper": 0.5274125102627257
+        },
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 1,
+        "flip_rate": 0.0014619883040935672,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.47953216374269003,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.4791666666666667,
+            "correct": 46,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.45689655172413796,
+            "correct": 53,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.45,
+            "correct": 36,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.28448275862068967,
+            "correct": 33,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.675,
+            "correct": 54,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.5875,
+            "correct": 47,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.5086206896551724,
+            "correct": 59,
+            "total": 116
+          }
+        },
+        "correct": 328,
+        "macro_accuracy": 0.4916666666666667,
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      }
+    },
+    "von-cpu": {
+      "calibration": {
+        "macro_multiclass_brier": 0.42622915917326537,
+        "n": 684,
+        "status": "available; raw outputs only, calibration not fitted",
+        "top_label_ece_10_bins": 0.11078435792883928
+      },
+      "canonical": {
+        "accuracy": 0.685672514619883,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.3958333333333333,
+            "correct": 38,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.8362068965517241,
+            "correct": 97,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.75,
+            "correct": 60,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.3793103448275862,
+            "correct": 44,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.8875,
+            "correct": 71,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.7375,
+            "correct": 59,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.8620689655172413,
+            "correct": 100,
+            "total": 116
+          }
+        },
+        "correct": 469,
+        "macro_accuracy": 0.6926313628899835,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.6613469827586207,
+          "upper": 0.7241176621510673
+        },
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 0,
+        "flip_rate": 0.0,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.685672514619883,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.3958333333333333,
+            "correct": 38,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.8362068965517241,
+            "correct": 97,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.75,
+            "correct": 60,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.3793103448275862,
+            "correct": 44,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.8875,
+            "correct": 71,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.7375,
+            "correct": 59,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.8620689655172413,
+            "correct": 100,
+            "total": 116
+          }
+        },
+        "correct": 469,
+        "macro_accuracy": 0.6926313628899835,
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      }
+    }
+  },
+  "paired_bootstrap": {
+    "kev-0.6b-cpu_vs_kev-0.8b-cpu": {
+      "bootstrap_95": {
+        "lower": -0.09427442528735637,
+        "upper": -0.015238608374384248
+      },
+      "macro_accuracy_difference": -0.05500821018062396
+    },
+    "kev-0.6b-cpu_vs_laya-mlx-metal": {
+      "bootstrap_95": {
+        "lower": -0.0368642241379312,
+        "upper": 0.048440578817733976
+      },
+      "macro_accuracy_difference": 0.00599343185550083
+    },
+    "kev-0.6b-cpu_vs_litjev-cpu": {
+      "bootstrap_95": {
+        "lower": 0.12776888341543513,
+        "upper": 0.21692426108374377
+      },
+      "macro_accuracy_difference": 0.1718288177339901
+    },
+    "kev-0.6b-cpu_vs_poorjev-cpu": {
+      "bootstrap_95": {
+        "lower": 0.06427519499178981,
+        "upper": 0.15598445197044325
+      },
+      "macro_accuracy_difference": 0.10992405582922826
+    },
+    "kev-0.6b-cpu_vs_von-cpu": {
+      "bootstrap_95": {
+        "lower": -0.13525323275862064,
+        "upper": -0.049392959770115
+      },
+      "macro_accuracy_difference": -0.09227216748768463
+    },
+    "kev-0.8b-cpu_vs_kev-0.6b-cpu": {
+      "bootstrap_95": {
+        "lower": 0.01523860837438423,
+        "upper": 0.09427442528735636
+      },
+      "macro_accuracy_difference": 0.05500821018062396
+    },
+    "kev-0.8b-cpu_vs_laya-mlx-metal": {
+      "bootstrap_95": {
+        "lower": 0.0163582717569787,
+        "upper": 0.10426980706075537
+      },
+      "macro_accuracy_difference": 0.06100164203612479
+    },
+    "kev-0.8b-cpu_vs_litjev-cpu": {
+      "bootstrap_95": {
+        "lower": 0.1770604987684728,
+        "upper": 0.27509287766830876
+      },
+      "macro_accuracy_difference": 0.22683702791461408
+    },
+    "kev-0.8b-cpu_vs_poorjev-cpu": {
+      "bootstrap_95": {
+        "lower": 0.11831896551724147,
+        "upper": 0.21114608990147785
+      },
+      "macro_accuracy_difference": 0.16493226600985222
+    },
+    "kev-0.8b-cpu_vs_von-cpu": {
+      "bootstrap_95": {
+        "lower": -0.0783466748768473,
+        "upper": 0.0037364018883416367
+      },
+      "macro_accuracy_difference": -0.03726395730706067
+    },
+    "laya-mlx-metal_vs_kev-0.6b-cpu": {
+      "bootstrap_95": {
+        "lower": -0.04844057881773398,
+        "upper": 0.036864224137931195
+      },
+      "macro_accuracy_difference": -0.00599343185550083
+    },
+    "laya-mlx-metal_vs_kev-0.8b-cpu": {
+      "bootstrap_95": {
+        "lower": -0.10426980706075538,
+        "upper": -0.016358271756978706
+      },
+      "macro_accuracy_difference": -0.06100164203612479
+    },
+    "laya-mlx-metal_vs_litjev-cpu": {
+      "bootstrap_95": {
+        "lower": 0.12391215106732345,
+        "upper": 0.20919052750410497
+      },
+      "macro_accuracy_difference": 0.16583538587848928
+    },
+    "laya-mlx-metal_vs_poorjev-cpu": {
+      "bootstrap_95": {
+        "lower": 0.05556214080459766,
+        "upper": 0.15258646346469626
+      },
+      "macro_accuracy_difference": 0.10393062397372743
+    },
+    "laya-mlx-metal_vs_von-cpu": {
+      "bootstrap_95": {
+        "lower": -0.1408689963054186,
+        "upper": -0.05558266625615761
+      },
+      "macro_accuracy_difference": -0.09826559934318546
+    },
+    "litjev-cpu_vs_kev-0.6b-cpu": {
+      "bootstrap_95": {
+        "lower": -0.21692426108374377,
+        "upper": -0.12776888341543516
+      },
+      "macro_accuracy_difference": -0.1718288177339901
+    },
+    "litjev-cpu_vs_kev-0.8b-cpu": {
+      "bootstrap_95": {
+        "lower": -0.2750928776683087,
+        "upper": -0.17706049876847285
+      },
+      "macro_accuracy_difference": -0.22683702791461408
+    },
+    "litjev-cpu_vs_laya-mlx-metal": {
+      "bootstrap_95": {
+        "lower": -0.20919052750410502,
+        "upper": -0.12391215106732345
+      },
+      "macro_accuracy_difference": -0.16583538587848928
+    },
+    "litjev-cpu_vs_poorjev-cpu": {
+      "bootstrap_95": {
+        "lower": -0.11590799466338256,
+        "upper": -0.0077152606732348574
+      },
+      "macro_accuracy_difference": -0.06190476190476185
+    },
+    "litjev-cpu_vs_von-cpu": {
+      "bootstrap_95": {
+        "lower": -0.3169766009852217,
+        "upper": -0.21223137315270932
+      },
+      "macro_accuracy_difference": -0.26410098522167474
+    },
+    "poorjev-cpu_vs_kev-0.6b-cpu": {
+      "bootstrap_95": {
+        "lower": -0.15598445197044328,
+        "upper": -0.06427519499178981
+      },
+      "macro_accuracy_difference": -0.10992405582922826
+    },
+    "poorjev-cpu_vs_kev-0.8b-cpu": {
+      "bootstrap_95": {
+        "lower": -0.21114608990147785,
+        "upper": -0.11831896551724147
+      },
+      "macro_accuracy_difference": -0.16493226600985222
+    },
+    "poorjev-cpu_vs_laya-mlx-metal": {
+      "bootstrap_95": {
+        "lower": -0.15258646346469626,
+        "upper": -0.05556214080459766
+      },
+      "macro_accuracy_difference": -0.10393062397372743
+    },
+    "poorjev-cpu_vs_litjev-cpu": {
+      "bootstrap_95": {
+        "lower": 0.007715260673234825,
+        "upper": 0.11590799466338254
+      },
+      "macro_accuracy_difference": 0.06190476190476185
+    },
+    "poorjev-cpu_vs_von-cpu": {
+      "bootstrap_95": {
+        "lower": -0.2442639059934318,
+        "upper": -0.1596048850574713
+      },
+      "macro_accuracy_difference": -0.2021962233169129
+    },
+    "von-cpu_vs_kev-0.6b-cpu": {
+      "bootstrap_95": {
+        "lower": 0.04939295977011498,
+        "upper": 0.13525323275862064
+      },
+      "macro_accuracy_difference": 0.09227216748768463
+    },
+    "von-cpu_vs_kev-0.8b-cpu": {
+      "bootstrap_95": {
+        "lower": -0.003736401888341647,
+        "upper": 0.07834667487684728
+      },
+      "macro_accuracy_difference": 0.03726395730706067
+    },
+    "von-cpu_vs_laya-mlx-metal": {
+      "bootstrap_95": {
+        "lower": 0.055582666256157605,
+        "upper": 0.14086899630541858
+      },
+      "macro_accuracy_difference": 0.09826559934318546
+    },
+    "von-cpu_vs_litjev-cpu": {
+      "bootstrap_95": {
+        "lower": 0.2122313731527093,
+        "upper": 0.3169766009852216
+      },
+      "macro_accuracy_difference": 0.26410098522167474
+    },
+    "von-cpu_vs_poorjev-cpu": {
+      "bootstrap_95": {
+        "lower": 0.1596048850574713,
+        "upper": 0.24426390599343178
+      },
+      "macro_accuracy_difference": 0.2021962233169129
+    }
+  },
+  "protocol": {
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 14,
+    "bootstrap_stratification": "item IDs sampled with replacement within task; shared samples across candidates",
+    "common_probability_item_count": 684,
+    "invalid_missing_and_abstaining_are_incorrect": true,
+    "item_count": 684,
+    "option_orders": [
+      "canonical",
+      "reversed"
+    ],
+    "point_leader": "von-cpu",
+    "primary_metric": "equally weighted macro accuracy on canonical option order",
+    "task_categories": [
+      "composition_holdout",
+      "emotion",
+      "legacy_holdout",
+      "mmlu",
+      "paws",
+      "qnli",
+      "sciq"
+    ]
+  },
+  "ranking": [
+    {
+      "candidate": "von-cpu",
+      "macro_accuracy": 0.6926313628899835,
+      "rank": 1
+    },
+    {
+      "candidate": "kev-0.8b-cpu",
+      "macro_accuracy": 0.6553674055829228,
+      "rank": 2
+    },
+    {
+      "candidate": "kev-0.6b-cpu",
+      "macro_accuracy": 0.6003591954022989,
+      "rank": 3
+    },
+    {
+      "candidate": "laya-mlx-metal",
+      "macro_accuracy": 0.594365763546798,
+      "rank": 4
+    },
+    {
+      "candidate": "poorjev-cpu",
+      "macro_accuracy": 0.4904351395730706,
+      "rank": 5
+    },
+    {
+      "candidate": "litjev-cpu",
+      "macro_accuracy": 0.42853037766830876,
+      "rank": 6
+    }
+  ]
+}

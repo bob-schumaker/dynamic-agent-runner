@@ -1,0 +1,291 @@
+{
+  "approval_receipt_present": false,
+  "blockers": [
+    "corpus reuse terms unresolved for TweetEval offensive full-text items and generated/legacy holdout provenance",
+    "per-candidate tokenizer feasibility not checked because corpus use remains gated",
+    "no matrix-level approval receipt is recorded"
+  ],
+  "corpus_manifest_sha256": "6a564a10ec31a4db5702aa8b926bfe7f2df53e6df6b675dde84c6048f1eb3219",
+  "created_at_utc": "2026-09-27T19:25:53.738322+00:00",
+  "gold_label_sha256": "a99b020ef97c2dd3845b8e71940cc8208ad70b30c988d8cb31009abacbd31870",
+  "host": {
+    "architecture": "arm64",
+    "available_memory_estimate_bytes": 14346502144,
+    "available_memory_method": "vm_stat free + inactive + speculative pages",
+    "cpu_count": 11,
+    "free_storage_bytes": 73935343616,
+    "macos_version": "26.6.2",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "storage_path": "/private/tmp",
+    "total_memory_bytes": 38654705664
+  },
+  "matrix_sha256": "f1a48428bb6f5f76108e484d001ea42e1c802b27826ee41d884222516d2b52d6",
+  "no_runtime_install_weight_download_or_inference": true,
+  "normalized_input_sha256": "e81e13f09d3172ddaf3967a89537491f4beb45149ac84f174890918601fd64d0",
+  "preflight_scope": "environment, source/runtime identity, and cached checkpoint files only; input-token feasibility not run",
+  "rows": {
+    "kev-0.6b-cpu": {
+      "artifact_files": [
+        {
+          "cached": true,
+          "path": "adapter_model.safetensors",
+          "repository": "jaredpalmer/kev-0.6b",
+          "revision": "dece6dba8d43f0f7ded45e9f5b9df12474d90843",
+          "sha256": "deaab63b61f95d628503831e8b336e1c3e334b9a42d3530d979a5149b429c492",
+          "size_bytes": 40419816
+        },
+        {
+          "cached": true,
+          "path": "head.pt",
+          "repository": "jaredpalmer/kev-0.6b",
+          "revision": "dece6dba8d43f0f7ded45e9f5b9df12474d90843",
+          "sha256": "ce6cd9ffc54db41c179b65a33d60973dc8280c29e886218eb3ec07dc28d6f28b",
+          "size_bytes": 2102399
+        },
+        {
+          "cached": true,
+          "path": "model.safetensors",
+          "repository": "Qwen/Qwen3-0.6B-Base",
+          "revision": "da87bfb608c14b7cf20ba1ce41287e8de496c0cd",
+          "sha256": "cd2a512003e2f9f3cd3c32a9c3573f820bb28c940f73c57b1ddaa983d9223eba",
+          "size_bytes": 1192135096
+        }
+      ],
+      "blockers": [
+        "input-token feasibility not preflighted",
+        "corpus-term gate unresolved"
+      ],
+      "input_token_preflight": "not performed",
+      "model_directory": "/private/tmp/dms01-hf-cache",
+      "run_allowed": false,
+      "runtime": {
+        "packages": {
+          "huggingface-hub": "1.32.0",
+          "numpy": "2.5.3",
+          "peft": "0.21.0",
+          "torch": "2.8.0",
+          "transformers": "5.17.0"
+        },
+        "python": "3.13.15"
+      },
+      "runtime_executable": "/private/tmp/dms06-kev-source/.venv/bin/python",
+      "runtime_lock": "/private/tmp/dms06-kev-source/uv.lock",
+      "runtime_lock_match": true,
+      "runtime_lock_sha256": "a9922dbb89acdef78299fd2b4a8c3f7f0fa1b2bc08b55595b6926fa785a9c466",
+      "runtime_match": true,
+      "source_checkout": "/private/tmp/dms14-kev06-source",
+      "source_revision": "41c7b5a384ce93dd88ae0a28c379e947fe716a8d",
+      "source_revision_match": true
+    },
+    "kev-0.8b-cpu": {
+      "artifact_files": [
+        {
+          "cached": true,
+          "path": "adapter_model.safetensors",
+          "repository": "jaredpalmer/kev-0.8b",
+          "revision": "9a45d25eb2ab761841196625383fa1dff0e56c1e",
+          "sha256": "9b908623acb162118575f4e7a94524f9c139c335be4bfb74d6cfceca01e1885a",
+          "size_bytes": 43338624
+        },
+        {
+          "cached": true,
+          "path": "head.pt",
+          "repository": "jaredpalmer/kev-0.8b",
+          "revision": "9a45d25eb2ab761841196625383fa1dff0e56c1e",
+          "sha256": "f400bd12802b2b105ae45d6b03774a158a3db4fccff42413734ddca2e5c920b6",
+          "size_bytes": 2103999
+        },
+        {
+          "cached": true,
+          "path": "model.safetensors-00001-of-00001.safetensors",
+          "repository": "Qwen/Qwen3.5-0.8B-Base",
+          "revision": "dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68",
+          "sha256": "c2b1e5a17d9c1e27685d92ed9b382911ebb99955ecd89052d1721241adfbab6c",
+          "size_bytes": 1746942600
+        }
+      ],
+      "blockers": [
+        "input-token feasibility not preflighted",
+        "corpus-term gate unresolved"
+      ],
+      "input_token_preflight": "not performed",
+      "model_directory": "/private/tmp/dms06-hf-cache",
+      "run_allowed": false,
+      "runtime": {
+        "packages": {
+          "huggingface-hub": "1.32.0",
+          "numpy": "2.5.3",
+          "peft": "0.21.0",
+          "torch": "2.8.0",
+          "transformers": "5.17.0"
+        },
+        "python": "3.13.15"
+      },
+      "runtime_executable": "/private/tmp/dms06-kev-source/.venv/bin/python",
+      "runtime_lock": "/private/tmp/dms06-kev-source/uv.lock",
+      "runtime_lock_match": true,
+      "runtime_lock_sha256": "a9922dbb89acdef78299fd2b4a8c3f7f0fa1b2bc08b55595b6926fa785a9c466",
+      "runtime_match": true,
+      "source_checkout": "/private/tmp/dms06-kev-source",
+      "source_revision": "5920c5fe4ca8e0970ed4209ac2c9b8e18bea5109",
+      "source_revision_match": true
+    },
+    "laya-mlx-metal": {
+      "artifact_files": [
+        {
+          "cached": true,
+          "path": "model.safetensors",
+          "repository": "aac6fef/laya-typed-decisions-mlx",
+          "revision": "28416e78cb26a239a4eabaa2e084904ec5e6cacb",
+          "sha256": "804ef8802b4cac7a67913b0cfb8448659e934a50284aaa867b98d7d9a6e7d1e0",
+          "size_bytes": 842609225
+        }
+      ],
+      "blockers": [
+        "input-token feasibility not preflighted",
+        "corpus-term gate unresolved"
+      ],
+      "input_token_preflight": "not performed",
+      "model_directory": "/private/tmp/dms08-laya-cache/model",
+      "run_allowed": false,
+      "runtime": {
+        "packages": {
+          "huggingface-hub": "1.33.0",
+          "mlx": "0.32.2",
+          "numpy": "2.5.3",
+          "tokenizers": "0.23.2"
+        },
+        "python": "3.14.7"
+      },
+      "runtime_executable": "/private/tmp/dms08-poetry-venvs/dms08-laya-mlx-runtime-E33OzdFt-py3.14/bin/python",
+      "runtime_lock": "specs/decision-model-support/evaluation/laya-mlx-runtime/poetry.lock",
+      "runtime_lock_match": true,
+      "runtime_lock_sha256": "8e985781ad08f589f20780b0ee971f26ce6f3a526ec4111e2031765894e75884",
+      "runtime_match": true,
+      "source_checkout": "/private/tmp/dms08-laya-mlx-source",
+      "source_revision": "0a859518634112655cb97c745dbf04f5191aaf13",
+      "source_revision_match": true
+    },
+    "litjev-cpu": {
+      "artifact_files": [
+        {
+          "cached": true,
+          "path": "model.safetensors",
+          "repository": "Qwen/Qwen3-0.6B-Base",
+          "revision": "da87bfb608c14b7cf20ba1ce41287e8de496c0cd",
+          "sha256": "cd2a512003e2f9f3cd3c32a9c3573f820bb28c940f73c57b1ddaa983d9223eba",
+          "size_bytes": 1192135096
+        }
+      ],
+      "blockers": [
+        "input-token feasibility not preflighted",
+        "corpus-term gate unresolved"
+      ],
+      "input_token_preflight": "not performed",
+      "model_directory": "/private/tmp/dms06-litjev-cache",
+      "run_allowed": false,
+      "runtime": {
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "numpy": "2.5.3",
+          "safetensors": "0.8.0",
+          "torch": "2.11.0",
+          "torchvision": "0.26.0",
+          "transformers": "5.17.0"
+        },
+        "python": "3.14.7"
+      },
+      "runtime_executable": "/private/tmp/dms06-litjev-source/.venv/bin/python",
+      "runtime_lock": "/private/tmp/dms06-litjev-source/uv.lock",
+      "runtime_lock_match": true,
+      "runtime_lock_sha256": "bf0e1ff4aeda5ffe276e58f64edd7324bbaa8cec941fa174312b23e6bab0f1d8",
+      "runtime_match": true,
+      "source_checkout": "/private/tmp/dms06-litjev-source",
+      "source_revision": "e7fb109a7466da9709028eb9c4e9f16eaeb4e2a3",
+      "source_revision_match": true
+    },
+    "poorjev-cpu": {
+      "artifact_files": [
+        {
+          "cached": true,
+          "path": "model.safetensors",
+          "repository": "MoritzLaurer/deberta-v3-base-zeroshot-v2.0",
+          "revision": "8e7e5af5983a0ddb1a5b45a38b129ab69e2258e8",
+          "sha256": "6e8f2af78c828dcbd5243aac40fb87430376f0b8a9c288f4993df3ea3558d557",
+          "size_bytes": 368871908
+        }
+      ],
+      "blockers": [
+        "input-token feasibility not preflighted",
+        "corpus-term gate unresolved"
+      ],
+      "input_token_preflight": "not performed",
+      "model_directory": "/private/tmp/dms06-poorjev-cache",
+      "run_allowed": false,
+      "runtime": {
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "torch": "2.14.0",
+          "transformers": "5.17.0"
+        },
+        "python": "3.14.7"
+      },
+      "runtime_executable": "/private/tmp/dms06-von-source/.venv/bin/python",
+      "runtime_lock": "/private/tmp/dms06-von-source/uv.lock",
+      "runtime_lock_match": true,
+      "runtime_lock_sha256": "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41",
+      "runtime_match": true,
+      "source_checkout": "/private/tmp/dms06-poorjev-source",
+      "source_revision": "7e684e95db13b90238c63e6ab39e1a016263a168",
+      "source_revision_match": true
+    },
+    "von-cpu": {
+      "artifact_files": [
+        {
+          "cached": true,
+          "path": "model.safetensors",
+          "repository": "wfzyx/von",
+          "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
+          "sha256": "af57d5d2ab15715a753a1eb4add4271d1aecce7e76f3365f629c082df329297a",
+          "size_bytes": 1579143688
+        },
+        {
+          "cached": true,
+          "path": "option_marker.pt",
+          "repository": "wfzyx/von",
+          "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
+          "sha256": "3faf27f88d30aaf9aa37860d4cdef99f1d05450cf40364f6236ac892d4d139ed",
+          "size_bytes": 1581316459
+        }
+      ],
+      "blockers": [
+        "input-token feasibility not preflighted",
+        "corpus-term gate unresolved"
+      ],
+      "input_token_preflight": "not performed",
+      "model_directory": "/private/tmp/dms06-von-cache/wfzyx-von-5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
+      "run_allowed": false,
+      "runtime": {
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "torch": "2.14.0",
+          "transformers": "5.17.0"
+        },
+        "python": "3.14.7"
+      },
+      "runtime_executable": "/private/tmp/dms06-von-source/.venv/bin/python",
+      "runtime_lock": "/private/tmp/dms06-von-source/uv.lock",
+      "runtime_lock_match": true,
+      "runtime_lock_sha256": "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41",
+      "runtime_match": true,
+      "source_checkout": "/private/tmp/dms06-von-source",
+      "source_revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54",
+      "source_revision_match": true
+    }
+  },
+  "run_allowed": false,
+  "track": "DMS-14"
+}
