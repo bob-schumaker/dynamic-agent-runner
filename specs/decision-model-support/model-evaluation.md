@@ -22,12 +22,15 @@ recency, and model-guided message retention with a shared downstream answer
 model and matched answer-model-tokenizer history budgets. Its exact proposal
 and token measurements are in
 [`evaluation/dms13-corpus-manifest.json`](evaluation/dms13-corpus-manifest.json).
-The earlier DMS-13 approval named GPT-4o at the public OpenAI API endpoint.
-That model is unavailable through the current ChatGPT auth. The user selected
-`gpt-6-luna` from DAR's live model catalog; endpoint-specific approval for the
-new `chatgpt.com` route remains pending. No model download or inference has
-started. DMS-13 remains incomplete and does not change the frozen synthetic
-DMS-01 criteria or any recorded candidate result.
+The user requested a local judge after the selected `gpt-6-luna` route would
+have sent benchmark-derived data to `chatgpt.com`. DMS-13 now pins
+`mlx-community/Llama-3.1-8B-Instruct-4bit@90215b22ec18e72f623dde2ea7af4097025160e2`
+as an in-process MLX-LM judge. Its complete snapshot was downloaded and
+SHA-256 verified; a load-only smoke check passed with Metal enabled and 4.52 GB
+peak memory. No benchmark inference has started. The exact local-only run
+approval remains pending; no benchmark-derived data will be sent to a model
+endpoint. DMS-13 does not change the frozen synthetic DMS-01 criteria or any
+recorded candidate result.
 
 The user approved the fixture hashes, acceptance thresholds, and retention
 utility definition below on 2026-09-26, before candidate output was inspected.
@@ -67,10 +70,10 @@ manifest. Von failed DMS-01 and DMS-14 criteria; using it in this exploratory
 context-preservation comparison would not reverse those findings or admit a
 production profile.
 
-The combined Python 3.14.7 runtime proposal pins Von's Torch/Transformers path,
-the Qwen MLX reader, and the scorer client in
+The combined Python 3.14.7 runtime pins Von's Torch/Transformers path, the Qwen
+MLX reader, and the Llama MLX judge in
 [`evaluation/dms13-runtime/`](evaluation/dms13-runtime/); its lock SHA-256 is
-`f490719fd8d20b7fb25dc5099732137353d8335e99e7cea275dd56affdb06aa5`. The lock
+`24956255add4cb2723714489566b7aa43906316fa19c59c1077eb81f4ec1fade`. The lock
 resolves and passes `poetry check --lock`. The isolated runtime is installed
 under `/private/tmp/dms13-poetry-envs`; package versions and the pinned Von source
 import were verified together, and Metal is available. The initial runtime
@@ -78,29 +81,26 @@ import were verified together, and Metal is available. The initial runtime
 runtime setup. The run-specific
 [preflight receipt](evaluation/preflight-dms13-run-2026-09-28.json) binds the
 complete evaluation harness, current host/storage check, and pinned artifacts.
-Qwen reader weights are not cached in the DMS-13 model cache. Neither local
-model uses a server in this proposal. The DMS-13 runner uses DAR's default
-OpenAI auth discovery and Responses adapter; it resolves to the ChatGPT Codex
-endpoint (`chatgpt.com`) on this host. The current session model catalog lists
-`gpt-6-luna`, selected by the user as scorer. The previous approval bound
-GPT-4o at the public OpenAI API endpoint. Automatic review rejected sending
-benchmark-derived data to the changed endpoint under that approval, so the
-refreshed run receipt remains pending endpoint-specific approval.
+The local Llama scorer is pinned to
+`mlx-community/Llama-3.1-8B-Instruct-4bit@90215b22ec18e72f623dde2ea7af4097025160e2`;
+all eight files and digests are recorded in the manifest and preflight. Its
+model weights are 4,517,489,037 bytes under the Llama 3.1 Community License.
+The load-only compatibility check passed in the existing MLX runtime; no judge
+prompt was run. The DMS-13 runtime lock no longer includes the OpenAI package.
+The refreshed run receipt binds zero remote judge calls and 4,500 in-process
+local judge calls; it remains pending exact run approval.
 
 The [pinned official evaluator](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/src/evaluation/evaluate_qa.py)
-supports `gpt-4o-2024-08-06`, `gpt-4o-mini-2024-07-18`, and local Llama 3.1 70B
-behind an OpenAI-compatible HTTP endpoint. It uses question-type-specific
-prompts, temperature 0, and a ten-token verdict; its label rule accepts any
-response containing `yes`. The [official README](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/README.md)
-uses GPT-4o in its evaluation command, so that is the recommended scorer for
-closest comparability. The pinned evaluator's source SHA-256 and scorer
-parameters are in the manifest. Each of the 4,500 planned judge calls sends the
-question, gold answer, and candidate answer to the configured scorer endpoint.
-The endpoint-specific run receipt binds `chatgpt.com` with `gpt-6-luna` and the
-Responses API adapter; this route has not been exercised. The evaluator would
-persist only boolean labels and aggregate metrics, never raw prompts or judge
-responses. The alternative local scorer requires a server and a 70B model,
-which does not fit this direct local run setup.
+supports GPT-4o, GPT-4o mini, and local Llama 3.1 70B behind an
+OpenAI-compatible HTTP endpoint. It uses question-type-specific prompts,
+temperature 0, and a ten-token verdict; its label rule accepts any response
+containing `yes`. DMS-13 retains those prompts and label semantics while using
+the separate local 8B MLX checkpoint above in-process without a server. This is
+not the official 70B/GPT-4o scorer and results are not directly comparable to
+published scorer results. All 4,500 question/gold-answer/candidate-answer
+judgments remain local; only pinned public artifacts are downloaded. The
+evaluation persists boolean labels and aggregate metrics, never raw prompts or
+scorer responses.
 
 Proposed primary budget is 32,768 history tokens. Proposed acceptance compares
 paired model-guided and recency outcomes over 10,000 question-type-stratified
@@ -109,9 +109,9 @@ bootstrap samples (seed 13): answer-accuracy noninferiority requires the
 not be more than 0.05 below recency; and at least one of answer accuracy or
 evidence-turn recall must improve by 0.05 at the primary budget. The user
 approved the thresholds and original public-API run configuration on
-2026-09-28. The user later selected `gpt-6-luna` from the live DAR catalog;
-the revised endpoint and scorer require a new run approval. No model inference
-or judge request has occurred.
+2026-09-28, then requested the switch to a pinned local MLX Llama judge. That
+changes the exact scorer binding, so the refreshed local-only run receipt still
+requires approval. No benchmark inference or judge call has occurred.
 
 ## Host and DAR fit
 
@@ -699,9 +699,10 @@ receipt is
 [`evaluation/dms13-run-approval-2026-09-28.json`](evaluation/dms13-run-approval-2026-09-28.json),
 and its host/runtime preflight passed. The runner stopped before cache download
 or model inference because `OPENAI_API_KEY` was not available. No benchmark
-content was sent to `api.openai.com`. That approval does not authorize the
-revised ChatGPT endpoint and `gpt-6-luna` scorer. DMS-13 remains incomplete
-pending the revised run approval.
+content was sent to `api.openai.com`. That approval did not authorize the
+revised ChatGPT endpoint and `gpt-6-luna` scorer. This historical attempt is
+superseded by the local MLX Llama scorer documented above. DMS-13 remains
+incomplete pending approval and execution of the revised local-only run.
 
 The complete receipt, evaluation, matrix receipt, per-candidate redacted
 predictions, and measurements are in

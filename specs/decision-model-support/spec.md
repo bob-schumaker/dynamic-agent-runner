@@ -10,8 +10,9 @@
   DMS-06 measured Von 1.2.0, PoorJev, and LitJev and rejected them for quality
   thresholds; NanoJev remains deferred for host and licensing constraints.
   Kev-0.8B and the separately evaluated Jev-Style 0.8B v3 failed quality
-  gates. The separate DMS-13 LongMemEval-S track has an approved exact run,
-  but no results exist because the required API credential is unavailable.
+  gates. The separate DMS-13 LongMemEval-S track has a pinned local MLX judge
+  and refreshed preflight; its revised exact run approval and evaluation are
+  pending.
   DMS-14 completed its approved published
   general-transfer matrix; no candidate met both thresholds, and the results
   remain comparative evidence without production admission. DMS-15 is an

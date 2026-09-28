@@ -673,3 +673,43 @@ approved; Jev-Style was not added retroactively.
 not install because the package mirror does not provide `rumdl==0.1.62`; the
 remaining hooks were invoked with `SKIP=rumdl,rumdl-fmt` and had no applicable
 files. No code tests were run for this documentation-only status correction.
+
+## DMS-13 local MLX judge switch — 2026-09-28
+
+Replaced the proposed `gpt-6-luna` remote judge with the user's requested
+pinned local MLX scorer: `mlx-community/Llama-3.1-8B-Instruct-4bit` at
+`90215b22ec18e72f623dde2ea7af4097025160e2`. Hugging Face reports the model's
+Llama 3.1 Community License and a 4,517,489,037-byte weight file. Downloaded
+the complete snapshot to `/private/tmp/dms13-local-llama-judge-90215b22`; the
+runner and manifest pin SHA-256 for all eight repository files. The exact MLX
+runtime loaded this snapshot with Metal available; load-only peak MLX memory was
+4,517,406,216 bytes. No benchmark prompt or inference was run.
+
+The manual runner now scores with the pinned LongMemEval prompt using
+`mlx_lm.generate` in process, temperature 0, and a ten-token output cap. Snapshot
+SHA-256 uses streaming reads to avoid loading full weight files into memory. It
+makes 4,500 local judge calls, expects zero remote judge calls, and stores only
+boolean labels and aggregate metrics. The DMS-13 Poetry runtime no longer
+includes the OpenAI package; its updated lock SHA-256 is
+`24956255add4cb2723714489566b7aa43906316fa19c59c1077eb81f4ec1fade`.
+
+Validation:
+
+- RED: the local-generation fake first failed because `_score_with_local_model` did not exist; the bounded-hash fake then failed because `_sha256` required `read_bytes`.
+- GREEN: `poetry run pytest tests/test_context_compression_dms13_runner.py tests/test_context_compression_evaluation.py -q` — 22 passed.
+- `poetry run ruff check scripts/evaluate_context_compression.py tests/manual/run_context_compression_dms13.py tests/test_context_compression_dms13_runner.py` — passed.
+- Isolated runtime `poetry check --lock` — passed with existing Poetry metadata deprecation warnings.
+- Pinned-runtime preflight and runtime-package verification — passed; OpenAI is absent.
+- The regenerated run preflight binds the exact model snapshot and current
+harness/runtime, confirms Metal and 42,151,620,608 free storage bytes, and
+remains `run_allowed: false` pending exact approval. Its current manifest,
+preflight, harness, and runtime-lock SHA-256 values are `3aa2f56e50c4300d155e6cdcd7d4671bf300b57fe66d0b48946582a1b14002e6`,
+`d016c5cc32901fb71f209b92eeee873aa2eca3b7ff8ad4bd4979ac23cf2128d3`,
+`ceb2932f5697adf46063ae7926dbbf9e4331fb90d7a6fd92e596d8f1e30eb00e`, and
+`24956255add4cb2723714489566b7aa43906316fa19c59c1077eb81f4ec1fade`.
+
+The pending run receipt binds the local judge, 4,500 local calls, zero remote
+judge calls, and zero benchmark-data egress. The local model is not the
+LongMemEval authors' official Llama 3.1 70B server or GPT-4o scorer, so its
+results are exploratory and not directly comparable. No benchmark inference or
+judge call has occurred.

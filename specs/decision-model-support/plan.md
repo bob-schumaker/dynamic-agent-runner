@@ -9,8 +9,8 @@
   frozen quality gates, so DMS-10 first-party adapter work is deferred and
   DMS-11 closes with validation and handoff. DMS-12 evaluated Jev-Style 0.8B
   v3 and rejected it under the frozen quality gates. DMS-13 adds a separate
-  end-to-end LongMemEval-S context-preservation track; its exact run is approved
-  but cannot execute until the required API credential is available.
+  end-to-end LongMemEval-S context-preservation track with a pinned local
+  in-process MLX Llama judge; its refreshed exact run approval is pending.
   DMS-14 completed its approved published general-transfer and Mac-runtime
   matrix. No candidate met both thresholds; results are comparative only and
   do not admit a production profile. DMS-15 adds an audit-first review for

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -125,50 +126,86 @@ def test_official_judge_prompt_uses_pinned_type_and_abstention_rules() -> None:
     assert prompts[1][4] is True
 
 
-def test_dms13_judge_adapter_uses_dar_default_openai_auth(monkeypatch) -> None:
-    from dynamic_agent_runner import openai_client
+def test_dms13_judge_uses_local_mlx_in_process() -> None:
+    from run_context_compression_dms13 import (
+        SCORER_MODEL,
+        _score_with_local_model,
+    )
 
-    expected_adapter = object()
-    provider = object()
-    provider_calls = []
-    adapter_calls = []
+    class FakeTokenizer:
+        def apply_chat_template(self, messages, *, tokenize, add_generation_prompt):
+            assert messages == [{"role": "user", "content": "safe synthetic prompt"}]
+            assert tokenize is False
+            assert add_generation_prompt is True
+            return "<|user|>safe synthetic prompt<|assistant|>"
 
-    def create_provider(config=None):
-        provider_calls.append(config)
-        return provider
+    calls = []
 
-    def create_adapter(*, provider):
-        adapter_calls.append(provider)
-        return expected_adapter
+    def fake_generate(model, tokenizer, prompt, **kwargs):
+        calls.append((model, tokenizer, prompt, kwargs))
+        return "Yes"
 
-    monkeypatch.setattr(openai_client, "create_default_openai_provider", create_provider)
-    monkeypatch.setattr(openai_client, "create_openai_adapter", create_adapter)
+    model = object()
+    tokenizer = FakeTokenizer()
 
-    from run_context_compression_dms13 import _create_judge_adapter
+    assert SCORER_MODEL == (
+        "mlx-community/Llama-3.1-8B-Instruct-4bit"
+        "@90215b22ec18e72f623dde2ea7af4097025160e2"
+    )
+    assert _score_with_local_model(
+        fake_generate, model, tokenizer, "safe synthetic prompt"
+    ) == "Yes"
+    assert calls == [
+        (
+            model,
+            tokenizer,
+            "<|user|>safe synthetic prompt<|assistant|>",
+            {"temp": 0, "max_tokens": 10, "verbose": False},
+        )
+    ]
 
-    assert _create_judge_adapter() is expected_adapter
-    assert provider_calls == [None]
-    assert adapter_calls == [provider]
+
+def test_dms13_judge_snapshot_must_match_pinned_file_digest(tmp_path, monkeypatch) -> None:
+    import run_context_compression_dms13 as runner
+
+    content = b"pinned local model file"
+    (tmp_path / "config.json").write_bytes(content)
+    monkeypatch.setattr(
+        runner,
+        "SCORER_MODEL_FILES",
+        {"config.json": hashlib.sha256(content).hexdigest()},
+    )
+
+    runner._verify_judge_snapshot(tmp_path)
+
+    (tmp_path / "config.json").write_bytes(b"changed model file")
+    with pytest.raises(ManualRunError, match="judge snapshot"):
+        runner._verify_judge_snapshot(tmp_path)
 
 
-def test_dms13_judge_uses_selected_responses_model() -> None:
-    from run_context_compression_dms13 import SCORER_MODEL, _score_with_adapter
+def test_sha256_reads_snapshot_in_bounded_chunks() -> None:
+    import run_context_compression_dms13 as runner
 
-    class FakeAdapter:
+    class ChunkReader:
         def __init__(self):
-            self.requests = []
+            self.chunks = iter((b"pinned ", b"model", b""))
 
-        def create_response(self, request):
-            self.requests.append(request)
-            return type("Response", (), {"content": "Yes"})()
+        def __enter__(self):
+            return self
 
-    adapter = FakeAdapter()
+        def __exit__(self, *args):
+            return None
 
-    assert _score_with_adapter(adapter, "safe synthetic prompt") == "Yes"
-    request = adapter.requests[0]
-    assert request.model == SCORER_MODEL == "gpt-6-luna"
-    assert request.messages == ({"role": "user", "content": "safe synthetic prompt"},)
-    assert request.extra == {"max_output_tokens": 64, "temperature": 0}
+        def read(self, size):
+            assert size == 1024 * 1024
+            return next(self.chunks)
+
+    class SnapshotFile:
+        def open(self, mode):
+            assert mode == "rb"
+            return ChunkReader()
+
+    assert runner._sha256(SnapshotFile()) == hashlib.sha256(b"pinned model").hexdigest()
 
 
 def test_run_approval_must_bind_all_pinned_run_artifacts() -> None:
@@ -177,8 +214,9 @@ def test_run_approval_must_bind_all_pinned_run_artifacts() -> None:
         "preflight_sha256": "b" * 64,
         "harness_sha256": "c" * 64,
         "runtime_lock_sha256": "d" * 64,
-        "scorer_model": "gpt-6-luna",
-        "expected_external_requests": 4500,
+        "scorer_model": "mlx-community/Llama-3.1-8B-Instruct-4bit@90215b22ec18e72f623dde2ea7af4097025160e2",
+        "expected_remote_judge_calls": 0,
+        "expected_local_judge_calls": 4500,
         "expected_von_turn_scores": 122462,
     }
 
@@ -195,7 +233,7 @@ def test_manual_run_refuses_missing_approval_before_creating_model_cache(tmp_pat
         / "specs"
         / "decision-model-support"
         / "evaluation"
-        / "preflight-dms13-2026-09-27.json",
+        / "preflight-dms13-run-2026-09-28.json",
         approval=tmp_path / "missing-approval.json",
         model_cache=model_cache,
         source_checkout=tmp_path / "not-used-source",
@@ -234,4 +272,9 @@ def test_run_preflight_binds_current_manifest_harness_and_artifacts() -> None:
     altered = dict(receipt)
     altered["manifest_sha256"] = "0" * 64
     with pytest.raises(ManualRunError, match="manifest digest"):
+        verify_preflight(altered, runtime_lock_path=runtime_lock, root=root)
+
+    altered = dict(receipt)
+    altered["scorer_model_snapshot_path"] = "/missing/local-judge-snapshot"
+    with pytest.raises(ManualRunError, match="judge snapshot"):
         verify_preflight(altered, runtime_lock_path=runtime_lock, root=root)

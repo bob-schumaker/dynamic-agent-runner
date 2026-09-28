@@ -39,8 +39,8 @@ Source of truth: `spec.md`. Implementation approach: `plan.md`.
   - **Disposition:** The task list is ready under its stated gates. DMS-15's
     audit can proceed; helper implementation depends on demonstrated reuse.
     DMS-04 remains stopped and DMS-10 remains deferred by their candidate
-    quality gates. DMS-12 is complete; DMS-13 has exact run approval but its
-    execution remains blocked by unavailable API credentials.
+    quality gates. DMS-12 is complete; DMS-13 now uses a pinned local MLX Llama
+    judge and awaits approval for the revised exact run.
 
 Tasks are ordered by dependency. Every code task follows TDD: add or update the
 focused test first, observe the expected failure, implement, and rerun until it
@@ -413,7 +413,7 @@ competency run before an explicit production admission decision.
   tokens from its context window, and report full-history cases that exceed its
   context window separately. Exact tokenizer measurements and proposed matched
   budgets are recorded in the manifest. The combined direct-local runtime is
-  pinned and installed in `/private/tmp/dms13-py-venvs`; exact host preflight
+  pinned and installed in `/private/tmp/dms13-poetry-envs`; exact host preflight
   passed and is recorded in `evaluation/preflight-dms13-run-2026-09-28.json`. No
   local model server is part of the profile.
 - [x] Define answer metrics, evidence-turn recall from the benchmark's released
@@ -421,19 +421,22 @@ competency run before an explicit production admission decision.
   reporting, and runtime/memory measurements. The official scorer options and
   their external-egress/server limitations are recorded. Keep questions, gold
   answers, and evidence annotations out of compactor inputs.
-- [x] Select a reproducible answer-scoring method. GPT-4o is unavailable through
-  the current ChatGPT auth. The user selected `gpt-6-luna` from the live DAR
-  model catalog; the pinned LongMemEval prompt remains, but this is not the
-  official LongMemEval scorer. The scorer uses DAR's Responses adapter and
-  sends questions, gold answers, and candidate answers to `chatgpt.com`.
+- [x] Select a reproducible answer-scoring method. Use the pinned
+  `mlx-community/Llama-3.1-8B-Instruct-4bit@90215b22ec18e72f623dde2ea7af4097025160e2`
+  in-process through MLX-LM, with the pinned LongMemEval prompt and ten-token
+  verdict limit. The model snapshot's eight files are SHA-256 pinned in the
+  manifest. This is not the official Llama 3.1 70B or GPT-4o scorer and is not
+  directly comparable to their published results. The user requested the
+  switch to this local model; the exact run remains separately gated below.
 - [x] Propose context-preservation acceptance thresholds based on the selected
   downstream workflow risk and record the exact proposal in
   `evaluation/dms13-corpus-manifest.json`. These thresholds are separate from
   the already-approved DMS-01 criteria.
 - [ ] Obtain updated run-level approval for the exact benchmark, answer model,
-  compactor, runtime, `gpt-6-luna` scorer, budgets, thresholds, and harness
-  revision before model inference. The earlier approval covered GPT-4o through
-  `api.openai.com`, not the current `chatgpt.com` route. The pending exact
+  compactor, runtime, local Llama scorer/artifacts, budgets, thresholds, and
+  harness revision before benchmark inference. The revised run makes zero
+  external judge calls and sends no benchmark-derived data to model endpoints;
+  pinned public weights may be downloaded from Hugging Face. The pending exact
   receipt is `evaluation/dms13-run-approval-2026-09-28.json`.
 - [x] Add fake-only tests for benchmark loading/identity, history-only
   compactor inputs, gold/evidence isolation, matched answer-tokenizer budgets,
@@ -443,13 +446,12 @@ competency run before an explicit production admission decision.
   `tests/manual/run_context_compression_dms13.py`; fake tests cover its
   question-blind Von scoring, exact packed-input limit, approval binding, and
   refusal before model-cache creation. No model inference was performed.
-- [ ] Run the model-guided compaction condition and baselines with
-  `gpt-6-luna` through DAR auth at `chatgpt.com`. The refreshed preflight and
-  pending approval receipt bind the available-model catalog, endpoint, scorer,
-  harness, and 4,500-call data scope. Automatic review rejected using the
-  earlier GPT-4o/public-API approval for this changed route. Obtain approval for
-  the exact pending receipt before downloading weights or running inference;
-  then record the results and disposition in `model-evaluation.md`. Do not
+- [ ] Run the model-guided compaction condition and baselines with the pinned
+  local MLX Llama judge. The refreshed preflight and pending approval receipt
+  bind the local model files, host/runtime, scorer, harness, and 4,500 local
+  judge calls. The judge model snapshot has been downloaded and digest-verified;
+  no benchmark inference has occurred. Obtain approval for the exact receipt,
+  then run and record results and disposition in `model-evaluation.md`. Do not
   infer DMS-01 passage or production admission from this track.
 
 ## DMS-14 Published General Decision Transfer and Mac Runtime Comparison

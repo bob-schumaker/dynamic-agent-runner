@@ -16,7 +16,6 @@ import shutil
 import subprocess
 import sys
 import time
-import types
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -31,14 +30,13 @@ ANSWER_MODEL_SHA256 = "2a73c6c248601ab904e035548abd8e6abb65ea27dcb5f342fb0a8910e
 MANIFEST_RELATIVE = Path("specs/decision-model-support/evaluation/dms13-corpus-manifest.json")
 PREFLIGHT_RELATIVE = Path("specs/decision-model-support/evaluation/preflight-dms13-run-2026-09-28.json")
 RUNTIME_LOCK_RELATIVE = Path("specs/decision-model-support/evaluation/dms13-runtime/poetry.lock")
-RUNTIME_LOCK_SHA256 = "f490719fd8d20b7fb25dc5099732137353d8335e99e7cea275dd56affdb06aa5"
+RUNTIME_LOCK_SHA256 = "24956255add4cb2723714489566b7aa43906316fa19c59c1077eb81f4ec1fade"
 RUNTIME_PACKAGES = {
     "accelerate": "1.15.0",
     "huggingface-hub": "1.32.0",
     "mlx": "0.32.2",
     "mlx-lm": "0.31.3",
     "numpy": "2.5.3",
-    "openai": "2.54.0",
     "tokenizers": "0.23.2",
     "torch": "2.14.0",
     "transformers": "5.17.0",
@@ -48,7 +46,21 @@ DATASET_REVISION = "98d7416c24c778c2fee6e6f3006e7a073259d48f"
 VON_SOURCE_REVISION = "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54"
 VON_MODEL_REVISION = "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae"
 LONGMEMEVAL_SOURCE_REVISION = "9e0b455f4ef0e2ab8f2e582289761153549043fc"
-SCORER_MODEL = "gpt-6-luna"
+SCORER_MODEL_REPOSITORY = "mlx-community/Llama-3.1-8B-Instruct-4bit"
+SCORER_MODEL_REVISION = "90215b22ec18e72f623dde2ea7af4097025160e2"
+SCORER_MODEL = f"{SCORER_MODEL_REPOSITORY}@{SCORER_MODEL_REVISION}"
+SCORER_MODEL_LICENSE = "Llama 3.1 Community License"
+SCORER_MODEL_SIZE_BYTES = 4517489037
+SCORER_MODEL_FILES = {
+    ".gitattributes": "34448b82c17d60fec9b65b1f093c115ddbaadc04beb1b0140b6bfed2e012a930",
+    "README.md": "df2b6fd835306d188b6193fa3dd075c72f4d52140f11e480fffb0f2e19c38cfd",
+    "config.json": "88804b1a541a86ce1b5b21dd0b38d95ee99006ef656a0b59ab267ecb0bce8b22",
+    "model.safetensors": "192065799d1621df78b68274137974d3258c5dadce9ca71305ed014d997d67c4",
+    "model.safetensors.index.json": "9a76e05055778bb04cacb7aff616b378da0e57c87a181c932037a943efba5997",
+    "special_tokens_map.json": "6f38c73729248f6c127296386e3cdde96e254636cc58b4169d3fd32328d9a8ec",
+    "tokenizer.json": "6b9e4e7fb171f92fd137b777cc2714bf87d11576700a1dcd7a399e7bbe39537b",
+    "tokenizer_config.json": "f0f2d5fa9caf736f4184e3fe3316378290696f9ebd9f11ac431d48fbda92a11c",
+}
 EVALUATION_BUDGETS = [8192, 16384, 32768, 65536]
 EXPECTED_VON_TURN_SCORES = 122462
 _DIGITS = re.compile(r"\d+")
@@ -66,7 +78,11 @@ def verify_run_approval(approval: Mapping[str, Any], *, expected: Mapping[str, A
 
 
 def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    digest = hashlib.sha256()
+    with path.open("rb") as model_file:
+        for chunk in iter(lambda: model_file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _combined_harness_sha256(*paths: Path) -> str:
@@ -82,7 +98,6 @@ def build_run_approval_expectation(root: Path, *, preflight_path: Path) -> dict[
     evaluator_path = root / "scripts/evaluate_context_compression.py"
     runner_path = Path(__file__).resolve()
     lock_path = root / RUNTIME_LOCK_RELATIVE
-    preflight = json.loads(preflight_path.read_text(encoding="utf-8"))
     return {
         "manifest_sha256": _sha256(manifest_path),
         "preflight_sha256": _sha256(preflight_path),
@@ -94,6 +109,10 @@ def build_run_approval_expectation(root: Path, *, preflight_path: Path) -> dict[
         "compactor": f"wfzyx/von@{VON_MODEL_REVISION}",
         "von_source_revision": VON_SOURCE_REVISION,
         "scorer_model": SCORER_MODEL,
+        "scorer_model_files": SCORER_MODEL_FILES,
+        "scorer_runtime": "MLX-LM in-process",
+        "scorer_model_license": SCORER_MODEL_LICENSE,
+        "scorer_model_size_bytes": SCORER_MODEL_SIZE_BYTES,
         "budgets_history_tokens": EVALUATION_BUDGETS,
         "primary_budget_history_tokens": 32768,
         "answer_generation": {"temperature": 0, "max_new_tokens": 512, "thinking": False},
@@ -104,17 +123,14 @@ def build_run_approval_expectation(root: Path, *, preflight_path: Path) -> dict[
             "evidence_recall_delta_gte": -0.05,
             "accuracy_or_evidence_recall_delta_gte": 0.05,
         },
-        "expected_external_requests": 4500,
+        "expected_remote_judge_calls": 0,
+        "expected_local_judge_calls": 4500,
         "expected_von_turn_scores": EXPECTED_VON_TURN_SCORES,
-        "external_data_fields": ["question", "gold_answer", "candidate_answer"],
+        "external_data_fields": [],
         "approval_scope": (
-            "pinned local model downloads and inference plus 4500 "
-            f"{SCORER_MODEL} judge requests to {preflight.get('judge_endpoint_host')} "
-            "through DAR default OpenAI auth"
+            "download exact pinned public artifacts from Hugging Face and run "
+            "all inference in process; send no benchmark data to model endpoints"
         ),
-        "judge_auth_path": "DAR default OpenAI client auth discovery",
-        "judge_endpoint_host": preflight.get("judge_endpoint_host"),
-        "available_judge_models": preflight.get("available_judge_models"),
     }
 
 
@@ -164,7 +180,14 @@ def _verify_preflight_artifacts(preflight: Mapping[str, Any], root: Path) -> Non
         or preflight.get("longmemeval_source_revision") != LONGMEMEVAL_SOURCE_REVISION
         or preflight.get("official_scorer_sha256") != OFFICIAL_SCORER_SHA256
         or preflight.get("scorer_model") != SCORER_MODEL
-        or SCORER_MODEL not in preflight.get("available_judge_models", [])
+        or preflight.get("scorer_model_revision") != SCORER_MODEL_REVISION
+        or preflight.get("scorer_model_files") != SCORER_MODEL_FILES
+        or preflight.get("scorer_runtime") != "MLX-LM in-process"
+        or preflight.get("scorer_model_license") != SCORER_MODEL_LICENSE
+        or preflight.get("scorer_model_size_bytes") != SCORER_MODEL_SIZE_BYTES
+        or preflight.get("expected_local_judge_calls") != 4500
+        or preflight.get("expected_remote_judge_calls") != 0
+        or preflight.get("external_data_fields") != []
         or preflight.get("compactor_model_revision") != VON_MODEL_REVISION
         or preflight.get("answer_model")
         != {
@@ -174,6 +197,8 @@ def _verify_preflight_artifacts(preflight: Mapping[str, Any], root: Path) -> Non
         }
     ):
         raise ManualRunError("DMS-13 preflight artifact pins differ")
+    judge_snapshot = Path(str(preflight.get("scorer_model_snapshot_path", "")))
+    _verify_judge_snapshot(judge_snapshot)
 
 
 def _verify_preflight_approval_state(preflight: Mapping[str, Any]) -> None:
@@ -221,6 +246,13 @@ def _verify_answer_snapshot(model_path: Path) -> None:
             raise ManualRunError("answer model snapshot differs from its pinned file digest")
 
 
+def _verify_judge_snapshot(model_path: Path) -> None:
+    for filename, expected_hash in SCORER_MODEL_FILES.items():
+        path = model_path / filename
+        if not path.is_file() or _sha256(path) != expected_hash:
+            raise ManualRunError("DMS-13 local judge snapshot differs from its pinned file digest")
+
+
 def _percentile(values: Sequence[float], fraction: float) -> float | None:
     if not values:
         return None
@@ -228,37 +260,30 @@ def _percentile(values: Sequence[float], fraction: float) -> float | None:
     return ordered[min(len(ordered) - 1, int((len(ordered) - 1) * fraction))]
 
 
-def _create_judge_adapter() -> Any:
-    source_directory = str(ROOT / "src")
-    if source_directory not in sys.path:
-        sys.path.insert(0, source_directory)
-    if "dynamic_agent_runner" not in sys.modules:
-        package = types.ModuleType("dynamic_agent_runner")
-        package.__path__ = [str(ROOT / "src" / "dynamic_agent_runner")]
-        sys.modules["dynamic_agent_runner"] = package
-    from dynamic_agent_runner.openai_client import (
-        create_default_openai_provider,
-        create_openai_adapter,
+def _score_with_local_model(
+    generate: Any,
+    judge_model: Any,
+    judge_tokenizer: Any,
+    prompt: str,
+) -> str:
+    formatted_prompt = judge_tokenizer.apply_chat_template(
+        [{"role": "user", "content": prompt}],
+        tokenize=False,
+        add_generation_prompt=True,
     )
-
-    return create_openai_adapter(provider=create_default_openai_provider())
-
-
-def _score_with_adapter(judge_adapter: Any, prompt: str) -> str | None:
-    from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
-
-    request = build_openai_request(
-        model=SCORER_MODEL,
-        messages=[OpenAIMessage("user", prompt)],
-        max_output_tokens=64,
-        temperature=0,
+    return generate(
+        judge_model,
+        judge_tokenizer,
+        formatted_prompt,
+        temp=0,
+        max_tokens=10,
+        verbose=False,
     )
-    return judge_adapter.create_response(request).content
 
 
 def _verify_run_boundary(
     arguments: argparse.Namespace,
-) -> tuple[dict[str, Any], dict[str, Any], Any]:
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     root = ROOT
     runtime_lock_path = root / RUNTIME_LOCK_RELATIVE
     preflight_path = arguments.preflight
@@ -274,14 +299,6 @@ def _verify_run_boundary(
 
     runtime_executable = Path(preflight.get("runtime_executable", ""))
     verify_runtime(runtime_executable)
-    judge_adapter = _create_judge_adapter()
-    if judge_adapter.client.base_url.host != expected_approval["judge_endpoint_host"]:
-        raise ManualRunError("DAR OpenAI auth resolved to an unapproved judge endpoint")
-    available_judge_models = judge_adapter.list_supported_models()
-    if available_judge_models != tuple(expected_approval["available_judge_models"]):
-        raise ManualRunError("DAR OpenAI auth model catalog differs from the approved run")
-    if SCORER_MODEL not in available_judge_models:
-        raise ManualRunError("selected DMS-13 scorer is unavailable through DAR auth")
     arguments.model_cache.mkdir(parents=True, exist_ok=True)
     _check_current_host(arguments.model_cache)
     if _repository_revision(arguments.source_checkout) != VON_SOURCE_REVISION:
@@ -291,10 +308,14 @@ def _verify_run_boundary(
     scripts_directory = str(root / "scripts")
     if scripts_directory not in sys.path:
         sys.path.insert(0, scripts_directory)
-    return expected_approval, approval, judge_adapter
+    return expected_approval, approval, preflight
 
 
-def _load_pinned_models(arguments: argparse.Namespace) -> tuple[Any, Any, "VonTurnScorer", float, float, Any]:
+def _load_pinned_models(
+    arguments: argparse.Namespace,
+    *,
+    judge_model_path: Path,
+) -> tuple[Any, Any, "VonTurnScorer", float, float, float, Any, Any]:
     from huggingface_hub import snapshot_download
 
     answer_model_path = Path(
@@ -305,6 +326,7 @@ def _load_pinned_models(arguments: argparse.Namespace) -> tuple[Any, Any, "VonTu
         )
     )
     _verify_answer_snapshot(answer_model_path)
+    _verify_judge_snapshot(judge_model_path)
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
     import mlx.core as mx
@@ -313,6 +335,9 @@ def _load_pinned_models(arguments: argparse.Namespace) -> tuple[Any, Any, "VonTu
     answer_load_started = time.perf_counter()
     answer_model, answer_tokenizer = load(str(answer_model_path))
     answer_model_load_ms = (time.perf_counter() - answer_load_started) * 1000
+    judge_load_started = time.perf_counter()
+    judge_model, judge_tokenizer = load(str(judge_model_path))
+    judge_model_load_ms = (time.perf_counter() - judge_load_started) * 1000
 
     manual_directory = str(Path(__file__).resolve().parent)
     if manual_directory not in sys.path:
@@ -331,11 +356,20 @@ def _load_pinned_models(arguments: argparse.Namespace) -> tuple[Any, Any, "VonTu
         digit_split=digit_split,
         pack_sequence=von_backend._model.pack_sequence,
     )
-    return answer_model, answer_tokenizer, von_scorer, answer_model_load_ms, von_model_load_ms, (generate, mx)
+    return (
+        answer_model,
+        answer_tokenizer,
+        von_scorer,
+        answer_model_load_ms,
+        judge_model_load_ms,
+        von_model_load_ms,
+        (generate, mx),
+        (judge_model, judge_tokenizer),
+    )
 
 
 def run(arguments: argparse.Namespace) -> int:
-    expected_approval, approval, judge_adapter = _verify_run_boundary(arguments)
+    expected_approval, approval, preflight = _verify_run_boundary(arguments)
     approval_path = arguments.approval
     preflight_path = arguments.preflight
 
@@ -365,10 +399,16 @@ def run(arguments: argparse.Namespace) -> int:
         answer_tokenizer,
         von_scorer,
         answer_model_load_ms,
+        judge_model_load_ms,
         von_model_load_ms,
         model_functions,
-    ) = _load_pinned_models(arguments)
+        judge_model_parts,
+    ) = _load_pinned_models(
+        arguments,
+        judge_model_path=Path(preflight["scorer_model_snapshot_path"]),
+    )
     generate, mlx_core = model_functions
+    judge_model, judge_tokenizer = judge_model_parts
     def history_token_counter(history):
         return count_history_tokens(history, answer_tokenizer)
     compactor = RankedTurnCompactor(
@@ -408,7 +448,9 @@ def run(arguments: argparse.Namespace) -> int:
             question_id.endswith("_abs"),
         )
         judge_call_count += 1
-        content = _score_with_adapter(judge_adapter, prompt)
+        content = _score_with_local_model(
+            generate, judge_model, judge_tokenizer, prompt
+        )
         if not isinstance(content, str):
             raise ManualRunError("official judge returned an invalid label")
         return "yes" in content.lower()
@@ -440,8 +482,8 @@ def run(arguments: argparse.Namespace) -> int:
         accuracy_interval = paired_accuracy_bootstrap_interval(model_primary, recent_primary)
     else:
         accuracy_interval = None
-    if judge_call_count != expected_approval["expected_external_requests"]:
-        raise ManualRunError("actual judge request count differs from the approved run")
+    if judge_call_count != expected_approval["expected_local_judge_calls"]:
+        raise ManualRunError("actual local judge call count differs from the approved run")
     if von_scorer.scoring_calls != expected_approval["expected_von_turn_scores"]:
         raise ManualRunError("actual Von turn score count differs from the approved run")
     model_metrics = metrics["model_guided"][primary_budget]
@@ -492,12 +534,13 @@ def run(arguments: argparse.Namespace) -> int:
         "compactor": f"wfzyx/von@{VON_MODEL_REVISION}",
         "runtime_lock_sha256": RUNTIME_LOCK_SHA256,
         "model_load_ms": answer_model_load_ms,
+        "judge_model_load_ms": judge_model_load_ms,
         "von_model_load_ms": von_model_load_ms,
         "host_peak_rss_bytes": int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
         * (1 if sys.platform == "darwin" else 1024),
         "primary_accuracy_difference_ci_95": accuracy_interval,
         "acceptance": acceptance,
-        "scorer_requests": judge_call_count,
+        "local_judge_calls": judge_call_count,
         "von_turn_scores": von_scorer.scoring_calls,
         "mlx_peak_memory_bytes": mlx_core.get_peak_memory(),
         "latency_p50_p95_ms": {
