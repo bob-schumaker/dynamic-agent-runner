@@ -147,20 +147,21 @@ def test_dms13_judge_uses_local_mlx_in_process() -> None:
 
     model = object()
     tokenizer = FakeTokenizer()
+    sampler = object()
 
     assert SCORER_MODEL == (
         "mlx-community/Llama-3.1-8B-Instruct-4bit"
         "@90215b22ec18e72f623dde2ea7af4097025160e2"
     )
     assert _score_with_local_model(
-        fake_generate, model, tokenizer, "safe synthetic prompt"
+        fake_generate, model, tokenizer, "safe synthetic prompt", sampler
     ) == "Yes"
     assert calls == [
         (
             model,
             tokenizer,
             "<|user|>safe synthetic prompt<|assistant|>",
-            {"temp": 0, "max_tokens": 10, "verbose": False},
+            {"sampler": sampler, "max_tokens": 10, "verbose": False},
         )
     ]
 

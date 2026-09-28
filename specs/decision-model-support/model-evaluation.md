@@ -87,13 +87,14 @@ The local Llama scorer is pinned to
 `mlx-community/Llama-3.1-8B-Instruct-4bit@90215b22ec18e72f623dde2ea7af4097025160e2`;
 all eight files and digests are recorded in the manifest and preflight. Its
 model weights are 4,517,489,037 bytes under the Llama 3.1 Community License.
-The DMS-13 runtime lock does not include the OpenAI package. The first approved
-attempt stopped before evaluation because the lock omitted Von's Pydantic
-dependency; it made no benchmark inference or judge calls. The revised
-preflight passes with Pydantic pinned and binds the updated lock. The prior
-approval is retained as superseded in the receipt, and the revised receipt is
-pending approval. It binds zero remote judge calls and 4,500 in-process local
-judge calls.
+The DMS-13 runtime lock does not include the OpenAI package. After adding
+Von's Pydantic dependency, two approved attempts reached the first Qwen answer
+generation and stopped because MLX-LM 0.31.3 does not accept `temp=0`. Each
+attempt completed Von scoring for the first item's 273 turns, generated no
+answer tokens, and made zero judge calls. No benchmark data left the machine.
+The runner now passes MLX-LM's pinned greedy sampler to both Qwen and Llama.
+The corrected harness and refreshed preflight are bound in a new pending
+receipt; approval is needed again because the harness digest changed.
 
 The [pinned official evaluator](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/src/evaluation/evaluate_qa.py)
 supports GPT-4o, GPT-4o mini, and local Llama 3.1 70B behind an

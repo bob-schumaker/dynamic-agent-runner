@@ -660,9 +660,8 @@ thresholds, and 4,500 external scorer requests. The runner stopped before
 model-cache creation because the environment had no `OPENAI_API_KEY`. Von and
 LongMemEval checkouts matched their approved revisions. No model weights were
 downloaded, no inference ran, and no benchmark data was sent externally.
-Resume the same approved run when the credential is available. The absence of
-that credential is the only known execution blocker; DMS-13 remains
-incomplete.
+Resume the run after approval of the corrected harness receipt. That approval
+is the only remaining execution blocker; DMS-13 remains incomplete.
 
 The status audit reconciled the implementation gates in `tasks.md`, `spec.md`,
 `plan.md`, and the candidate table: DMS-04 and DMS-10 are explicit
@@ -683,7 +682,11 @@ Llama 3.1 Community License and a 4,517,489,037-byte weight file. Downloaded
 the complete snapshot to `/private/tmp/dms13-local-llama-judge-90215b22`; the
 runner and manifest pin SHA-256 for all eight repository files. The exact MLX
 runtime loaded this snapshot with Metal available; load-only peak MLX memory was
-4,517,406,216 bytes. No benchmark prompt or inference was run.
+4,517,406,216 bytes. The first approved attempt with the corrected Von runtime
+reached the first Qwen generation and exposed an MLX-LM API mismatch before
+answer tokens were generated; a second attempt confirmed the same failure. Each
+attempt scored only the first item's 273 conversation turns with Von and made
+zero judge calls. No benchmark data left the machine.
 
 The manual runner now scores with the pinned LongMemEval prompt using
 `mlx_lm.generate` in process, temperature 0, and a ten-token output cap. Snapshot
@@ -697,27 +700,27 @@ The revised Poetry lock SHA-256 is
 Validation:
 
 - RED: the local-generation fake first failed because `_score_with_local_model` did not exist; the bounded-hash fake then failed because `_sha256` required `read_bytes`.
-- GREEN: `poetry run pytest tests/test_context_compression_dms13_runner.py tests/test_context_compression_evaluation.py -q` — 22 passed.
+- GREEN: `poetry run pytest tests/test_context_compression_dms13_runner.py tests/test_context_compression_evaluation.py -q` — 22 passed after the greedy-sampler API correction.
 - `poetry run ruff check scripts/evaluate_context_compression.py tests/manual/run_context_compression_dms13.py tests/test_context_compression_dms13_runner.py` — passed.
 - Isolated runtime `poetry check --lock` — passed with existing Poetry metadata deprecation warnings.
 - Pinned-runtime package verification and load-only smoke for Qwen, Llama, and
   Von — passed; Metal is available and OpenAI is absent.
-- The regenerated run preflight binds the exact model snapshot and current
-harness/runtime, and remains `run_allowed: false` pending approval of the
-revised exact receipt. An initial approved attempt stopped before evaluation
-because the runtime lacked Von's Pydantic dependency; no benchmark prompts were
-processed and no judge calls occurred. After pinning Pydantic 2.13.5, the
-updated preflight and all three load-only checks passed. Its current manifest,
+- The corrected preflight binds the exact model snapshots and current
+harness/runtime, and remains `run_allowed: false` pending approval of the new
+receipt. Two approved attempts reached the first Qwen generation and stopped
+because the pinned MLX-LM API rejects `temp=0`; each scored the first item's
+273 turns with Von, generated no answer tokens, and made zero judge calls.
+The runner now passes `make_sampler(0)` to Qwen and Llama. Its revised manifest,
 preflight, harness, and runtime-lock SHA-256 values are
-`2937bc4b1ab6dbd6ec22793ad2d6066c5f5e404c68814c08499260497b420251`,
-`dd9b75cddc8bd1dd06b449ac44912edcec2940b088bca1ae48a51e20aa224040`,
-`f3154e44f487e7afd5dd9cf71fb20a95ce5b77d13773fe4b486be4bbbc3a97e1`, and
+`b4900e3430e828beeb1878afca4f289d24b7706a4dbd89ef9affb117242fb106`,
+`f6673608b44e797626feca737550277d7bffa0d0444219b93e6760d7b1144bf8`,
+`c704a34655fc2c1e73bbb9c8a2700a6e2896ca88bd5d7afb6e7a6bbdd63ec011`, and
 `6c2acc5c4ab2d93503348e70301e467ccae4e147e59fb770e25204e1624fe201`.
 
 The pending run receipt binds the local judge, 4,500 local calls, zero remote
-judge calls, and zero benchmark-data egress. The earlier approval is recorded
-as superseded; the revised receipt requires updated approval because its
-runtime lock and harness hashes changed. The local model is not the
+judge calls, and zero benchmark-data egress. Both failed attempts and the
+superseded approval are recorded in the receipt. The revised harness requires
+new approval because its digest changed. No external data was sent. The local model is not the
 LongMemEval authors' official Llama 3.1 70B server or GPT-4o scorer, so its
-results are exploratory and not directly comparable. No benchmark inference or
-judge call has occurred.
+results are exploratory and not directly comparable. The full matrix has not
+completed and no judge call has occurred.

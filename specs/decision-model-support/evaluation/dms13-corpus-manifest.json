@@ -173,7 +173,7 @@
       "transformers": "5.17.0"
     },
     "poetry_lock_sha256": "6c2acc5c4ab2d93503348e70301e467ccae4e147e59fb770e25204e1624fe201",
-    "preflight_status": "updated pinned runtime passes package, model-load, host, and Metal checks; revised exact run approval is pending; no benchmark inference has occurred",
+    "preflight_status": "Pydantic-enabled runtime and all model loads pass; corrected MLX-LM greedy sampler is pinned; revised exact run approval is pending after two failed attempts with zero judge calls.",
     "python": "3.14.7",
     "qwen_weights_cached": true,
     "run_preflight_receipt": "evaluation/preflight-dms13-run-2026-09-28.json",

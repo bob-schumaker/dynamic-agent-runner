@@ -266,6 +266,7 @@ def _score_with_local_model(
     judge_model: Any,
     judge_tokenizer: Any,
     prompt: str,
+    sampler: Any,
 ) -> str:
     formatted_prompt = judge_tokenizer.apply_chat_template(
         [{"role": "user", "content": prompt}],
@@ -276,7 +277,7 @@ def _score_with_local_model(
         judge_model,
         judge_tokenizer,
         formatted_prompt,
-        temp=0,
+        sampler=sampler,
         max_tokens=10,
         verbose=False,
     )
@@ -332,6 +333,7 @@ def _load_pinned_models(
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
     import mlx.core as mx
     from mlx_lm import generate, load
+    from mlx_lm.sample_utils import make_sampler
 
     answer_load_started = time.perf_counter()
     answer_model, answer_tokenizer = load(str(answer_model_path))
@@ -364,7 +366,7 @@ def _load_pinned_models(
         answer_model_load_ms,
         judge_model_load_ms,
         von_model_load_ms,
-        (generate, mx),
+        (generate, mx, make_sampler(0)),
         (judge_model, judge_tokenizer),
     )
 
@@ -408,7 +410,7 @@ def run(arguments: argparse.Namespace) -> int:
         arguments,
         judge_model_path=Path(preflight["scorer_model_snapshot_path"]),
     )
-    generate, mlx_core = model_functions
+    generate, mlx_core, sampler = model_functions
     judge_model, judge_tokenizer = judge_model_parts
     def history_token_counter(history):
         return count_history_tokens(history, answer_tokenizer)
@@ -431,7 +433,7 @@ def run(arguments: argparse.Namespace) -> int:
             answer_model,
             answer_tokenizer,
             prompt,
-            temp=0,
+            sampler=sampler,
             max_tokens=512,
             verbose=False,
         )
@@ -450,7 +452,7 @@ def run(arguments: argparse.Namespace) -> int:
         )
         judge_call_count += 1
         content = _score_with_local_model(
-            generate, judge_model, judge_tokenizer, prompt
+            generate, judge_model, judge_tokenizer, prompt, sampler
         )
         if not isinstance(content, str):
             raise ManualRunError("official judge returned an invalid label")

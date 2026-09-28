@@ -9,12 +9,12 @@
   "benchmark_manifest": "specs/decision-model-support/evaluation/dms13-corpus-manifest.json",
   "benchmark_model_weights_loaded": true,
   "blockers": [
-    "revised exact run approval for the Pydantic-enabled runtime is pending"
+    "revised exact run approval for the corrected greedy-sampler harness is pending"
   ],
   "candidate_run_approved": false,
   "compactor_model_revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
   "conversation_turns": 122462,
-  "created_at_utc": "2026-09-28T21:16:54.335476Z",
+  "created_at_utc": "2026-09-28T21:38:43.083538Z",
   "dataset_revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
   "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
   "execution_mode": "in-process MLX Qwen3 answerer and Llama 3.1 8B judge; CPU Von compactor; no model server",
@@ -29,7 +29,7 @@
     },
     {
       "path": "tests/manual/run_context_compression_dms13.py",
-      "sha256": "75013cc60a701aa75aa04b939b69d0086bdc603bbe0f4b2d607568df93a8835c"
+      "sha256": "4ba2270e935f66d46107c74a4c7c8b26e2bb239f13f286a3ea8f324e32fe1318"
     }
   ],
   "host": {
@@ -44,7 +44,7 @@
   "judge_data_egress": "none; all benchmark-derived judge prompts are processed locally",
   "judge_data_egress_checked_at_utc": "2026-09-28T20:51:34.244959+00:00",
   "longmemeval_source_revision": "9e0b455f4ef0e2ab8f2e582289761153549043fc",
-  "manifest_sha256": "2937bc4b1ab6dbd6ec22793ad2d6066c5f5e404c68814c08499260497b420251",
+  "manifest_sha256": "b4900e3430e828beeb1878afca4f289d24b7706a4dbd89ef9affb117242fb106",
   "metal_available": true,
   "official_scorer_sha256": "ecce9c4c79dc89d99534ac17b383a5cbb5b9f0c69ee98adaf0684742e3d95251",
   "package_versions_match_lock": true,
