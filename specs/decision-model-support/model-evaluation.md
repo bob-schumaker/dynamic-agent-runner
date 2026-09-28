@@ -66,15 +66,27 @@ manifest. Von failed DMS-01 and DMS-14 criteria; using it in this exploratory
 context-preservation comparison would not reverse those findings or admit a
 production profile.
 
-The repository's official answer judge uses either the remote
-`gpt-4o-2024-08-06` API or a local 70B Llama model behind an OpenAI-compatible
-HTTP endpoint. The API path sends questions, gold answers, and generated
-answers to an external service. The documented local path requires a server
-and a 70B model. Neither is approved or compatible with the selected direct
-local evaluation boundary as currently configured. The evaluator therefore
-does not yet have an approved answer-scoring method; settle and approve that
-choice before inference. Do not substitute exact match or a different judge
-without recording its limitations and receiving approval.
+The combined Python 3.14.7 runtime proposal pins Von's Torch/Transformers path,
+the Qwen MLX reader, and the scorer client in
+[`evaluation/dms13-runtime/`](evaluation/dms13-runtime/); its lock SHA-256 is
+`f490719fd8d20b7fb25dc5099732137353d8335e99e7cea275dd56affdb06aa5`. The lock
+resolves and passes `poetry check --lock`, but it has not been installed and
+the exact DMS13 Metal preflight remains outstanding. Neither local model uses
+a server in this proposal.
+
+The [pinned official evaluator](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/src/evaluation/evaluate_qa.py)
+supports `gpt-4o-2024-08-06`, `gpt-4o-mini-2024-07-18`, and local Llama 3.1 70B
+behind an OpenAI-compatible HTTP endpoint. It uses question-type-specific
+prompts, temperature 0, and a ten-token verdict; its label rule accepts any
+response containing `yes`. The [official README](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/README.md)
+uses GPT-4o in its evaluation command, so that is the recommended scorer for
+closest comparability. The pinned evaluator's source SHA-256 and scorer
+parameters are in the manifest. Each of the 4,500 planned judge calls sends the
+question, gold answer, and candidate answer to OpenAI. The evaluator would
+persist only boolean labels and aggregate metrics, never raw prompts or judge
+responses. This external data egress and the complete DMS13 run remain subject
+to user approval. The alternative local scorer requires a server and a 70B
+model, which does not fit this direct local run setup.
 
 Proposed primary budget is 32,768 history tokens. Proposed acceptance compares
 paired model-guided and recency outcomes over 10,000 question-type-stratified

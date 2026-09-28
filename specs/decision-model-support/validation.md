@@ -263,13 +263,21 @@ without loading model weights. Correct measurements using `input_ids` for all
 16,384, 32,768, and 65,536 budget; no complete prompt exceeds the 262,144
 context after reserving 512 generation tokens.
 
-The official LongMemEval judge options were inspected. The API option sends
-questions, gold answers, and candidate answers to an external service; the
-documented local option uses a 70B model behind an HTTP endpoint. No judge was
-selected or approved, and no inference or judging has run. Exact run approval
-remains outstanding. The proposed answerer, exploratory Von compactor, budgets,
-metrics, and unapproved thresholds are bound in the corpus manifest and
-`model-evaluation.md`.
+The pinned official LongMemEval evaluator registers GPT-4o
+(`gpt-4o-2024-08-06`), GPT-4o mini (`gpt-4o-mini-2024-07-18`), and local Llama
+3.1 70B behind an OpenAI-compatible endpoint. The proposed scorer is the
+documented GPT-4o command and question-type-specific prompt; this matches the
+published evaluation route most closely. Its 4,500 calls would send each
+question, gold answer, and candidate answer externally. The pinned scorer file
+SHA-256 is recorded in the manifest. This remains a proposal: no judge was
+approved, and no inference or judging has run. A combined direct-local Poetry
+runtime is pinned in `evaluation/dms13-runtime/`; `poetry lock` and
+`poetry check --lock` passed. Its lock SHA-256 is
+`f490719fd8d20b7fb25dc5099732137353d8335e99e7cea275dd56affdb06aa5`. The
+current command environment does not expose a Metal device to `mlx-lm`, so
+exact DMS13 hardware preflight and runtime installation remain outstanding.
+The proposed answerer, exploratory Von compactor, scorer, budgets, metrics,
+and thresholds are bound in the corpus manifest and `model-evaluation.md`.
 
 Added a benchmark-specific, callback-driven harness that removes questions,
 gold answers, and evidence annotations from compactor inputs; enforces matched

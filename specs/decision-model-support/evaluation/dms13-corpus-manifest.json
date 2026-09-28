@@ -8,9 +8,26 @@
     "official_scorer": "src/evaluation/evaluate_qa.py",
     "official_scorer_methods": [
       "OpenAI gpt-4o-2024-08-06 API",
+      "OpenAI gpt-4o-mini-2024-07-18 API",
       "local meta-llama/Meta-Llama-3.1-70B-Instruct behind OpenAI-compatible HTTP endpoint"
     ],
-    "scorer_method_note": "The official judge receives question, gold answer, and candidate answer; generation uses temperature 0 and max_tokens 10, and the script treats any response containing 'yes' as correct. The remote API sends benchmark text outside the host; the documented local method requires serving infrastructure and a 70B model. Neither method is approved for this DAR run."
+    "source_file_sha256": "ecce9c4c79dc89d99534ac17b383a5cbb5b9f0c69ee98adaf0684742e3d95251",
+    "scorer_method_note": "The pinned official evaluator registers GPT-4o, GPT-4o mini, and local Llama 3.1 70B. It uses question-type-specific official prompts, temperature 0, max_tokens 10, and treats any response containing 'yes' as correct. The two API options send question, gold answer, and candidate answer outside the host; the documented local option requires serving infrastructure and a 70B model.",
+    "proposed_scorer": {
+      "provider": "OpenAI API",
+      "model": "gpt-4o-2024-08-06",
+      "rationale": "Matches the official README evaluation command and provides the closest comparability to published LongMemEval scoring.",
+      "request_parameters": {
+        "n": 1,
+        "temperature": 0,
+        "max_tokens": 10
+      },
+      "label_rule": "case-insensitive substring 'yes' in the returned text",
+      "expected_requests": 4500,
+      "data_sent": ["question", "gold answer", "candidate answer"],
+      "persistence": "Persist only boolean labels and aggregate metrics; do not save scorer prompts or raw responses.",
+      "approval_status": "proposed; external data egress and the full run require user approval"
+    }
   },
   "dataset": {
     "repository": "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned",
@@ -80,6 +97,25 @@
     "max_input_tokens": 8192,
     "qualification": "DMS-01 and DMS-14 rejected this candidate against their separate decision-model criteria. Its use here is exploratory and cannot reverse those results or admit a production profile."
   },
+  "runtime_proposal": {
+    "runtime_directory": "evaluation/dms13-runtime",
+    "python": "3.14.7",
+    "poetry_lock_sha256": "f490719fd8d20b7fb25dc5099732137353d8335e99e7cea275dd56affdb06aa5",
+    "packages": {
+      "accelerate": "1.15.0",
+      "huggingface-hub": "1.32.0",
+      "mlx": "0.32.2",
+      "mlx-lm": "0.31.3",
+      "numpy": "2.5.3",
+      "openai": "2.54.0",
+      "tokenizers": "0.23.2",
+      "torch": "2.14.0",
+      "transformers": "5.17.0"
+    },
+    "boundary": "One in-process local runtime for Von CPU compaction and Qwen MLX reading; no local model server. The separate scorer, if approved, is the OpenAI API.",
+    "lock_validation": "poetry check --lock passed; runtime packages have not been installed from this lock and no model weights have been downloaded.",
+    "hardware_preflight": "pending; DMS-14 host evidence exists, but DMS-13 must verify the exact run profile and Metal availability before inference"
+  },
   "proposed_protocol": {
     "budgets_history_tokens": [8192, 16384, 32768, 65536],
     "conditions": ["full_history_when_it_fits", "recency_at_matched_budget", "model_guided_at_matched_budget"],
@@ -91,13 +127,13 @@
       "seed": 13,
       "paired_conditions": true
     },
-    "scoring": "Answer accuracy, evidence-turn recall, retained-token ratio, question-type and answerability breakdowns, and latency. Compare full history and matched-budget recency with model-guided compaction.",
+    "scoring": "Answer accuracy, evidence-turn recall, retained-token ratio, question-type and answerability breakdowns, and runtime/memory. Record cold load time; p50/p95 compaction, answer, and scorer latency; host peak RSS; and MLX peak memory where available. Compare full history and matched-budget recency with model-guided compaction.",
     "proposed_acceptance": {
       "primary_budget_noninferiority": "paired 95% CI lower bound for model-guided minus recency answer accuracy is greater than -0.03",
       "evidence_noninferiority": "model-guided evidence-turn recall is no more than 0.05 below recency",
       "minimum_improvement": "at least 0.05 improvement over recency in answer accuracy or evidence-turn recall at the primary budget",
       "full_history_reference": "report separately as the uncompressed reference; no admission threshold is assigned"
     },
-    "approval_status": "All protocol values are proposals. Exact scoring method and run configuration require user approval before any model inference."
+    "approval_status": "All protocol values are proposals. The proposed official GPT-4o scorer and exact run configuration require user approval before any model inference."
   }
 }

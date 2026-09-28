@@ -429,16 +429,21 @@ support is added.
   budgets using that answer model's tokenizer, reserve fixed prompt and question
   tokens from its context window, and report full-history cases that exceed its
   context window separately. Exact tokenizer measurements and proposed matched
-  budgets are recorded in the manifest.
+  budgets are recorded in the manifest. The combined direct-local runtime is
+  pinned in `evaluation/dms13-runtime/`; runtime installation and exact host
+  preflight remain prerequisites to the approved run. No local model server is
+  part of the profile.
 - [x] Define answer metrics, evidence-turn recall from the benchmark's released
   `has_answer` annotations, retained-token ratio, per-question-category
   reporting, and runtime/memory measurements. The official scorer options and
   their external-egress/server limitations are recorded. Keep questions, gold
   answers, and evidence annotations out of compactor inputs.
 - [ ] Select a reproducible answer-scoring method and obtain approval for the
-  exact scorer before inference. The official alternatives require external
-  answer data egress or a 70B local model behind an HTTP server; no alternative
-  is yet approved.
+  exact scorer before inference. The current proposal uses the pinned
+  official GPT-4o scorer and prompt; it sends questions, gold answers, and
+  candidate answers to the external API. The other official options are
+  GPT-4o mini or a 70B local model behind an HTTP server. No scorer is yet
+  approved.
 - [x] Propose context-preservation acceptance thresholds based on the selected
   downstream workflow risk and record the exact proposal in
   `evaluation/dms13-corpus-manifest.json`. These thresholds are separate from
