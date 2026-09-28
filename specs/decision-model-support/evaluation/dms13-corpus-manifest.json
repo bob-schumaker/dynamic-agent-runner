@@ -1,0 +1,103 @@
+{
+  "benchmark": "LongMemEval-S cleaned",
+  "status": "pinned for review; inference not approved",
+  "repository": {
+    "url": "https://github.com/xiaowu0162/LongMemEval",
+    "revision": "9e0b455f4ef0e2ab8f2e582289761153549043fc",
+    "license": "MIT",
+    "official_scorer": "src/evaluation/evaluate_qa.py",
+    "official_scorer_methods": [
+      "OpenAI gpt-4o-2024-08-06 API",
+      "local meta-llama/Meta-Llama-3.1-70B-Instruct behind OpenAI-compatible HTTP endpoint"
+    ],
+    "scorer_method_note": "The official judge receives question, gold answer, and candidate answer; generation uses temperature 0 and max_tokens 10, and the script treats any response containing 'yes' as correct. The remote API sends benchmark text outside the host; the documented local method requires serving infrastructure and a 70B model. Neither method is approved for this DAR run."
+  },
+  "dataset": {
+    "repository": "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned",
+    "revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
+    "file": "longmemeval_s_cleaned.json",
+    "size_bytes": 277383467,
+    "sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+    "license": "MIT",
+    "items": 500,
+    "abstention_items": 30,
+    "question_types": {
+      "knowledge-update": 78,
+      "multi-session": 133,
+      "single-session-assistant": 56,
+      "single-session-preference": 30,
+      "single-session-user": 70,
+      "temporal-reasoning": 133
+    },
+    "history_messages": 246750,
+    "annotation_policy": "has_answer evidence-turn annotations, questions, and gold answers are excluded from compactor input"
+  },
+  "answer_model_proposal": {
+    "repository": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+    "revision": "50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
+    "license": "Apache-2.0",
+    "weights_size_bytes": 2263022417,
+    "weights_sha256": "2a73c6c248601ab904e035548abd8e6abb65ea27dcb5f342fb0a8910eb44173f",
+    "max_context_tokens": 262144,
+    "reserved_generation_tokens": 512,
+    "generation": {
+      "temperature": 0,
+      "max_new_tokens": 512,
+      "thinking": false,
+      "system_prompt": "Answer the question using the conversation history. If the history does not contain the answer, say that it is unavailable."
+    },
+    "tokenizer_files": {
+      "tokenizer.json": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+      "tokenizer_config.json": "4397cc477eb6d79715ccd2000accd6b3531928f30029665832fa1b255f24d2b9",
+      "chat_template.jinja": "40c21f34cf67d8c760ef72f8ad3ae5afad514299d4b06e91dd9a8d705af7b541"
+    },
+    "token_measurements": {
+      "tokenizer": "the pinned model tokenizer with its chat template and enable_thinking=false",
+      "history_tokens_min_p50_p95_max": [112712, 120653, 123090, 125751],
+      "complete_prompt_tokens_min_p50_p95_max": [112767, 120714, 123142, 125810],
+      "histories_over_proposed_budgets": {
+        "8192": 500,
+        "16384": 500,
+        "32768": 500,
+        "65536": 500
+      },
+      "prompts_over_context_after_generation_reserve": 0
+    }
+  },
+  "compactor_proposal": {
+    "candidate": "Von 1.2.0",
+    "source": "https://github.com/wfzyx/von",
+    "source_revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54",
+    "model": "wfzyx/von@5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
+    "runtime_lock_sha256": "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41",
+    "runtime": {
+      "python": "3.14.7",
+      "torch": "2.14.0",
+      "transformers": "5.17.0",
+      "accelerate": "1.15.0",
+      "huggingface-hub": "1.32.0"
+    },
+    "max_input_tokens": 8192,
+    "qualification": "DMS-01 and DMS-14 rejected this candidate against their separate decision-model criteria. Its use here is exploratory and cannot reverse those results or admit a production profile."
+  },
+  "proposed_protocol": {
+    "budgets_history_tokens": [8192, 16384, 32768, 65536],
+    "conditions": ["full_history_when_it_fits", "recency_at_matched_budget", "model_guided_at_matched_budget"],
+    "primary_budget_history_tokens": 32768,
+    "bootstrap": {
+      "resamples": 10000,
+      "stratification": "question type",
+      "unit": "question ID",
+      "seed": 13,
+      "paired_conditions": true
+    },
+    "scoring": "Answer accuracy, evidence-turn recall, retained-token ratio, question-type and answerability breakdowns, and latency. Compare full history and matched-budget recency with model-guided compaction.",
+    "proposed_acceptance": {
+      "primary_budget_noninferiority": "paired 95% CI lower bound for model-guided minus recency answer accuracy is greater than -0.03",
+      "evidence_noninferiority": "model-guided evidence-turn recall is no more than 0.05 below recency",
+      "minimum_improvement": "at least 0.05 improvement over recency in answer accuracy or evidence-turn recall at the primary budget",
+      "full_history_reference": "report separately as the uncompressed reference; no admission threshold is assigned"
+    },
+    "approval_status": "All protocol values are proposals. Exact scoring method and run configuration require user approval before any model inference."
+  }
+}

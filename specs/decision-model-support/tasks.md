@@ -410,7 +410,7 @@ support is added.
 - Depends on: DMS-05 compaction behavior and the DMS-01 evaluation harness
   conventions. This track evaluates downstream preservation and does not
   change DMS-01's frozen synthetic fixtures or thresholds.
-- [ ] Review the official [LongMemEval paper](https://arxiv.org/abs/2410.10813)
+- [x] Review the official [LongMemEval paper](https://arxiv.org/abs/2410.10813)
   and [repository](https://github.com/xiaowu0162/LongMemEval); pin the cleaned
   LongMemEval-S data revision and digest, verify dataset license/usage terms,
   inspect its evidence-turn annotations and
@@ -418,31 +418,41 @@ support is added.
   LongMemEval-S is the initial benchmark because it contains long timestamped
   assistant/user histories and covers information extraction, multi-session
   reasoning, temporal reasoning, knowledge updates, and abstention. Do not
-  silently substitute a different benchmark revision.
-- [ ] Define the end-to-end comparison before any candidate output is
+  silently substitute a different benchmark revision. The pinned dataset,
+  digest, terms, annotations, and scorer limitations are recorded in
+  `evaluation/dms13-corpus-manifest.json`.
+- [x] Define the end-to-end comparison before any candidate output is
   inspected: replay each history using full history where it fits, deterministic
   recency at matched budgets, and the actual DAR model-guided message-selection
   compaction at those same budgets. Use one exact downstream answer model and
   answer-generation configuration for every condition. Define feasible token
   budgets using that answer model's tokenizer, reserve fixed prompt and question
   tokens from its context window, and report full-history cases that exceed its
-  context window separately.
-- [ ] Define answer scoring, evidence-turn recall from the benchmark's released
+  context window separately. Exact tokenizer measurements and proposed matched
+  budgets are recorded in the manifest.
+- [x] Define answer metrics, evidence-turn recall from the benchmark's released
   `has_answer` annotations, retained-token ratio, per-question-category
-  reporting, and runtime/memory measurements. Use the official scorer where
-  suitable; if it requires an external judge or incompatible runtime, resolve
-  and approve a reproducible alternative before inference. Keep questions,
-  gold answers, and evidence annotations out of compactor inputs.
-- [ ] Propose context-preservation acceptance thresholds based on the selected
-  downstream workflow risk, and obtain approval for the exact benchmark,
-  answer model, scoring method, and thresholds before model inference. These
-  thresholds are separate from the already-approved DMS-01 criteria; no
-  numeric DMS-13 pass bar is assumed by this task.
-- [ ] Add fake-only tests for benchmark loading/identity, history-only
+  reporting, and runtime/memory measurements. The official scorer options and
+  their external-egress/server limitations are recorded. Keep questions, gold
+  answers, and evidence annotations out of compactor inputs.
+- [ ] Select a reproducible answer-scoring method and obtain approval for the
+  exact scorer before inference. The official alternatives require external
+  answer data egress or a 70B local model behind an HTTP server; no alternative
+  is yet approved.
+- [x] Propose context-preservation acceptance thresholds based on the selected
+  downstream workflow risk and record the exact proposal in
+  `evaluation/dms13-corpus-manifest.json`. These thresholds are separate from
+  the already-approved DMS-01 criteria.
+- [ ] Obtain one run-level approval for the exact benchmark, answer model,
+  compactor, runtime, scorer, budgets, thresholds, and harness revision before
+  model inference. This approval is separate from DMS-01 and does not admit a
+  production profile.
+- [x] Add fake-only tests for benchmark loading/identity, history-only
   compactor inputs, gold/evidence isolation, matched answer-tokenizer budgets,
   baseline parity, scoring aggregation, and redacted receipts. Implement the
   narrow evaluation harness without adding a general benchmark framework or
-  invoking real models in unit tests.
+  invoking real models in unit tests. Focused fake tests cover these
+  boundaries; no model inference was performed.
 - [ ] After exact candidate-specific approval and passing preflight, run the
   approved model-guided compaction condition and baselines. Record exact
   dataset, answer model, compactor, runtime, scorer, budget, and harness
@@ -543,29 +553,35 @@ support is added.
 - Depends on: DMS-02 and the completed candidate-runner reviews in DMS-06,
   DMS-08, and DMS-14. DMS-12 may add later evidence but does not block this
   audit.
-- [ ] Review the candidate inference paths and separate repeated contract
+- [x] Review the candidate inference paths and separate repeated contract
   translation from evaluation-only pinning, preflight, and artifact checks.
   Record the actual backends and duplicated logic in `validation.md`. Consider
   mapping option-ID keyed scores into request-ordered result items, but select
   a helper only if the same translation is repeated across at least two
   reviewed backends and is not already handled by contract validation. Record
-  a no-change disposition when no such helper is demonstrated.
-- [ ] **RED:** For each selected helper, add focused tests to
-  `tests/test_decision_models.py` for declared option ordering, missing and
-  unknown option IDs, invalid scores, explicit score semantics, and calibration
-  evidence where applicable. Confirm the tests fail before implementation.
-- [ ] **GREEN:** Implement only the runtime-neutral translation proven by the
-  audit in `src/dynamic_agent_runner/decision_models.py`. Keep model loading,
-  vendor-specific request encoding/tokenization, calibration fitting, and score
-  interpretation inside each adapter. Reuse existing contract validation;
-  preserve the current adapter protocol and result semantics. Decide and record
-  whether the helper is internal or caller-facing; a public export requires
-  updating `src/dynamic_agent_runner/__init__.py` and
-  `docs/files/python-api.rst`.
-- [ ] Add a short fake-adapter example and record the selected helper or
+  a no-change disposition when no such helper is demonstrated. The completed
+  audit found only backend-specific evaluation translations; the shared
+  contract already enforces runtime-neutral result invariants. No helper was
+  selected. See the DMS-15 audit in `validation.md`.
+- [x] **RED:** No helper was selected, so no helper tests apply. If a future
+  audit selects one, add focused tests to `tests/test_decision_models.py` for
+  declared option ordering, missing and unknown option IDs, invalid scores,
+  explicit score semantics, and calibration evidence where applicable; confirm
+  failure before implementation.
+- [x] **GREEN:** No helper was selected, so no source/API change applies. If a
+  future audit selects one, implement only the runtime-neutral translation
+  proven by that audit in `src/dynamic_agent_runner/decision_models.py`. Keep
+  model loading, vendor-specific request encoding/tokenization, calibration
+  fitting, and score interpretation inside each adapter. Reuse existing
+  contract validation and preserve the adapter protocol and result semantics.
+  Record whether it is internal or caller-facing; public API requires updating
+  `src/dynamic_agent_runner/__init__.py` and `docs/files/python-api.rst`.
+- [x] Add a short fake-adapter example and record the selected helper or
   no-change evidence in `validation.md`. If implemented, exercise the helper
-  with fakes representing at least two of the audited scoring styles.
-- [ ] If source changes, run
+  with fakes representing at least two of the audited scoring styles. The
+  no-change example uses the existing contract and result validator.
+- [x] If source changes, run
   `poetry run pytest tests/test_decision_models.py -q`, the worktree-authoritative
   full test command recorded under DMS-07, and `poetry run ruff check src tests`.
-  For a no-code outcome, record the audit and run `git diff --check` only.
+  For this no-code outcome, the audit is recorded and `git diff --check` passed;
+  tests and Ruff were not applicable.

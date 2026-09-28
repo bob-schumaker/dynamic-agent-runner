@@ -207,6 +207,91 @@ stopped, DMS-10 remains deferred, and DMS-12/DMS-13 retain their separate
 approval and benchmark gates. `git diff --check` passed. No tests were run
 because this review changed planning artifacts only.
 
+## DMS-15 Reusable Adapter Helper Audit — 2026-09-27
+
+Reviewed the completed candidate inference paths in `tests/manual/` and
+`run_dms14_transfer.py`. Kev emits its own choice/probability shape; Von exposes
+rounded probabilities and has candidate-specific rounding repair; PoorJev
+returns probabilities keyed by generated hypothesis text that must be mapped
+back to option IDs; LitJev and Jev-Style expose different answer objects and
+probability tolerances; Laya-MLX returns a different mapping and needs its own
+normalization tolerance. Those translations are evaluation-harness code, not
+DAR runtime adapters, and their differences carry backend-specific meaning.
+
+The production boundary is currently the fake-adapter contract. It already
+requires request-ordered question results, exact declared option IDs, finite
+scores, explicit `DecisionScoreSemantics`, and valid probability semantics
+where claimed. The reviewed candidate profiles were rejected or deferred by
+their separate gates, so the repository has no admitted backend adapter whose
+contract translation can establish cross-backend production reuse. A generic
+score-mapping helper would either duplicate `validate_decision_result` or
+incorrectly absorb model-specific extraction, normalization, or calibration.
+**Disposition: no new helper is justified.**
+
+The existing fake-adapter contract can be exercised without any backend helper:
+
+```python
+class FakeAdapter:
+    def __init__(self, identity):
+        self.identity = identity
+
+    def decide(self, request):
+        question = request.questions[0]
+        return DecisionModelResult(
+            self.identity,
+            (DecisionModelResultItem(question.id, choice=question.options[0].id),),
+        )
+```
+
+This example returns the declared option ID; the caller then applies the
+existing `validate_decision_result` contract. No RED/GREEN helper tests or
+public API/documentation changes apply because the audit selected no helper.
+`git diff --check` passed; no code tests were run because the audit changed
+planning and validation notes only.
+
+## DMS-13 LongMemEval-S Setup and Fake Harness — 2026-09-27
+
+Pinned the cleaned LongMemEval-S dataset and source repository revisions in
+`evaluation/dms13-corpus-manifest.json`. The downloaded dataset outside the
+repository matched the recorded SHA-256 and loaded as 500 unique items, six
+question types, 30 abstention cases, and 246,750 history messages. The exact
+Qwen3-4B reader tokenizer and chat template were loaded from pinned local files
+without loading model weights. Correct measurements using `input_ids` for all
+500 items found history token counts min/p50/p95/max of 112,712/120,653/
+123,090/125,751 and complete reader-prompt counts of
+112,767/120,714/123,142/125,810. Every history exceeds each proposed 8,192,
+16,384, 32,768, and 65,536 budget; no complete prompt exceeds the 262,144
+context after reserving 512 generation tokens.
+
+The official LongMemEval judge options were inspected. The API option sends
+questions, gold answers, and candidate answers to an external service; the
+documented local option uses a 70B model behind an HTTP endpoint. No judge was
+selected or approved, and no inference or judging has run. Exact run approval
+remains outstanding. The proposed answerer, exploratory Von compactor, budgets,
+metrics, and unapproved thresholds are bound in the corpus manifest and
+`model-evaluation.md`.
+
+Added a benchmark-specific, callback-driven harness that removes questions,
+gold answers, and evidence annotations from compactor inputs; enforces matched
+token budgets and selection ordering; skips answer/scorer calls on context
+overflow; computes category/answerability metrics and paired stratified
+bootstrap intervals; and writes fixed-schema redacted prediction records.
+Validation:
+
+- `poetry run pytest tests/test_context_compression_evaluation.py -q`: 10
+  passed.
+- `poetry run ruff check scripts/evaluate_context_compression.py tests/test_context_compression_evaluation.py`: passed.
+- `python -m json.tool specs/decision-model-support/evaluation/dms13-corpus-manifest.json`: passed.
+- `git diff --check`: passed.
+- DMS-07 authoritative full suite,
+  `PYTHONPATH=src:/private/tmp/dms06-von-source/.venv/lib/python3.14/site-packages poetry run pytest -q`:
+  2,942 passed, 4 skipped, 0 failed, and 7 deselected.
+- `poetry run ruff check src tests scripts`: passed.
+
+No model weights were downloaded and no model inference or external judge call
+was performed. DMS-13 remains comparative evaluation only; it cannot admit a
+production profile or change DMS-01 decisions.
+
 ## DMS-12 Jev-Style 0.8B v3 Candidate Preparation — 2026-09-27
 
 Screened the 8-bit MLX build from the referenced local-options review and

@@ -17,14 +17,16 @@ runtime are pinned below for a possible frozen-fixture comparison. No weights
 have been downloaded and no DMS inference has been run; it is not yet accepted,
 rejected, or recommended for production.
 
-A separate DMS-13 track is planned to measure end-to-end context preservation
-on the official LongMemEval-S benchmark. It will compare full history,
-deterministic recency, and model-guided message retention with a shared
-downstream answer model and matched answer-model-tokenizer history budgets,
-reserving prompt/question tokens from the reader context window. This track
-has not been run; dataset/runtime/scoring pins and acceptance thresholds still
-require review and approval. It does not change the frozen synthetic DMS-01
-criteria or any recorded candidate result.
+A separate DMS-13 track is being prepared to measure end-to-end context
+preservation on the official LongMemEval-S benchmark. It will compare full
+history, deterministic recency, and model-guided message retention with a
+shared downstream answer model and matched answer-model-tokenizer history
+budgets. Its exact proposal and token measurements are in
+[`evaluation/dms13-corpus-manifest.json`](evaluation/dms13-corpus-manifest.json).
+No DMS-13 model inference or judging has run. The user must approve the exact
+scoring method, candidate pairing, and proposed thresholds before inference.
+This track does not change the frozen synthetic DMS-01 criteria or any
+recorded candidate result.
 
 The user approved the fixture hashes, acceptance thresholds, and retention
 utility definition below on 2026-09-26, before candidate output was inspected.
@@ -34,6 +36,54 @@ covers additional local model projects and training approaches. It informed
 candidate discovery; each candidate-specific comparison still requires an
 exact artifact, scoped approval, and preflight. The approved DMS-06 alternative
 results are recorded below.
+
+## DMS-13 LongMemEval-S context-preservation proposal
+
+The corpus is pinned to cleaned LongMemEval-S revision
+`98d7416c24c778c2fee6e6f3006e7a073259d48f`; its 277,383,467-byte JSON file
+matches SHA-256
+`d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442`.
+The source repository is pinned at
+`9e0b455f4ef0e2ab8f2e582289761153549043fc`; both publish MIT terms. The
+corpus contains 500 questions, 30 abstention cases, six question types, and
+246,750 history messages. Questions, answers, and `has_answer` evidence labels
+are removed before any compactor call.
+
+The proposed reader is
+`mlx-community/Qwen3-4B-Instruct-2507-4bit@50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b`,
+with its pinned tokenizer/chat template, temperature 0, no thinking, and a
+512-token answer reserve. Exact tokenizer measurement across all items found
+history lengths min/p50/p95/max of 112,712/120,653/123,090/125,751 tokens and
+complete prompt lengths of 112,767/120,714/123,142/125,810. All prompts fit
+the declared 262,144-token context with the reserve. Proposed retained-history
+budgets are 8,192, 16,384, 32,768, and 65,536 tokens; all source histories
+exceed these budgets, so recency and model-guided conditions can be compared
+at each matched budget.
+
+The proposed compactor is the already evaluated local Von 1.2.0 profile, with
+source, model, runtime lock, and runtime package versions pinned in the
+manifest. Von failed DMS-01 and DMS-14 criteria; using it in this exploratory
+context-preservation comparison would not reverse those findings or admit a
+production profile.
+
+The repository's official answer judge uses either the remote
+`gpt-4o-2024-08-06` API or a local 70B Llama model behind an OpenAI-compatible
+HTTP endpoint. The API path sends questions, gold answers, and generated
+answers to an external service. The documented local path requires a server
+and a 70B model. Neither is approved or compatible with the selected direct
+local evaluation boundary as currently configured. The evaluator therefore
+does not yet have an approved answer-scoring method; settle and approve that
+choice before inference. Do not substitute exact match or a different judge
+without recording its limitations and receiving approval.
+
+Proposed primary budget is 32,768 history tokens. Proposed acceptance compares
+paired model-guided and recency outcomes over 10,000 question-type-stratified
+bootstrap samples (seed 13): answer-accuracy noninferiority requires the
+95-percent interval's lower bound to exceed -0.03; evidence-turn recall may
+not be more than 0.05 below recency; and at least one of answer accuracy or
+evidence-turn recall must improve by 0.05 at the primary budget. These values
+are unapproved proposals. DMS-13 remains blocked from inference until the
+scorer, exact run pairing, thresholds, and harness revision are approved.
 
 ## Host and DAR fit
 
