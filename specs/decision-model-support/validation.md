@@ -621,3 +621,26 @@ inference, with no Laya server implementation.
   inference runs were performed as part of this readiness review.
 
 This plan is ready to execute under its stated gates.
+
+## DMS-12 Jev-Style Run and DMS-13 Approved Attempt — 2026-09-28
+
+DMS-12's post-approval preflight passed with the pinned Python 3.14.6 runtime,
+installed MLX 0.32.2 packages, and Metal available. The first model load
+stopped at the upstream manifest check because the runner's download allowlist
+omitted the manifest-required `NOTICE`. Added that exact pinned file to the
+download allowlist and artifact digest map, regenerated preflight, and reran.
+The approved Jev-Style checkpoint then completed all 240 frozen cases; its
+aggregate metrics fail the DMS-01 decision and retention quality gates. The
+aggregate receipt, redacted predictions, tokenizer counts, and measurements
+are recorded under `evaluation/jevstyle-dms12-*` and summarized in
+`model-evaluation.md`.
+
+DMS-13's exact user approval receipt matched the passing run-specific
+preflight, manifest, harness, runtime lock, source revisions, model artifacts,
+thresholds, and 4,500 external scorer requests. The runner stopped before
+model-cache creation because the environment had no `OPENAI_API_KEY`. Von and
+LongMemEval checkouts matched their approved revisions. No model weights were
+downloaded, no inference ran, and no benchmark data was sent externally.
+Resume the same approved run when the credential is available. The absence of
+that credential is the only known execution blocker; DMS-13 remains
+incomplete.

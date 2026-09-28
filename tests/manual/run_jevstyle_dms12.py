@@ -28,6 +28,7 @@ BASE_MODEL_REVISION = "dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68"
 RUNTIME_FILE_SHA256 = "e3ba700043d764f0fe50931cc3524d8329552bf4f4187f411671fd323e363acf"
 EXPECTED_MODEL_FILES = {
     "8bit/model.safetensors": "36890afff7a9da5b7228d81cd79434088267bd250c9eafab14539e6a5161a5fe",
+    "NOTICE": "904080b91d63823afc510a45332e7cd28c1ff517b8ca5937502cded42d1d359b",
     "8bit/config.json": "5cfb0922af6406668fc828adc5630b9a5606d46bb31b7a6b2262c3d0674ae419",
     "8bit/tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
     "8bit/tokenizer_config.json": "95c557768e6b88a7128befc7bfd3c7de50e5d51af9b8b33a9f4dee0e04f99679",
@@ -328,7 +329,7 @@ def _load_agent(model_directory: Path) -> Any:
     model_path = Path(snapshot_download(
         repo_id=MODEL_ID, revision=MODEL_REVISION, local_dir=str(model_directory),
         allow_patterns=["manifest.json", "jev_style_decision_mlx.py", "readout_config.json",
-                        "release_config.json", "requirements.txt", "LICENSE", "8bit/*"],
+                        "release_config.json", "requirements.txt", "LICENSE", "NOTICE", "8bit/*"],
     ))
     for filename, expected in EXPECTED_MODEL_FILES.items():
         path = model_path / filename

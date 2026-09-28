@@ -397,13 +397,15 @@ support is added.
   in-process runtime directly; do not start or add a model server.
 - [x] Add an isolated Poetry runtime at
   `specs/decision-model-support/evaluation/jevstyle-mlx-runtime/`. Record its
-  exact package lock and dated preflight. The preflight confirms the frozen
-  fixture, pinned model/runtime files, 36 GiB RAM, 70 GiB free storage, and
-  Metal availability; it blocks only because candidate-specific run approval
-  is absent. No model weights have been downloaded.
-- [ ] Obtain separate approval for the exact Jev-Style source/model/runtime
-  pairing, regenerate a passing preflight, then run and record the frozen
-  DMS-01 metrics and accept/reject/defer decision.
+  exact package lock and dated preflight. After approval, regenerate a passing
+  preflight that confirms the frozen fixture, pinned model/runtime files,
+  available storage, and Metal availability.
+- [x] Obtain approval for the exact Jev-Style source/model/runtime pairing,
+  run all frozen DMS-01 cases, and record aggregate metrics and the
+  accept/reject/defer decision. Jev-Style completed 240 cases with no run
+  failures but did not pass the frozen quality thresholds; see the receipt and
+  result in `model-evaluation.md`. The runner now downloads and verifies the
+  checkpoint's required `NOTICE` file as well as the pinned model artifacts.
 
 ## DMS-13 End-to-End Context Compression Evaluation
 
@@ -438,20 +440,20 @@ support is added.
   reporting, and runtime/memory measurements. The official scorer options and
   their external-egress/server limitations are recorded. Keep questions, gold
   answers, and evidence annotations out of compactor inputs.
-- [ ] Select a reproducible answer-scoring method and obtain approval for the
-  exact scorer before inference. The current proposal uses the pinned
-  official GPT-4o scorer and prompt; it sends questions, gold answers, and
-  candidate answers to the external API. The other official options are
-  GPT-4o mini or a 70B local model behind an HTTP server. No scorer is yet
-  approved.
+- [x] Select a reproducible answer-scoring method and obtain approval for the
+  exact scorer before inference. The selected method is the pinned official
+  GPT-4o scorer and prompt; it sends questions, gold answers, and candidate
+  answers to the external API. The exact scorer and external fields are bound
+  in the run approval receipt.
 - [x] Propose context-preservation acceptance thresholds based on the selected
   downstream workflow risk and record the exact proposal in
   `evaluation/dms13-corpus-manifest.json`. These thresholds are separate from
   the already-approved DMS-01 criteria.
-- [ ] Obtain one run-level approval for the exact benchmark, answer model,
+- [x] Obtain one run-level approval for the exact benchmark, answer model,
   compactor, runtime, scorer, budgets, thresholds, and harness revision before
   model inference. This approval is separate from DMS-01 and does not admit a
-  production profile.
+  production profile; the exact receipt is
+  `evaluation/dms13-run-approval-2026-09-28.json`.
 - [x] Add fake-only tests for benchmark loading/identity, history-only
   compactor inputs, gold/evidence isolation, matched answer-tokenizer budgets,
   baseline parity, scoring aggregation, and redacted receipts. Implement the
@@ -460,11 +462,13 @@ support is added.
   `tests/manual/run_context_compression_dms13.py`; fake tests cover its
   question-blind Von scoring, exact packed-input limit, approval binding, and
   refusal before model-cache creation. No model inference was performed.
-- [ ] After exact candidate-specific approval and passing preflight, run the
-  approved model-guided compaction condition and baselines. Record exact
-  dataset, answer model, compactor, runtime, scorer, budget, and harness
-  revisions; publish aggregate metrics and disposition in `model-evaluation.md`.
-  Do not infer DMS-01 passage or production admission from this track.
+- [ ] Run the approved model-guided compaction condition and baselines.
+  Approval and preflight passed, but execution stopped before download or
+  inference because `OPENAI_API_KEY` is unavailable in the execution
+  environment. Resume with the same bound run after credentials are available;
+  record exact revisions, aggregate metrics, and disposition in
+  `model-evaluation.md`. Do not infer DMS-01 passage or production admission
+  from this track.
 
 ## DMS-14 Published General Decision Transfer and Mac Runtime Comparison
 

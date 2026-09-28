@@ -2,31 +2,30 @@
 
 Status: **DMS-01 evaluated; no candidate recommended.** Kev-0.6B completed the
 approved synthetic evaluation and failed the decision and retention quality
-thresholds. Kev-0.8B and the approved DMS-06 runs for Von, PoorJev, and LitJev
-also failed one or more quality gates; NanoJev remains deferred. No
-production model is admitted.
+thresholds. Kev-0.8B, Jev-Style 0.8B v3, and the approved DMS-06 runs for Von,
+PoorJev, and LitJev also failed one or more quality gates; NanoJev remains
+deferred. No production model is admitted.
 The original Qwen candidate cohort is local-only. Server-backed Laya
 integration remains external-client-owned. Laya-MLX is a separate direct,
 in-process local candidate under DMS-08. Its approved frozen-fixture run failed
 the decision and retention quality thresholds; no Laya-MLX profile is admitted
 or recommended.
 
-Follow-on discovery identified Jev-Style 0.8B v3 as a compact direct-local
-candidate from the referenced Jev-style review. Its 8-bit MLX checkpoint and
-runtime are pinned below for a possible frozen-fixture comparison. No weights
-have been downloaded and no DMS inference has been run; it is not yet accepted,
-rejected, or recommended for production.
+Jev-Style 0.8B v3 completed its approved DMS-01 frozen-fixture evaluation. It
+failed the decision and retention gates, so it is rejected for the current
+criteria and is not recommended for production. The run used the pinned 8-bit
+MLX checkpoint and isolated runtime; detailed metrics and receipts are below.
 
-A separate DMS-13 track is being prepared to measure end-to-end context
-preservation on the official LongMemEval-S benchmark. It will compare full
-history, deterministic recency, and model-guided message retention with a
-shared downstream answer model and matched answer-model-tokenizer history
-budgets. Its exact proposal and token measurements are in
+A separate DMS-13 track measures end-to-end context preservation on the
+official LongMemEval-S benchmark. It compares full history, deterministic
+recency, and model-guided message retention with a shared downstream answer
+model and matched answer-model-tokenizer history budgets. Its exact proposal
+and token measurements are in
 [`evaluation/dms13-corpus-manifest.json`](evaluation/dms13-corpus-manifest.json).
-No DMS-13 model inference or judging has run. The user must approve the exact
-scoring method, candidate pairing, and proposed thresholds before inference.
-This track does not change the frozen synthetic DMS-01 criteria or any
-recorded candidate result.
+The user approved the exact scorer, run configuration, and thresholds, but the
+attempt stopped before model download or inference because
+`OPENAI_API_KEY` was unavailable. DMS-13 remains incomplete and does not change
+the frozen synthetic DMS-01 criteria or any recorded candidate result.
 
 The user approved the fixture hashes, acceptance thresholds, and retention
 utility definition below on 2026-09-26, before candidate output was inspected.
@@ -655,6 +654,42 @@ macro accuracy and 0.250 MMLU result make it the latency-first option only.
 Since no candidate meets both thresholds, this is a comparative ranking, not
 a production recommendation or DAR profile admission. DMS-14 does not measure
 context-preservation quality and does not reverse DMS-01 or DMS-08 decisions.
+
+## DMS-12 Jev-Style 0.8B v3 result
+
+The approved run used `chaoliangUNSW/Jev-Style-0.8B-Decision-v3-MLX` at
+`1235ccd1c95d5228a07616cd7e323c9e0532c1dc`, its Qwen3.5-0.8B base at
+`dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68`, the isolated Python 3.14.6 / MLX
+0.32.2 runtime, and Metal. It completed all 240 frozen cases with zero failed
+rows and no OOM. Decision accuracy was **0.84** (95% Wilson interval
+0.783–0.884), below the frozen decision threshold. At the matched 50% token
+budget, retention utility was **0.477**, a **+0.168** improvement over
+recency; model token-weighted keep recall was 0.485. Retention F1 was 0.548
+and keep recall was 0.500. The decision and retention quality gates both
+failed; calibration remains unverified for DMS despite the checkpoint's
+shipped global temperature. Peak RSS was 1.16 GB, cold load 2.96 s, and warm
+latency p50/p95 was 43/189 ms. The candidate is rejected under current DMS-01
+criteria, with no production admission.
+
+The aggregate-only receipt is
+[`evaluation/jevstyle-dms12-receipt.json`](evaluation/jevstyle-dms12-receipt.json);
+redacted predictions, tokenizer counts, and measurements are stored alongside
+it. The run-specific preflight is
+[`evaluation/preflight-jevstyle-dms12-2026-09-28.json`](evaluation/preflight-jevstyle-dms12-2026-09-28.json).
+The runner downloads the checkpoint's `NOTICE` because its own manifest
+integrity check requires it; that pinned file was added to the artifact digest
+checks.
+
+## DMS-13 approved run attempt
+
+The user approved the exact pinned LongMemEval-S, Von compactor, Qwen reader,
+GPT-4o scorer, runtime, thresholds, and 4,500 external requests. The approval
+receipt is
+[`evaluation/dms13-run-approval-2026-09-28.json`](evaluation/dms13-run-approval-2026-09-28.json),
+and the run-specific host/runtime preflight passed. The runner then stopped
+before cache download or model inference because `OPENAI_API_KEY` was not
+available. No benchmark content was sent to OpenAI. DMS-13 remains incomplete;
+resume the same exact approved run when the credential is available.
 
 The complete receipt, evaluation, matrix receipt, per-candidate redacted
 predictions, and measurements are in
