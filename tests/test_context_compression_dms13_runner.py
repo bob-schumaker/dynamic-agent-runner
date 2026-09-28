@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -7,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "manual"))
 
-from run_context_compression_dms13 import ManualRunError, VonTurnScorer, verify_run_approval, get_official_judge_prompt
+from run_context_compression_dms13 import ManualRunError, VonTurnScorer, get_official_judge_prompt, run, verify_preflight, verify_run_approval
 
 
 class _Tokenizer:
@@ -86,6 +88,22 @@ def test_von_turn_scorer_rejects_input_over_candidate_limit_before_inference() -
     assert backend.calls == []
 
 
+def test_von_turn_scorer_checks_the_packed_prompt_length() -> None:
+    backend = _Backend()
+    tokenizer = _Tokenizer(count=8193)
+    scorer = VonTurnScorer(
+        backend=backend,
+        choice_factory=_choice_factory,
+        tokenizer=tokenizer,
+        pack_sequence=lambda state, question, options: f"{question} {state} {' '.join(options)}",
+    )
+
+    with pytest.raises(ManualRunError, match="input limit"):
+        scorer([{"id": "q:0:s:0", "role": "user", "content": "short"}])
+
+    assert backend.calls == []
+
+
 def test_official_judge_prompt_uses_pinned_type_and_abstention_rules() -> None:
     prompts = []
 
@@ -121,3 +139,52 @@ def test_run_approval_must_bind_all_pinned_run_artifacts() -> None:
 
     with pytest.raises(ManualRunError, match="approval"):
         verify_run_approval({"approved": True} | (expected | {"harness_sha256": "0" * 64}), expected=expected)
+
+
+def test_manual_run_refuses_missing_approval_before_creating_model_cache(tmp_path) -> None:
+    model_cache = tmp_path / "models"
+    arguments = argparse.Namespace(
+        preflight=Path(__file__).resolve().parents[1]
+        / "specs"
+        / "decision-model-support"
+        / "evaluation"
+        / "preflight-dms13-2026-09-27.json",
+        approval=tmp_path / "missing-approval.json",
+        model_cache=model_cache,
+        source_checkout=tmp_path / "not-used-source",
+        longmemeval_source=tmp_path / "not-used-benchmark",
+        dataset=tmp_path / "not-used-dataset.json",
+        output_dir=tmp_path / "not-used-output",
+    )
+
+    with pytest.raises(ManualRunError, match="approval"):
+        run(arguments)
+
+    assert not model_cache.exists()
+
+
+def test_run_preflight_binds_current_manifest_harness_and_artifacts() -> None:
+    root = Path(__file__).resolve().parents[1]
+    preflight_path = (
+        root
+        / "specs"
+        / "decision-model-support"
+        / "evaluation"
+        / "preflight-dms13-run-2026-09-28.json"
+    )
+    receipt = json.loads(preflight_path.read_text(encoding="utf-8"))
+    runtime_lock = (
+        root
+        / "specs"
+        / "decision-model-support"
+        / "evaluation"
+        / "dms13-runtime"
+        / "poetry.lock"
+    )
+
+    verify_preflight(receipt, runtime_lock_path=runtime_lock, root=root)
+
+    altered = dict(receipt)
+    altered["manifest_sha256"] = "0" * 64
+    with pytest.raises(ManualRunError, match="manifest digest"):
+        verify_preflight(altered, runtime_lock_path=runtime_lock, root=root)

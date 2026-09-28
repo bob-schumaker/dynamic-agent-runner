@@ -431,7 +431,7 @@ support is added.
   context window separately. Exact tokenizer measurements and proposed matched
   budgets are recorded in the manifest. The combined direct-local runtime is
   pinned and installed in `/private/tmp/dms13-py-venvs`; exact host preflight
-  passed and is recorded in `evaluation/preflight-dms13-2026-09-27.json`. No
+  passed and is recorded in `evaluation/preflight-dms13-run-2026-09-28.json`. No
   local model server is part of the profile.
 - [x] Define answer metrics, evidence-turn recall from the benchmark's released
   `has_answer` annotations, retained-token ratio, per-question-category
@@ -456,8 +456,10 @@ support is added.
   compactor inputs, gold/evidence isolation, matched answer-tokenizer budgets,
   baseline parity, scoring aggregation, and redacted receipts. Implement the
   narrow evaluation harness without adding a general benchmark framework or
-  invoking real models in unit tests. Focused fake tests cover these
-  boundaries; no model inference was performed.
+  invoking real models in unit tests. The executable candidate path is
+  `tests/manual/run_context_compression_dms13.py`; fake tests cover its
+  question-blind Von scoring, exact packed-input limit, approval binding, and
+  refusal before model-cache creation. No model inference was performed.
 - [ ] After exact candidate-specific approval and passing preflight, run the
   approved model-guided compaction condition and baselines. Record exact
   dataset, answer model, compactor, runtime, scorer, budget, and harness

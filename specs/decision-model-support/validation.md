@@ -271,18 +271,20 @@ published evaluation route most closely. Its 4,500 calls would send each
 question, gold answer, and candidate answer externally. The pinned scorer file
 SHA-256 is recorded in the manifest. This remains a proposal: no judge was
 approved, and no inference or judging has run. A combined direct-local Poetry
-approved, and no inference or judging has run. A combined direct-local Poetry
 runtime is pinned in `evaluation/dms13-runtime/`; `poetry lock` and
 `poetry check --lock` passed. It was installed under `/private/tmp` and
 preflighted with the pinned Von source imports. The exact locked package
 versions match, Metal is available, host RAM is 36 GiB, and `/private/tmp` had
-49.3 GiB free. The preflight receipt
-`evaluation/preflight-dms13-2026-09-27.json` records `preflight_passed: true`
-and `run_allowed: false` because the scorer/run approval is outstanding. The
-Qwen reader weights are not cached; no DMS13 model weights were loaded and no
-inference was performed. The proposed answerer, exploratory Von compactor,
-scorer, budgets, metrics, and thresholds are bound in the corpus manifest and
-`model-evaluation.md`.
+49.3 GiB free. The initial runtime preflight
+`evaluation/preflight-dms13-2026-09-27.json` records `preflight_passed: true`.
+The refreshed run-specific receipt
+`evaluation/preflight-dms13-run-2026-09-28.json` binds the exact manifest,
+candidate runner, evaluator, runtime lock, source revisions, current host
+capacity, and Metal check; it has `run_allowed: false` pending user approval.
+The Qwen reader weights are not cached in the designated DMS-13 model cache;
+no DMS13 weights were loaded and no inference was performed. The answerer,
+exploratory Von compactor, scorer, budgets, metrics, and thresholds are bound in
+the corpus manifest and `model-evaluation.md`.
 
 Added a benchmark-specific, callback-driven harness that removes questions,
 gold answers, and evidence annotations from compactor inputs; enforces matched
@@ -294,11 +296,18 @@ conversation turns while caching each fake or candidate score across budget
 conditions. It accepts a score callback and remains benchmark-specific; it
 does not introduce a reusable model adapter or production binding.
 Added a candidate-specific `VonTurnScorer` callback. It receives one turn only,
-checks Von's 8,192-token input limit before inference, validates the pinned
-keep/drop probability output, and returns the keep-minus-drop ranking margin.
-The official LongMemEval prompt is loaded from the exact source file only after
-its recorded SHA-256 matches. Fake tests cover input isolation, size rejection,
-prompt-builder arguments, and exact run-approval binding.
+checks the exact packed Von input against the 8,192-token limit before
+inference, validates the pinned keep/drop probability output, and returns the
+keep-minus-drop ranking margin. The manual runner loads Qwen3-4B locally with
+MLX, uses the exact LongMemEval answer prompt and the pinned GPT-4o judge, and
+writes only redacted predictions and aggregate receipts. Before creating the
+model cache, it requires approval bound to the manifest, preflight, runner and
+evaluator digests, runtime lock, model revisions, budgets, thresholds, and
+4,500 external requests containing questions, gold answers, and candidate
+answers. The official LongMemEval prompt is loaded from its exact source file
+only after the recorded SHA-256 matches. Fake tests cover input isolation,
+packed-size rejection, prompt-builder arguments, exact approval binding, and
+refusal before model-cache creation.
 The first full-corpus fake sweep exposed repeated session IDs within one
 question; message IDs now include session position so selection identity and
 evidence-turn recall remain unique. A second sweep completed 500 items across
@@ -306,18 +315,16 @@ full history, recency, and model-guided conditions at all four budgets: 4,500
 rows, using fake compactor/answer/judge callbacks and no model inference.
 Validation:
 
-- `poetry run pytest tests/test_context_compression_evaluation.py -q`: 11
-  passed before the ranked-turn adapter was added; 12 passed after it was added.
-- `poetry run pytest tests/test_context_compression_dms13_runner.py -q`: 4
-  passed with fake backends and no model inference.
-- `poetry run ruff check tests/manual/run_context_compression_dms13.py tests/test_context_compression_dms13_runner.py`: passed.
+- `poetry run pytest tests/test_context_compression_evaluation.py tests/test_context_compression_dms13_runner.py -q`: 19 passed with fake backends and no model inference.
+- `poetry run ruff check src tests scripts`: passed.
+- `PYTHONPATH=src:/private/tmp/dms06-von-source/.venv/lib/python3.14/site-packages poetry run pytest -q`: 2,951 passed, 4 skipped, 0 failed, 7 deselected.
+- Pinned isolated-runtime check of DMS-13 preflight, runtime packages, and
+  official scorer source digest passed; no model imports, weight downloads,
+  inference, or API calls occurred.
 - `poetry run ruff check scripts/evaluate_context_compression.py tests/test_context_compression_evaluation.py`: passed.
 - `python -m json.tool specs/decision-model-support/evaluation/dms13-corpus-manifest.json`: passed.
+- `python -m json.tool specs/decision-model-support/evaluation/preflight-dms13-run-2026-09-28.json`: passed.
 - `git diff --check`: passed.
-- DMS-07 authoritative full suite,
-  `PYTHONPATH=src:/private/tmp/dms06-von-source/.venv/lib/python3.14/site-packages poetry run pytest -q`:
-  2,943 passed, 4 skipped, 0 failed, and 7 deselected.
-- `poetry run ruff check src tests scripts`: passed.
 
 No model weights were downloaded and no model inference or external judge call
 was performed. DMS-13 remains comparative evaluation only; it cannot admit a
