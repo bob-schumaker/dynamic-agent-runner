@@ -293,6 +293,12 @@ Added `RankedTurnCompactor` to apply the DMS bounded-ranking rule to complete
 conversation turns while caching each fake or candidate score across budget
 conditions. It accepts a score callback and remains benchmark-specific; it
 does not introduce a reusable model adapter or production binding.
+Added a candidate-specific `VonTurnScorer` callback. It receives one turn only,
+checks Von's 8,192-token input limit before inference, validates the pinned
+keep/drop probability output, and returns the keep-minus-drop ranking margin.
+The official LongMemEval prompt is loaded from the exact source file only after
+its recorded SHA-256 matches. Fake tests cover input isolation, size rejection,
+prompt-builder arguments, and exact run-approval binding.
 The first full-corpus fake sweep exposed repeated session IDs within one
 question; message IDs now include session position so selection identity and
 evidence-turn recall remain unique. A second sweep completed 500 items across
@@ -302,6 +308,9 @@ Validation:
 
 - `poetry run pytest tests/test_context_compression_evaluation.py -q`: 11
   passed before the ranked-turn adapter was added; 12 passed after it was added.
+- `poetry run pytest tests/test_context_compression_dms13_runner.py -q`: 4
+  passed with fake backends and no model inference.
+- `poetry run ruff check tests/manual/run_context_compression_dms13.py tests/test_context_compression_dms13_runner.py`: passed.
 - `poetry run ruff check scripts/evaluate_context_compression.py tests/test_context_compression_evaluation.py`: passed.
 - `python -m json.tool specs/decision-model-support/evaluation/dms13-corpus-manifest.json`: passed.
 - `git diff --check`: passed.
