@@ -26,7 +26,7 @@ mlx = ["mlx-lm>=0.31.3,<0.32.0"]
 mlx-embedding = ["mlx==0.32.2; platform_system == 'Darwin'"]
 transformers-peft = [
     "transformers>=5.0.0,<6.0.0",
-    "peft>=0.19.1,<0.20.0",
+    "peft>=0.19.1,<0.22.0",
     "torch>=2.9.0,<3.0.0",
     "Pillow>=11.0.0,<12.0.0",
     "torchvision>=0.24.0,<0.29.0",
@@ -55,7 +55,7 @@ apple-fm-sdk = {version = ">=0.2.1", optional = true}
 mlx-lm = {version = ">=0.31.3,<0.32.0", optional = true}
 mlx = {version = "0.32.2", optional = true, markers = "platform_system == 'Darwin' and extra == 'mlx-embedding'"}
 transformers = {version = ">=5.0.0,<6.0.0", optional = true}
-peft = {version = ">=0.19.1,<0.20.0", optional = true}
+peft = {version = ">=0.19.1,<0.22.0", optional = true}
 torch = {version = ">=2.9.0,<3.0.0", optional = true}
 Pillow = {version = ">=11.0.0,<12.0.0", optional = true}
 torchvision = {version = ">=0.24.0,<0.29.0", optional = true}
