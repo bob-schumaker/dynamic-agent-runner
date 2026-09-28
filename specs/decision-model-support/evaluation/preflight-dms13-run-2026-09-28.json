@@ -11,11 +11,13 @@
   ],
   "candidate_run_approved": false,
   "compactor_model_revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
-  "created_at_utc": "2026-09-28T06:04:02.947616+00:00",
+  "conversation_turns": 122462,
+  "created_at_utc": "2026-09-28T06:09:54.830474+00:00",
   "dataset_revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
   "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
   "execution_mode": "in-process-local-mlx-reader-and-cpu-von-compactor; OpenAI API judge; no model server",
   "expected_external_requests": 4500,
+  "expected_von_turn_scores": 122462,
   "external_data_fields": [
     "question",
     "gold_answer",
@@ -28,12 +30,12 @@
     },
     {
       "path": "tests/manual/run_context_compression_dms13.py",
-      "sha256": "a5b4cd4040edd72dc41f1f491de60d2813beb9bc2bf20d09132d82752dc2d2d7"
+      "sha256": "48fce0eff94643f1464c36456e5bd9896b16d220ab49ec9edc0333a34f92437e"
     }
   ],
   "host": {
     "architecture": "arm64",
-    "free_storage_bytes": 52100956160,
+    "free_storage_bytes": 52034842624,
     "ram_bytes": 38654705664,
     "required_free_storage_bytes": 8589934592,
     "storage_path": "/private/tmp",
@@ -41,7 +43,7 @@
   },
   "inference_performed": false,
   "longmemeval_source_revision": "9e0b455f4ef0e2ab8f2e582289761153549043fc",
-  "manifest_sha256": "fc28ae25fc6be83aea2e1b8a74b902bf3a56ee1073fb0c225d6d791e9d954f7c",
+  "manifest_sha256": "cf7d42876947e40db8edfbfbd5c213ab563a15e7dfdea633aa0504022be92dcf",
   "metal_available": true,
   "model_weights_loaded": false,
   "official_scorer_sha256": "ecce9c4c79dc89d99534ac17b383a5cbb5b9f0c69ee98adaf0684742e3d95251",

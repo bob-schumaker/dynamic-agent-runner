@@ -49,6 +49,7 @@ VON_MODEL_REVISION = "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae"
 LONGMEMEVAL_SOURCE_REVISION = "9e0b455f4ef0e2ab8f2e582289761153549043fc"
 SCORER_MODEL = "gpt-4o-2024-08-06"
 EVALUATION_BUDGETS = [8192, 16384, 32768, 65536]
+EXPECTED_VON_TURN_SCORES = 122462
 _DIGITS = re.compile(r"\d+")
 
 
@@ -102,6 +103,7 @@ def build_run_approval_expectation(root: Path, *, preflight_path: Path) -> dict[
             "accuracy_or_evidence_recall_delta_gte": 0.05,
         },
         "expected_external_requests": 4500,
+        "expected_von_turn_scores": EXPECTED_VON_TURN_SCORES,
         "external_data_fields": ["question", "gold_answer", "candidate_answer"],
         "approval_scope": "pinned local model downloads and inference plus 4500 OpenAI API judge requests",
     }
@@ -148,6 +150,7 @@ def _verify_preflight_artifacts(preflight: Mapping[str, Any], root: Path) -> Non
     if (
         preflight.get("dataset_revision") != DATASET_REVISION
         or preflight.get("dataset_sha256") != DATASET_SHA256
+        or preflight.get("conversation_turns") != EXPECTED_VON_TURN_SCORES
         or preflight.get("von_source_revision") != VON_SOURCE_REVISION
         or preflight.get("longmemeval_source_revision") != LONGMEMEVAL_SOURCE_REVISION
         or preflight.get("official_scorer_sha256") != OFFICIAL_SCORER_SHA256
@@ -297,6 +300,8 @@ def run(arguments: argparse.Namespace) -> int:
         build_redacted_receipt,
         count_answer_prompt_tokens,
         count_history_tokens,
+        _conversation_turns,
+        build_history_messages,
         load_dataset,
         paired_accuracy_bootstrap_interval,
         run_evaluation,
@@ -304,6 +309,11 @@ def run(arguments: argparse.Namespace) -> int:
     )
 
     items = load_dataset(arguments.dataset, expected_sha256=DATASET_SHA256)
+    actual_turn_count = sum(
+        len(_conversation_turns(build_history_messages(item))) for item in items
+    )
+    if actual_turn_count != expected_approval["expected_von_turn_scores"]:
+        raise ManualRunError("dataset turn count differs from the approved run")
     (
         answer_model,
         answer_tokenizer,
@@ -397,6 +407,8 @@ def run(arguments: argparse.Namespace) -> int:
         accuracy_interval = None
     if judge_call_count != expected_approval["expected_external_requests"]:
         raise ManualRunError("actual judge request count differs from the approved run")
+    if von_scorer.scoring_calls != expected_approval["expected_von_turn_scores"]:
+        raise ManualRunError("actual Von turn score count differs from the approved run")
     model_metrics = metrics["model_guided"][primary_budget]
     recency_metrics = metrics["recency"][primary_budget]
     accuracy_delta = (

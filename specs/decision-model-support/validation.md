@@ -310,7 +310,9 @@ packed-size rejection, prompt-builder arguments, exact approval binding, and
 refusal before model-cache creation.
 The first full-corpus fake sweep exposed repeated session IDs within one
 question; message IDs now include session position so selection identity and
-evidence-turn recall remain unique. A second sweep completed 500 items across
+evidence-turn recall remain unique. The cached Von scoring callback will score
+each of the corpus's 122,462 conversation turns once across the four budgets.
+A second sweep completed 500 items across
 full history, recency, and model-guided conditions at all four budgets: 4,500
 rows, using fake compactor/answer/judge callbacks and no model inference.
 Validation:

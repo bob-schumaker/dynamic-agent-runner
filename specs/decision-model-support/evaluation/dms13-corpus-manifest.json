@@ -47,6 +47,7 @@
       "temporal-reasoning": 133
     },
     "history_messages": 246750,
+    "conversation_turns": 122462,
     "annotation_policy": "has_answer evidence-turn annotations, questions, and gold answers are excluded from compactor input"
   },
   "answer_model_proposal": {

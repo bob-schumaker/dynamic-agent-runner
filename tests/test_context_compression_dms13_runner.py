@@ -133,6 +133,7 @@ def test_run_approval_must_bind_all_pinned_run_artifacts() -> None:
         "runtime_lock_sha256": "d" * 64,
         "scorer_model": "gpt-4o-2024-08-06",
         "expected_external_requests": 4500,
+        "expected_von_turn_scores": 122462,
     }
 
     verify_run_approval({"approved": True} | expected, expected=expected)
