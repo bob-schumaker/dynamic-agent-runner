@@ -12,9 +12,18 @@
   },
   "answer_model": "mlx-community/Qwen3-4B-Instruct-2507-4bit@50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
   "approval_date": null,
-  "approval_scope": "pinned local model downloads and inference plus 4500 gpt-4o-2024-08-06 judge requests to chatgpt.com through DAR default OpenAI auth",
-  "approval_source": "Pending explicit approval for sending the pinned benchmark fields to chatgpt.com; the earlier approval covered api.openai.com.",
+  "approval_scope": "pinned local model downloads and inference plus 4500 gpt-6-luna judge requests to chatgpt.com through DAR default OpenAI auth",
+  "approval_source": "Pending explicit approval for sending benchmark-derived question, gold answer, and candidate answer fields to chatgpt.com using gpt-6-luna; the earlier approval covered GPT-4o at api.openai.com.",
   "approved": false,
+  "available_judge_models": [
+    "gpt-6-sol",
+    "gpt-6-astra",
+    "gpt-6-luna",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-5.5"
+  ],
   "budgets_history_tokens": [
     8192,
     16384,
@@ -31,14 +40,14 @@
     "gold_answer",
     "candidate_answer"
   ],
-  "harness_sha256": "8c392507a4b4d00fe8d3147c37dee43f815d6933df2918be7eff0ddbc3bd40ae",
-  "judge_auth_path": "DAR default OpenAI client auth discovery",
+  "harness_sha256": "013e7ce00c0e75a516575a5b404c6d97eba6b6b54d7915fa2fd9791d65d85f97",
+  "judge_auth_path": "DAR default OpenAI provider and Responses adapter",
   "judge_endpoint_host": "chatgpt.com",
-  "manifest_sha256": "cf7d42876947e40db8edfbfbd5c213ab563a15e7dfdea633aa0504022be92dcf",
-  "preflight_sha256": "cb2e1e5f46fff7bec99f04fc2b0796747406ba7afcc08c159a8ebeb22acebf05",
+  "manifest_sha256": "f96d7bdc0b79363080560d70471e779c402d38c92391853544a4611a6cd95950",
+  "preflight_sha256": "34984a5ef1f92130cffb2e65768f2caacbc72eaae6fafaadd699dead00565c42",
   "primary_budget_history_tokens": 32768,
   "reserved_generation_tokens": 512,
   "runtime_lock_sha256": "f490719fd8d20b7fb25dc5099732137353d8335e99e7cea275dd56affdb06aa5",
-  "scorer_model": "gpt-4o-2024-08-06",
+  "scorer_model": "gpt-6-luna",
   "von_source_revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54"
 }

@@ -265,13 +265,14 @@ context after reserving 512 generation tokens.
 
 The pinned official LongMemEval evaluator registers GPT-4o
 (`gpt-4o-2024-08-06`), GPT-4o mini (`gpt-4o-mini-2024-07-18`), and local Llama
-3.1 70B behind an OpenAI-compatible endpoint. The proposed scorer is the
-documented GPT-4o command and question-type-specific prompt; this matches the
-published evaluation route most closely. Its 4,500 calls would send each
-question, gold answer, and candidate answer externally. The pinned scorer file
-SHA-256 is recorded in the manifest. This remains a proposal: no judge was
-approved, and no inference or judging has run. A combined direct-local Poetry
-runtime is pinned in `evaluation/dms13-runtime/`; `poetry lock` and
+3.1 70B behind an OpenAI-compatible endpoint. GPT-4o is unavailable through
+the current ChatGPT auth. The user selected `gpt-6-luna` from the live DAR
+catalog; the pinned question-type-specific LongMemEval prompt will be retained,
+but `gpt-6-luna` is not an official LongMemEval scorer. Its 4,500 calls would
+send each question, gold answer, and candidate answer externally. The pinned
+prompt source SHA-256 is recorded in the manifest. This remains pending
+endpoint-specific approval; no benchmark inference or judging has run. A
+combined direct-local Poetry runtime is pinned in `evaluation/dms13-runtime/`; `poetry lock` and
 `poetry check --lock` passed. It was installed under `/private/tmp` and
 preflighted with the pinned Von source imports. The exact locked package
 versions match, Metal is available, host RAM is 36 GiB, and `/private/tmp` had
@@ -299,7 +300,7 @@ Added a candidate-specific `VonTurnScorer` callback. It receives one turn only,
 checks the exact packed Von input against the 8,192-token limit before
 inference, validates the pinned keep/drop probability output, and returns the
 keep-minus-drop ranking margin. The manual runner loads Qwen3-4B locally with
-MLX, uses the exact LongMemEval answer prompt and the pinned GPT-4o judge, and
+MLX, uses the exact LongMemEval answer prompt and the `gpt-6-luna` judge, and
 writes only redacted predictions and aggregate receipts. Before creating the
 model cache, it requires approval bound to the manifest, preflight, runner and
 evaluator digests, runtime lock, model revisions, budgets, thresholds, and
@@ -335,16 +336,20 @@ production profile or change DMS-01 decisions.
 ### DMS-13 DAR auth-path update — 2026-09-28
 
 Replaced the runner's direct `OPENAI_API_KEY` check and hard-coded public API
-client with DAR's `create_default_openai_client()` auth discovery. The locked
-runtime resolves this host to `chatgpt.com`; preflight and run receipts bind
-that endpoint and the 4,500-call scope. The locked runtime was installed under
+client with DAR's default provider and OpenAI adapter. The locked runtime
+resolves this host to `chatgpt.com`; preflight and run receipts bind that
+endpoint and the 4,500-call scope. The locked runtime was installed under
 `/private/tmp/dms13-poetry-envs`; the public API route was not called. The
 focused runner tests pass (8 passed), Ruff passes for the runner and its tests,
 and `git diff --check` passes. Auto-review rejected sending benchmark-derived
 questions, gold answers, and candidate answers to `chatgpt.com` under the
-earlier approval for `api.openai.com`. The pending run receipt records that
-endpoint approval as outstanding. No model weights were downloaded and no
-benchmark inference or judge request was made.
+earlier approval for `api.openai.com`. The user selected `gpt-6-luna` from the
+DAR catalog (`gpt-6-sol`, `gpt-6-astra`, `gpt-6-luna`, `gpt-5.6-sol`,
+`gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`). The DMS-13 runner now uses the DAR
+Responses adapter, verifies the live model catalog before model-cache
+creation, and requests 64 output tokens at temperature 0. The pending run
+receipt binds the selected model and endpoint. No model weights were downloaded
+and no benchmark inference or judge request was made.
 
 ## DMS-12 Jev-Style 0.8B v3 Candidate Preparation — 2026-09-27
 

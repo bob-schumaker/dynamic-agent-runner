@@ -22,10 +22,12 @@ recency, and model-guided message retention with a shared downstream answer
 model and matched answer-model-tokenizer history budgets. Its exact proposal
 and token measurements are in
 [`evaluation/dms13-corpus-manifest.json`](evaluation/dms13-corpus-manifest.json).
-The user approved the exact scorer, run configuration, and thresholds, but the
-attempt stopped before model download or inference because
-`OPENAI_API_KEY` was unavailable. DMS-13 remains incomplete and does not change
-the frozen synthetic DMS-01 criteria or any recorded candidate result.
+The earlier DMS-13 approval named GPT-4o at the public OpenAI API endpoint.
+That model is unavailable through the current ChatGPT auth. The user selected
+`gpt-6-luna` from DAR's live model catalog; endpoint-specific approval for the
+new `chatgpt.com` route remains pending. No model download or inference has
+started. DMS-13 remains incomplete and does not change the frozen synthetic
+DMS-01 criteria or any recorded candidate result.
 
 The user approved the fixture hashes, acceptance thresholds, and retention
 utility definition below on 2026-09-26, before candidate output was inspected.
@@ -77,12 +79,13 @@ runtime setup. The run-specific
 [preflight receipt](evaluation/preflight-dms13-run-2026-09-28.json) binds the
 complete evaluation harness, current host/storage check, and pinned artifacts.
 Qwen reader weights are not cached in the DMS-13 model cache. Neither local
-model uses a server in this proposal. The DMS-13 runner now uses DAR's default
-OpenAI auth discovery; it resolves to the ChatGPT Codex endpoint
-(`chatgpt.com`) on this host. The previous user approval bound the public
-OpenAI API endpoint. Automatic review rejected sending benchmark-derived data
-to the changed ChatGPT endpoint under that approval, so the refreshed run
-receipt remains pending endpoint-specific approval.
+model uses a server in this proposal. The DMS-13 runner uses DAR's default
+OpenAI auth discovery and Responses adapter; it resolves to the ChatGPT Codex
+endpoint (`chatgpt.com`) on this host. The current session model catalog lists
+`gpt-6-luna`, selected by the user as scorer. The previous approval bound
+GPT-4o at the public OpenAI API endpoint. Automatic review rejected sending
+benchmark-derived data to the changed endpoint under that approval, so the
+refreshed run receipt remains pending endpoint-specific approval.
 
 The [pinned official evaluator](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/src/evaluation/evaluate_qa.py)
 supports `gpt-4o-2024-08-06`, `gpt-4o-mini-2024-07-18`, and local Llama 3.1 70B
@@ -93,8 +96,8 @@ uses GPT-4o in its evaluation command, so that is the recommended scorer for
 closest comparability. The pinned evaluator's source SHA-256 and scorer
 parameters are in the manifest. Each of the 4,500 planned judge calls sends the
 question, gold answer, and candidate answer to the configured scorer endpoint.
-The endpoint-specific run receipt currently proposes `chatgpt.com` with
-`gpt-4o-2024-08-06`; this route has not been exercised. The evaluator would
+The endpoint-specific run receipt binds `chatgpt.com` with `gpt-6-luna` and the
+Responses API adapter; this route has not been exercised. The evaluator would
 persist only boolean labels and aggregate metrics, never raw prompts or judge
 responses. The alternative local scorer requires a server and a 70B model,
 which does not fit this direct local run setup.
@@ -105,9 +108,10 @@ bootstrap samples (seed 13): answer-accuracy noninferiority requires the
 95-percent interval's lower bound to exceed -0.03; evidence-turn recall may
 not be more than 0.05 below recency; and at least one of answer accuracy or
 evidence-turn recall must improve by 0.05 at the primary budget. The user
-approved these values with the exact run pairing, scorer, and harness revision
-on 2026-09-28. DMS-13 remains blocked only until the approved API credential is
-available; no model inference or judge request has occurred.
+approved the thresholds and original public-API run configuration on
+2026-09-28. The user later selected `gpt-6-luna` from the live DAR catalog;
+the revised endpoint and scorer require a new run approval. No model inference
+or judge request has occurred.
 
 ## Host and DAR fit
 
@@ -687,16 +691,17 @@ The runner downloads the checkpoint's `NOTICE` because its own manifest
 integrity check requires it; that pinned file was added to the artifact digest
 checks.
 
-## DMS-13 approved run attempt
+## DMS-13 original public-API run attempt
 
 The user approved the exact pinned LongMemEval-S, Von compactor, Qwen reader,
 GPT-4o scorer, runtime, thresholds, and 4,500 external requests. The approval
 receipt is
 [`evaluation/dms13-run-approval-2026-09-28.json`](evaluation/dms13-run-approval-2026-09-28.json),
-and the run-specific host/runtime preflight passed. The runner then stopped
-before cache download or model inference because `OPENAI_API_KEY` was not
-available. No benchmark content was sent to OpenAI. DMS-13 remains incomplete;
-resume the same exact approved run when the credential is available.
+and its host/runtime preflight passed. The runner stopped before cache download
+or model inference because `OPENAI_API_KEY` was not available. No benchmark
+content was sent to `api.openai.com`. That approval does not authorize the
+revised ChatGPT endpoint and `gpt-6-luna` scorer. DMS-13 remains incomplete
+pending the revised run approval.
 
 The complete receipt, evaluation, matrix receipt, per-candidate redacted
 predictions, and measurements are in

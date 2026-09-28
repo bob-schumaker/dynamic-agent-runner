@@ -421,20 +421,20 @@ competency run before an explicit production admission decision.
   reporting, and runtime/memory measurements. The official scorer options and
   their external-egress/server limitations are recorded. Keep questions, gold
   answers, and evidence annotations out of compactor inputs.
-- [x] Select a reproducible answer-scoring method and obtain approval for the
-  exact scorer before inference. The selected method is the pinned official
-  GPT-4o scorer and prompt; it sends questions, gold answers, and candidate
-  answers to the external API. The exact scorer and external fields are bound
-  in the run approval receipt.
+- [x] Select a reproducible answer-scoring method. GPT-4o is unavailable through
+  the current ChatGPT auth. The user selected `gpt-6-luna` from the live DAR
+  model catalog; the pinned LongMemEval prompt remains, but this is not the
+  official LongMemEval scorer. The scorer uses DAR's Responses adapter and
+  sends questions, gold answers, and candidate answers to `chatgpt.com`.
 - [x] Propose context-preservation acceptance thresholds based on the selected
   downstream workflow risk and record the exact proposal in
   `evaluation/dms13-corpus-manifest.json`. These thresholds are separate from
   the already-approved DMS-01 criteria.
-- [x] Obtain one run-level approval for the exact benchmark, answer model,
-  compactor, runtime, scorer, budgets, thresholds, and harness revision before
-  model inference. This approval is separate from DMS-01 and does not admit a
-  production profile; the exact receipt is
-  `evaluation/dms13-run-approval-2026-09-28.json`.
+- [ ] Obtain updated run-level approval for the exact benchmark, answer model,
+  compactor, runtime, `gpt-6-luna` scorer, budgets, thresholds, and harness
+  revision before model inference. The earlier approval covered GPT-4o through
+  `api.openai.com`, not the current `chatgpt.com` route. The pending exact
+  receipt is `evaluation/dms13-run-approval-2026-09-28.json`.
 - [x] Add fake-only tests for benchmark loading/identity, history-only
   compactor inputs, gold/evidence isolation, matched answer-tokenizer budgets,
   baseline parity, scoring aggregation, and redacted receipts. Implement the
@@ -443,15 +443,14 @@ competency run before an explicit production admission decision.
   `tests/manual/run_context_compression_dms13.py`; fake tests cover its
   question-blind Von scoring, exact packed-input limit, approval binding, and
   refusal before model-cache creation. No model inference was performed.
-- [ ] Run the model-guided compaction condition and baselines. The scorer now
-  uses DAR's default OpenAI auth discovery, which resolves to `chatgpt.com` on
-  this host. The refreshed preflight, harness, and pending approval receipt bind
-  that endpoint. Auto-review rejected sending benchmark-derived questions,
-  gold answers, and candidate answers to this changed endpoint under the prior
-  public OpenAI API approval. Obtain explicit approval for the exact ChatGPT
-  endpoint scope before download or inference, then record the run and
-  disposition in `model-evaluation.md`. Do not infer DMS-01 passage or
-  production admission from this track.
+- [ ] Run the model-guided compaction condition and baselines with
+  `gpt-6-luna` through DAR auth at `chatgpt.com`. The refreshed preflight and
+  pending approval receipt bind the available-model catalog, endpoint, scorer,
+  harness, and 4,500-call data scope. Automatic review rejected using the
+  earlier GPT-4o/public-API approval for this changed route. Obtain approval for
+  the exact pending receipt before downloading weights or running inference;
+  then record the results and disposition in `model-evaluation.md`. Do not
+  infer DMS-01 passage or production admission from this track.
 
 ## DMS-14 Published General Decision Transfer and Mac Runtime Comparison
 

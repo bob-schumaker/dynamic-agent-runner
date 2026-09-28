@@ -14,19 +14,20 @@
     "source_file_sha256": "ecce9c4c79dc89d99534ac17b383a5cbb5b9f0c69ee98adaf0684742e3d95251",
     "scorer_method_note": "The pinned official evaluator registers GPT-4o, GPT-4o mini, and local Llama 3.1 70B. It uses question-type-specific official prompts, temperature 0, max_tokens 10, and treats any response containing 'yes' as correct. The two API options send question, gold answer, and candidate answer outside the host; the documented local option requires serving infrastructure and a 70B model.",
     "proposed_scorer": {
-      "provider": "OpenAI API",
-      "model": "gpt-4o-2024-08-06",
-      "rationale": "Matches the official README evaluation command and provides the closest comparability to published LongMemEval scoring.",
+      "provider": "DAR default OpenAI auth through the ChatGPT Codex endpoint",
+      "model": "gpt-6-luna",
+      "rationale": "Selected by the user from the model IDs currently advertised through DAR auth. The pinned LongMemEval prompt is retained, but this is not an official LongMemEval scorer and results are not directly comparable to its published GPT-4o scores.",
       "request_parameters": {
-        "n": 1,
+        "api": "OpenAI Responses through DAR adapter",
         "temperature": 0,
-        "max_tokens": 10
+        "max_output_tokens": 64,
+        "store": false
       },
       "label_rule": "case-insensitive substring 'yes' in the returned text",
       "expected_requests": 4500,
       "data_sent": ["question", "gold answer", "candidate answer"],
       "persistence": "Persist only boolean labels and aggregate metrics; do not save scorer prompts or raw responses.",
-      "approval_status": "proposed; external data egress and the full run require user approval"
+      "approval_status": "model selected; endpoint-specific external data egress and the full run require user approval"
     }
   },
   "dataset": {
@@ -113,11 +114,11 @@
       "torch": "2.14.0",
       "transformers": "5.17.0"
     },
-    "boundary": "One in-process local runtime for Von CPU compaction and Qwen MLX reading; no local model server. The separate scorer, if approved, is the OpenAI API.",
-    "lock_validation": "poetry check --lock passed; the isolated runtime was installed under /private/tmp/dms13-py-venvs and its exact package versions were verified.",
+    "boundary": "One in-process local runtime for Von CPU compaction and Qwen MLX reading; no local model server. The scorer uses DAR default OpenAI auth through the ChatGPT Codex endpoint.",
+    "lock_validation": "poetry check --lock passed; the isolated runtime was installed under /private/tmp/dms13-poetry-envs and its exact package versions were verified.",
     "runtime_setup_preflight_receipt": "evaluation/preflight-dms13-2026-09-27.json",
     "run_preflight_receipt": "evaluation/preflight-dms13-run-2026-09-28.json",
-    "preflight_status": "runtime setup passed; the run-specific preflight binds the complete harness and current host, and remains run_allowed=false pending user approval",
+    "preflight_status": "runtime setup passed; the run-specific preflight binds the complete harness, current host, ChatGPT endpoint, and live model catalog, and remains run_allowed=false pending endpoint-specific user approval",
     "qwen_weights_cached": false,
     "answer_model_weights_downloaded": false
   },
@@ -139,6 +140,6 @@
       "minimum_improvement": "at least 0.05 improvement over recency in answer accuracy or evidence-turn recall at the primary budget",
       "full_history_reference": "report separately as the uncompressed reference; no admission threshold is assigned"
     },
-    "approval_status": "All protocol values are proposals. The proposed official GPT-4o scorer and exact run configuration require user approval before any model inference."
+    "approval_status": "Protocol values and the gpt-6-luna scorer are selected, but endpoint-specific egress approval is required before model downloads, inference, or judge requests."
   }
 }

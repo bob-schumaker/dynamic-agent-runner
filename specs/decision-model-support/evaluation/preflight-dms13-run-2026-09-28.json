@@ -12,7 +12,7 @@
   "candidate_run_approved": false,
   "compactor_model_revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
   "conversation_turns": 122462,
-  "created_at_utc": "2026-09-28T19:28:29.087789+00:00",
+  "created_at_utc": "2026-09-28T19:47:10.835133+00:00",
   "dataset_revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
   "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
   "execution_mode": "in-process-local-mlx-reader-and-cpu-von-compactor; DAR default OpenAI auth judge",
@@ -30,7 +30,7 @@
     },
     {
       "path": "tests/manual/run_context_compression_dms13.py",
-      "sha256": "bd57bde151f4af6dec7de465e81479c6244c3548eb1659fdce74c68f3992ff6e"
+      "sha256": "0dfc9f0c40f1a866d0c50a86eeb393165ca2eee4f4b720a14792cc5a8c958ecb"
     }
   ],
   "host": {
@@ -42,10 +42,10 @@
     "system": "macOS-26.6.2-arm64-arm-64bit-Mach-O"
   },
   "inference_performed": false,
-  "judge_auth_path": "DAR default OpenAI client auth discovery",
+  "judge_auth_path": "DAR default OpenAI provider and Responses adapter",
   "judge_endpoint_host": "chatgpt.com",
   "longmemeval_source_revision": "9e0b455f4ef0e2ab8f2e582289761153549043fc",
-  "manifest_sha256": "cf7d42876947e40db8edfbfbd5c213ab563a15e7dfdea633aa0504022be92dcf",
+  "manifest_sha256": "f96d7bdc0b79363080560d70471e779c402d38c92391853544a4611a6cd95950",
   "metal_available": true,
   "model_weights_loaded": false,
   "official_scorer_sha256": "ecce9c4c79dc89d99534ac17b383a5cbb5b9f0c69ee98adaf0684742e3d95251",
@@ -68,5 +68,16 @@
   "runtime_lock_sha256": "f490719fd8d20b7fb25dc5099732137353d8335e99e7cea275dd56affdb06aa5",
   "scorer_approved": false,
   "von_source_revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54",
-  "von_weights_cached_in_dms13_model_cache": false
+  "von_weights_cached_in_dms13_model_cache": false,
+  "scorer_model": "gpt-6-luna",
+  "available_judge_models": [
+    "gpt-6-sol",
+    "gpt-6-astra",
+    "gpt-6-luna",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-5.5"
+  ],
+  "model_catalog_checked_at_utc": "2026-09-28T19:47:10.835133+00:00"
 }

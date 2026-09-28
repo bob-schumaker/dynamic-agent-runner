@@ -125,22 +125,50 @@ def test_official_judge_prompt_uses_pinned_type_and_abstention_rules() -> None:
     assert prompts[1][4] is True
 
 
-def test_dms13_judge_client_uses_dar_default_openai_auth(monkeypatch) -> None:
+def test_dms13_judge_adapter_uses_dar_default_openai_auth(monkeypatch) -> None:
     from dynamic_agent_runner import openai_client
 
-    expected_client = object()
-    calls = []
+    expected_adapter = object()
+    provider = object()
+    provider_calls = []
+    adapter_calls = []
 
-    def create_client(config=None):
-        calls.append(config)
-        return expected_client
+    def create_provider(config=None):
+        provider_calls.append(config)
+        return provider
 
-    monkeypatch.setattr(openai_client, "create_default_openai_client", create_client)
+    def create_adapter(*, provider):
+        adapter_calls.append(provider)
+        return expected_adapter
 
-    from run_context_compression_dms13 import _create_judge_client
+    monkeypatch.setattr(openai_client, "create_default_openai_provider", create_provider)
+    monkeypatch.setattr(openai_client, "create_openai_adapter", create_adapter)
 
-    assert _create_judge_client() is expected_client
-    assert calls == [None]
+    from run_context_compression_dms13 import _create_judge_adapter
+
+    assert _create_judge_adapter() is expected_adapter
+    assert provider_calls == [None]
+    assert adapter_calls == [provider]
+
+
+def test_dms13_judge_uses_selected_responses_model() -> None:
+    from run_context_compression_dms13 import SCORER_MODEL, _score_with_adapter
+
+    class FakeAdapter:
+        def __init__(self):
+            self.requests = []
+
+        def create_response(self, request):
+            self.requests.append(request)
+            return type("Response", (), {"content": "Yes"})()
+
+    adapter = FakeAdapter()
+
+    assert _score_with_adapter(adapter, "safe synthetic prompt") == "Yes"
+    request = adapter.requests[0]
+    assert request.model == SCORER_MODEL == "gpt-6-luna"
+    assert request.messages == ({"role": "user", "content": "safe synthetic prompt"},)
+    assert request.extra == {"max_output_tokens": 64, "temperature": 0}
 
 
 def test_run_approval_must_bind_all_pinned_run_artifacts() -> None:
@@ -149,7 +177,7 @@ def test_run_approval_must_bind_all_pinned_run_artifacts() -> None:
         "preflight_sha256": "b" * 64,
         "harness_sha256": "c" * 64,
         "runtime_lock_sha256": "d" * 64,
-        "scorer_model": "gpt-4o-2024-08-06",
+        "scorer_model": "gpt-6-luna",
         "expected_external_requests": 4500,
         "expected_von_turn_scores": 122462,
     }

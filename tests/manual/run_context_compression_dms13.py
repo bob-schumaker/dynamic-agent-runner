@@ -48,7 +48,7 @@ DATASET_REVISION = "98d7416c24c778c2fee6e6f3006e7a073259d48f"
 VON_SOURCE_REVISION = "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54"
 VON_MODEL_REVISION = "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae"
 LONGMEMEVAL_SOURCE_REVISION = "9e0b455f4ef0e2ab8f2e582289761153549043fc"
-SCORER_MODEL = "gpt-4o-2024-08-06"
+SCORER_MODEL = "gpt-6-luna"
 EVALUATION_BUDGETS = [8192, 16384, 32768, 65536]
 EXPECTED_VON_TURN_SCORES = 122462
 _DIGITS = re.compile(r"\d+")
@@ -114,6 +114,7 @@ def build_run_approval_expectation(root: Path, *, preflight_path: Path) -> dict[
         ),
         "judge_auth_path": "DAR default OpenAI client auth discovery",
         "judge_endpoint_host": preflight.get("judge_endpoint_host"),
+        "available_judge_models": preflight.get("available_judge_models"),
     }
 
 
@@ -162,6 +163,8 @@ def _verify_preflight_artifacts(preflight: Mapping[str, Any], root: Path) -> Non
         or preflight.get("von_source_revision") != VON_SOURCE_REVISION
         or preflight.get("longmemeval_source_revision") != LONGMEMEVAL_SOURCE_REVISION
         or preflight.get("official_scorer_sha256") != OFFICIAL_SCORER_SHA256
+        or preflight.get("scorer_model") != SCORER_MODEL
+        or SCORER_MODEL not in preflight.get("available_judge_models", [])
         or preflight.get("compactor_model_revision") != VON_MODEL_REVISION
         or preflight.get("answer_model")
         != {
@@ -225,7 +228,7 @@ def _percentile(values: Sequence[float], fraction: float) -> float | None:
     return ordered[min(len(ordered) - 1, int((len(ordered) - 1) * fraction))]
 
 
-def _create_judge_client() -> Any:
+def _create_judge_adapter() -> Any:
     source_directory = str(ROOT / "src")
     if source_directory not in sys.path:
         sys.path.insert(0, source_directory)
@@ -233,9 +236,24 @@ def _create_judge_client() -> Any:
         package = types.ModuleType("dynamic_agent_runner")
         package.__path__ = [str(ROOT / "src" / "dynamic_agent_runner")]
         sys.modules["dynamic_agent_runner"] = package
-    from dynamic_agent_runner.openai_client import create_default_openai_client
+    from dynamic_agent_runner.openai_client import (
+        create_default_openai_provider,
+        create_openai_adapter,
+    )
 
-    return create_default_openai_client()
+    return create_openai_adapter(provider=create_default_openai_provider())
+
+
+def _score_with_adapter(judge_adapter: Any, prompt: str) -> str | None:
+    from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+
+    request = build_openai_request(
+        model=SCORER_MODEL,
+        messages=[OpenAIMessage("user", prompt)],
+        max_output_tokens=64,
+        temperature=0,
+    )
+    return judge_adapter.create_response(request).content
 
 
 def _verify_run_boundary(
@@ -256,9 +274,14 @@ def _verify_run_boundary(
 
     runtime_executable = Path(preflight.get("runtime_executable", ""))
     verify_runtime(runtime_executable)
-    client = _create_judge_client()
-    if client.base_url.host != expected_approval["judge_endpoint_host"]:
+    judge_adapter = _create_judge_adapter()
+    if judge_adapter.client.base_url.host != expected_approval["judge_endpoint_host"]:
         raise ManualRunError("DAR OpenAI auth resolved to an unapproved judge endpoint")
+    available_judge_models = judge_adapter.list_supported_models()
+    if available_judge_models != tuple(expected_approval["available_judge_models"]):
+        raise ManualRunError("DAR OpenAI auth model catalog differs from the approved run")
+    if SCORER_MODEL not in available_judge_models:
+        raise ManualRunError("selected DMS-13 scorer is unavailable through DAR auth")
     arguments.model_cache.mkdir(parents=True, exist_ok=True)
     _check_current_host(arguments.model_cache)
     if _repository_revision(arguments.source_checkout) != VON_SOURCE_REVISION:
@@ -268,7 +291,7 @@ def _verify_run_boundary(
     scripts_directory = str(root / "scripts")
     if scripts_directory not in sys.path:
         sys.path.insert(0, scripts_directory)
-    return expected_approval, approval, client
+    return expected_approval, approval, judge_adapter
 
 
 def _load_pinned_models(arguments: argparse.Namespace) -> tuple[Any, Any, "VonTurnScorer", float, float, Any]:
@@ -312,7 +335,7 @@ def _load_pinned_models(arguments: argparse.Namespace) -> tuple[Any, Any, "VonTu
 
 
 def run(arguments: argparse.Namespace) -> int:
-    expected_approval, approval, client = _verify_run_boundary(arguments)
+    expected_approval, approval, judge_adapter = _verify_run_boundary(arguments)
     approval_path = arguments.approval
     preflight_path = arguments.preflight
 
@@ -385,14 +408,7 @@ def run(arguments: argparse.Namespace) -> int:
             question_id.endswith("_abs"),
         )
         judge_call_count += 1
-        completion = client.chat.completions.create(
-            model=SCORER_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            n=1,
-            temperature=0,
-            max_tokens=10,
-        )
-        content = completion.choices[0].message.content
+        content = _score_with_adapter(judge_adapter, prompt)
         if not isinstance(content, str):
             raise ManualRunError("official judge returned an invalid label")
         return "yes" in content.lower()
