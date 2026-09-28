@@ -705,6 +705,9 @@ Validation:
 - Isolated runtime `poetry check --lock` — passed with existing Poetry metadata deprecation warnings.
 - Pinned-runtime package verification and load-only smoke for Qwen, Llama, and
   Von — passed; Metal is available and OpenAI is absent.
+- After the MLX-LM sampler correction, Qwen and Llama each generated one token
+  from a synthetic prompt in the pinned runtime; this smoke used no benchmark
+  data and is separate from the pending full matrix.
 - The corrected preflight binds the exact model snapshots and current
 harness/runtime, and remains `run_allowed: false` pending approval of the new
 receipt. Two approved attempts reached the first Qwen generation and stopped

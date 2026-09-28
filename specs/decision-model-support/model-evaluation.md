@@ -93,8 +93,10 @@ generation and stopped because MLX-LM 0.31.3 does not accept `temp=0`. Each
 attempt completed Von scoring for the first item's 273 turns, generated no
 answer tokens, and made zero judge calls. No benchmark data left the machine.
 The runner now passes MLX-LM's pinned greedy sampler to both Qwen and Llama.
-The corrected harness and refreshed preflight are bound in a new pending
-receipt; approval is needed again because the harness digest changed.
+One-token synthetic generations passed for both models using the corrected
+sampler; no benchmark data was used in that smoke. The corrected harness and
+refreshed preflight are bound in a new pending receipt; approval is needed
+again because the harness digest changed.
 
 The [pinned official evaluator](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/src/evaluation/evaluate_qa.py)
 supports GPT-4o, GPT-4o mini, and local Llama 3.1 70B behind an
