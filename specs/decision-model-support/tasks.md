@@ -432,11 +432,12 @@ competency run before an explicit production admission decision.
   downstream workflow risk and record the exact proposal in
   `evaluation/dms13-corpus-manifest.json`. These thresholds are separate from
   the already-approved DMS-01 criteria.
-- [ ] Obtain updated run-level approval for the exact benchmark, answer model,
+- [x] Obtain updated run-level approval for the exact benchmark, answer model,
   compactor, runtime, local Llama scorer/artifacts, budgets, thresholds, and
   corrected greedy-sampler harness before resuming benchmark inference. The
-  current exact receipt is pending in
-  `evaluation/dms13-run-approval-2026-09-28.json`.
+  corrected exact receipt records the user's approval in
+  `evaluation/dms13-run-approval-2026-09-28.json`; the approved inference run
+  is in progress.
 - [x] Add fake-only tests for benchmark loading/identity, history-only
   compactor inputs, gold/evidence isolation, matched answer-tokenizer budgets,
   baseline parity, scoring aggregation, and redacted receipts. Implement the
@@ -444,17 +445,17 @@ competency run before an explicit production admission decision.
   invoking real models in unit tests. The executable candidate path is
   `tests/manual/run_context_compression_dms13.py`; fake tests cover its
   question-blind Von scoring, exact packed-input limit, approval binding, and
-  refusal before model-cache creation. No model inference was performed.
+  refusal before model-cache creation; tests perform no real model inference.
 - [ ] Run the model-guided compaction condition and baselines with the pinned
-  local MLX Llama judge. The refreshed preflight and pending approval receipt
-  bind the local model files, host/runtime, scorer, harness, and 4,500 local
-  judge calls. Qwen, Von, and Llama snapshots are downloaded and pinned. Two
+  local MLX Llama judge. The refreshed preflight and approved run receipt bind
+  the local model files, host/runtime, scorer, harness, and 4,500 local judge
+  calls. Qwen, Von, and Llama snapshots are downloaded and pinned. Two
   approved attempts stopped at the first Qwen generation because MLX-LM 0.31.3
   requires a greedy sampler argument instead of `temp=0`; each completed 273
   Von turn scores for the first item and made zero judge calls. The harness now
-  uses MLX-LM's pinned greedy sampler. Obtain approval for the corrected exact
-  receipt, then run and record results and disposition in `model-evaluation.md`.
-  Do not infer DMS-01 passage or production admission from this track.
+  uses MLX-LM's pinned greedy sampler. The corrected run is approved and in
+  progress; record results and disposition in `model-evaluation.md`. Do not
+  infer DMS-01 passage or production admission from this track.
 
 ## DMS-14 Published General Decision Transfer and Mac Runtime Comparison
 
