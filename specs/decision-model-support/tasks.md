@@ -4,6 +4,14 @@ Source of truth: `spec.md`. Implementation approach: `plan.md`.
 
 ## Readiness Review
 
+- [x] Re-review the current task list against `spec.md` and `plan.md` with the
+  Council architecture triad and Ponytail after making DMS-13 restartable.
+  Council found the task graph ready with conditions; at that review DMS-13
+  inference was blocked pending a preflight and approval binding the current
+  harness, manifest, retry policy, and maximum call budget. Ponytail removed
+  duplicated checkpoint mechanics from the open run task. Findings,
+  challenge-round conclusions, dispositions, and verification are recorded in
+  `validation.md`.
 - [x] Re-review this task list against `spec.md` and `plan.md` with Council
   and Ponytail after adding the separate direct in-process Laya-MLX track.
   Clarify that server-backed Laya stays external-client-owned; authorize only
@@ -36,11 +44,12 @@ Source of truth: `spec.md`. Implementation approach: `plan.md`.
     historical; removed DMS-12 as a DMS-15 prerequisite; linked DMS-15 to
     contract scope, plan ownership, audit evidence, tests, and conditional API
     documentation.
-  - **Disposition:** The task list is ready under its stated gates. DMS-15's
-    audit can proceed; helper implementation depends on demonstrated reuse.
+  - **Disposition:** The task list was ready under its stated gates. DMS-15's
+    audit completed with no helper; helper implementation depends on
+    demonstrated reuse.
     DMS-04 remains stopped and DMS-10 remains deferred by their candidate
     quality gates. DMS-12 is complete; DMS-13 now uses a pinned local MLX Llama
-    judge and awaits approval for the revised exact run.
+    judge and, at that review date, awaited approval for the revised exact run.
 
 Tasks are ordered by dependency. Every code task follows TDD: add or update the
 focused test first, observe the expected failure, implement, and rerun until it
@@ -432,12 +441,15 @@ competency run before an explicit production admission decision.
   downstream workflow risk and record the exact proposal in
   `evaluation/dms13-corpus-manifest.json`. These thresholds are separate from
   the already-approved DMS-01 criteria.
-- [x] Obtain updated run-level approval for the exact benchmark, answer model,
-  compactor, runtime, local Llama scorer/artifacts, budgets, thresholds, and
-  corrected greedy-sampler harness before resuming benchmark inference. The
-  corrected exact receipt records the user's approval in
-  `evaluation/dms13-run-approval-2026-09-28.json`; the approved inference run
-  is in progress.
+- [x] Obtain run-level approval for the then-current exact benchmark, answer
+  model, compactor, runtime, local Llama scorer/artifacts, budgets, thresholds,
+  and greedy-sampler harness before benchmark inference. That approved run
+  lasted over 17 hours, then exited with `ManualRunError` after a 9,380-token /
+  8,192-token warning. The harness did not preserve the exception message, so
+  the cause is unknown. It produced no result directory or usable predictions;
+  the approval does not cover the revised resumable harness. See
+  `model-evaluation.md` and retain the historical receipt in
+  `evaluation/dms13-run-approval-2026-09-28.json`.
 - [x] Add fake-only tests for benchmark loading/identity, history-only
   compactor inputs, gold/evidence isolation, matched answer-tokenizer budgets,
   baseline parity, scoring aggregation, and redacted receipts. Implement the
@@ -446,16 +458,21 @@ competency run before an explicit production admission decision.
   `tests/manual/run_context_compression_dms13.py`; fake tests cover its
   question-blind Von scoring, exact packed-input limit, approval binding, and
   refusal before model-cache creation; tests perform no real model inference.
-- [ ] Run the model-guided compaction condition and baselines with the pinned
-  local MLX Llama judge. The refreshed preflight and approved run receipt bind
-  the local model files, host/runtime, scorer, harness, and 4,500 local judge
-  calls. Qwen, Von, and Llama snapshots are downloaded and pinned. Two
-  approved attempts stopped at the first Qwen generation because MLX-LM 0.31.3
-  requires a greedy sampler argument instead of `temp=0`; each completed 273
-  Von turn scores for the first item and made zero judge calls. The harness now
-  uses MLX-LM's pinned greedy sampler. The corrected run is approved and in
-  progress; record results and disposition in `model-evaluation.md`. Do not
-  infer DMS-01 passage or production admission from this track.
+- [x] Make the manual harness restartable: process fixed ten-item progress
+  chunks, atomically persist each complete item's nine redacted prediction
+  rows, record resumable in-progress state and periodic Von-score progress,
+  skip verified successes on restart, retry unfinished items once, and require
+  a complete verified checkpoint set before inference-free `--merge`. Bind
+  these choices into the approval expectation and run identity. Focused fake-
+  only tests cover checkpoint recovery, corrupt-output rejection, progress,
+  and refusal to merge partial results.
+- [x] Shelve the proposed 60-item pilot and full-corpus DMS-13 evaluation per
+  the user's 2026-09-30 decision. Use published LongMemEval results as external
+  context only; make no DAR-specific compression-quality claim. The approved
+  checkpointed run remains stopped after 12 complete items; preserve its
+  approval and partial checkpoints as historical artifacts. Reopen this task
+  only after an explicit new decision and obtain an exact approval before any
+  further inference.
 
 ## DMS-14 Published General Decision Transfer and Mac Runtime Comparison
 

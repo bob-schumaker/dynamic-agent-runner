@@ -10,7 +10,8 @@
   DMS-11 closes with validation and handoff. DMS-12 evaluated Jev-Style 0.8B
   v3 and rejected it under the frozen quality gates. DMS-13 adds a separate
   end-to-end LongMemEval-S context-preservation track with a pinned local
-  in-process MLX Llama judge; its refreshed exact run approval is pending.
+  in-process MLX Llama judge. DMS-13 is shelved; published LongMemEval results
+  are used as external context, with no claim about DAR-specific performance.
   DMS-14 completed its approved published general-transfer and Mac-runtime
   matrix. No candidate met both thresholds; results are comparative only and
   do not admit a production profile. DMS-15 adds an audit-first review for
@@ -60,7 +61,7 @@ always performs truncation and message deletion.
 | Qwen material and runner binding | `src/dynamic_agent_runner/workflow_host/model_execution_binding.py`, `src/dynamic_agent_runner/workflow_host/local_model_runners.py`, `src/dynamic_agent_runner/workflow_host/capabilities.py` | Bind only the evaluated Qwen profile and locked materials; reuse host limits and lifecycle |
 | Compaction scoring | `src/dynamic_agent_runner/context_compaction.py`, `src/dynamic_agent_runner/executor.py` | Score eligible old messages in bounded batches, then apply deterministic compaction policy |
 | Candidate evaluation | `scripts/evaluate_decision_models.py` (new), `tests/test_decision_model_evaluation.py` (new), `specs/decision-model-support/evaluation/` | Verify frozen fixture hashes and label separation, compare matched-token recency baseline, compute pre-recorded metrics, and emit a redacted evaluation receipt |
-| End-to-end compaction evaluation | DMS-13 task and `specs/decision-model-support/evaluation/` | Replay the pinned LongMemEval-S histories through DAR compaction; compare full history, recency, and model-guided retention with one fixed downstream answer model and matched budgets; report answer quality and annotated evidence-turn recall separately from DMS-01 message-retention metrics |
+| End-to-end compaction evaluation | DMS-13 task and `specs/decision-model-support/evaluation/` | Shelved. Use published LongMemEval findings as external context only; do not infer DAR-specific context-compression performance. Reopen only by explicit decision. |
 | Published decision-transfer comparison | `tests/manual/run_dms14_transfer.py`, `tests/test_dms14_transfer_runner.py`, `scripts/evaluate_decision_transfer.py`, `tests/test_decision_transfer_evaluation.py`, `specs/decision-model-support/evaluation/`, and `model-evaluation.md` | Score the fixed completed-candidate cohort in process on pinned `transfer-v4` development items; freeze corpus/task mapping and scoring before output inspection; report paired quality and option-order measures on the same corpus in the Mac runtime profile |
 | Pinned Kev competency run | `tests/manual/run_kev_dms01.py` (new), `tests/test_kev_dms01_runner.py` (new) | Run the exact approved Kev-0.6B artifact in-process through its pinned external research harness; export only predictions, tokenizer counts, and aggregate measurements |
 | Von alternative evaluation | `tests/manual/run_von_dms06.py` (new), `tests/test_von_dms06_runner.py` (new) | Evaluate the pinned Von 1.2 snapshot in-process on the shared frozen inputs, with a separate candidate approval gate, pinned source/runtime, no Von server, and redacted outputs |
@@ -101,8 +102,16 @@ the same fixed downstream answer model and answer-model-tokenizer history
 budgets, with prompt/question tokens reserved from the context window.
 Dataset revision/license, answer model, scorer, budget points, runtime, and
 acceptance thresholds must be resolved and approved before real candidate
-inference. Its results supplement the frozen synthetic DMS-01 evidence and do
-not alter prior DMS-01 results or thresholds.
+inference. DMS-13 is shelved, and no pilot or full-corpus inference is planned.
+Published LongMemEval results may be used as external context but do not
+establish DAR-specific quality. Reopen only through a new explicit decision.
+If a run is later authorized, an interrupted or failed run must resume from
+verified per-item checkpoints and expose progress; after the main pass and
+bounded retries, merge only a complete checkpoint set without further
+inference. The preflight and approval must bind the exact checkpointed harness
+and maximum retry cost before inference resumes. Its results supplement the
+frozen synthetic DMS-01 evidence and do not alter prior DMS-01 results or
+thresholds.
 
 DMS-14 adds published general-decision-transfer evidence for the already
 evaluated local cohort. It uses one fixed `transfer-v4` development split and

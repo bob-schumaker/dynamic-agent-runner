@@ -10,9 +10,9 @@
   DMS-06 measured Von 1.2.0, PoorJev, and LitJev and rejected them for quality
   thresholds; NanoJev remains deferred for host and licensing constraints.
   Kev-0.8B and the separately evaluated Jev-Style 0.8B v3 failed quality
-  gates. The separate DMS-13 LongMemEval-S track has a pinned local MLX judge
-  and refreshed preflight; its revised exact run approval and evaluation are
-  pending.
+  gates. DMS-13 is shelved: published LongMemEval results are sufficient as
+  external context for current purposes. No internal pilot or full-corpus run
+  is planned, and published results do not establish DAR-specific performance.
   DMS-14 completed its approved published
   general-transfer matrix; no candidate met both thresholds, and the results
   remain comparative evidence without production admission. DMS-15 is an
@@ -62,9 +62,10 @@ later adapt server-backed or otherwise nonstandard runtimes such as Laya.
 7. Fake-backed tests and model evaluation tasks. Unit tests must not download or
    invoke real model weights.
 8. An end-to-end context-preservation evaluation of DAR's message-selection
-   compaction against the public LongMemEval-S benchmark. This measures whether
-   later questions remain answerable after compaction; it supplements rather
-   than replaces the frozen synthetic DMS-01 candidate criteria.
+   compaction against the public LongMemEval-S benchmark (DMS-13, shelved).
+   Published LongMemEval results provide external context only; they do not
+   establish DAR-specific performance or replace the frozen synthetic DMS-01
+   candidate criteria.
 9. A published general-decision-transfer comparison and Mac runtime profile
    for already evaluated local candidates. DMS-14 provides comparative
    selection evidence only and cannot change DMS-01 quality decisions, DMS-13
@@ -204,20 +205,14 @@ how `keep` scores affect retention (a threshold or a bounded ranking rule); DAR
 does not infer a deletion threshold from model output. Without that policy, the
 scores are diagnostic only and do not delete messages.
 
-End-to-end compression quality is measured separately from per-message
-retention metrics. DMS-13 replays the official LongMemEval-S histories through
-the actual compaction path, then asks the benchmark questions using the same
-fixed downstream answer model for full-history, recency, and model-guided
-conditions. The answer-model tokenizer defines each matched history budget,
-with fixed prompt and question tokens reserved from its context window.
-Candidate model outputs and gold answers remain isolated. Record benchmark
-answer quality, evidence-turn recall where the released annotations support it,
-retained-token ratio, and runtime costs. DMS-13 uses an exact benchmark revision,
-answer model, scoring procedure, and budget frozen before candidate outputs
-are inspected; its acceptance thresholds require separate approval and do not
-change DMS-01's approved thresholds. Do not treat per-message retention scores
-or synthetic-fixture results as proof that compressed histories preserve
-downstream answer quality.
+DMS-13 was designed to measure end-to-end compression quality separately from
+per-message retention metrics. Its proposed method replays LongMemEval-S
+histories through the compaction path and compares full-history, recency, and
+model-guided answers under matched token budgets. That internal evaluation is
+now shelved. Published [LongMemEval results](https://arxiv.org/abs/2410.10813)
+are external context only and cannot establish DAR-specific compression
+quality. Do not treat per-message retention scores or synthetic-fixture results
+as proof that compressed histories preserve downstream answer quality.
 
 Scoring and application are separate: traces may record bounded counts,
 decision IDs, score semantics, adapter identity, and fallback status, but must
@@ -282,16 +277,12 @@ values and all other `noul` request shapes. Do not add a public `noul` mode.
 
 ### FR-8: Measure end-to-end context preservation
 
-The end-to-end compaction evaluation replays the pinned LongMemEval-S histories
-through DAR's message-selection compaction and evaluates the released questions
-after compaction. It compares full-history, deterministic recency, and
-model-guided retention using the same downstream answer model and matched
-answer-model-tokenizer budgets. It reports answer quality, annotated evidence
-turn recall where available, retained-token ratio, and operational costs by
-question category. Dataset revision, answer model, scoring procedure, budgets,
-and pass thresholds are recorded and approved before candidate inference.
-This is a separate evidence track and cannot retroactively satisfy or modify
-DMS-01 candidate gates.
+DMS-13's end-to-end compaction evaluation is shelved. Published LongMemEval-S
+results may inform external context only; they are not evidence about DAR's
+message-selection compaction. No internal pilot or full-corpus analysis will
+run under the current decision. Reopening this requirement needs a new explicit
+decision and run approval. DMS-13 cannot retroactively satisfy or modify DMS-01
+candidate gates.
 
 ### FR-9: Compare published general-decision transfer
 
@@ -339,11 +330,9 @@ compression quality, or admit a production profile.
   implementation stops for user direction if no candidate meets them. The
   separate Laya-MLX profile is admitted only after its own evaluation, exact
   material/runtime binding, and competency gate pass.
-- DMS-13 reports LongMemEval-S end-to-end answer quality for full-history,
-  matched-budget recency, and matched-budget model-guided compaction using the
-  same downstream answer model. Its thresholds are approved independently
-  before candidate inference; existing DMS-01 thresholds and results remain
-  unchanged.
+- DMS-13 is shelved. Published LongMemEval-S results may be cited as external
+  context only and do not establish DAR-specific end-to-end answer quality.
+  DMS-01 thresholds and results remain unchanged.
 - DMS-14 records the exact corpus/split and hashes, fixed candidate cohort,
   task mapping and scoring protocol before inference; it reports the approved
   complete local/Mac runtime matrix and a redacted aggregate receipt. One

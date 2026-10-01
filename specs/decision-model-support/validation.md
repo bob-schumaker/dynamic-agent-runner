@@ -654,17 +654,19 @@ aggregate receipt, redacted predictions, tokenizer counts, and measurements
 are recorded under `evaluation/jevstyle-dms12-*` and summarized in
 `model-evaluation.md`.
 
-DMS-13's exact user approval receipt matched the passing run-specific
+Historical record from the initial external-scorer attempt: DMS-13's exact
+user approval receipt matched the passing run-specific
 preflight, manifest, harness, runtime lock, source revisions, model artifacts,
 thresholds, and 4,500 external scorer requests. The runner stopped before
 model-cache creation because the environment had no `OPENAI_API_KEY`. Von and
 LongMemEval checkouts matched their approved revisions. No model weights were
 downloaded, no inference ran, and no benchmark data was sent externally.
-Resume the run after approval of the corrected harness receipt. That approval
-is the only remaining execution blocker; DMS-13 remains incomplete.
+At that point, resuming after approval of the corrected harness receipt was the
+only remaining execution blocker. This external-scorer attempt was superseded
+by the local MLX path below; DMS-13 remains incomplete.
 
-The status audit reconciled the implementation gates in `tasks.md`, `spec.md`,
-`plan.md`, and the candidate table: DMS-04 and DMS-10 are explicit
+The historical status audit reconciled the implementation gates in `tasks.md`,
+`spec.md`, `plan.md`, and the candidate table: DMS-04 and DMS-10 are explicit
 quality-gated deferrals, DMS-12 is complete, and the approved DMS-13 run is the
 only remaining open evaluation task. The DMS-14 cohort remains frozen as
 approved; Jev-Style was not added retroactively.
@@ -673,7 +675,7 @@ not install because the package mirror does not provide `rumdl==0.1.62`; the
 remaining hooks were invoked with `SKIP=rumdl,rumdl-fmt` and had no applicable
 files. No code tests were run for this documentation-only status correction.
 
-## DMS-13 local MLX judge switch — 2026-09-28
+## DMS-13 local MLX judge switch and initial attempts — 2026-09-28
 
 Replaced the proposed `gpt-6-luna` remote judge with the user's requested
 pinned local MLX scorer: `mlx-community/Llama-3.1-8B-Instruct-4bit` at
@@ -708,22 +710,71 @@ Validation:
 - After the MLX-LM sampler correction, Qwen and Llama each generated one token
   from a synthetic prompt in the pinned runtime; this smoke used no benchmark
   data and is separate from the pending full matrix.
-- The corrected preflight binds the exact model snapshots and current
-harness/runtime, and remains `run_allowed: false` pending approval of the new
-receipt. Two approved attempts reached the first Qwen generation and stopped
-because the pinned MLX-LM API rejects `temp=0`; each scored the first item's
-273 turns with Von, generated no answer tokens, and made zero judge calls.
-The runner now passes `make_sampler(0)` to Qwen and Llama. Its revised manifest,
-preflight, harness, and runtime-lock SHA-256 values are
-`b4900e3430e828beeb1878afca4f289d24b7706a4dbd89ef9affb117242fb106`,
-`f6673608b44e797626feca737550277d7bffa0d0444219b93e6760d7b1144bf8`,
-`c704a34655fc2c1e73bbb9c8a2700a6e2896ca88bd5d7afb6e7a6bbdd63ec011`, and
-`6c2acc5c4ab2d93503348e70301e467ccae4e147e59fb770e25204e1624fe201`.
+- At this historical checkpoint, the corrected preflight and pending receipt
+  identified the then-current greedy-sampler harness and a 4,500-call run.
+  Two approved attempts stopped before answer generation because MLX-LM
+  rejected `temp=0`; each scored the first item's 273 turns with Von and made
+  zero judge calls. The runner was then corrected to pass `make_sampler(0)`.
+  This receipt and preflight are superseded for execution: their 4,500-call
+  limit and artifact digests do not bind the checkpointed retry harness or its
+  9,000-call maximum. Do not use them to authorize further inference.
 
-The pending run receipt binds the local judge, 4,500 local calls, zero remote
-judge calls, and zero benchmark-data egress. Both failed attempts and the
-superseded approval are recorded in the receipt. The revised harness requires
-new approval because its digest changed. No external data was sent. The local model is not the
-LongMemEval authors' official Llama 3.1 70B server or GPT-4o scorer, so its
-results are exploratory and not directly comparable. The full matrix has not
-completed and no judge call has occurred.
+The local model is not the LongMemEval authors' official Llama 3.1 70B server
+or GPT-4o scorer, so its results are exploratory and not directly comparable.
+
+## DMS-13 Restartable Run Readiness Review — 2026-09-29
+
+The approved local-judge attempt ran for more than 17 hours, exited with
+`ManualRunError`, and produced no result directory or usable predictions. The
+runner logged a 9,380-token sequence against an 8,192-token limit immediately
+before exit but did not preserve the exception message; the warning is not
+established as the cause. This is the current run outcome recorded in
+`model-evaluation.md` and `tasks.md`.
+
+The harness now checkpoints each completed item atomically, records progress,
+skips verified successes on restart, retries unfinished items once, and merges
+only a complete verified set without inference. Focused fake-only tests cover
+resume, interrupted items, corrupt checkpoints, progress, and incomplete
+merge. A fresh exact preflight and approval for the revised artifacts and
+bounded retry envelope remain required. The existing receipt/preflight records
+4,500 local judge calls and 122,462 Von turn scores; the retryable run permits
+up to 9,000 and 244,924 respectively. Their hashes and limits are historical
+and cannot authorize the revised run.
+
+### Council architecture triad
+
+Aristotle, Ada, and Feynman completed independent first passes and a challenge
+round. They agreed the task graph and run sequence are ready with conditions;
+the current real-model run is not authorized. Their challenge confirmed that
+the mismatch is an execution-evidence defect, not a missing dependency or
+task. Before inference, regenerate preflight and approval binding the exact
+manifest, harness/runtime, retry policy, and maximum cost. The councillors
+preserved the distinction between task readiness and run authorization.
+
+### Ponytail
+
+Ponytail found duplicated checkpoint details in the open DMS-13 run task,
+already specified by its completed restartability task. The open item now
+refers to that procedure and keeps only the preflight, approval, execution,
+merge, and result-recording steps, reducing the item by one line.
+
+### Disposition and verification
+
+`tasks.md` is ready to continue under its stated gates; DMS-13 remains
+incomplete and blocked from further inference pending a fresh matching
+preflight and user approval. The old 2026-09-28 receipt remains historical.
+`git diff --check` passed. No model inference was performed for this review.
+
+## DMS-13 shelved — 2026-09-30
+
+The user shelved DMS-13 and decided published LongMemEval results are
+sufficient external context for current purposes. No DMS-13 pilot or full
+internal evaluation is planned. Published results do not establish
+DAR-specific context-compression performance.
+
+The approved checkpointed run had been stopped after 12 complete items. It
+saved 108 prediction rows, 3,760 Von turn scores, and 118 local judge calls;
+item 13 remained partial at 225 Von scores and zero judge calls. These partial
+outputs are not used as evaluation results. Preserve the run receipt and
+checkpoints as historical artifacts; resume only after an explicit new
+decision. The 60-item pilot proposal is shelved with the full run.

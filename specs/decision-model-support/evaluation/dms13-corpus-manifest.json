@@ -118,7 +118,7 @@
       "local meta-llama/Meta-Llama-3.1-70B-Instruct behind OpenAI-compatible HTTP endpoint"
     ],
     "proposed_scorer": {
-      "approval_status": "Pinned local-only scorer selected; exact DMS-13 run approval remains pending before benchmark inference.",
+      "approval_status": "The exact local-only run was approved but exited without usable results; new preflight and approval are required for the checkpointed harness and retry budget.",
       "artifact_download_host": "huggingface.co; pinned model weights and tokenizer only",
       "artifact_sha256": {
         ".gitattributes": "34448b82c17d60fec9b65b1f093c115ddbaadc04beb1b0140b6bfed2e012a930",

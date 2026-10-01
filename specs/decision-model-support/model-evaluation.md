@@ -16,8 +16,8 @@ failed the decision and retention gates, so it is rejected for the current
 criteria and is not recommended for production. The run used the pinned 8-bit
 MLX checkpoint and isolated runtime; detailed metrics and receipts are below.
 
-A separate DMS-13 track measures end-to-end context preservation on the
-official LongMemEval-S benchmark. It compares full history, deterministic
+A separate DMS-13 track was designed to measure end-to-end context preservation
+on the official LongMemEval-S benchmark. It would compare full history, deterministic
 recency, and model-guided message retention with a shared downstream answer
 model and matched answer-model-tokenizer history budgets. Its exact proposal
 and token measurements are in
@@ -27,10 +27,10 @@ have sent benchmark-derived data to `chatgpt.com`. DMS-13 now pins
 `mlx-community/Llama-3.1-8B-Instruct-4bit@90215b22ec18e72f623dde2ea7af4097025160e2`
 as an in-process MLX-LM judge. Its complete snapshot was downloaded and
 SHA-256 verified; a load-only smoke check passed with Metal enabled and 4.52 GB
-peak memory. No benchmark inference has started. The exact local-only run
-approval remains pending; no benchmark-derived data will be sent to a model
-endpoint. DMS-13 does not change the frozen synthetic DMS-01 criteria or any
-recorded candidate result.
+peak memory. DMS-13 was shelved by the user on 2026-09-30; published
+LongMemEval results are sufficient as external context for current purposes.
+No benchmark-derived data has been sent to a model endpoint. DMS-13 does not
+change the frozen synthetic DMS-01 criteria or any recorded candidate result.
 
 The user approved the fixture hashes, acceptance thresholds, and retention
 utility definition below on 2026-09-26, before candidate output was inspected.
@@ -41,7 +41,7 @@ candidate discovery; each candidate-specific comparison still requires an
 exact artifact, scoped approval, and preflight. The approved DMS-06 alternative
 results are recorded below.
 
-## DMS-13 LongMemEval-S context-preservation proposal
+## DMS-13 LongMemEval-S context-preservation proposal (shelved)
 
 The corpus is pinned to cleaned LongMemEval-S revision
 `98d7416c24c778c2fee6e6f3006e7a073259d48f`; its 277,383,467-byte JSON file
@@ -94,9 +94,31 @@ attempt completed Von scoring for the first item's 273 turns, generated no
 answer tokens, and made zero judge calls. No benchmark data left the machine.
 The runner now passes MLX-LM's pinned greedy sampler to both Qwen and Llama.
 One-token synthetic generations passed for both models using the corrected
-sampler; no benchmark data was used in that smoke. The corrected harness and
-refreshed preflight are bound in a new pending receipt; approval is needed
-again because the harness digest changed.
+sampler; no benchmark data was used in that smoke. The corrected harness then
+ran for more than 17 hours and exited with `ManualRunError`. It logged a
+tokenizer warning for a 9,380-token sequence against an 8,192-token limit
+immediately before stopping. The runner did not preserve the exception
+message, so the warning is not confirmed as the cause. It wrote no result
+directory or predictions, and the run produced no usable benchmark results.
+The prior approval binds the pre-checkpoint harness and does not authorize the
+resumable harness or retry costs. The run must be preflighted and approved
+again before inference resumes.
+
+The runner now divides the frozen corpus into ten-item progress chunks and
+atomically checkpoints each completed item as nine redacted prediction rows.
+It writes `progress.json` with item, Von-score, and local-judge call counts,
+including periodic updates during long items.
+Restarting with the same run identity skips verified successful items and
+retries failed, interrupted, or corrupt items once; changing the corpus,
+approval, harness, or chunk size refuses resume. The approval expectation caps
+the run at two attempts per item, 9,000 local judge calls, and 244,924 Von turn
+scores. After the main pass and that retry, `--merge` validates every item's
+expected rows and combines checkpoints into final predictions and the
+aggregate receipt without model inference. Focused fake-only tests now cover
+resume selection, interrupted-item recovery, corrupt-checkpoint rejection,
+progress reporting, and incomplete-merge refusal. The focused runner suite
+passes; full real-model evaluation and a new exact run approval covering the
+retry budget remain outstanding.
 
 The [pinned official evaluator](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/src/evaluation/evaluate_qa.py)
 supports GPT-4o, GPT-4o mini, and local Llama 3.1 70B behind an
@@ -110,16 +132,29 @@ judgments remain local; only pinned public artifacts are downloaded. The
 evaluation persists boolean labels and aggregate metrics, never raw prompts or
 scorer responses.
 
-Proposed primary budget is 32,768 history tokens. Proposed acceptance compares
-paired model-guided and recency outcomes over 10,000 question-type-stratified
-bootstrap samples (seed 13): answer-accuracy noninferiority requires the
+The historical full-run protocol used a 32,768-token primary budget and
+compared paired model-guided and recency outcomes over 10,000
+question-type-stratified bootstrap samples (seed 13): answer-accuracy
+noninferiority requires the
 95-percent interval's lower bound to exceed -0.03; evidence-turn recall may
 not be more than 0.05 below recency; and at least one of answer accuracy or
 evidence-turn recall must improve by 0.05 at the primary budget. The user
 approved the thresholds and original public-API run configuration on
-2026-09-28, then requested the switch to a pinned local MLX Llama judge. That
-changes the exact scorer binding, so the refreshed local-only run receipt still
-requires approval. No benchmark inference or judge call has occurred.
+2026-09-28, then requested the switch to a pinned local MLX Llama judge. The
+revised checkpointed local-only run was approved and stopped at the user's
+request after 12 complete items. It saved 108 prediction rows, 3,760 Von turn
+scores, and 118 local judge calls; item 13 was left in progress and is not a
+complete result; its checkpoint records 225 Von scores and no judge calls.
+Those partial data are not a full-corpus analysis and are not used as DAR
+performance evidence.
+
+### Shelved secondary directional pilot
+
+The proposed 60-item, question-type-stratified pilot at the 32,768-token
+primary budget is shelved with the full DMS-13 evaluation. Its protocol is
+retained as historical planning only; no pilot sample, preflight, or approval
+will be created under the current decision. Published LongMemEval findings are
+external context only and do not establish DAR-specific compaction quality.
 
 ## Host and DAR fit
 

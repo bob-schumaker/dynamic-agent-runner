@@ -11,9 +11,10 @@
     "thinking": false
   },
   "answer_model": "mlx-community/Qwen3-4B-Instruct-2507-4bit@50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
-  "approval_date": "2026-09-28T23:04:34Z",
-  "approval_scope": "download exact pinned public artifacts from Hugging Face and run all inference in process; send no benchmark data to model endpoints",
-  "approval_source": "User approved the corrected exact local-only DMS-13 run in chat on 2026-09-28.",
+  "approval_date": "2026-09-29T23:22:20.281109Z",
+  "approval_rationale": "500 frozen items x 9 judge calls per item x at most 2 attempts; successful checkpoints are skipped.",
+  "approval_scope": "download exact pinned public artifacts from Hugging Face and run all inference in process; allow one retry per failed or interrupted item, up to 9,000 local judge calls and 244,924 Von turn scores; send no benchmark data to model endpoints",
+  "approval_source": "User approved the 9,000-call maximum in chat on 2026-09-29 after the retry-budget explanation.",
   "approved": true,
   "budgets_history_tokens": [
     8192,
@@ -21,6 +22,7 @@
     32768,
     65536
   ],
+  "chunk_size": 10,
   "compactor": "wfzyx/von@5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
   "dataset_revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
   "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
@@ -28,20 +30,16 @@
   "expected_remote_judge_calls": 0,
   "expected_von_turn_scores": 122462,
   "external_data_fields": [],
-  "harness_sha256": "c704a34655fc2c1e73bbb9c8a2700a6e2896ca88bd5d7afb6e7a6bbdd63ec011",
-  "manifest_sha256": "b4900e3430e828beeb1878afca4f289d24b7706a4dbd89ef9affb117242fb106",
-  "preflight_sha256": "f6673608b44e797626feca737550277d7bffa0d0444219b93e6760d7b1144bf8",
-  "previous_approved_run": {
-    "approval_date": "2026-09-28T21:23:03Z",
-    "benchmark_data_egress": "none",
-    "local_judge_calls": 0,
-    "outcome": "Two attempts stopped at the first Qwen answer generation because mlx_lm.generate does not accept temp=0.",
-    "receipt_sha256": "5fd23924d40a13653d732988a51803642464019a08d2da675ef5f330b70d1e92",
-    "successful_answer_generations": 0,
-    "von_turn_scores_across_attempts": 546
-  },
+  "harness_sha256": "aa1ba88d53f9ffd85a0e49e5c7e5744ad7b1f6c11fe3e4eadc5d3ab35a65ae43",
+  "manifest_sha256": "413361f7b96d108ffda42f52b9ff25be2602ceccc5afcf1cbaa10c30564ed86f",
+  "max_attempts_per_item": 2,
+  "maximum_local_judge_calls": 9000,
+  "maximum_von_turn_scores": 244924,
+  "preflight_sha256": "ebfc11d9ba811ee014e8b043a28d8460cb706d0d1ff10bfa2fff1e664b6f1440",
+  "previous_run_outcome": "Approved local-judge attempt ran over 17 hours, exited with ManualRunError, and yielded no usable predictions; exception cause is unknown.",
   "primary_budget_history_tokens": 32768,
   "reserved_generation_tokens": 512,
+  "retry_policy": "skip verified successes; retry failed or interrupted items once; merge after all items succeed",
   "runtime_lock_sha256": "6c2acc5c4ab2d93503348e70301e467ccae4e147e59fb770e25204e1624fe201",
   "scorer_model": "mlx-community/Llama-3.1-8B-Instruct-4bit@90215b22ec18e72f623dde2ea7af4097025160e2",
   "scorer_model_files": {
@@ -57,11 +55,6 @@
   "scorer_model_license": "Llama 3.1 Community License",
   "scorer_model_size_bytes": 4517489037,
   "scorer_runtime": "MLX-LM in-process",
-  "superseded_approval": {
-    "approval_date": "2026-09-28T21:08:07Z",
-    "approved": true,
-    "receipt_sha256": "40fc5892c3df67558aa3d285bcc99b5d91eea03d4003e807746fb135c200cbce",
-    "result": "Execution stopped before benchmark inference because the approved runtime lacked Von required dependency pydantic."
-  },
+  "supersedes": "dms13-run-approval-2026-09-28.json; that receipt authorizes only the pre-checkpoint 4,500-call harness.",
   "von_source_revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54"
 }
