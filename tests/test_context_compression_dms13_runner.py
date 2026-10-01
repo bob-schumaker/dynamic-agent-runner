@@ -10,7 +10,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "manual"))
 
-from run_context_compression_dms13 import ManualRunError, VonTurnScorer, get_official_judge_prompt, run, verify_preflight, verify_run_approval
+from run_context_compression_dms13 import (
+    ManualRunError,
+    VonTurnScorer,
+    get_official_judge_prompt,
+    run,
+    verify_preflight,
+    verify_run_approval,
+)
 
 
 class _Tokenizer:
@@ -30,7 +37,11 @@ class _Backend:
 
     def evaluate_choice(self, question_id, state_text, choice):
         self.calls.append((question_id, state_text, choice))
-        return type("Answer", (), {"choice": "keep", "probabilities": {"keep": 0.8, "drop": 0.2}})()
+        return type(
+            "Answer",
+            (),
+            {"choice": "keep", "probabilities": {"keep": 0.8, "drop": 0.2}},
+        )()
 
 
 def _choice_factory(*, instructions, criteria):
@@ -96,7 +107,9 @@ def test_von_turn_scorer_checks_the_packed_prompt_length() -> None:
         backend=backend,
         choice_factory=_choice_factory,
         tokenizer=tokenizer,
-        pack_sequence=lambda state, question, options: f"{question} {state} {' '.join(options)}",
+        pack_sequence=lambda state, question, options: (
+            f"{question} {state} {' '.join(options)}"
+        ),
     )
 
     with pytest.raises(ManualRunError, match="input limit"):
@@ -153,9 +166,12 @@ def test_dms13_judge_uses_local_mlx_in_process() -> None:
         "mlx-community/Llama-3.1-8B-Instruct-4bit"
         "@90215b22ec18e72f623dde2ea7af4097025160e2"
     )
-    assert _score_with_local_model(
-        fake_generate, model, tokenizer, "safe synthetic prompt", sampler
-    ) == "Yes"
+    assert (
+        _score_with_local_model(
+            fake_generate, model, tokenizer, "safe synthetic prompt", sampler
+        )
+        == "Yes"
+    )
     assert calls == [
         (
             model,
@@ -166,7 +182,9 @@ def test_dms13_judge_uses_local_mlx_in_process() -> None:
     ]
 
 
-def test_dms13_judge_snapshot_must_match_pinned_file_digest(tmp_path, monkeypatch) -> None:
+def test_dms13_judge_snapshot_must_match_pinned_file_digest(
+    tmp_path, monkeypatch
+) -> None:
     import run_context_compression_dms13 as runner
 
     content = b"pinned local model file"
@@ -224,10 +242,15 @@ def test_run_approval_must_bind_all_pinned_run_artifacts() -> None:
     verify_run_approval({"approved": True} | expected, expected=expected)
 
     with pytest.raises(ManualRunError, match="approval"):
-        verify_run_approval({"approved": True} | (expected | {"harness_sha256": "0" * 64}), expected=expected)
+        verify_run_approval(
+            {"approved": True} | (expected | {"harness_sha256": "0" * 64}),
+            expected=expected,
+        )
 
 
-def test_manual_run_refuses_missing_approval_before_creating_model_cache(tmp_path) -> None:
+def test_manual_run_refuses_missing_approval_before_creating_model_cache(
+    tmp_path,
+) -> None:
     model_cache = tmp_path / "models"
     arguments = argparse.Namespace(
         preflight=Path(__file__).resolve().parents[1]
@@ -250,6 +273,8 @@ def test_manual_run_refuses_missing_approval_before_creating_model_cache(tmp_pat
 
 
 def test_run_preflight_binds_current_manifest_harness_and_artifacts() -> None:
+    import run_context_compression_dms13 as runner
+
     root = Path(__file__).resolve().parents[1]
     preflight_path = (
         root
@@ -259,6 +284,14 @@ def test_run_preflight_binds_current_manifest_harness_and_artifacts() -> None:
         / "preflight-dms13-run-2026-09-28.json"
     )
     receipt = json.loads(preflight_path.read_text(encoding="utf-8"))
+    receipt["manifest_sha256"] = runner._sha256(root / runner.MANIFEST_RELATIVE)
+    receipt["harness_files"] = [
+        {"path": str(path.relative_to(root)), "sha256": runner._sha256(path)}
+        for path in (
+            root / "scripts/evaluate_context_compression.py",
+            root / "tests/manual/run_context_compression_dms13.py",
+        )
+    ]
     runtime_lock = (
         root
         / "specs"
@@ -279,3 +312,90 @@ def test_run_preflight_binds_current_manifest_harness_and_artifacts() -> None:
     altered["scorer_model_snapshot_path"] = "/missing/local-judge-snapshot"
     with pytest.raises(ManualRunError, match="judge snapshot"):
         verify_preflight(altered, runtime_lock_path=runtime_lock, root=root)
+
+
+def test_resume_skips_atomic_successes_and_retries_interrupted_items(tmp_path) -> None:
+    import run_context_compression_dms13 as runner
+
+    item_dir = tmp_path / "items"
+    item_dir.mkdir()
+    rows = [{"row": index} for index in range(runner.PREDICTION_ROWS_PER_ITEM)]
+    row_digest = hashlib.sha256(
+        json.dumps(rows, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    runner._write_json_atomic(
+        item_dir / "item-0000.json",
+        {
+            "status": "complete",
+            "item_index": 0,
+            "attempts": 1,
+            "predictions": rows,
+            "prediction_sha256": row_digest,
+        },
+    )
+    runner._write_json_atomic(
+        item_dir / "item-0001.json",
+        {
+            "status": "in_progress",
+            "item_index": 1,
+            "attempts": 1,
+            "judge_calls": 2,
+            "von_turn_scores": 50,
+        },
+    )
+
+    restored_rows, completed = runner._read_successful_items(tmp_path, 2)
+
+    assert restored_rows == rows
+    assert list(completed) == [0]
+    assert runner._pending_item_indices(0, 2, completed) == [1]
+    assert runner._checkpoint_attempt_count(item_dir / "item-0001.json") == 1
+    assert runner._may_attempt_checkpoint(item_dir / "item-0001.json")
+    runner._write_json_atomic(
+        item_dir / "item-0001.json",
+        {
+            "status": "in_progress",
+            "item_index": 1,
+            "attempts": runner.MAX_ITEM_ATTEMPTS,
+        },
+    )
+    assert not runner._may_attempt_checkpoint(item_dir / "item-0001.json")
+
+
+def test_resume_rejects_corrupt_success_and_merge_refuses_partial_checkpoints(
+    tmp_path,
+) -> None:
+    import run_context_compression_dms13 as runner
+
+    item_dir = tmp_path / "items"
+    item_dir.mkdir()
+    rows = [{"row": index} for index in range(runner.PREDICTION_ROWS_PER_ITEM)]
+    runner._write_json_atomic(
+        item_dir / "item-0000.json",
+        {
+            "status": "complete",
+            "item_index": 0,
+            "attempts": 1,
+            "predictions": rows,
+            "prediction_sha256": "0" * 64,
+        },
+    )
+
+    restored_rows, completed = runner._read_successful_items(tmp_path, 2)
+
+    assert restored_rows == []
+    assert completed == {}
+    with pytest.raises(ManualRunError, match="every item"):
+        runner._require_complete_checkpoints([], {}, 2)
+
+
+def test_progress_receipt_tracks_chunk_item_and_model_score_count(tmp_path) -> None:
+    import run_context_compression_dms13 as runner
+
+    runner._write_progress(tmp_path, 21, chunk_size=10, current=10, von_scores=550)
+
+    progress = json.loads((tmp_path / "progress.json").read_text(encoding="utf-8"))
+    assert progress["chunk"] == 2
+    assert progress["current_item"] == 11
+    assert progress["von_turn_scores_attempted"] == 550
+    assert progress["completed_items"] == 0
