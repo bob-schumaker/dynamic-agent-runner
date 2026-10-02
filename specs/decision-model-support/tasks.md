@@ -2,8 +2,24 @@
 
 Source of truth: `spec.md`. Implementation approach: `plan.md`.
 
+The 2026-10-02 client-support decision separates adapter availability from
+context-management quality. DMS-01/DMS-06/DMS-08/DMS-12/DMS-14 results remain
+historical context-management evidence; revisit criteria when that work
+resumes. DMS-16 plans optional client workflow support for exact Von,
+Laya-MLX, and Qwen-based profiles without using those quality results as
+adapter prerequisites.
+
 ## Readiness Review
 
+- [x] Re-review DMS-16 against `spec.md` and `plan.md` with the Council
+  architecture triad and Ponytail after the client-support scope decision.
+  Council found it ready under staged technical gates: freeze exact profile
+  rows and decide technical admission independently; reject context-retention
+  use before inference; cover Laya `noul` mapping; and require exact approved
+  compatibility evidence. Quality results do not gate client workflow support.
+  Ponytail removed a duplicate DMS-16 plan-table row while retaining the task's
+  necessary profile, use-boundary, and compatibility checks. Findings and
+  dispositions are in `validation.md`.
 - [x] Re-review the current task list against `spec.md` and `plan.md` with the
   Council architecture triad and Ponytail after making DMS-13 restartable.
   Council found the task graph ready with conditions; at that review DMS-13
@@ -47,9 +63,10 @@ Source of truth: `spec.md`. Implementation approach: `plan.md`.
   - **Disposition:** The task list was ready under its stated gates. DMS-15's
     audit completed with no helper; helper implementation depends on
     demonstrated reuse.
-    DMS-04 remains stopped and DMS-10 remains deferred by their candidate
-    quality gates. DMS-12 is complete; DMS-13 now uses a pinned local MLX Llama
-    judge and, at that review date, awaited approval for the revised exact run.
+    DMS-04 was stopped and DMS-10 deferred for context-management use at that
+    review date. DMS-16 now owns optional client-workflow adapter support.
+    DMS-12 is complete; DMS-13 now uses a pinned local MLX Llama judge and, at
+    that review date, awaited approval for the revised exact run.
 
 Tasks are ordered by dependency. Every code task follows TDD: add or update the
 focused test first, observe the expected failure, implement, and rerun until it
@@ -158,17 +175,14 @@ passes. Do not use real model weights in unit tests.
 ## DMS-04 Qwen Local Profile (FR-4)
 
 - Depends on: DMS-01 and DMS-02.
+- Archived context-management disposition: the DMS-01 quality gate stopped
+  Qwen use for context management. DMS-16 supersedes this task for client
+  workflow support and uses technical/material/host-safety gates.
 - [x] Apply the candidate gate: the completed DMS-01 cohort has no passing
   Qwen profile, so DMS-04 implementation is stopped as required by `spec.md`.
   No adapter tests, production binding, competency run, or admission decision
-  are claimed. Reopen only after a newly approved Qwen profile passes the
-  frozen DMS-01 gates.
-
-Deferred implementation requirements, to be reopened only with a passing
-candidate: fake-backed exact-material/profile/runtime binding tests; offline
-loading and resource/deadline/cancellation checks; binding through the host
-model-execution and capability boundaries; and a separately approved local
-competency run before production admission.
+  are claimed. Revisit the context-management decision only when that work and
+  its quality criteria are reopened.
 
 ## DMS-05 Internal Compaction Scoring (FR-5, FR-6)
 
@@ -232,9 +246,10 @@ competency run before production admission.
   LitJev failed the frozen quality criteria; NanoJev remains deferred because
   its pinned inference source requires unavailable CUDA and its checkpoint
   license is undeclared.
-- [x] Add no alternative production support: Von, PoorJev, and LitJev failed
-  the frozen quality thresholds, while NanoJev is deferred. Do not expand the
-  initial Qwen profile task.
+- [x] Record no alternative context-management profile under the then-current
+  quality thresholds: Von, PoorJev, and LitJev failed, while NanoJev is
+  deferred. This historical disposition does not block the separate
+  client-facing adapter work in DMS-16.
 
 Frozen-fixture evaluation is complete for Von 1.2.0, PoorJev, LitJev, and
 Jev-Style 0.8B v3. All failed one or more frozen quality gates. NanoJev is
@@ -325,24 +340,14 @@ added.
 
 ## DMS-10 First-Party Laya-MLX Decision Adapter
 
-- Depends on: DMS-08 passing the frozen DMS-01 quality gates and DMS-09's
-  runtime compatibility decision. If evaluation fails, record the disposition
-  and leave implementation deferred.
-- Disposition: deferred because DMS-08 failed decision accuracy and retention
-  quality gates. Do not add a first-party profile, DAR dependency, or production
-  admission for this candidate.
-- [x] Apply the DMS-08 quality gate: Laya-MLX failed decision accuracy and
-  retention thresholds, so DMS-10's adapter, local competency run, and
-  production admission are deferred. Do not add a first-party profile, DAR
-  dependency, or production binding. Reopen only after a newly approved
-  Laya-MLX candidate passes the frozen DMS-01 gates.
-
-Deferred implementation requirements: add fake-backed coverage for exact
-profile/material/runtime binding; typed `choice`, `scores`, and supported
-`noul` mappings; calibration semantics; offline loading; limits and lifecycle.
-Then implement a focused in-process MLX adapter through DAR's host execution
-and capability interfaces, and require exact candidate approval and a passing
-competency run before an explicit production admission decision.
+- Archived context-management decision: DMS-08 failed the frozen DMS-01 quality
+  gates, so this task does not admit Laya-MLX for context-management use.
+  DMS-16 supersedes this task for optional client-facing workflow support and
+  does not inherit its quality gate.
+- [x] Record the context-management disposition: Laya-MLX failed decision
+  accuracy and retention thresholds. Do not use it for context management
+  unless those criteria are revisited. DMS-16 owns the separate client-workflow
+  adapter decision.
 
 ## DMS-11 Laya-MLX Validation and Handoff
 
@@ -601,3 +606,57 @@ competency run before an explicit production admission decision.
   full test command recorded under DMS-07, and `poetry run ruff check src tests`.
   For this no-code outcome, the audit is recorded and `git diff --check` passed;
   tests and Ruff were not applicable.
+
+## DMS-16 Optional Client-Facing Local Decision Backends
+
+- Depends on: the implemented DMS-02 contract and DMS-03 workflow node. DMS-01,
+  DMS-06, DMS-08, DMS-12, and DMS-14 quality outcomes do not gate client
+  workflow support; they continue to govern context-management suitability.
+- [ ] Resolve exact supported profiles from the evaluated materials: Von 1.2.0,
+  direct in-process Laya-MLX, and selected Kev/Qwen-based checkpoints. Freeze
+  a closed profile/material/runtime row list before RED/GREEN work; each row
+  must record source/model revisions, licenses, platform/runtime support,
+  input limits, output mappings, dependency closure, and material digests.
+  Resolve a technical admit/defer disposition for each row before beginning
+  that row's RED/GREEN implementation; one backend's incompatibility does not
+  block other rows. Do not broaden support to arbitrary Von, Laya, or Qwen
+  models.
+- [ ] Define isolated optional dependency groups for the supported runtimes.
+  Keep model stacks out of DAR's default/core dependencies; verify the groups
+  can be resolved and installed independently with the supported Python range.
+  Record conflicts rather than widening shared dependency constraints without
+  compatibility evidence. A conflict defers only its own profile row.
+- [ ] **RED:** Add fake-backed adapter and binding tests for each exact profile:
+  request/result mapping, identity mismatch, unsupported mode, input/output
+  limits, cancellation/deadline behavior, offline material loading, adapter
+  errors, and redacted traces. Require an explicit `workflow_decision` use
+  declaration and test that host admission rejects DMS-16 profiles for
+  `context_retention` before inference. Include Laya `noul` cases for exact
+  `yes`/`no` score mapping, request-order complement, malformed probabilities,
+  rejection of `calibrated_probability` without pinned calibration evidence,
+  and every unsupported request shape. Verify each optional runtime is not
+  imported unless its profile is selected. Observe failures before
+  implementation.
+- [ ] **GREEN:** Implement backend-specific Von, Laya-MLX, and Qwen/Kev adapters
+  through the existing `DecisionModelAdapter` contract and host execution
+  boundary. Preserve in-process execution, explicit profile selection, exact
+  material binding, host-owned resource/lifecycle controls, and no fallback.
+  Bind each profile as `workflow_decision`; host admission must reject
+  `context_retention` use before inference.
+  Do not put model loading, tokenization, or score interpretation in the
+  generic contract.
+- [ ] Run focused fake tests and dependency-resolution checks for each optional
+  group independently. Before exposing each profile, pass exact-material
+  preflight and post-install load/one bounded compatibility inference on its
+  pinned artifacts, using synthetic non-sensitive input and confirming a
+  contract-valid result with no network access after material admission.
+  Existing smoke evidence may be reused only when it binds the identical
+  material digests, runtime/extra lock, platform, and adapter-facing execution
+  path. Obtain matching approval before any new download or inference; this is
+  not a DMS quality run or context-management recommendation.
+  Run the DMS-07 full suite and Ruff after the adapter matrix is green.
+- [ ] Record technical support status independently from context-management
+  quality status in `model-evaluation.md` and `validation.md`. Record a separate
+  support/defer disposition for each frozen profile row. Do not enable any
+  workflow-decision-only adapter for compaction or context management until the
+  relevant quality criteria are revisited and passed.

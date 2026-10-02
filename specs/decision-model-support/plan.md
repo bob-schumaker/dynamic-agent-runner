@@ -4,22 +4,25 @@
 
 - Feature spec: `spec.md`
 - Mode: guided
-- Plan status: partial implementation; DMS-04 remains stopped because no Qwen
-  candidate passed DMS-01. DMS-08 evaluated and rejected Laya-MLX against the
-  frozen quality gates, so DMS-10 first-party adapter work is deferred and
-  DMS-11 closes with validation and handoff. DMS-12 evaluated Jev-Style 0.8B
-  v3 and rejected it under the frozen quality gates. DMS-13 adds a separate
+- Plan status: partial implementation. DMS-01, DMS-06, DMS-08, DMS-12, and
+  DMS-14 evaluations and quality gates remain recorded, but they do not gate
+  optional client-facing backend support. Revisit quality criteria when
+  context compression/management work resumes. DMS-13 adds a separate
   end-to-end LongMemEval-S context-preservation track with a pinned local
   in-process MLX Llama judge. DMS-13 is shelved; published LongMemEval results
   are used as external context, with no claim about DAR-specific performance.
   DMS-14 completed its approved published general-transfer and Mac-runtime
-  matrix. No candidate met both thresholds; results are comparative only and
-  do not admit a production profile. DMS-15 adds an audit-first review for
-  runtime-neutral adapter helpers, with implementation conditional on proven
-  reuse across backends.
+  matrix. No candidate met both thresholds; results remain comparative only.
+  DMS-15 adds an audit-first review for runtime-neutral adapter helpers, with
+  implementation conditional on proven reuse across backends. DMS-16 plans
+  optional client-facing Von,
+  Laya-MLX, and Qwen-based adapters.
   See `tasks.md` and `validation.md`.
-- Readiness: DMS-08 through DMS-11 were implementation-ready under their stated
-  gates. The DMS-08 result now stops the DMS-10 production-adapter branch.
+- Readiness: the generic contract and workflow path are implemented. Optional
+  Von, Laya-MLX, and Qwen client backends remain planned; their implementation
+  is gated by exact runtime, material, contract, and host-boundary validation,
+  not by the context-management quality results. Context-management use still
+  requires its own quality review.
 - Implementation procedure: spec-driven development, followed by
   `execute-ready-item` for this feature
 
@@ -28,22 +31,26 @@
 Use one package-owned request/result contract with explicit `choice` and
 `scores` modes. Workflow `decision_step` nodes use one `choice` question; the
 internal compaction scorer batches `scores` questions. The first DAR-owned
-implementation supports local models only. Kev-0.6B is the provisional small
-local design/manual-test target; fake adapters remain the unit-test mechanism,
-and local model results are separately gated by DMS-01. A caller-supplied
-adapter can implement server-backed runtimes such as Laya; the external client
-owns any server and its lifecycle. Separately, DMS-08 through DMS-10 evaluate
-and may add one first-party, direct in-process Laya-MLX profile. Its evaluation
-uses an isolated Poetry research runtime and does not alter DAR dependencies.
-DMS-09 confirmed that MLX 0.32.2 satisfies the upstream Laya requirement and
-coexists with DAR's current MLX extras. This candidate failed DMS-01 quality
-gates, so no Laya production adapter or DAR dependency was added. The direct
-evaluation did not use HTTP or start a server. DAR's Qwen profiles continue to
-use reviewed local model material and execution binding, and the Laya
-evaluation did not reopen the stopped Qwen admission task. DMS-12 separately
-screens Jev-Style 0.8B v3 on the same local host and frozen fixtures; it does
-not authorize model inference or production support until its candidate gates
-pass.
+implementation supports local models only. Plan optional, separately
+installable in-process backends for Von, Laya-MLX, and reviewed Qwen-based
+decision profiles, all behind the shared contract and exact profile/material
+binding. Keep backend dependencies out of the core install, require explicit
+profile selection, and preserve host-owned limits, lifecycle, tracing, and
+redaction. A caller-supplied adapter can still implement server-backed runtimes
+such as Laya; the external client owns any server and its lifecycle.
+
+These optional backends do not imply a default model. Their purpose is to let
+clients explicitly select supported decision runtimes; they are not DAR's
+recommendation for context compression or management. The existing DMS-01,
+DMS-06, DMS-08, DMS-12, and DMS-14 measurements remain recorded and do not
+block client-facing adapter work. Revisit those quality criteria and evaluate
+context-management suitability separately when that work resumes. Backend
+support still requires exact source/model/runtime identity, compatible
+materials and licenses, bounded contract translation, offline loading after
+material admission, and tests for host limits, lifecycle, errors, and
+redaction. The Laya evaluation used an isolated Poetry research runtime and
+did not alter DAR dependencies or use HTTP; DMS-09's MLX compatibility result
+is useful technical evidence, separate from its quality result.
 
 Keep safety decisions outside the learned model. Node validation, allowed-edge
 selection, message pinning, recent-turn retention, tool-pair preservation,
@@ -55,21 +62,22 @@ always performs truncation and message deletion.
 
 | Concern | Current target area | Expected work |
 | --- | --- | --- |
-| Public decision request, result, profile, and adapter protocol | `src/dynamic_agent_runner/decision_models.py` (new), `src/dynamic_agent_runner/__init__.py` | Define and export typed contracts; validate adapter identity and outputs |
-| Workflow node shape and validation | `src/dynamic_agent_runner/validation.py` (`RuntimeNode.raw` already preserves subtype data) | Add one-question decision-model subtype and profile/output-mode checks |
-| Workflow node execution | `src/dynamic_agent_runner/context.py`, `src/dynamic_agent_runner/executor.py` | Resolve exact caller-supplied runtime binding, invoke adapter, validate result, follow only the mapped edge |
-| Qwen material and runner binding | `src/dynamic_agent_runner/workflow_host/model_execution_binding.py`, `src/dynamic_agent_runner/workflow_host/local_model_runners.py`, `src/dynamic_agent_runner/workflow_host/capabilities.py` | Bind only the evaluated Qwen profile and locked materials; reuse host limits and lifecycle |
-| Compaction scoring | `src/dynamic_agent_runner/context_compaction.py`, `src/dynamic_agent_runner/executor.py` | Score eligible old messages in bounded batches, then apply deterministic compaction policy |
-| Candidate evaluation | `scripts/evaluate_decision_models.py` (new), `tests/test_decision_model_evaluation.py` (new), `specs/decision-model-support/evaluation/` | Verify frozen fixture hashes and label separation, compare matched-token recency baseline, compute pre-recorded metrics, and emit a redacted evaluation receipt |
+| Public decision request, result, profile, and adapter protocol | `src/dynamic_agent_runner/decision_models.py`, `src/dynamic_agent_runner/__init__.py` | Implemented; reuse the typed contract and validation |
+| Workflow node shape and validation | `src/dynamic_agent_runner/validation.py` (`RuntimeNode.raw` preserves subtype data) | Implemented; preserve exact-profile dispatch and mapped-edge routing |
+| Workflow node execution | `src/dynamic_agent_runner/context.py`, `src/dynamic_agent_runner/executor.py` | Implemented; resolve exact caller-supplied runtime binding, invoke adapter, validate result, follow only the mapped edge |
+| Optional client backends (DMS-16) | Backend-specific adapters under `src/dynamic_agent_runner/workflow_host/`, optional dependency groups in `pyproject.toml`, and exact profile/material bindings | Freeze exact rows and technical admit/defer outcomes independently; add separately installable Von, Laya-MLX, and Qwen/Kev backends over the shared contract; enforce `workflow_decision` use before dispatch; require technical/material/host checks and approved exact-runtime compatibility evidence; no context-management quality gate for client support |
+| Qwen/Kev material and runner binding (DMS-16) | `src/dynamic_agent_runner/workflow_host/model_execution_binding.py`, `src/dynamic_agent_runner/workflow_host/local_model_runners.py`, `src/dynamic_agent_runner/workflow_host/capabilities.py` | Bind selected exact Qwen/Kev profiles and locked materials after technical/runtime and host-boundary review; reuse host limits and lifecycle; assess context-management quality separately |
+| Compaction scoring | `src/dynamic_agent_runner/context_compaction.py`, `src/dynamic_agent_runner/executor.py` | Implemented with fake profiles; model-backed use remains subject to context-management quality review |
+| Candidate evaluation | `scripts/evaluate_decision_models.py`, `tests/test_decision_model_evaluation.py`, `specs/decision-model-support/evaluation/` | Implemented for the frozen fixtures; keep quality findings separate from client-backend compatibility |
 | End-to-end compaction evaluation | DMS-13 task and `specs/decision-model-support/evaluation/` | Shelved. Use published LongMemEval findings as external context only; do not infer DAR-specific context-compression performance. Reopen only by explicit decision. |
 | Published decision-transfer comparison | `tests/manual/run_dms14_transfer.py`, `tests/test_dms14_transfer_runner.py`, `scripts/evaluate_decision_transfer.py`, `tests/test_decision_transfer_evaluation.py`, `specs/decision-model-support/evaluation/`, and `model-evaluation.md` | Score the fixed completed-candidate cohort in process on pinned `transfer-v4` development items; freeze corpus/task mapping and scoring before output inspection; report paired quality and option-order measures on the same corpus in the Mac runtime profile |
-| Pinned Kev competency run | `tests/manual/run_kev_dms01.py` (new), `tests/test_kev_dms01_runner.py` (new) | Run the exact approved Kev-0.6B artifact in-process through its pinned external research harness; export only predictions, tokenizer counts, and aggregate measurements |
-| Von alternative evaluation | `tests/manual/run_von_dms06.py` (new), `tests/test_von_dms06_runner.py` (new) | Evaluate the pinned Von 1.2 snapshot in-process on the shared frozen inputs, with a separate candidate approval gate, pinned source/runtime, no Von server, and redacted outputs |
-| Jev-Style 0.8B v3 evaluation | `tests/manual/run_jevstyle_dms12.py` (new), `tests/test_jevstyle_dms12_runner.py` (new), `specs/decision-model-support/evaluation/jevstyle-mlx-runtime/` | Evaluate the pinned 8-bit MLX checkpoint in process on the shared frozen inputs; the candidate runner verifies exact materials, lock, and preflight, and refuses model download/inference until exact candidate approval |
-| Laya-MLX candidate evaluation | `tests/manual/run_laya_mlx_dms08.py` (new), `tests/test_laya_mlx_dms08_runner.py` (new), `specs/decision-model-support/evaluation/` | Resolve and pin one source/checkpoint/tokenizer/runtime; evaluate in an isolated research environment with candidate approval, preflight, offline inference, input-limit rejection, and redacted outputs |
+| Pinned Kev competency run | `tests/manual/run_kev_dms01.py`, `tests/test_kev_dms01_runner.py` | Historical evaluation-only runner for the exact approved Kev-0.6B artifact; its quality outcome does not gate DMS-16 client support |
+| Von alternative evaluation | `tests/manual/run_von_dms06.py`, `tests/test_von_dms06_runner.py` | Completed evaluation-only runner for pinned Von 1.2.0; its quality outcome does not gate DMS-16 client support |
+| Jev-Style 0.8B v3 evaluation | `tests/manual/run_jevstyle_dms12.py`, `tests/test_jevstyle_dms12_runner.py`, `specs/decision-model-support/evaluation/jevstyle-mlx-runtime/` | Completed evaluation-only runner for the pinned 8-bit MLX checkpoint; it does not authorize client backend support or context-management use |
+| Laya-MLX candidate evaluation | `tests/manual/run_laya_mlx_dms08.py`, `tests/test_laya_mlx_dms08_runner.py`, `specs/decision-model-support/evaluation/` | Completed evaluation-only runner for the exact source/checkpoint/tokenizer/runtime; its quality outcome does not gate DMS-16 client support |
 | DAR MLX dependency compatibility | `pyproject.toml`, `poetry.lock`, MLX generation and embedding checks | Choose a compatible optional-extra/runtime boundary without importing upstream `uv.lock`; change shared ranges only after existing MLX consumers pass compatibility checks |
-| Laya-MLX decision adapter and binding (deferred) | `src/dynamic_agent_runner/workflow_host/laya_mlx_decision_adapter.py`, `src/dynamic_agent_runner/workflow_host/model_execution_binding.py`, `src/dynamic_agent_runner/workflow_host/capabilities.py`; `tests/test_laya_mlx_decision_adapter.py`, `tests/test_workflow_model_execution_binding.py`, `tests/test_capabilities.py` | Do not implement: DMS-08 failed decision and retention quality gates. Reconsider only after a newly approved candidate passes the frozen criteria. |
-| Contract tests | `tests/test_decision_models.py` (new) | Test adapter request/result validation and output semantics |
+| Laya-MLX decision adapter and binding (DMS-16) | `src/dynamic_agent_runner/workflow_host/laya_mlx_decision_adapter.py`, `src/dynamic_agent_runner/workflow_host/model_execution_binding.py`, `src/dynamic_agent_runner/workflow_host/capabilities.py`; `tests/test_laya_mlx_decision_adapter.py`, `tests/test_workflow_model_execution_binding.py`, `tests/test_capabilities.py` | Implement optional client-facing in-process support after exact runtime/material, output-mapping, and host-boundary checks; keep its DMS-08 quality result as a context-management finding, not an adapter-support gate. |
+| Contract tests | `tests/test_decision_models.py` | Test adapter request/result validation and output semantics |
 | Reusable adapter helpers (DMS-15) | `src/dynamic_agent_runner/decision_models.py`, `tests/test_decision_models.py`, and `validation.md`; `docs/files/python-api.rst` only if a helper is approved as public API | Audit completed candidate inference paths for duplicated contract translation; implement only runtime-neutral helpers proven useful across at least two backends; otherwise record a no-change disposition |
 | Workflow tests | `tests/test_validation.py`, `tests/test_executor.py` | Test schema rejection, exact routing, failure behavior, and no implicit fallback |
 | Host binding tests | `tests/test_workflow_model_execution_binding.py`, `tests/test_local_model_runners.py` | Test exact profile/material admission and rejected candidates |
@@ -80,15 +88,17 @@ update this plan before changing implementation scope. Do not duplicate the
 decision protocol inside provider adapters or add a second primitive workflow
 node kind.
 
-## Candidate Evaluation Gate
+## Context-Management Evaluation Gate
 
 DMS-01 records exact candidate repositories/model identifiers, immutable
 revisions, licenses, supported inference formats, runtime requirements, maximum
 input sizes, and host resource measurements. Comparative model runs use a
 pre-registered labeled evaluation set and criteria agreed before candidate
-outputs are inspected. The report compares decision quality, calibration when
-claimed, latency, and peak memory. For compaction it also compares retention
-quality at a matched token budget against the current deterministic baseline.
+outputs are inspected. This gate decides context-management suitability; its
+thresholds do not gate client-facing `decision_step` adapter support. The report
+compares decision quality, calibration when claimed, latency, and peak memory.
+For compaction it also compares retention quality at a matched token budget
+against the current deterministic baseline.
 The one-purpose harness and its fake-output tests verify fixture hashes, label
 separation, baseline construction, metrics, and redacted receipts. A dated
 preflight records the allowed evaluation runtime and host capacity before any
@@ -124,10 +134,11 @@ matrix-level approval authorizes all listed candidate/runtime pairs;
 candidate-specific identity checks and host preflight still run for every pair.
 If an exact corpus mapping or runtime is unusable, record the exclusion before
 approval; do not substitute an artifact or add a candidate after approval. No
-DMS-14 result changes existing admission, DMS-01, or DMS-13 decisions.
+DMS-14 result changes existing quality decisions or DMS-13 status.
 The approved matrix has completed: all six rows produced 1,368 predictions
 with zero failed outputs, and no candidate met both thresholds. This remains
-comparative evidence and admits no production profile.
+comparative general-decision-transfer evidence and does not block optional
+client adapter support.
 
 DMS-15 audits completed candidate paths for repeated, runtime-neutral
 contract-translation logic. It depends on the completed DMS-06, DMS-08, and
@@ -140,32 +151,22 @@ the adapter example live with the contract tests and `validation.md`; public
 exports and API documentation are updated only if the review selects a
 publicly supported helper.
 
-The initial Qwen candidate cohort contains local candidates only; the then-
-reviewed Laya integration required a server and remains external-client-owned.
-The separate DMS-08 Laya-MLX candidate is a direct local implementation, not
-that server integration. It must be identified and reviewed independently and
-may not change DAR dependencies during its isolated evaluation.
-Kev-0.6B is a provisional design/evaluation target; any manual inference is
-behind DMS-01's approval and preflight gates. DMS-01 recommends a candidate for
-DMS-04 but does not admit it for production. DMS-04 binds and fake-verifies the
-exact DAR runner/material closure, then performs its separately authorized
-competency check. Production admission requires both candidate evidence and
-the exact DAR binding to pass. DMS-06 must resolve each named alternative to a
-primary-source artifact or record an evidence-backed unresolved-identity defer
-before applying the shared evaluation method.
+The initial Qwen candidate cohort contains local candidates only; the reviewed
+server-backed Laya integration remains external-client-owned. The separate
+DMS-08 Laya-MLX candidate is direct in-process local inference, not that server
+integration. Keep all planned backends tied to exact source, model, runtime,
+and material identities. Model downloads and real local inference remain
+separately authorized manual actions; unit tests stay fake-only.
 
-An exact Qwen profile is implemented only after at least one Qwen candidate
-passes those criteria and DMS-04 confirms its runtime/material closure can be
-bound to a reviewed DAR runner. If none passes or can be bound, stop DMS-04 and
-request a user decision on the candidate or acceptance criteria. Model
-downloads and real local inference are manual gates; unit tests stay fake-only.
-
-The Laya-MLX branch is ordered DMS-08 candidate identity/evaluation, DMS-09
-DAR MLX dependency compatibility, then DMS-10 in-process adapter and admission.
-If DMS-08 misses a frozen quality gate or DMS-09 cannot establish a compatible
-runtime/material closure, stop the branch without implementing or admitting
-the profile. A successful adapter build still requires its separately
-authorized competency run and explicit admit/reject record.
+Implement Qwen, Von, and Laya-MLX client adapters when their exact runtime and
+material closures can be bound safely to DAR's existing host boundary. For
+each, verify bounded input/output translation, capability limits, cancellation
+and deadlines, offline loading after material admission, and redacted failures.
+No default backend or implicit fallback is introduced. DMS-01 quality results
+do not block client workflow support; before using a profile for compaction or
+context management, reopen that work with its own criteria and explicit
+profile admission. DMS-13 remains shelved until an explicit decision reopens
+that work.
 
 DMS-14 uses fake-only tests for corpus identity, task mapping, label isolation,
 aggregation, and redacted receipts. Run its focused tests and Ruff before any
@@ -173,6 +174,31 @@ matrix inference. All eligible candidates use the same pinned `transfer-v4`
 development items and scoring protocol. Record different precision or
 quantization profiles as separate candidate configurations with separate
 quality results.
+
+## DMS-16 Optional Client Backend Support
+
+Implement separately selectable, first-party in-process adapters for exact Von
+1.2.0, Laya-MLX, and selected Kev/Qwen-based profiles through the existing
+decision contract and host execution binding. The completed DMS quality
+evaluations do not gate client-authored workflow support. Keep their results as
+context-management evidence; compaction use is out of scope until that work is
+reopened with separate criteria and an explicit profile admission.
+
+First freeze a closed profile/material/runtime row list, recording the exact
+artifact/source revision, license, platform, input/output mapping, and optional
+dependency closure. Resolve and admit or defer each row independently. Keep
+backend stacks outside the default install and import them only when the
+matching profile is selected. Mark each binding `workflow_decision`; host
+admission rejects `context_retention` before inference. Test translations,
+profile/material/use binding, limits, cancellation, deadlines, errors, and
+redaction with fakes first. Before exposing any supported row, require an
+approved exact-material preflight plus a post-install load and one bounded
+compatibility inference. Reuse existing smoke evidence only when its material,
+runtime lock, platform, and adapter path match exactly; obtain approval before
+any new download or inference. Preserve offline loading, host-owned
+resource/lifecycle controls, and fail-closed behavior. Add no server, implicit
+fallback, generic model loader, or quality claim. Record client support
+separately from context-management decisions.
 
 ## Failure and Rollout
 
@@ -183,7 +209,8 @@ quality results.
   failed, timed-out, or invalid scoring uses the configured deterministic
   fallback or fails closed. The feature is not enabled by default.
 - A changed model revision, runner, score semantic, or material closure is a
-  different profile and requires admission and evaluation again.
+  different profile and requires technical review and material admission
+  again. Context-management use also requires renewed quality evaluation.
 - Traces include only bounded status, profile identity, counts, score semantic,
   and fallback classification. They omit user content and raw model output.
 

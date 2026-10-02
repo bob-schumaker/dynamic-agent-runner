@@ -1,5 +1,59 @@
 # Decision Model Support Readiness Validation
 
+## DMS-16 Client Backend Support Readiness Review — 2026-10-02
+
+Reviewed the client-support update to `spec.md`, `plan.md`, and `tasks.md`.
+The user's direction is to make optional Von, direct in-process Laya-MLX, and
+Qwen/Kev decision backends available to client workflows without applying the
+existing context-quality criteria. Revisit those criteria when context
+compression/management work resumes. No implementation, model download, or
+inference was performed.
+
+### Council architecture triad
+
+Aristotle, Ada, and Feynman completed parallel independent first passes, a
+challenge round, and a post-repair audit. They found and resolved these
+readiness gaps:
+
+- FR-7 now separates DMS-08's historical Laya candidate evidence from DMS-16's
+  technical admission; DMS-10 remains an archived context-management decision.
+- DMS-16 freezes a closed profile/material/runtime list and records an
+  independent technical admit/defer outcome before RED/GREEN work for each
+  profile. One row's dependency conflict does not block another.
+- The spec makes `permitted_uses` host-controlled admission data. DMS-16
+  profiles permit only `workflow_decision`, and `context_retention` resolution
+  must fail before adapter dispatch. Caller-provided task/profile IDs cannot
+  grant permission. A fake rejection test is required before inference.
+- RED coverage includes FR-7's exact Laya `noul` mapping, malformed and
+  unsupported shapes, and rejection of `calibrated_probability` without
+  pinned calibration evidence.
+- Before exposing a row, the task requires approved exact-material preflight
+  and a bounded synthetic, contract-valid, offline-after-admission
+  compatibility smoke. Existing evidence may be reused only when material
+  digests, runtime/extra lock, platform, and adapter-facing path all match.
+
+Council's final verdict was ready under these staged technical gates. It found
+no quality threshold, corpus score, or retention metric in DMS-16 client
+admission. Remaining proof is implementation-time: the host use guard must
+pass its fake test before any profile is exposed.
+
+### Ponytail
+
+Ponytail found the new support work warranted by the explicit client-support
+decision. It identified a duplicate broad DMS-16 row in the plan table; that
+row was removed and its concise profile, use-boundary, and compatibility
+summary retained in the remaining entry. The detailed DMS-16 section and task
+remain because they carry the distinct execution and validation gates.
+
+### Disposition and verification
+
+DMS-16 is ready to begin with the exact profile-row freeze and independent
+technical admission step. It does not authorize downloads or real inference by
+itself; each new compatibility run still requires matching approval and
+preflight. Client workflow support is separate from future context-management
+use. `git diff --check` passed. No tests were run because this review changed
+planning artifacts only.
+
 Status: readiness review passed when authored; current execution status is
 partial. See the implementation audit at the end of this file and the current
 state in `spec.md` and `tasks.md`.

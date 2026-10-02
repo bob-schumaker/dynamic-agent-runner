@@ -6,16 +6,20 @@
 - Mode: guided
 - Artifact type: feature specification
 - Status: partial implementation; DMS-01, DMS-02, DMS-03, DMS-05, and DMS-07
-  work is present. DMS-04 is stopped because no Qwen candidate passed DMS-01.
-  DMS-06 measured Von 1.2.0, PoorJev, and LitJev and rejected them for quality
-  thresholds; NanoJev remains deferred for host and licensing constraints.
-  Kev-0.8B and the separately evaluated Jev-Style 0.8B v3 failed quality
-  gates. DMS-13 is shelved: published LongMemEval results are sufficient as
+  work is present. DMS-01, DMS-06, DMS-08, DMS-12, and DMS-14 results and
+  quality gates remain recorded, but by user direction they do not gate
+  optional client workflow support for Von, Laya-MLX, or Qwen-based decision
+  profiles. Revisit quality criteria when context compression/management work
+  resumes. DMS-04 and DMS-10's earlier quality-gated adapter deferrals are
+  superseded by the client-support work in DMS-16. No current context-management
+  profile is admitted; revisit its criteria when that work resumes. NanoJev
+  remains deferred for host and licensing constraints. DMS-13 is shelved:
+  published LongMemEval results are sufficient as
   external context for current purposes. No internal pilot or full-corpus run
   is planned, and published results do not establish DAR-specific performance.
   DMS-14 completed its approved published
   general-transfer matrix; no candidate met both thresholds, and the results
-  remain comparative evidence without production admission. DMS-15 is an
+  remain comparative evidence only. DMS-15 is an
   audit-first task for reusable adapter helpers; no helper is presumed.
 - Owner: workflow runtime and local model execution boundaries
 - Related:
@@ -31,11 +35,14 @@
 
 ## Objective
 
-Support local decision models as an explicit capability that workflows can use
-through a decision node and DAR can use internally to score context messages
-for compaction. The first DAR-owned implementation is for local models. Keep
-model inference behind a package-owned typed contract so external clients can
-later adapt server-backed or otherwise nonstandard runtimes such as Laya.
+Support local decision models as an explicit, opt-in client capability that
+workflows can use through a decision node. Separately, DAR may use decision
+models to score context messages for compaction only after that work is
+reopened with separately defined criteria and an explicit profile admission.
+Keep model inference behind a package-owned
+typed contract so external clients can adapt server-backed runtimes such as
+Laya, and DAR can add separately installed in-process adapters for Von,
+Laya-MLX, and reviewed Qwen-based profiles.
 
 ## Scope
 
@@ -47,14 +54,16 @@ later adapt server-backed or otherwise nonstandard runtimes such as Laya.
    including server-backed Laya integrations. The external client owns any
    server, its lifecycle, and that integration's model loading; DAR has no
    server requirement.
-4. DAR support for Qwen-based decision models through reviewed local model
-   material and execution profiles. Kev-0.6B is the provisional small local
-   design and manual-test target, subject to DMS-01 evaluation and runner
-   admission before production use.
-5. Evaluation and possible first-party support for one direct, in-process
-   Laya-MLX decision profile, subject to exact artifact review, DMS-01 quality
-   criteria, MLX runtime compatibility, and the production admission gates.
-   This profile does not launch a server or add HTTP transport.
+4. Optional DAR support for exact Qwen-based decision-model profiles through
+   reviewed local model material and execution bindings. Kev-0.6B remains the
+   provisional small local design/manual-test target. DMS-01 quality results
+   do not gate client-authored decision workflows; revisit context-management
+   criteria when that work resumes.
+5. Optional first-party support for one direct, in-process Laya-MLX decision
+   profile after exact artifact, license, runtime, material, and contract
+   compatibility review. Its DMS-01 quality result informs context-management
+   suitability only. This profile does not launch a server or add HTTP
+   transport.
 6. An internal compaction-scoring use of the same contract. The model may rank
    eligible older messages for retention; deterministic context policy retains
    pinned instructions, recent turns, active tool-call/result pairs, and other
@@ -74,6 +83,10 @@ later adapt server-backed or otherwise nonstandard runtimes such as Laya.
     demonstrate repeated contract translation across at least two model
     backends. Helpers preserve the existing contract and do not add model
     loading, tokenization, or score interpretation to DAR's generic layer.
+11. Optional first-party support for the exact reviewed Von 1.2.0 local
+    profile through a backend-specific adapter and dependency group. Its
+    quality results do not gate client workflow support; context-management
+    use remains subject to separately reviewed criteria.
 
 ## Non-goals
 
@@ -83,9 +96,10 @@ later adapt server-backed or otherwise nonstandard runtimes such as Laya.
   discard unresolved work, or break tool-call/result pairs.
 - Claiming that schema-valid output, a high score, or a confidence value means a
   decision is correct or calibrated.
-- DAR-owned support for every evaluated model/runtime listed in `tasks.md`. Other
-  candidates are evaluation tasks; each needs an explicit compatibility and
-  support decision.
+- DAR-owned support for arbitrary model families, checkpoints, or runtimes.
+  Each supported Von, Laya-MLX, or Qwen-based profile is exact and explicitly
+  reviewed for technical compatibility, material provenance, licensing, and
+  host-boundary safety.
 - DAR-owned server-backed Laya support or server lifecycle. External clients
   own those integrations. The narrowly scoped in-process Laya-MLX profile in
   scope does not generalize to other Laya runtimes, loaders, or checkpoints.
@@ -108,7 +122,11 @@ state through existing safe references. Each registered profile declares
 maximum input bytes, input tokens, question count, options per question, result
 bytes, and supported output modes. DAR enforces byte and item-count limits;
 the adapter enforces the profile's tokenizer-specific token limit. The host may
-set stricter limits.
+set stricter limits. Profile `permitted_uses` are host-controlled admission
+data, not caller-declared request data. DMS-16 client profiles permit only
+`workflow_decision`; resolving one for `context_retention` fails before adapter
+dispatch. A caller-declared task/profile ID cannot grant a use that the host
+profile does not permit.
 
 The request declares an output mode supported by the selected profile:
 `choice` or `scores`. A choice result contains one declared option ID. A score
@@ -164,29 +182,28 @@ default edge.
 
 ## Local Model Profiles and Client Adapters
 
-DAR will provide a reviewed local execution path for Qwen-based decision models
-using immutable workflow model-material declarations and existing host
-admission, resource-budget, lifecycle, and tracing boundaries. Candidate
-profiles are limited to the exact Qwen variants evaluated in `tasks.md`.
-Kev-0.6B is the provisional smallest non-prototype candidate used to make the
-initial local profile design and evaluation concrete. Any manual inference is
-evaluation-only and gated by approved criteria and preflight. DMS-01 recommends
-a candidate; DMS-04 must bind and fake-verify its exact DAR runner/material
-closure and complete a separately authorized competency check before the
-production admit/reject decision. Unit tests use fake adapters and never load
-real weights. The admitted profile, supported quantizations/runtimes, and model
-revisions are recorded from that process; model-family name alone is never
-sufficient for admission.
+DAR will provide reviewed optional local execution profiles for Von 1.2.0,
+Laya-MLX, and selected Qwen/Kev decision models using immutable model-material
+declarations and existing host admission, resource-budget, lifecycle, and
+tracing boundaries. Profiles are limited to exact artifacts evaluated or
+otherwise technically reviewed in `tasks.md`; a model-family name alone is
+never sufficient for admission. Kev-0.6B remains the provisional smallest
+non-prototype design target. DMS-01 and related quality results inform
+context-management use only and do not gate client-authored decision workflow
+support. Adapter support still requires reviewed source/model/runtime identity,
+license and material closure, bounded contract translation, and host-boundary
+tests. Unit tests use fake adapters and never load real weights. Any manual
+inference on real weights requires its own exact preflight and approval.
 
-DAR's first implementation supports local model execution and has no server
-requirement. Server-backed Laya integrations remain external-client-owned,
-including their server, lifecycle, Python runtime, custom heads, loader, and
-model loading. The separately scoped Laya-MLX profile is direct in-process
-local inference and does not use that server integration. DAR defines and
-validates the shared contract but does not embed or launch a Laya server. DAR
-passes client adapters only the bounded request and host execution context; it
-does not pass workflow tools, credentials, sealed artifact paths, or authority
-to download DAR-managed assets.
+DAR's local model execution has no server requirement. Server-backed Laya
+integrations remain external-client-owned, including their server, lifecycle,
+Python runtime, custom heads, loader, and model loading. The separately scoped
+Laya-MLX profile is direct in-process local inference and does not use that
+server integration. DAR defines and validates the shared contract but does not
+embed or launch a Laya server. DAR passes client adapters only the bounded
+request and host execution context; it does not pass workflow tools,
+credentials, sealed artifact paths, or authority to download DAR-managed
+assets. Model-backed context compaction remains separately quality-gated.
 
 ## Compaction Scoring
 
@@ -243,8 +260,10 @@ exactly; workflow packages cannot install or replace adapters.
 
 ### FR-4: Support selected Qwen decision profiles
 
-DAR supports only evaluated, pinned Qwen decision profiles with verified
-materials and declared runner/runtime compatibility. No network fetch, remote
+DAR may expose exact, pinned Qwen-based decision profiles to client-authored
+workflows when their materials, license, output mapping, and runner/runtime
+compatibility are reviewed and admitted. DMS-01's context-management quality
+thresholds do not gate this client workflow support. No network fetch, remote
 code, or fallback to a different model occurs during execution.
 
 ### FR-5: Use decisions for safe compaction scoring
@@ -261,12 +280,15 @@ and resource limits. Traces and errors are package-owned and redacted.
 ### FR-7: Support one reviewed in-process Laya-MLX profile
 
 DAR may support the single Laya-MLX source/checkpoint/runtime combination
-selected by DMS-08 through DMS-10 when it passes the frozen DMS-01 quality
-criteria, has a compatible pinned MLX runtime and material closure, and passes
-the separately authorized competency check. The adapter runs directly in
-process: it does not start a server, use HTTP, execute remote code, or accept
-workflow-supplied model paths or loader code. It translates only outcomes that
-the existing decision contract can represent; unsupported outputs fail closed.
+identified by DMS-08 and technically admitted by DMS-16 for client-authored
+decision workflows after its pinned MLX runtime and material closure, license,
+output mapping, and host-boundary behavior are reviewed. DMS-01 quality
+thresholds apply to context-management suitability, not client workflow
+support. The adapter runs
+directly in process: it does not start a server, use HTTP, execute remote code,
+or accept workflow-supplied model paths or loader code. It translates only
+outcomes that the existing decision contract can represent; unsupported
+outputs fail closed.
 The Laya `noul` outcome is supported only for a `scores` request whose selected
 profile supports scores and whose question declares exactly two options with
 IDs `yes` and `no`. Validate its finite yes probability in `[0, 1]`, map it
@@ -297,7 +319,17 @@ quantization variants with different numerical behavior receive separate
 quality results. One approval covers the complete candidate/runtime matrix
 before any model download or inference. This is comparative evidence only: it
 cannot reverse prior DMS-01/DMS-08 reject/defer decisions, establish DMS-13
-compression quality, or admit a production profile.
+compression quality, or establish context-management suitability. Client-
+backend support follows the separate technical and host-safety gates.
+
+### FR-10: Support an optional local Von profile
+
+DAR may expose the exact reviewed Von 1.2.0 profile through an optional
+dependency group and backend-specific adapter for client-authored decision
+workflows. Support requires pinned source/model/runtime identity, license and
+material review, bounded translation to the existing choice/scores contract,
+and host-boundary validation. DMS-06/DMS-14 quality results do not gate client
+workflow support; context-management use requires a separate quality decision.
 
 ## Acceptance Criteria
 
@@ -310,26 +342,28 @@ compression quality, or admit a production profile.
   explicit failure behavior, and no implicit fallback.
 - A client adapter can be supplied by the caller and invoked without adding its
   runtime dependency to DAR core or workflow package contents.
-- Qwen support is limited to exact evaluated material/profile combinations and
-  is covered by deterministic fake tests plus separately authorized local
-  competency evidence. DMS-01's candidate recommendation is distinct from
-  production admission, which also requires DMS-04's exact reviewed DAR
-  runner/material binding and competency receipt.
+- Von, Laya-MLX, and Qwen/Kev support is limited to exact reviewed
+  material/profile combinations and is covered by deterministic fake tests
+  plus runtime/material compatibility checks. These profiles declare
+  `workflow_decision` use and cannot be bound for `context_retention`; enforce
+  this in host admission with a fake rejection test before inference.
+  DMS-01's context-management recommendation is separate from client workflow
+  support; runtime binding, limits, lifecycle, and material admission remain
+  required.
 - The Laya-MLX profile is separately limited to its exact reviewed source,
   checkpoint, tokenizer, runtime, and material combination. Its direct local
-  adapter passes fake binding tests and a separately authorized competency
-  check before an explicit production admit/reject decision; it never launches
-  a server or uses HTTP.
+  adapter passes fake binding tests and technical/runtime compatibility
+  checks before client use; it never launches a server or uses HTTP. Its
+  context-management quality result does not gate client workflow support.
 - Compaction tests prove pinned instructions, recent context, unresolved state,
   and tool-call/result pairs survive low retention scores; invalid, missing,
   timed-out, or abstaining scores cannot cause deletion.
 - Evaluation records include task-specific quality, calibration/abstention
   where available, latency, peak memory, supported input size, runtime/license
-  constraints, and a clear accept/reject/defer decision for each candidate.
-  Evaluation criteria are recorded before comparative runs; Qwen profile
-  implementation stops for user direction if no candidate meets them. The
-  separate Laya-MLX profile is admitted only after its own evaluation, exact
-  material/runtime binding, and competency gate pass.
+  constraints, and a clear accept/reject/defer decision for each context-
+  management candidate. These quality decisions do not gate optional client
+  backend support; exact technical, material, contract, and host-safety checks
+  remain mandatory for every supported profile.
 - DMS-13 is shelved. Published LongMemEval-S results may be cited as external
   context only and do not establish DAR-specific end-to-end answer quality.
   DMS-01 thresholds and results remain unchanged.
@@ -338,7 +372,7 @@ compression quality, or admit a production profile.
   complete local/Mac runtime matrix and a redacted aggregate receipt. One
   matrix-level approval covers all listed candidate/runtime combinations.
   Results remain separate from DMS-01 retention, DMS-13 compression, and
-  production admission.
+  client-backend compatibility decisions.
 - DMS-15 adds runtime-neutral adapter helpers only when the audited candidate
   paths demonstrate repeated contract translation across at least two
   backends. Helpers preserve declared option order and explicit score
@@ -353,28 +387,26 @@ compression quality, or admit a production profile.
 
 The implementation procedure is the repository's spec-driven development
 workflow. The concrete source and test targets, task dependencies, test-first
-requirements, and delivery gates are in `plan.md` and `tasks.md`. Kev-0.6B is
-the provisional small local design and evaluation target. DMS-01 must establish
-its measured evidence and candidate recommendation, and DMS-04 must establish
-the exact DAR binding and production admission decision before it can be used
-as a production profile. DMS-08 through DMS-10 define a separate, narrowly
-scoped path for one direct in-process Laya-MLX profile; server-backed Laya
-integrations remain external-client-owned.
-The DMS-14 transfer comparison completed its approved corpus setup and full
-matrix. No candidate met both transfer thresholds; results are comparative
-evidence only and do not admit a production profile. DMS-15 tracks an
+requirements, and delivery gates are in `plan.md` and `tasks.md`. Optional
+client workflow support for Von, Laya-MLX, and reviewed Qwen-based profiles is
+independent of context-management quality gates. It still requires exact
+profile and material binding, technical runtime compatibility, output-contract
+validation, and host-safety checks. Each DMS-16 profile is explicitly
+workflow-decision-only and host admission must reject it for context retention
+without invoking inference. Use for context compaction or management remains
+disabled until the relevant quality criteria are revisited and passed.
+Server-backed Laya integrations remain external-client-owned. DMS-15 tracks an
 audit-first assessment of reusable adapter helpers; it does not presume that
 new helper code is warranted.
 
 The typed contract, workflow decision node, and fake-backed compaction scoring
-are implemented. The approved Kev-0.6B, Kev-0.8B, Von 1.2.0, PoorJev, LitJev,
-and Laya-MLX evaluations failed one or more frozen quality thresholds. No Qwen
-profile is admitted and DMS-04 remains stopped. DMS-08's direct Laya-MLX run
-also failed decision accuracy and retention quality; DMS-10 first-party
-adapter work is deferred by its quality gate. NanoJev remains deferred for
-host and licensing constraints. See `tasks.md` and `validation.md` for current
-validation. This feature is not complete and must not be described as
-implemented.
+are implemented. Existing candidate evaluations failed one or more frozen
+context-management quality thresholds; those results do not block the planned
+client workflow adapters. Optional Von, Laya-MLX, and Qwen backend support is
+not yet implemented and remains subject to the technical and host-safety gates
+above. NanoJev remains deferred for host and licensing constraints. See
+`tasks.md` and `validation.md` for current validation. This feature is not
+complete and must not be described as implemented.
 
 ## Validation Strategy
 
