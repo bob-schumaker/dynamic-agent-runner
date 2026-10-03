@@ -272,7 +272,9 @@ def test_manual_run_refuses_missing_approval_before_creating_model_cache(
     assert not model_cache.exists()
 
 
-def test_run_preflight_binds_current_manifest_harness_and_artifacts() -> None:
+def test_run_preflight_binds_current_manifest_harness_and_artifacts(
+    tmp_path, monkeypatch
+) -> None:
     import run_context_compression_dms13 as runner
 
     root = Path(__file__).resolve().parents[1]
@@ -284,6 +286,15 @@ def test_run_preflight_binds_current_manifest_harness_and_artifacts() -> None:
         / "preflight-dms13-run-2026-09-28.json"
     )
     receipt = json.loads(preflight_path.read_text(encoding="utf-8"))
+    snapshot_content = b"pinned synthetic judge file"
+    (tmp_path / "config.json").write_bytes(snapshot_content)
+    monkeypatch.setattr(
+        runner,
+        "SCORER_MODEL_FILES",
+        {"config.json": hashlib.sha256(snapshot_content).hexdigest()},
+    )
+    receipt["scorer_model_snapshot_path"] = str(tmp_path)
+    receipt["scorer_model_files"] = runner.SCORER_MODEL_FILES
     receipt["manifest_sha256"] = runner._sha256(root / runner.MANIFEST_RELATIVE)
     receipt["harness_files"] = [
         {"path": str(path.relative_to(root)), "sha256": runner._sha256(path)}

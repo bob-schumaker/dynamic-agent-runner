@@ -28,10 +28,16 @@ from run_jevstyle_dms12 import (  # noqa: E402
 
 def test_decision_request_uses_only_fixture_inputs() -> None:
     row = {
-        "id": "D001", "kind": "decision", "state": "known state",
+        "id": "D001",
+        "kind": "decision",
+        "state": "known state",
         "question": {
-            "id": "decision", "text": "Choose the valid option.",
-            "options": [{"id": "bad", "label": "Invalid"}, {"id": "good", "label": "Valid"}],
+            "id": "decision",
+            "text": "Choose the valid option.",
+            "options": [
+                {"id": "bad", "label": "Invalid"},
+                {"id": "good", "label": "Valid"},
+            ],
         },
         "expected_option_id": "good",
     }
@@ -39,18 +45,24 @@ def test_decision_request_uses_only_fixture_inputs() -> None:
     state, questions = build_request(row)
 
     assert state == "known state"
-    assert questions == [{
-        "t": "choice", "ins": "Choose the valid option.",
-        "crit": {"bad": "Invalid", "good": "Valid"},
-    }]
+    assert questions == [
+        {
+            "t": "choice",
+            "ins": "Choose the valid option.",
+            "crit": {"bad": "Invalid", "good": "Valid"},
+        }
+    ]
     assert "expected_option_id" not in str((state, questions))
 
 
 def test_retention_questions_are_batched_and_keep_labels_out() -> None:
     row = {
-        "id": "R001", "kind": "retention", "task_context": "Finish the task.",
+        "id": "R001",
+        "kind": "retention",
+        "task_context": "Finish the task.",
         "eligible_messages_oldest_first": [
-            {"id": "m1", "content": "keep this"}, {"id": "m2", "content": "drop this"},
+            {"id": "m1", "content": "keep this"},
+            {"id": "m2", "content": "drop this"},
         ],
         "gold_keep_ids": ["m1"],
     }
@@ -67,10 +79,15 @@ def test_retention_questions_are_batched_and_keep_labels_out() -> None:
 
 def test_rejects_invalid_jevstyle_probabilities() -> None:
     with pytest.raises(ManualRunError, match="do not sum to one"):
-        _validate_answer({"answer": "good", "probabilities": {"good": .7, "bad": .2}}, {"good", "bad"})
+        _validate_answer(
+            {"answer": "good", "probabilities": {"good": 0.7, "bad": 0.2}},
+            {"good", "bad"},
+        )
     with pytest.raises(ManualRunError, match="invalid probabilities"):
-        _validate_answer({"answer": "good", "probabilities": {"good": float("nan"), "bad": 0}},
-                         {"good", "bad"})
+        _validate_answer(
+            {"answer": "good", "probabilities": {"good": float("nan"), "bad": 0}},
+            {"good", "bad"},
+        )
 
 
 def test_records_oversize_without_truncation() -> None:
@@ -79,10 +96,17 @@ def test_records_oversize_without_truncation() -> None:
             raise ManualRunError("input exceeds token budget; nothing was truncated")
 
     row = {
-        "id": "D001", "kind": "decision", "state": "too long",
-        "question": {"id": "q", "text": "Select.", "options": [
-            {"id": "a", "label": "A"}, {"id": "b", "label": "B"},
-        ]},
+        "id": "D001",
+        "kind": "decision",
+        "state": "too long",
+        "question": {
+            "id": "q",
+            "text": "Select.",
+            "options": [
+                {"id": "a", "label": "A"},
+                {"id": "b", "label": "B"},
+            ],
+        },
     }
 
     predictions, *_ = score_input_rows([row], agent=Agent())
@@ -99,32 +123,44 @@ def test_scores_batched_results_by_option_id_and_redacts_content() -> None:
             assert state == "Complete the task."
             assert "private content" in questions[0]["ins"]
             return [
-                {"answer": "keep", "probabilities": {"keep": .8, "drop": .2}},
-                {"answer": "drop", "probabilities": {"keep": .1, "drop": .9}},
+                {"answer": "keep", "probabilities": {"keep": 0.8, "drop": 0.2}},
+                {"answer": "drop", "probabilities": {"keep": 0.1, "drop": 0.9}},
             ]
 
     row = {
-        "id": "R001", "kind": "retention", "task_context": "Complete the task.",
+        "id": "R001",
+        "kind": "retention",
+        "task_context": "Complete the task.",
         "eligible_messages_oldest_first": [
             {"id": "m1", "content": "private content keep"},
             {"id": "m2", "content": "private content drop"},
         ],
     }
 
-    predictions, token_counts, latencies, peak_memory, oom = score_input_rows([row], agent=Agent())
+    predictions, token_counts, latencies, peak_memory, oom = score_input_rows(
+        [row], agent=Agent()
+    )
 
-    assert predictions == [{
-        "id": "R001", "kind": "retention", "status": "ok", "score_semantics": "probability",
-        "scores": {"m1": .8, "m2": .1},
-    }]
+    assert predictions == [
+        {
+            "id": "R001",
+            "kind": "retention",
+            "status": "ok",
+            "score_semantics": "probability",
+            "scores": {"m1": 0.8, "m2": 0.1},
+        }
+    ]
     assert token_counts == [
-        {"message_id": "m1", "token_count": 3}, {"message_id": "m2", "token_count": 3},
+        {"message_id": "m1", "token_count": 3},
+        {"message_id": "m2", "token_count": 3},
     ]
     assert "private" not in str(predictions + token_counts)
     assert len(latencies) == 1 and peak_memory > 0 and not oom
 
 
-def test_loader_pins_and_verifies_local_runtime_before_model_load(tmp_path: Path, monkeypatch) -> None:
+def test_loader_pins_and_verifies_local_runtime_before_model_load(
+    tmp_path: Path, monkeypatch
+) -> None:
     model_dir = tmp_path / "model"
     model_dir.mkdir()
     for name in EXPECTED_MODEL_FILES:
@@ -143,15 +179,31 @@ def test_loader_pins_and_verifies_local_runtime_before_model_load(tmp_path: Path
     monkeypatch.setitem(sys.modules, "huggingface_hub", fake_hub)
     import run_jevstyle_dms12 as runner
 
-    monkeypatch.setattr(runner, "_sha256", lambda path: EXPECTED_MODEL_FILES[path.relative_to(model_dir).as_posix()])
+    monkeypatch.setattr(
+        runner,
+        "_sha256",
+        lambda path: EXPECTED_MODEL_FILES[path.relative_to(model_dir).as_posix()],
+    )
 
     _load_agent(model_dir)
 
-    assert calls == [{
-        "repo_id": MODEL_ID, "revision": MODEL_REVISION, "local_dir": str(model_dir),
-        "allow_patterns": ["manifest.json", "jev_style_decision_mlx.py", "readout_config.json",
-                           "release_config.json", "requirements.txt", "LICENSE", "8bit/*"],
-    }]
+    assert calls == [
+        {
+            "repo_id": MODEL_ID,
+            "revision": MODEL_REVISION,
+            "local_dir": str(model_dir),
+            "allow_patterns": [
+                "manifest.json",
+                "jev_style_decision_mlx.py",
+                "readout_config.json",
+                "release_config.json",
+                "requirements.txt",
+                "LICENSE",
+                "NOTICE",
+                "8bit/*",
+            ],
+        }
+    ]
 
 
 def test_refuses_unapproved_preflight(tmp_path: Path) -> None:
@@ -165,7 +217,9 @@ def test_refuses_unapproved_preflight(tmp_path: Path) -> None:
         verify_preflight(receipt, runtime_checkout=tmp_path)
 
 
-def test_active_virtualenv_must_contain_the_running_interpreter(tmp_path: Path, monkeypatch) -> None:
+def test_active_virtualenv_must_contain_the_running_interpreter(
+    tmp_path: Path, monkeypatch
+) -> None:
     environment = tmp_path / "venv"
     executable = environment / "bin" / "python"
     executable.parent.mkdir(parents=True)
