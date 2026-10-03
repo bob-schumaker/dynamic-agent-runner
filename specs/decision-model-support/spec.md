@@ -8,10 +8,10 @@
 - Status: partial implementation; DMS-01, DMS-02, DMS-03, DMS-05, and DMS-07
   work is present. DMS-01, DMS-06, DMS-08, DMS-12, and DMS-14 results and
   quality gates remain recorded, but by user direction they do not gate
-  optional client workflow support for Von, Laya-MLX, or Qwen-based decision
-  profiles. Revisit quality criteria when context compression/management work
-  resumes. DMS-04 and DMS-10's earlier quality-gated adapter deferrals are
-  superseded by the client-support work in DMS-16. No current context-management
+  optional client workflow support for Von, Julia 1, Laya-MLX, or Qwen-based
+  decision profiles. Revisit quality criteria when context compression and
+  management work resumes. DMS-04 and DMS-10's earlier quality-gated adapter
+  deferrals are superseded by the client-support work in DMS-16. No current context-management
   profile is admitted; revisit its criteria when that work resumes. NanoJev
   remains deferred for host and licensing constraints. DMS-13 is shelved:
   published LongMemEval results are sufficient as
@@ -42,7 +42,7 @@ reopened with separately defined criteria and an explicit profile admission.
 Keep model inference behind a package-owned
 typed contract so external clients can adapt server-backed runtimes such as
 Laya, and DAR can add separately installed in-process adapters for Von,
-Laya-MLX, and reviewed Qwen-based profiles.
+Julia 1, Laya-MLX, and reviewed Qwen-based profiles.
 
 ## Scope
 
@@ -87,6 +87,11 @@ Laya-MLX, and reviewed Qwen-based profiles.
     profile through a backend-specific adapter and dependency group. Its
     quality results do not gate client workflow support; context-management
     use remains subject to separately reviewed criteria.
+12. Optional first-party support for an exact Julia 1 local profile after its
+    independent DMS-16 technical admission, through a backend-specific adapter
+    and isolated optional extra. Its quality results do not gate client
+    workflow support; context-management use remains subject to separately
+    reviewed criteria.
 
 ## Non-goals
 
@@ -97,9 +102,9 @@ Laya-MLX, and reviewed Qwen-based profiles.
 - Claiming that schema-valid output, a high score, or a confidence value means a
   decision is correct or calibrated.
 - DAR-owned support for arbitrary model families, checkpoints, or runtimes.
-  Each supported Von, Laya-MLX, or Qwen-based profile is exact and explicitly
-  reviewed for technical compatibility, material provenance, licensing, and
-  host-boundary safety.
+  Each supported Von, Julia 1, Laya-MLX, or Qwen-based profile is exact and
+  explicitly reviewed for technical compatibility, material provenance,
+  licensing, and host-boundary safety.
 - DAR-owned server-backed Laya support or server lifecycle. External clients
   own those integrations. The narrowly scoped in-process Laya-MLX profile in
   scope does not generalize to other Laya runtimes, loaders, or checkpoints.
@@ -183,11 +188,12 @@ default edge.
 ## Local Model Profiles and Client Adapters
 
 DAR will provide reviewed optional local execution profiles for Von 1.2.0,
-Laya-MLX, and selected Qwen/Kev decision models using immutable model-material
-declarations and existing host admission, resource-budget, lifecycle, and
-tracing boundaries. Profiles are limited to exact artifacts evaluated or
-otherwise technically reviewed in `tasks.md`; a model-family name alone is
-never sufficient for admission. Kev-0.6B remains the provisional smallest
+the Julia 1 candidate after technical admission, Laya-MLX, and selected
+Qwen/Kev decision models using immutable model-material declarations and
+existing host admission, resource-budget, lifecycle, and tracing boundaries.
+Profiles are limited to exact artifacts evaluated or otherwise technically
+reviewed in `tasks.md`; a model-family name alone is never sufficient for
+admission. Kev-0.6B remains the provisional smallest
 non-prototype design target. DMS-01 and related quality results inform
 context-management use only and do not gate client-authored decision workflow
 support. Adapter support still requires reviewed source/model/runtime identity,
@@ -331,6 +337,20 @@ material review, bounded translation to the existing choice/scores contract,
 and host-boundary validation. DMS-06/DMS-14 quality results do not gate client
 workflow support; context-management use requires a separate quality decision.
 
+### FR-11: Support an optional local Julia 1 profile
+
+DAR may expose an exact SupersonicLabs Julia 1 candidate profile after DMS-16
+technical admission, through an optional extra and backend-specific
+adapter for client-authored decision workflows. Support requires pinned
+source/model/runtime identity, license and material review, dependency
+isolation, bounded translation of choice, ordered-score, and
+yes/no-probability outputs to the existing choice/scores contract, and
+host-boundary validation. Runtime code must be locally controlled and pinned;
+dynamic remote-code loading is not permitted. No Julia runtime or
+model-loading behavior is added to the generic contract. Quality results do
+not gate client workflow support; context-management use requires a separate
+quality decision.
+
 ## Acceptance Criteria
 
 - Contract tests cover valid choice and score requests and malformed
@@ -342,7 +362,7 @@ workflow support; context-management use requires a separate quality decision.
   explicit failure behavior, and no implicit fallback.
 - A client adapter can be supplied by the caller and invoked without adding its
   runtime dependency to DAR core or workflow package contents.
-- Von, Laya-MLX, and Qwen/Kev support is limited to exact reviewed
+- Von, Julia 1, Laya-MLX, and Qwen/Kev support is limited to exact reviewed
   material/profile combinations and is covered by deterministic fake tests
   plus runtime/material compatibility checks. These profiles declare
   `workflow_decision` use and cannot be bound for `context_retention`; enforce
@@ -388,11 +408,11 @@ workflow support; context-management use requires a separate quality decision.
 The implementation procedure is the repository's spec-driven development
 workflow. The concrete source and test targets, task dependencies, test-first
 requirements, and delivery gates are in `plan.md` and `tasks.md`. Optional
-client workflow support for Von, Laya-MLX, and reviewed Qwen-based profiles is
-independent of context-management quality gates. It still requires exact
-profile and material binding, technical runtime compatibility, output-contract
-validation, and host-safety checks. Each DMS-16 profile is explicitly
-workflow-decision-only and host admission must reject it for context retention
+client workflow support for Von, Julia 1, Laya-MLX, and reviewed Qwen-based
+profiles is independent of context-management quality gates. It still requires
+exact profile and material binding, technical runtime compatibility,
+output-contract validation, and host-safety checks. Each DMS-16 profile is
+explicitly workflow-decision-only, and host admission must reject it for context retention
 without invoking inference. Use for context compaction or management remains
 disabled until the relevant quality criteria are revisited and passed.
 Server-backed Laya integrations remain external-client-owned. DMS-15 tracks an
@@ -400,13 +420,15 @@ audit-first assessment of reusable adapter helpers; it does not presume that
 new helper code is warranted.
 
 The typed contract, workflow decision node, and fake-backed compaction scoring
-are implemented. Existing candidate evaluations failed one or more frozen
-context-management quality thresholds; those results do not block the planned
-client workflow adapters. Optional Von, Laya-MLX, and Qwen backend support is
-not yet implemented and remains subject to the technical and host-safety gates
-above. NanoJev remains deferred for host and licensing constraints. See
-`tasks.md` and `validation.md` for current validation. This feature is not
-complete and must not be described as implemented.
+are implemented. Adapter and fake-test slices now exist for Von, Julia 1,
+Laya-MLX, and Kev/Qwen; optional runtime installs passed for Von, Julia 1, and
+Laya-MLX. No profile is admitted or exposed yet: exact local material closure
+and approved adapter-facing compatibility smokes remain required, and Kev's
+root optional packaging is deferred over its Torch constraint conflict.
+Existing context-management quality results do not gate client support and
+remain separate from compaction admission. NanoJev remains deferred for host
+and licensing constraints. See `tasks.md` and `validation.md` for current
+validation. This feature is partial and is not complete.
 
 ## Validation Strategy
 

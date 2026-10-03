@@ -1,6 +1,214 @@
 # Decision Model Support Readiness Validation
 
-## DMS-16 Client Backend Support Readiness Review — 2026-10-02
+## DMS-16 Adapter and Optional Runtime Progress — 2026-10-02
+
+Implemented fake-backed adapter slices for the pinned Von, Julia 1, Laya-MLX,
+and Kev-0.6B/Qwen3 candidates. The generic workflow executor now requires
+`workflow_decision` permission before adapter dispatch, and the context
+retention path requires its separate `context_retention` permission. Focused
+contract, executor, compaction, import-isolation, adapter, preflight, and fake
+smoke-runner suites passed: **334 passed** with `PYTHONPATH=src poetry run pytest
+tests/test_decision_models.py tests/test_executor.py
+tests/test_context_compaction.py tests/test_decision_adapter_imports.py
+tests/test_julia1_decision_adapter.py
+tests/test_von_decision_adapter.py tests/test_laya_mlx_decision_adapter.py
+tests/test_kev_decision_adapter.py tests/test_preflight_dms16.py
+tests/test_dms16_smoke_runner.py -q`.
+Repository Ruff, `poetry check --lock`, and `git diff --check` passed. TDD
+regressions first failed as expected for both an unsupported-use
+binding and an adapter/profile identity mismatch. Each DMS adapter now declares
+its exact identity and permits only `workflow_decision`; the binding rejects
+wrong identities and `context_retention` before inference. Four subprocess
+tests also confirm that importing adapter modules does not import their model
+runtimes. Binding tests cover all four exact DMS-16 adapter identities; runtime
+identity tests verify that the runnable Von, Julia 1, and Laya-MLX profiles
+include the current shared Poetry-lock digest. This corrected Von and Laya-MLX
+from their older evaluation-only lock identities and added the lock to Julia 1.
+Julia's adapter also rejects answer IDs outside the requested question set; the
+new fake case failed before the check was added and passes afterward.
+
+Optional runtime checks used the current shared root lock
+`6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a` in
+separate Poetry environments:
+
+- Julia 1 extra installed on Python 3.14.7 with Torch 2.14.0, Transformers
+  5.0.0, Tokenizers 0.22.2, Safetensors 0.8.0, and NumPy 2.5.3; all imported.
+  The first install revealed a Tokenizers 0.23.2 / Transformers 5.0.0
+  incompatibility. Pinning the Julia extra to `tokenizers<=0.23.0` produced a
+  clean install and import from a fresh environment.
+- Von extra installed and imported on Python 3.14.7 with Torch 2.14.0,
+  Transformers 5.0.0, and the exact Von source revision. The upstream source
+  identifies the package as 1.2.3; DMS-16 pins the source commit and model
+  artifact rather than relying on a mutable package version label.
+- Laya-MLX extra installed. Its import could not initialize Metal inside the
+  sandbox; an elevated load-only check initialized `Device(gpu, 0)` and
+  imported Laya-MLX successfully. No model files were loaded.
+- Kev has no root optional extra because the exact upstream source requires
+  Torch `<2.9`, while DAR's existing optional Torch dependency declares
+  `>=2.9`. Its earlier Python 3.13 / Torch 2.8 evaluation runtime does not
+  verify the DMS-16 adapter path.
+
+Each installable extra (`julia1`, `von`, and `laya-mlx`) was also resolved and
+installed independently with Python 3.13.16 from the same Poetry lock. Julia's
+Torch/Transformers/Tokenizers/Safetensors/NumPy imports passed; Von's Torch,
+Transformers, and Von imports passed; Laya-MLX and MLX imports passed after a
+load-only run outside the sandbox to make Metal available. These checks cover
+both supported Python minor lines (3.13 and 3.14); no model weights were loaded.
+
+Added the no-download preflight `tests/manual/preflight_dms16.py` and ran it.
+The [receipt](evaluation/preflight-dms16-2026-10-02.json) confirms the root
+Poetry lock and all three isolated runtime package sets, records current host
+and storage state, and finds none of the expected model files at
+`/private/tmp/dms16-materials/`. Julia's runtime-code file digests are also
+verified against the pinned upstream snapshot and are included in the checker,
+along with the model, encoder config, and tokenizer material digests. The local
+preflight correctly fails because these files are not staged; it records that
+download and inference were not performed and never authorizes a run.
+
+The no-download preflight now verifies the complete runtime-required local file
+sets: Git blob SHA-1 for Von and Laya-MLX config/tokenizer files, SHA-256 for
+large weights and Julia runtime source, and SHA-256 for Julia config/tokenizer
+files. The Git blob IDs came from the immutable [Von
+snapshot](https://huggingface.co/wfzyx/von/tree/5df8185a4f2327ad0a7cd117cc4f701ac557b9ae)
+and [Laya-MLX snapshot](https://huggingface.co/aac6fef/laya-typed-decisions-mlx/tree/28416e78cb26a239a4eabaa2e084904ec5e6cacb)
+metadata; no model or tokenizer content was fetched. The receipt remains
+blocked by 29 missing or mismatched model/runtime files and confirms no
+download or inference. Repository Ruff, `poetry check --lock`, and
+`git diff --check` passed.
+
+`tests/test_preflight_dms16.py` adds four fake-file checks for Git object SHA-1,
+SHA-256, absent/mismatched files, and the required snapshot paths. In the RED
+check all four failed because the digest helper and the config/tokenizer
+manifests were absent; after implementation all four passed as part of the
+334-test focused suite.
+
+`tests/manual/smoke_dms16.py` is now the exact one-shot manual path for the
+three installable profiles. Its approval digest binds the immutable profile
+manifest, current Poetry lock, runtime version, host platform, and smoke,
+preflight, contract, adapter, and dependency source files. After approval it
+stages only allowlisted files, verifies all digests, disables Hub and
+Transformers network fallback before model loading, makes one synthetic typed
+choice call, validates the result, and reserves a single-use redacted receipt.
+Fake tests prove that missing approval and reused receipt paths stop before
+staging, material verification precedes loading, loading occurs offline, and
+inference is called exactly once. The live smoke remains unrun. For the current
+DAR worktree, Python 3.14.7, macOS arm64 host, and Poetry lock, the exact
+one-run approval scopes are:
+
+- Von `wfzyx/von@5df8185a4f2327ad0a7cd117cc4f701ac557b9ae`, source
+  `fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54`:
+  `2fac97a936ff3ce38189646ca170a635ba84910a109580c5e85cb3a9c998a999`.
+- Julia 1 `SupersonicLabs/Julia-1@a85b127321d580d65176c89ced8273f305745d85`:
+  `ef25605782eeb1e853c488dae56f782a172625c5163196a8f6c7d7045d9a37cc`.
+- Laya-MLX `aac6fef/laya-typed-decisions-mlx@28416e78cb26a239a4eabaa2e084904ec5e6cacb`,
+  source `0a859518634112655cb97c745dbf04f5191aaf13`:
+  `8483067b516b9e4c1b1df3c67948e094a01987d34467b34a7165803b4e38234f`.
+
+The DMS-07 full suite then passed: **3,029 passed, 4 skipped, 7 deselected**.
+The first run exposed two fixture mismatches: a DMS-13 preflight test read an
+absent shelved judge cache, and a DMS-12 fake omitted the pinned `NOTICE` file
+from its expected download allowlist. The DMS-13 preflight test now supplies a
+synthetic local snapshot (with digest validation still covered separately),
+and the DMS-12 expectation matches the runner's pinned allowlist. Both targeted
+tests and the full suite pass. No model inference was performed by these tests.
+
+The frozen evaluation preflights contain expected Von, Laya, and Kev artifact
+digests, but their recorded `/private/tmp` cache paths no longer exist. For
+Julia, the Python runtime source files were fetched at the pinned revision into
+`/private/tmp/dms16-julia-source` solely for static review; their SHA-256 values
+are pinned in `tests/manual/preflight_dms16.py` and verified in the receipt.
+The review confirms checkpoint loading uses local paths with
+`trust_remote_code=False`; this does not replace an offline load/inference
+smoke. The model weights, tokenizer assets, and complete snapshot are absent
+from the candidate material root, so no row is admitted or exposed.
+Existing evaluation approvals do not cover these new adapters, so no DMS-16
+model weights or tokenizer assets were downloaded and no compatibility
+inference was run. The
+remaining gate is a fresh exact-material preflight and matching user approval
+before each bounded adapter-facing smoke. Kev-0.6B/Qwen3 is deferred because
+its upstream Torch cap conflicts with DAR's declared range.
+Context-management quality is not part of this client-support gate.
+
+Verification refreshed after the fake adapters and one-shot smoke runner were
+completed: the focused DMS-16 suite passed **334 tests**; the DMS-07 full suite
+passed **3,029 passed, 4 skipped, 7 deselected**; Ruff, `poetry check --lock`,
+and `git diff --check` passed. These checks do not load candidate weights or
+replace the outstanding exact-material smoke gate.
+
+## DMS-16 Readiness Review After Adding Julia 1 — 2026-10-02
+
+Reviewed the current `spec.md`, `plan.md`, and `tasks.md` after adding Julia 1
+as a prospective optional client backend. No implementation, model download,
+or inference was performed.
+
+### Council architecture triad
+
+Ada, Aristotle, and Feynman completed independent first passes, a challenge
+round, and Ada's post-repair audit. The Council agreed that DMS-16 is ready to
+start with profile freeze and technical admit/defer discovery; Julia RED/GREEN
+and exposure must wait for the exact row and its implementation-time evidence.
+
+The first passes and challenge round found these requirements:
+
+- Describe Julia 1 as a candidate pending DMS-16 technical admission, not as
+  already reviewed, evaluated, or admitted.
+- Pin and license-review every model-specific executable runtime/code source.
+  Require local controlled loading and defer the row if remote-code loading or
+  dynamic code acquisition is needed.
+- Add Julia-specific fake cases for declared-option choice, request-ordered
+  option-ID scores with explicit score semantics, and exact `yes`/`no`
+  probability mapping with complement, order, finite-range, malformed-output,
+  and calibration-evidence checks.
+- Resolve the exact Python/platform and Transformers `<5.1` dependency lock;
+  name the optional extra, adapter/test targets, and focused resolution,
+  install, and test commands before RED/GREEN. Reuse the existing DMS-07 full
+  suite and Ruff gates instead of duplicating them.
+- Complete RED/GREEN independently per technically admitted row; a deferred
+  row has no implementation work and does not block other rows. None of these
+  technical gates makes historical context-management quality a client-support
+  requirement.
+
+Aristotle emphasized the need for concrete implementation targets before
+RED/GREEN. Feynman agreed that targets may be selected during row freeze, but
+that the exact focused commands and runtime lock must be recorded before
+implementation. Ada accepted that timing and the need for Julia-specific
+mapping and custom-code controls. There was no substantive dissent after the
+challenge round.
+
+Ada's post-repair audit found the wording, custom-code boundary, mapping cases,
+dependency/target requirements, per-row independence, and quality separation
+consistent across all three artifacts. No readiness blocker remains for the
+profile-freeze step. Julia implementation is still gated on completing that
+step and passing its specific RED/GREEN and compatibility checks.
+
+### Ponytail review
+
+The smallest coherent change is to keep Julia inside DMS-16's existing
+profile-freeze, optional-extra, RED/GREEN, and exposure gates. No separate
+Julia specification, general model loader, reusable helper, quality gate, or
+duplicate full-suite/Ruff task is warranted. Julia-specific checks remain only
+where its custom runtime and three output shapes differ from the common adapter
+checks. The row-level gates are deliberately separate so a deferred profile
+does not block other admitted rows.
+
+### Repairs and verification
+
+- Changed FR-11 and the scope/status language to identify Julia as a candidate
+  pending technical admission.
+- Added exact local-code identity and no-remote-code requirements, Julia output
+  mapping cases, and row-freeze outputs for its Poetry resolution, optional
+  extra, module/test targets, and focused commands.
+- Made GREEN work separately completable for each admitted profile and
+  clarified that a deferred row does not block the others.
+- `git diff --check` passed. No tests were run because this review changed
+  planning and validation artifacts only.
+
+**Disposition:** DMS-16 is ready to begin exact profile-row freeze and technical
+admit/defer review. Julia is not yet admitted or implemented; its row can be
+deferred on technical, dependency, provenance, or contract grounds without
+changing client-support quality criteria.
+
+## DMS-16 Initial Client Backend Support Readiness Review — 2026-10-02
 
 Reviewed the client-support update to `spec.md`, `plan.md`, and `tasks.md`.
 The user's direction is to make optional Von, direct in-process Laya-MLX, and
@@ -459,8 +667,10 @@ F1/keep recall were 0.625/0.50, below 0.80/0.90. Utility was 0.593 versus
 of 25.9/68.1 ms. Predictions, token counts, measurements, preflight, and
 aggregate report are in `evaluation/laya-typed-decisions-*` and
 `evaluation/preflight-laya-mlx-dms08-approved-2026-09-27.json`. DMS-08 therefore
-rejects this candidate for DMS support; DMS-10 adapter and admission work is
-deferred by its quality gate.
+rejects this candidate for context-management quality; DMS-10's context-use
+adapter and admission work was deferred by that quality gate. DMS-16 later
+selected this separate local backend for optional client support, subject to
+its independent technical/material checks and approved compatibility smoke.
 
 DMS-09 confirmed that MLX 0.32.2 satisfies Laya-MLX's >=0.32.2,<0.33 range,
 coexists with the current `mlx-lm` and `mlx-embedding` lock constraints, and
@@ -605,7 +815,9 @@ fact-selection category below the 0.70 floor. Retention F1 was 0.387 and keep
 recall 0.363, below 0.80 and 0.90. Approved utility was 0.3355 versus recency
 0.3062, a +0.0293 gain below +0.05. Both decision and retention scores are
 uncalibrated. Operations passed with no OOM and peak RSS about 3.94 GiB. Von is
-rejected for DMS support; its full breakdown is in `model-evaluation.md` and
+rejected for context-management quality; its separate DMS-16 client-support
+disposition is pending technical/material checks and an approved compatibility
+smoke. Its full breakdown is in `model-evaluation.md` and
 `evaluation/von-1.2.0-receipt.json`.
 
 Final worktree verification after the approved runs and harness-test corrections:
@@ -640,9 +852,10 @@ utility threshold, but decision accuracy, retention F1, and keep recall failed.
 Scores remained uncalibrated. Operations passed with no OOM and
 5,605,228,544-byte peak RSS. See `evaluation/litjev-receipt.json`.
 
-PoorJev and LitJev are rejected against the frozen thresholds. NanoJev remains
-deferred because the pinned predictor requires unavailable CUDA and its model
-license is undeclared. No alternative is admitted to DMS support.
+PoorJev and LitJev are rejected against the frozen context-management quality
+thresholds. NanoJev remains deferred because the pinned predictor requires
+unavailable CUDA and its model license is undeclared. These outcomes do not
+admit or reject the profiles selected for DMS-16 client support.
 
 The user approved a follow-on Kev-0.8B evaluation. Its final preflight passed
 with the exact fixture and harness hashes, 36 GiB host memory, 79.7 GB free

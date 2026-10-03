@@ -6,11 +6,18 @@ The 2026-10-02 client-support decision separates adapter availability from
 context-management quality. DMS-01/DMS-06/DMS-08/DMS-12/DMS-14 results remain
 historical context-management evidence; revisit criteria when that work
 resumes. DMS-16 plans optional client workflow support for exact Von,
-Laya-MLX, and Qwen-based profiles without using those quality results as
-adapter prerequisites.
+Julia 1, Laya-MLX, and Qwen-based profiles without using those quality results
+as adapter prerequisites.
 
 ## Readiness Review
 
+- [x] Re-review DMS-16 against `spec.md` and `plan.md` with the Council
+  architecture triad and Ponytail after adding the Julia 1 candidate. The
+  profile-freeze/admit-or-defer discovery step is ready to begin; Julia
+  RED/GREEN and exposure remain gated on the exact row, pinned local
+  runtime-code identity, no-remote-code proof, Julia-specific mapping tests,
+  and exact dependency lock and implementation targets. Council challenge,
+  repairs, Ponytail findings, and verification are recorded in `validation.md`.
 - [x] Re-review DMS-16 against `spec.md` and `plan.md` with the Council
   architecture triad and Ponytail after the client-support scope decision.
   Council found it ready under staged technical gates: freeze exact profile
@@ -607,26 +614,84 @@ added.
   For this no-code outcome, the audit is recorded and `git diff --check` passed;
   tests and Ruff were not applicable.
 
-## DMS-16 Optional Client-Facing Local Decision Backends
+## DMS-16 Optional Client-Facing Local Decision Backends (FR-4, FR-7, FR-10, FR-11)
 
 - Depends on: the implemented DMS-02 contract and DMS-03 workflow node. DMS-01,
   DMS-06, DMS-08, DMS-12, and DMS-14 quality outcomes do not gate client
   workflow support; they continue to govern context-management suitability.
-- [ ] Resolve exact supported profiles from the evaluated materials: Von 1.2.0,
-  direct in-process Laya-MLX, and selected Kev/Qwen-based checkpoints. Freeze
-  a closed profile/material/runtime row list before RED/GREEN work; each row
-  must record source/model revisions, licenses, platform/runtime support,
-  input limits, output mappings, dependency closure, and material digests.
-  Resolve a technical admit/defer disposition for each row before beginning
-  that row's RED/GREEN implementation; one backend's incompatibility does not
-  block other rows. Do not broaden support to arbitrary Von, Laya, or Qwen
-  models.
-- [ ] Define isolated optional dependency groups for the supported runtimes.
-  Keep model stacks out of DAR's default/core dependencies; verify the groups
-  can be resolved and installed independently with the supported Python range.
-  Record conflicts rather than widening shared dependency constraints without
-  compatibility evidence. A conflict defers only its own profile row.
-- [ ] **RED:** Add fake-backed adapter and binding tests for each exact profile:
+- Progress (2026-10-02, refreshed): adapter and fake-test slices now exist for exact Von,
+  Julia 1, Laya-MLX, and Kev-0.6B/Qwen3 identities. Focused contract, host,
+  compaction, runtime-import, adapter, preflight, and one-shot smoke-runner
+  suites pass (334 tests), including binding-time rejection of identity
+  mismatches and `context_retention` for workflow-only
+  backends. Root extras `von`, `julia1`,
+  and `laya-mlx` each installed independently from the shared Poetry lock
+  `6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a`; Julia
+  and Von package imports pass, and Laya's load-only import initialized Metal
+  when run outside the sandbox. The Julia extra pins Tokenizers <=0.23.0 to
+  satisfy Transformers 5.0.0. Kev has no root extra because its pinned Torch
+  `<2.9` requirement conflicts with DAR's current `>=2.9` optional dependency.
+  The focused fake suite, including material-manifest and smoke-runner tests,
+  passed with 334 tests; Ruff, `poetry check --lock`, and `git diff --check`
+  passed. No DMS-16 model weights were downloaded and no adapter-facing
+  inference was run. The refreshed no-download preflight still
+  blocks on 29 missing or mismatched model/runtime files. SHA-256
+  digests are now pinned for Julia's default Torch runtime source, and source
+  review confirms local checkpoint paths with `trust_remote_code=False`; exact
+  material checks and approved compatibility smokes remain open. The three
+  installable extras were also installed independently on Python 3.13.16;
+  package imports passed, including Laya-MLX's load-only Metal import outside
+  the sandbox. Kev-0.6B is deferred because its upstream Torch cap conflicts
+  with DAR's declared Torch range. The DMS-07 full suite also passes with
+  3,029 passed, 4 skipped, and 7 deselected.
+- Adapter/runtime targets: `von_decision_adapter.py` / extra `von` /
+  `test_von_decision_adapter.py`; runtime import isolation in
+  `test_decision_adapter_imports.py`; `julia1_decision_adapter.py` / extra
+  `julia1` / `test_julia1_decision_adapter.py`;
+  `laya_mlx_decision_adapter.py` / extra `laya-mlx` /
+  `test_laya_mlx_decision_adapter.py`; and `kev_decision_adapter.py` /
+  `test_kev_decision_adapter.py` (no root extra while its Torch conflict is
+  unresolved). Each available extra was resolved with `poetry lock` and
+  installed separately using
+  `POETRY_VIRTUALENVS_IN_PROJECT=false POETRY_VIRTUALENVS_PATH=/private/tmp/dms16-poetry-<row> poetry install --only main --no-root --extras <extra>`;
+  the Julia install additionally requires
+  `tokenizers>=0.22.0,<=0.23.0`. Focused tests run with
+  `POETRY_VIRTUALENVS_IN_PROJECT=false poetry run env PYTHONPATH=src pytest <test-file> -q`.
+  The combined fake-test command is recorded in `validation.md`. The
+  adapter-facing runner is `tests/manual/smoke_dms16.py`; obtain its exact
+  per-profile approval digest with `--print-scope`, then invoke it only after
+  matching approval. Its fake tests are in `tests/test_dms16_smoke_runner.py`.
+  The runner stages only the frozen file allowlist and verifies it before
+  loading offline. No DMS-16 download or inference has been performed.
+- [x] Resolve and freeze a closed profile/material/runtime row list before
+  RED/GREEN work. Start from the evaluated Von 1.2.0 and Laya-MLX candidates,
+  the Julia 1 candidate (`SupersonicLabs/Julia-1`), and selected Kev/Qwen
+  checkpoints; do not describe Julia 1 as already evaluated or admitted. Each
+  row records candidate/admitted/deferred state, source and model revisions,
+  licenses, platform/runtime support, input limits, output semantics,
+  declared dependency closure, and material digests. Do not broaden support to
+  arbitrary Von, Julia, Laya, or Qwen models.
+  For Julia 1 specifically, identify and pin every model-specific executable
+  runtime/code source and digest, confirm license and local controlled loading,
+  and prove the run needs neither remote-code loading nor dynamic code fetch;
+  defer Julia if that boundary cannot be established. Confirm bounded choice,
+  ordered-score, and yes/no-probability output semantics before admitting a
+  row.
+- [x] Define isolated optional extras for the supported runtimes in
+  `pyproject.toml`; keep model stacks out of DAR's default/core dependencies.
+  Verify each extra resolves in the Poetry lock and installs independently
+  within the supported Python range. Record conflicts rather than widening
+  shared dependency constraints without compatibility evidence. A conflict
+  defers only its own profile row.
+  Before RED/GREEN, complete each row's technical admit/defer decision and
+  record its exact Python/platform and Poetry-lock dependency resolution. For
+  Julia, resolve the exact Transformers version under `<5.1` without widening
+  the shared default/core range. Name the adapter module, optional-extra name,
+  focused test file, and exact Poetry resolve/install and focused-test commands;
+  use `src/dynamic_agent_runner/workflow_host/julia1_decision_adapter.py` and
+  `tests/test_julia1_decision_adapter.py` unless row review records a justified
+  alternative. A deferred row has no RED/GREEN work and does not block others.
+- [x] **RED:** Add fake-backed adapter and binding tests for each exact profile:
   request/result mapping, identity mismatch, unsupported mode, input/output
   limits, cancellation/deadline behavior, offline material loading, adapter
   errors, and redacted traces. Require an explicit `workflow_decision` use
@@ -634,29 +699,43 @@ added.
   `context_retention` before inference. Include Laya `noul` cases for exact
   `yes`/`no` score mapping, request-order complement, malformed probabilities,
   rejection of `calibrated_probability` without pinned calibration evidence,
-  and every unsupported request shape. Verify each optional runtime is not
-  imported unless its profile is selected. Observe failures before
-  implementation.
-- [ ] **GREEN:** Implement backend-specific Von, Laya-MLX, and Qwen/Kev adapters
-  through the existing `DecisionModelAdapter` contract and host execution
-  boundary. Preserve in-process execution, explicit profile selection, exact
-  material binding, host-owned resource/lifecycle controls, and no fallback.
-  Bind each profile as `workflow_decision`; host admission must reject
-  `context_retention` use before inference.
+  and every unsupported request shape. For Julia, cover declared-option-only
+  choice results; option-ID score mapping in request order with explicit
+  ranking/probability semantics; and `noul` only for the exact two option IDs
+  `yes` and `no`, including complement, option order, finite `[0, 1]` checks,
+  malformed/unknown/unsupported shapes, and rejection of calibrated semantics
+  without pinned calibration evidence. Verify model-specific runtime code is
+  loaded only from the row's pinned local materials, no remote-code path is
+  enabled, and each optional runtime is not imported unless selected.
+  Observe failures before implementation.
+- [x] **GREEN:** Implement each technically admitted row as a separately
+  completable adapter slice in the row's recorded module/test targets, through
+  the existing `DecisionModelAdapter` contract and host execution boundary.
+  Preserve in-process execution, explicit profile selection, exact material
+  binding, host-owned resource/lifecycle controls, and no fallback. Bind each
+  profile as `workflow_decision`; host admission must reject
+  `context_retention` use before inference. A deferred row has no GREEN work
+  and does not block other admitted rows.
   Do not put model loading, tokenization, or score interpretation in the
   generic contract.
-- [ ] Run focused fake tests and dependency-resolution checks for each optional
-  group independently. Before exposing each profile, pass exact-material
-  preflight and post-install load/one bounded compatibility inference on its
-  pinned artifacts, using synthetic non-sensitive input and confirming a
+- [x] Run the named focused fake tests and Poetry dependency-resolution/install
+  checks for each optional extra independently. The DMS-16 focused suite passes
+  (334 tests); each installable extra resolved and installed independently on
+  Python 3.13 and 3.14. The DMS-07 full suite passes (3,029 passed, 4 skipped,
+  7 deselected), and Ruff, `poetry check --lock`, and `git diff --check` pass.
+- [ ] Before exposing each profile, pass exact-material preflight and
+  post-install load/one bounded compatibility inference on its pinned
+  artifacts, using synthetic non-sensitive input and confirming a
   contract-valid result with no network access after material admission.
   Existing smoke evidence may be reused only when it binds the identical
   material digests, runtime/extra lock, platform, and adapter-facing execution
   path. Obtain matching approval before any new download or inference; this is
   not a DMS quality run or context-management recommendation.
-  Run the DMS-07 full suite and Ruff after the adapter matrix is green.
-- [ ] Record technical support status independently from context-management
+- [x] Record technical support status independently from context-management
   quality status in `model-evaluation.md` and `validation.md`. Record a separate
   support/defer disposition for each frozen profile row. Do not enable any
   workflow-decision-only adapter for compaction or context management until the
-  relevant quality criteria are revisited and passed.
+  relevant quality criteria are revisited and passed. Current dispositions are
+  explicit: Von, Julia 1, and Laya-MLX are not admitted pending exact current
+  materials and compatibility smokes; Kev-0.6B/Qwen3 is deferred for the
+  dependency conflict. No profile is exposed for context management.

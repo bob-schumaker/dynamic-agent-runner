@@ -14,15 +14,16 @@
   DMS-14 completed its approved published general-transfer and Mac-runtime
   matrix. No candidate met both thresholds; results remain comparative only.
   DMS-15 adds an audit-first review for runtime-neutral adapter helpers, with
-  implementation conditional on proven reuse across backends. DMS-16 plans
-  optional client-facing Von,
-  Laya-MLX, and Qwen-based adapters.
+  implementation conditional on proven reuse across backends. DMS-16 now has
+  fake-backed adapter slices for Von, Julia 1, Laya-MLX, and Kev/Qwen, with
+  the `workflow_decision` use guard in the shared host path.
   See `tasks.md` and `validation.md`.
 - Readiness: the generic contract and workflow path are implemented. Optional
-  Von, Laya-MLX, and Qwen client backends remain planned; their implementation
-  is gated by exact runtime, material, contract, and host-boundary validation,
-  not by the context-management quality results. Context-management use still
-  requires its own quality review.
+  adapter and fake-test slices exist for Von, Julia 1, Laya-MLX, and Kev/Qwen.
+  Their profiles are not admitted or exposed until exact material, runtime,
+  contract, and host-boundary validation plus approved compatibility smokes
+  pass. Kev packaging remains deferred over its Torch constraint conflict.
+  Context-management use still requires its own quality review.
 - Implementation procedure: spec-driven development, followed by
   `execute-ready-item` for this feature
 
@@ -32,11 +33,11 @@ Use one package-owned request/result contract with explicit `choice` and
 `scores` modes. Workflow `decision_step` nodes use one `choice` question; the
 internal compaction scorer batches `scores` questions. The first DAR-owned
 implementation supports local models only. Plan optional, separately
-installable in-process backends for Von, Laya-MLX, and reviewed Qwen-based
-decision profiles, all behind the shared contract and exact profile/material
-binding. Keep backend dependencies out of the core install, require explicit
-profile selection, and preserve host-owned limits, lifecycle, tracing, and
-redaction. A caller-supplied adapter can still implement server-backed runtimes
+installable in-process backends for Von, Julia 1, Laya-MLX, and reviewed
+Qwen-based decision profiles, all behind the shared contract and exact
+profile/material binding. Keep backend dependencies out of the core install,
+require explicit profile selection, and preserve host-owned limits, lifecycle,
+tracing, and redaction. A caller-supplied adapter can still implement server-backed runtimes
 such as Laya; the external client owns any server and its lifecycle.
 
 These optional backends do not imply a default model. Their purpose is to let
@@ -65,7 +66,7 @@ always performs truncation and message deletion.
 | Public decision request, result, profile, and adapter protocol | `src/dynamic_agent_runner/decision_models.py`, `src/dynamic_agent_runner/__init__.py` | Implemented; reuse the typed contract and validation |
 | Workflow node shape and validation | `src/dynamic_agent_runner/validation.py` (`RuntimeNode.raw` preserves subtype data) | Implemented; preserve exact-profile dispatch and mapped-edge routing |
 | Workflow node execution | `src/dynamic_agent_runner/context.py`, `src/dynamic_agent_runner/executor.py` | Implemented; resolve exact caller-supplied runtime binding, invoke adapter, validate result, follow only the mapped edge |
-| Optional client backends (DMS-16) | Backend-specific adapters under `src/dynamic_agent_runner/workflow_host/`, optional dependency groups in `pyproject.toml`, and exact profile/material bindings | Freeze exact rows and technical admit/defer outcomes independently; add separately installable Von, Laya-MLX, and Qwen/Kev backends over the shared contract; enforce `workflow_decision` use before dispatch; require technical/material/host checks and approved exact-runtime compatibility evidence; no context-management quality gate for client support |
+| Optional client backends (DMS-16) | Backend-specific adapters under `src/dynamic_agent_runner/workflow_host/`, optional extras in `pyproject.toml`, exact profile/material bindings, and the one-shot local smoke at `tests/manual/smoke_dms16.py` with fake tests in `tests/test_dms16_smoke_runner.py` | Freeze exact rows and technical admit/defer outcomes independently; add separately installable Von, Julia 1, Laya-MLX, and Qwen/Kev backends over the shared contract; enforce `workflow_decision` use before dispatch; require technical/material/host checks and approved exact-runtime compatibility evidence; no context-management quality gate for client support |
 | Qwen/Kev material and runner binding (DMS-16) | `src/dynamic_agent_runner/workflow_host/model_execution_binding.py`, `src/dynamic_agent_runner/workflow_host/local_model_runners.py`, `src/dynamic_agent_runner/workflow_host/capabilities.py` | Bind selected exact Qwen/Kev profiles and locked materials after technical/runtime and host-boundary review; reuse host limits and lifecycle; assess context-management quality separately |
 | Compaction scoring | `src/dynamic_agent_runner/context_compaction.py`, `src/dynamic_agent_runner/executor.py` | Implemented with fake profiles; model-backed use remains subject to context-management quality review |
 | Candidate evaluation | `scripts/evaluate_decision_models.py`, `tests/test_decision_model_evaluation.py`, `specs/decision-model-support/evaluation/` | Implemented for the frozen fixtures; keep quality findings separate from client-backend compatibility |
@@ -158,10 +159,11 @@ integration. Keep all planned backends tied to exact source, model, runtime,
 and material identities. Model downloads and real local inference remain
 separately authorized manual actions; unit tests stay fake-only.
 
-Implement Qwen, Von, and Laya-MLX client adapters when their exact runtime and
-material closures can be bound safely to DAR's existing host boundary. For
-each, verify bounded input/output translation, capability limits, cancellation
-and deadlines, offline loading after material admission, and redacted failures.
+Adapter and fake-test slices now exist for Von, Julia 1, Laya-MLX, and
+Kev-0.6B/Qwen3. Before exposing any profile, bind its exact runtime and
+material closure to DAR's existing host boundary; verify bounded input/output
+translation, capability limits, cancellation and deadlines, offline loading
+after material admission, and redacted failures.
 No default backend or implicit fallback is introduced. DMS-01 quality results
 do not block client workflow support; before using a profile for compaction or
 context management, reopen that work with its own criteria and explicit
@@ -178,11 +180,12 @@ quality results.
 ## DMS-16 Optional Client Backend Support
 
 Implement separately selectable, first-party in-process adapters for exact Von
-1.2.0, Laya-MLX, and selected Kev/Qwen-based profiles through the existing
-decision contract and host execution binding. The completed DMS quality
-evaluations do not gate client-authored workflow support. Keep their results as
-context-management evidence; compaction use is out of scope until that work is
-reopened with separate criteria and an explicit profile admission.
+1.2.0, the Julia 1 candidate after technical admission, Laya-MLX, and selected
+Kev/Qwen-based profiles through the existing decision contract and host
+execution binding. The completed DMS quality
+evaluations do not gate client-authored workflow support. Keep their results
+as context-management evidence; compaction use is out of scope until that work
+is reopened with separate criteria and an explicit profile admission.
 
 First freeze a closed profile/material/runtime row list, recording the exact
 artifact/source revision, license, platform, input/output mapping, and optional
