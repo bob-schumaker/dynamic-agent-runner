@@ -65,3 +65,12 @@ def test_profiles_pin_runtime_required_config_and_tokenizer_files() -> None:
         "tokenizer/tokenizer.json",
         "tokenizer/tokenizer_config.json",
     }
+
+
+def test_von_profile_uses_its_pinned_compatible_runtime_lock() -> None:
+    von = _PREFLIGHT.PROFILES["von"]
+
+    assert von["runtime_lock_sha256"] == (
+        "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41"
+    )
+    assert von["packages"]["transformers"] == "5.17.0"

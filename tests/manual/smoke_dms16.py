@@ -12,6 +12,7 @@ import os
 import platform
 import sys
 import time
+import traceback
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +48,9 @@ PROFILE_MANIFESTS = {
         "model_id": profile["model_id"],
         "model_revision": profile["model_revision"],
         "source_revision": profile["source_revision"],
+        "runtime_lock_sha256": profile.get(
+            "runtime_lock_sha256", POETRY_LOCK_SHA256
+        ),
         "files": profile["files"],
         "git_files": profile.get("git_files", {}),
         "packages": profile["packages"],
@@ -80,7 +84,9 @@ class SmokeError(RuntimeError):
     """Raised when an approved local compatibility smoke cannot proceed."""
 
 
-def scope_payload(profile_id: str) -> dict[str, Any]:
+def scope_payload(profile_id: str, attempt: int = 1) -> dict[str, Any]:
+    if attempt < 1:
+        raise SmokeError("attempt must be a positive integer")
     try:
         manifest = PROFILE_MANIFESTS[profile_id]
     except KeyError as error:
@@ -88,18 +94,19 @@ def scope_payload(profile_id: str) -> dict[str, Any]:
     source_files = {name: _sha256(ROOT / name) for name in SCOPE_FILES}
     return {
         "action": "stage exact allowlisted materials if absent; then perform one synthetic in-process choice; no network during model load or inference",
+        "attempt": attempt,
         "platform": platform.platform(),
         "profile_id": profile_id,
         "profile_manifest": manifest,
         "python": sys.version.split()[0],
         "poetry_lock_sha256": _sha256(ROOT / "poetry.lock"),
-        "receipt_path": str(_receipt_path(profile_id).relative_to(ROOT)),
+        "receipt_path": str(_receipt_path(profile_id, attempt).relative_to(ROOT)),
         "scope_files": source_files,
     }
 
 
-def scope_digest(profile_id: str) -> str:
-    return hashlib.sha256(_canonical_json(scope_payload(profile_id))).hexdigest()
+def scope_digest(profile_id: str, attempt: int = 1) -> str:
+    return hashlib.sha256(_canonical_json(scope_payload(profile_id, attempt))).hexdigest()
 
 
 def _canonical_json(value: object) -> bytes:
@@ -123,6 +130,13 @@ def _sha256(path: Path) -> str:
 def _runtime_ready(profile_id: str) -> None:
     if _sha256(ROOT / "poetry.lock") != POETRY_LOCK_SHA256:
         raise SmokeError("the optional-runtime Poetry lock changed")
+    profile = preflight.PROFILES[profile_id]
+    runtime_lock_path = Path(
+        profile.get("runtime_lock_path", ROOT / "poetry.lock")
+    )
+    expected_lock = profile.get("runtime_lock_sha256", POETRY_LOCK_SHA256)
+    if not runtime_lock_path.is_file() or _sha256(runtime_lock_path) != expected_lock:
+        raise SmokeError("the profile runtime lock does not match its pinned digest")
     expected = PROFILE_MANIFESTS[profile_id]["packages"]
     for package, version in expected.items():
         try:
@@ -206,13 +220,16 @@ def decision_profile(profile_id: str) -> DecisionModelProfile:
     )
 
 
-def _receipt_path(profile_id: str) -> Path:
+def _receipt_path(profile_id: str, attempt: int = 1) -> Path:
+    if attempt < 1:
+        raise SmokeError("attempt must be a positive integer")
+    suffix = "" if attempt == 1 else f"-attempt-{attempt}"
     return (
         ROOT
         / "specs"
         / "decision-model-support"
         / "evaluation"
-        / (f"dms16-smoke-{profile_id}.json")
+        / (f"dms16-smoke-{profile_id}{suffix}.json")
     )
 
 
@@ -221,15 +238,16 @@ def run_profile(
     material_root: Path,
     approved_scope: str | None,
     *,
+    attempt: int = 1,
     stage: Any | None = None,
     load: Any | None = None,
 ) -> dict[str, Any]:
-    expected_scope = scope_digest(profile_id)
+    expected_scope = scope_digest(profile_id, attempt)
     if approved_scope != expected_scope:
         raise SmokeError(
             f"approval is absent or does not match; required scope: {expected_scope}"
         )
-    receipt_path = _receipt_path(profile_id)
+    receipt_path = _receipt_path(profile_id, attempt)
     if receipt_path.exists():
         raise SmokeError("a smoke receipt already exists for this one-run approval")
     _runtime_ready(profile_id)
@@ -247,7 +265,9 @@ def run_profile(
         "model_id": PROFILE_MANIFESTS[profile_id]["model_id"],
         "model_revision": PROFILE_MANIFESTS[profile_id]["model_revision"],
         "source_revision": PROFILE_MANIFESTS[profile_id]["source_revision"],
-        "runtime_lock_sha256": POETRY_LOCK_SHA256,
+        "runtime_lock_sha256": PROFILE_MANIFESTS[profile_id][
+            "runtime_lock_sha256"
+        ],
         "platform": platform.platform(),
         "python": sys.version.split()[0],
         "material_file_count": len(preflight.PROFILES[profile_id]["files"])
@@ -315,20 +335,36 @@ def _invoke_smoke(
         result = adapter.decide(request)
     except Exception as error:
         _write_failure_receipt(
-            receipt_path, profile_id, expected_scope, "inference_failed"
+            receipt_path,
+            profile_id,
+            expected_scope,
+            "inference_failed",
+            stage="adapter_inference",
+            error=error,
         )
         raise SmokeError("the adapter-facing smoke failed") from error
     elapsed_ms = round((time.monotonic() - started) * 1000, 3)
     if not isinstance(result, DecisionModelResult):
         _write_failure_receipt(
-            receipt_path, profile_id, expected_scope, "result_invalid"
+            receipt_path,
+            profile_id,
+            expected_scope,
+            "result_invalid",
+            stage="result_validation",
+            error_type="InvalidDecisionResult",
+            error_message="adapter returned a value that is not a DecisionModelResult",
         )
         raise SmokeError("the adapter-facing smoke returned an invalid result")
     try:
         validate_decision_result(result, request, profile)
     except Exception as error:
         _write_failure_receipt(
-            receipt_path, profile_id, expected_scope, "result_invalid"
+            receipt_path,
+            profile_id,
+            expected_scope,
+            "result_invalid",
+            stage="result_validation",
+            error=error,
         )
         raise SmokeError(
             "the adapter-facing smoke returned an invalid result"
@@ -337,12 +373,53 @@ def _invoke_smoke(
 
 
 def _write_failure_receipt(
-    path: Path, profile_id: str, scope: str, status: str
+    path: Path,
+    profile_id: str,
+    scope: str,
+    status: str,
+    *,
+    stage: str,
+    error: Exception | None = None,
+    error_type: str | None = None,
+    error_message: str | None = None,
 ) -> None:
-    write_receipt(
-        path,
-        {"profile_id": profile_id, "approval_scope": scope, "status": status},
-    )
+    report = {
+        "profile_id": profile_id,
+        "approval_scope": scope,
+        "status": status,
+        "stage": stage,
+    }
+    if error is not None:
+        report.update(
+            {
+                "error_type": type(error).__name__,
+                "error_message": str(error),
+                "traceback": "".join(
+                    traceback.format_exception(type(error), error, error.__traceback__)
+                ),
+            }
+        )
+    else:
+        report.update(
+            {"error_type": error_type, "error_message": error_message}
+        )
+    write_receipt(path, report)
+
+
+def _smoke_error_report(profile_id: str, error: SmokeError) -> dict[str, Any]:
+    report: dict[str, Any] = {"profile_id": profile_id, "error": str(error)}
+    cause = error.__cause__
+    if cause is not None:
+        report.update(
+            {
+                "cause_type": type(cause).__name__,
+                "cause_message": str(cause),
+                "traceback": "".join(
+                    traceback.format_exception(type(cause), cause, cause.__traceback__)
+                ),
+            }
+        )
+    return report
 
 
 def write_receipt(path: Path, report: dict[str, Any]) -> None:
@@ -367,15 +444,16 @@ def main() -> int:
     )
     parser.add_argument("--print-scope", action="store_true")
     parser.add_argument("--approve-scope")
+    parser.add_argument("--attempt", type=int, default=1)
     args = parser.parse_args()
-    expected_scope = scope_digest(args.profile_id)
+    expected_scope = scope_digest(args.profile_id, args.attempt)
     if args.print_scope:
         print(
             json.dumps(
                 {
                     "profile_id": args.profile_id,
                     "approval_scope": expected_scope,
-                    "scope": scope_payload(args.profile_id),
+                    "scope": scope_payload(args.profile_id, args.attempt),
                 },
                 indent=2,
                 sort_keys=True,
@@ -387,9 +465,10 @@ def main() -> int:
             args.profile_id,
             args.material_root,
             args.approve_scope,
+            attempt=args.attempt,
         )
     except SmokeError as error:
-        print(json.dumps({"profile_id": args.profile_id, "error": str(error)}))
+        print(json.dumps(_smoke_error_report(args.profile_id, error)))
         return 2
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0

@@ -637,8 +637,11 @@ added.
   files. SHA-256 digests are pinned for Julia's default Torch runtime source,
   and source review confirms local checkpoint paths with
   `trust_remote_code=False`. Julia 1 and Laya-MLX passed their approved
-  compatibility smokes; Von's adapter-facing inference failed and requires
-  diagnosis before any new approved attempt. The three
+  compatibility smokes. Von's first smoke exposed that the shared Poetry lock
+  selects incompatible Transformers 5.0.0; its successful retry used the
+  exact upstream Von lock with Transformers 5.17.0. The runner now records
+  exception type, message, traceback, and stage, and uses separate numbered
+  attempt receipts. The three
   installable extras were also installed independently on Python 3.13.16;
   package imports passed, including Laya-MLX's load-only Metal import outside
   the sandbox. Kev-0.6B is deferred because its upstream Torch cap conflicts
@@ -731,17 +734,20 @@ added.
   admitted for optional `workflow_decision` use only. See their redacted
   receipts in `evaluation/` and the per-profile approval scopes in
   `validation.md`.
-- [ ] Resolve the failed Von compatibility smoke before exposing Von. Its six
-  pinned files verified and local CPU model loading succeeded, but its one
-  approved inference failed. The one-run receipt prevents replay; diagnose the
-  failure and obtain approval for a new exact scope before another inference.
-  This is not a DMS quality run or context-management recommendation.
+- [x] Diagnose and resolve the Von compatibility smoke. The shared Poetry
+  extra selected Transformers 5.0.0, which failed in ModernBERT attention-mask
+  expansion. The smoke runner now records actionable exception details and
+  supports separately scoped attempts. Re-running once with the pinned Von
+  source `uv.lock` (Transformers 5.17.0) returned a contract-valid result in
+  1,062.933 ms. Von is admitted for `workflow_decision` with that profile
+  runtime; the shared-lock `von` extra is not compatible for inference.
+  Receipts and runtime evidence are linked in `validation.md`.
 - [x] Record technical support status independently from context-management
   quality status in `model-evaluation.md` and `validation.md`. Record a separate
   support/defer disposition for each frozen profile row. Do not enable any
   workflow-decision-only adapter for compaction or context management until the
   relevant quality criteria are revisited and passed. Current dispositions are
-  explicit: Julia 1 and Laya-MLX are admitted for `workflow_decision`; Von is
-  not admitted pending diagnosis and a newly approved compatibility smoke;
-  Kev-0.6B/Qwen3 is deferred for the dependency conflict. No profile is
-  admitted for `context_retention`.
+  explicit: Von, Julia 1, and Laya-MLX are admitted for `workflow_decision`
+  with their recorded profile runtimes; the shared-lock `von` extra remains
+  incompatible for inference. Kev-0.6B/Qwen3 is deferred for the dependency
+  conflict. No profile is admitted for `context_retention`.

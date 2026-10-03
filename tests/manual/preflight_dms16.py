@@ -20,6 +20,8 @@ PROFILES: dict[str, dict[str, Any]] = {
         "model_id": "wfzyx/von",
         "model_revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
         "source_revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54",
+        "runtime_lock_sha256": "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41",
+        "runtime_lock_path": "/private/tmp/dms16-poetry-von/dynamic-agent-runner-liR8DTmq-py3.14/src/von/uv.lock",
         "files": {
             "model.safetensors": "af57d5d2ab15715a753a1eb4add4271d1aecce7e76f3365f629c082df329297a",
             "option_marker.pt": "3faf27f88d30aaf9aa37860d4cdef99f1d05450cf40364f6236ac892d4d139ed",
@@ -30,11 +32,13 @@ PROFILES: dict[str, dict[str, Any]] = {
             "tokenizer.json": "31e99eddb04ca32c7c1f66cde30dc3e54099402f",
             "tokenizer_config.json": "185556e53fe0b9c6f0decd322897041e91d8ace4",
         },
-        "python": "/private/tmp/dms16-poetry-von/dynamic-agent-runner-liR8DTmq-py3.14/bin/python",
-        "python_313": "/private/tmp/dms16-von-py313/dynamic-agent-runner-liR8DTmq-py3.13/bin/python",
+        "python": "/private/tmp/dms16-von-compatible-py314/bin/python",
+        "python_313": "/private/tmp/dms16-von-compatible-py313/bin/python",
         "packages": {
+            "accelerate": "1.15.0",
+            "huggingface-hub": "1.32.0",
             "torch": "2.14.0",
-            "transformers": "5.0.0",
+            "transformers": "5.17.0",
             "von-sdk": "1.2.3",
         },
     },
@@ -183,6 +187,11 @@ def build_preflight(args: argparse.Namespace) -> dict[str, Any]:
         )
 
     for name, profile in PROFILES.items():
+        profile_lock_path = Path(profile.get("runtime_lock_path", lock_path))
+        expected_profile_lock = profile.get("runtime_lock_sha256", POETRY_LOCK_SHA256)
+        profile_lock_sha256 = (
+            _sha256(profile_lock_path) if profile_lock_path.is_file() else None
+        )
         model_dir = args.material_root / name
         files = [
             _file_receipt(model_dir / filename, expected, "sha256")
@@ -221,6 +230,8 @@ def build_preflight(args: argparse.Namespace) -> dict[str, Any]:
             row_blockers.append(
                 "python_3_13_optional_runtime_package_versions_mismatch"
             )
+        if profile_lock_sha256 != expected_profile_lock:
+            row_blockers.append("profile_runtime_lock_mismatch")
         rows[name] = {
             "model_id": profile["model_id"],
             "model_revision": profile["model_revision"],
@@ -231,8 +242,10 @@ def build_preflight(args: argparse.Namespace) -> dict[str, Any]:
             "python_3_13_runtime_executable": str(executable_313),
             "python_3_13_runtime_packages": actual_packages_313,
             "python_3_13_runtime_matches": packages_313_match,
-            "runtime_lock_sha256": lock_sha256,
-            "runtime_lock_matches": lock_sha256 == POETRY_LOCK_SHA256,
+            "profile_runtime_lock_path": str(profile_lock_path),
+            "runtime_lock_sha256": profile_lock_sha256,
+            "expected_runtime_lock_sha256": expected_profile_lock,
+            "runtime_lock_matches": profile_lock_sha256 == expected_profile_lock,
             "blockers": row_blockers,
         }
         blockers.extend(f"{name}:{item}" for item in row_blockers)

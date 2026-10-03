@@ -48,7 +48,9 @@ def test_smoke_rejects_missing_or_wrong_approval_before_staging(
 ) -> None:
     calls: list[str] = []
     monkeypatch.setattr(_SMOKE, "ROOT", tmp_path)
-    monkeypatch.setattr(_SMOKE, "scope_digest", lambda _profile_id: "expected")
+    monkeypatch.setattr(
+        _SMOKE, "scope_digest", lambda _profile_id, _attempt=1: "expected"
+    )
     monkeypatch.setattr(_SMOKE, "stage_profile", lambda *_args: calls.append("stage"))
 
     for approval in (None, "wrong"):
@@ -73,7 +75,9 @@ def test_smoke_checks_materials_before_loading_and_invokes_once(
     )
     monkeypatch.setattr(_SMOKE, "ROOT", tmp_path)
     monkeypatch.setitem(_SMOKE.IDENTITIES, "julia1", identity)
-    monkeypatch.setattr(_SMOKE, "scope_digest", lambda _profile_id: "approved")
+    monkeypatch.setattr(
+        _SMOKE, "scope_digest", lambda _profile_id, _attempt=1: "approved"
+    )
     monkeypatch.setattr(_SMOKE, "_runtime_ready", lambda _profile_id: None)
     monkeypatch.setattr(_SMOKE, "decision_profile", lambda _profile_id: profile)
     monkeypatch.setattr(_SMOKE, "stage_profile", lambda *_args: tmp_path)
@@ -107,7 +111,9 @@ def test_smoke_does_not_load_when_material_verification_fails(
     monkeypatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(_SMOKE, "ROOT", tmp_path)
-    monkeypatch.setattr(_SMOKE, "scope_digest", lambda _profile_id: "approved")
+    monkeypatch.setattr(
+        _SMOKE, "scope_digest", lambda _profile_id, _attempt=1: "approved"
+    )
     monkeypatch.setattr(_SMOKE, "_runtime_ready", lambda _profile_id: None)
     monkeypatch.setattr(_SMOKE, "stage_profile", lambda *_args: tmp_path)
     monkeypatch.setattr(
@@ -143,7 +149,9 @@ def test_smoke_scope_binds_profile_materials_lock_and_code(
 
 def test_smoke_refuses_to_reuse_a_receipt_path(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(_SMOKE, "ROOT", tmp_path)
-    monkeypatch.setattr(_SMOKE, "scope_digest", lambda _profile_id: "approved")
+    monkeypatch.setattr(
+        _SMOKE, "scope_digest", lambda _profile_id, _attempt=1: "approved"
+    )
     monkeypatch.setattr(_SMOKE, "_runtime_ready", lambda _profile_id: None)
     target = (
         tmp_path / "specs/decision-model-support/evaluation/dms16-smoke-julia1.json"
@@ -163,11 +171,54 @@ def test_smoke_refuses_to_reuse_a_receipt_path(monkeypatch, tmp_path: Path) -> N
     assert staged == []
 
 
-def test_smoke_receipt_writer_emits_only_redacted_metadata(tmp_path: Path) -> None:
+def test_smoke_scope_and_receipt_are_separate_for_retry_attempt(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(_SMOKE, "ROOT", tmp_path)
+    monkeypatch.setattr(_SMOKE, "PROFILE_MANIFESTS", {"julia1": {"revision": "one"}})
+    monkeypatch.setattr(_SMOKE, "POETRY_LOCK_SHA256", "lock")
+    monkeypatch.setattr(_SMOKE, "SCOPE_FILES", ())
+    (tmp_path / "poetry.lock").write_text("lock", encoding="utf-8")
+
+    assert _SMOKE._receipt_path("julia1", attempt=2).name == (
+        "dms16-smoke-julia1-attempt-2.json"
+    )
+    assert _SMOKE.scope_payload("julia1", attempt=2)["attempt"] == 2
+    assert _SMOKE.scope_payload("julia1", attempt=2)["receipt_path"].endswith(
+        "dms16-smoke-julia1-attempt-2.json"
+    )
+
+
+def test_smoke_failure_receipt_keeps_exception_diagnostics(tmp_path: Path) -> None:
     target = tmp_path / "receipt.json"
-    _SMOKE.write_receipt(target, {"profile_id": "julia1", "result_valid": True})
+    error = ValueError("probability sum was 0.9997")
+    _SMOKE._write_failure_receipt(
+        target,
+        "julia1",
+        "scope",
+        "inference_failed",
+        stage="adapter_inference",
+        error=error,
+    )
 
     assert json.loads(target.read_text(encoding="utf-8")) == {
+        "approval_scope": "scope",
+        "error_message": "probability sum was 0.9997",
+        "error_type": "ValueError",
         "profile_id": "julia1",
-        "result_valid": True,
+        "stage": "adapter_inference",
+        "status": "inference_failed",
+        "traceback": "ValueError: probability sum was 0.9997\n",
     }
+
+
+def test_cli_error_report_includes_the_underlying_exception() -> None:
+    cause = ValueError("probability sum was 0.9997")
+    error = _SMOKE.SmokeError("the adapter-facing smoke failed")
+    error.__cause__ = cause
+
+    report = _SMOKE._smoke_error_report("von", error)
+
+    assert report["cause_type"] == "ValueError"
+    assert report["cause_message"] == "probability sum was 0.9997"
+    assert "ValueError: probability sum was 0.9997" in report["traceback"]

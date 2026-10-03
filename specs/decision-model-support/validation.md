@@ -138,7 +138,7 @@ passed **3,029 passed, 4 skipped, 7 deselected**; Ruff, `poetry check --lock`,
 and `git diff --check` passed. These checks do not load candidate weights or
 replace the outstanding exact-material smoke gate.
 
-## DMS-16 Approved Material and Compatibility Smoke Results — 2026-10-02
+## DMS-16 Initial Approved Material and Compatibility Smoke Results — 2026-10-02
 
 The user approved downloading the exact pinned model/runtime allowlists and
 one synthetic choice smoke for each of Von, Julia 1, and Laya-MLX. The current
@@ -157,9 +157,37 @@ itself performed no download or inference.
 
 All three runs used the synthetic request in `tests/manual/smoke_dms16.py`;
 network fallback was disabled before model loading. No user or transcript data
-was used. No profile is admitted for `context_retention`. Von's failed
-inference has no raw exception or model output in its receipt by design; no
-second call has been made.
+was used. No profile is admitted for `context_retention`. At this checkpoint,
+Von's failed inference had no diagnostic details in its receipt.
+
+## DMS-16 Von Diagnostics and Compatible Runtime Retry — 2026-10-02
+
+The smoke runner now records the failure stage, exception type, message, and
+traceback in both its receipt and CLI response. It assigns separate approval
+scopes and receipts to numbered attempts, preserving prior evidence.
+
+The first DMS-16 Von attempt used the shared Poetry runtime with Transformers
+5.0.0 and failed without useful diagnostics. Attempt 2 exposed the cause:
+`AttributeError: 'dict' object has no attribute 'size'` in Transformers'
+ModernBERT attention-mask expansion, called from Von's encoder. This was a
+runtime incompatibility, before adapter result validation. The successful
+DMS-06 run used the exact Von source `uv.lock`, SHA-256
+`acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41`, which
+pins Transformers 5.17.0. The [attempt 2 receipt](evaluation/dms16-smoke-von-attempt-2.json)
+contains the exception details and traceback.
+
+The DMS-16 preflight now binds Von to that profile-specific lock and verifies
+the installed package set. The [compatible-runtime preflight](evaluation/preflight-dms16-von-compatible-2026-10-02.json)
+passed with all 29 model/runtime files verified and no blockers. The [attempt 3
+receipt](evaluation/dms16-smoke-von-attempt-3.json) records one offline CPU
+inference with a contract-valid result in 1,062.933 ms. Its approval scope is
+`c5e20834b40ae5ee47b8e82b1e856fb0aeddc77d576a14e2404a455b4a2571ca`.
+
+The root Poetry `von` extra still resolves Transformers 5.0.0 because the
+shared lock also satisfies Julia 1's `<5.1` range. Do not use that root-extra
+runtime for Von inference; the admitted DMS-16 Von profile uses the pinned
+upstream `uv.lock`. Von is admitted for optional `workflow_decision` use with
+that profile runtime only. No profile is admitted for `context_retention`.
 
 ## DMS-16 Readiness Review After Adding Julia 1 — 2026-10-02
 
