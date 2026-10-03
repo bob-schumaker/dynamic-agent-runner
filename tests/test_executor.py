@@ -35,6 +35,7 @@ from dynamic_agent_runner.decision_models import (
     DecisionModelResultItem,
     DecisionModelScore,
     DecisionMode,
+    DecisionModelUse,
 )
 from dynamic_agent_runner.errors import (
     EmbeddingResultError,
@@ -411,7 +412,12 @@ def decision_workflow() -> LoadedAgentWorkflow:
                 ],
             ],
             "edges": [
-                {"source": "decide", "target": target, "edge_kind": "branch", "condition": target}
+                {
+                    "source": "decide",
+                    "target": target,
+                    "edge_kind": "branch",
+                    "condition": target,
+                }
                 for target in ("left", "right")
             ],
         }
@@ -423,6 +429,9 @@ def decision_binding(
     *,
     modes: frozenset[DecisionMode] = frozenset({DecisionMode.CHOICE}),
     limits: DecisionExecutionLimits | None = None,
+    permitted_uses: frozenset[DecisionModelUse] = frozenset(
+        {DecisionModelUse.WORKFLOW_DECISION}
+    ),
 ) -> DecisionModelBinding:
     return DecisionModelBinding(
         profile=DecisionModelProfile(
@@ -438,10 +447,13 @@ def decision_binding(
         ),
         adapter=adapter,
         execution_limits=limits or DecisionExecutionLimits(),
+        permitted_uses=permitted_uses,
     )
 
 
-def retention_scoring_binding(adapter: object, *, profile_id: str = "local.retention.v1") -> DecisionModelBinding:
+def retention_scoring_binding(
+    adapter: object, *, profile_id: str = "local.retention.v1"
+) -> DecisionModelBinding:
     return DecisionModelBinding(
         profile=DecisionModelProfile(
             identity=DecisionModelIdentity(
@@ -455,6 +467,7 @@ def retention_scoring_binding(adapter: object, *, profile_id: str = "local.reten
             supported_modes=frozenset({DecisionMode.SCORES}),
         ),
         adapter=adapter,
+        permitted_uses=frozenset({DecisionModelUse.CONTEXT_RETENTION}),
     )
 
 
@@ -513,11 +526,40 @@ def test_decision_model_step_uses_exact_binding_and_routes_to_mapped_edge() -> N
     )
 
     assert result.final_result == "right result"
-    assert [execution.node_id for execution in result.state.executions] == ["decide", "right"]
+    assert [execution.node_id for execution in result.state.executions] == [
+        "decide",
+        "right",
+    ]
     assert decision_adapter.called_with.context == "private decision context"
     assert decision_adapter.called_with.execution_limits.max_input_tokens == 32
-    decision_event = next(event for event in result.state.trace_events if event.event_type == "decision")
+    decision_event = next(
+        event for event in result.state.trace_events if event.event_type == "decision"
+    )
     assert "private decision context" not in str(decision_event.payload)
+
+
+def test_decision_model_step_rejects_retention_only_binding_before_inference() -> None:
+    class Adapter:
+        called = False
+
+        def decide(self, _request: object) -> DecisionModelResult:
+            self.called = True
+            raise AssertionError("adapter must not be called")
+
+    adapter = Adapter()
+    with pytest.raises(Exception, match="workflow decision use"):
+        execute_workflow(
+            decision_workflow(),
+            prompt="decision context",
+            model_adapter=make_adapter([{"id": "final", "output_text": "done"}]),
+            decision_model_bindings={
+                "local.test.v1": decision_binding(
+                    adapter,
+                    permitted_uses=frozenset({DecisionModelUse.CONTEXT_RETENTION}),
+                )
+            },
+        )
+    assert not adapter.called
 
 
 def test_async_decision_model_adapter_is_supported() -> None:
@@ -532,17 +574,24 @@ def test_async_decision_model_adapter_is_supported() -> None:
         return await execute_workflow_async(
             decision_workflow(),
             prompt="Pick",
-            model_adapter=make_async_adapter([{"id": "final", "output_text": "left result"}]),
+            model_adapter=make_async_adapter(
+                [{"id": "final", "output_text": "left result"}]
+            ),
             decision_model_bindings={"local.test.v1": decision_binding(Adapter())},
         )
 
     result = asyncio.run(run())
 
     assert result.final_result == "left result"
-    assert [execution.node_id for execution in result.state.executions] == ["decide", "left"]
+    assert [execution.node_id for execution in result.state.executions] == [
+        "decide",
+        "left",
+    ]
 
 
-def test_prepare_model_input_scoring_keeps_pins_recent_turns_and_atomic_tool_turns() -> None:
+def test_prepare_model_input_scoring_keeps_pins_recent_turns_and_atomic_tool_turns() -> (
+    None
+):
     class Scorer:
         requests = []
 
@@ -607,7 +656,9 @@ def test_prepare_model_input_scoring_keeps_pins_recent_turns_and_atomic_tool_tur
     contents = [message.content for message in prepared.messages]
     assert "pinned instruction" in contents
     assert contents[-3:-1] == ["recent user", "recent answer"]
-    assert contents.index("preserve this old turn") < contents.index("matching old answer")
+    assert contents.index("preserve this old turn") < contents.index(
+        "matching old answer"
+    )
     assert "tool call" in contents and "tool result" in contents
     assert prepared.preparation.compaction["decision_scoring"] == {
         "status": "scored",
@@ -618,7 +669,9 @@ def test_prepare_model_input_scoring_keeps_pins_recent_turns_and_atomic_tool_tur
     assert model_adapter.client.responses.calls == []
 
 
-def test_prepare_model_input_low_scores_cannot_remove_pins_recent_or_unresolved_state() -> None:
+def test_prepare_model_input_low_scores_cannot_remove_pins_recent_or_unresolved_state() -> (
+    None
+):
     class Scorer:
         def decide(self, request) -> DecisionModelResult:
             return DecisionModelResult(
@@ -725,7 +778,9 @@ def test_prepare_model_input_scoring_without_selection_is_diagnostic_only() -> N
 
     contents = [message.content for message in prepared.messages]
     assert "old request" in next(
-        content for content in contents if content.startswith("Compacted earlier session context:")
+        content
+        for content in contents
+        if content.startswith("Compacted earlier session context:")
     )
     assert "old request" not in [
         message.content
@@ -756,7 +811,11 @@ def test_prepare_model_input_scoring_failure_falls_back_to_recency(
             if failure == "abstained":
                 return DecisionModelResult(
                     binding.profile.identity,
-                    (DecisionModelResultItem(request.questions[0].id, status="abstained"),),
+                    (
+                        DecisionModelResultItem(
+                            request.questions[0].id, status="abstained"
+                        ),
+                    ),
                 )
             raise TimeoutError("private timeout details")
 
@@ -857,7 +916,9 @@ def test_decision_model_step_rejects_missing_binding_and_scores_only_profile() -
 
 
 @pytest.mark.parametrize("limit", [DecisionExecutionLimits(max_input_bytes=1)])
-def test_decision_model_host_limit_blocks_inference(limit: DecisionExecutionLimits) -> None:
+def test_decision_model_host_limit_blocks_inference(
+    limit: DecisionExecutionLimits,
+) -> None:
     class Adapter:
         called = False
 
@@ -870,7 +931,9 @@ def test_decision_model_host_limit_blocks_inference(limit: DecisionExecutionLimi
         execute_workflow(
             decision_workflow(),
             prompt="Pick",
-            decision_model_bindings={"local.test.v1": decision_binding(adapter, limits=limit)},
+            decision_model_bindings={
+                "local.test.v1": decision_binding(adapter, limits=limit)
+            },
         )
     assert not adapter.called
 
@@ -917,7 +980,9 @@ def test_decision_model_lifecycle_limits_block_inference(
         execute_workflow(
             decision_workflow(),
             prompt="Pick",
-            decision_model_bindings={"local.test.v1": decision_binding(adapter, limits=limits)},
+            decision_model_bindings={
+                "local.test.v1": decision_binding(adapter, limits=limits)
+            },
         )
     assert not adapter.called
 
@@ -948,7 +1013,9 @@ def test_decision_model_adapter_and_result_failures_are_redacted() -> None:
         execute_workflow(
             decision_workflow(),
             prompt="Pick",
-            decision_model_bindings={"local.test.v1": decision_binding(InvalidAdapter())},
+            decision_model_bindings={
+                "local.test.v1": decision_binding(InvalidAdapter())
+            },
         )
 
 

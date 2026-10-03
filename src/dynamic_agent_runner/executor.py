@@ -41,6 +41,7 @@ from dynamic_agent_runner.decision_models import (
     DecisionModelResult,
     DecisionModelResultItem,
     DecisionMode,
+    DecisionModelUse,
     DecisionOption,
     DecisionQuestion,
     validate_decision_request,
@@ -2263,10 +2264,16 @@ async def _execute_decision_step_async(
     if node.decision_subtype != "decision_model":
         return _execute_decision_step(node, state, tracer)
     profile_id = node.raw.get("decision_profile")
-    binding = bindings.get(profile_id) if bindings and isinstance(profile_id, str) else None
+    binding = (
+        bindings.get(profile_id) if bindings and isinstance(profile_id, str) else None
+    )
     if binding is None or binding.profile.identity.profile_id != profile_id:
         raise WorkflowExecutionError(
             f"decision_model node {node.id!r} has no exact runtime profile binding"
+        )
+    if DecisionModelUse.WORKFLOW_DECISION not in binding.permitted_uses:
+        raise WorkflowExecutionError(
+            f"decision_model node {node.id!r} binding lacks workflow decision use"
         )
     if DecisionMode.CHOICE not in binding.profile.supported_modes:
         raise WorkflowExecutionError(
@@ -2342,16 +2349,22 @@ def _decision_request_limits(
     host_limits: DecisionExecutionLimits,
 ) -> DecisionExecutionLimits:
     def bounded(profile_limit: int, host_limit: int | None) -> int:
-        return min(profile_limit, host_limit) if host_limit is not None else profile_limit
+        return (
+            min(profile_limit, host_limit) if host_limit is not None else profile_limit
+        )
 
     return DecisionExecutionLimits(
         max_input_bytes=bounded(profile.max_input_bytes, host_limits.max_input_bytes),
-        max_input_tokens=bounded(profile.max_input_tokens, host_limits.max_input_tokens),
+        max_input_tokens=bounded(
+            profile.max_input_tokens, host_limits.max_input_tokens
+        ),
         max_questions=bounded(profile.max_questions, host_limits.max_questions),
         max_options_per_question=bounded(
             profile.max_options_per_question, host_limits.max_options_per_question
         ),
-        max_result_bytes=bounded(profile.max_result_bytes, host_limits.max_result_bytes),
+        max_result_bytes=bounded(
+            profile.max_result_bytes, host_limits.max_result_bytes
+        ),
         deadline_monotonic=host_limits.deadline_monotonic,
         cancellation=host_limits.cancellation,
     )
@@ -2409,7 +2422,9 @@ def _check_decision_lifecycle(limits: DecisionExecutionLimits, node_id: str) -> 
                     f"decision_model node {node_id!r} was cancelled"
                 ) from exc
         if getattr(cancellation, "cancelled", False):
-            raise WorkflowExecutionError(f"decision_model node {node_id!r} was cancelled")
+            raise WorkflowExecutionError(
+                f"decision_model node {node_id!r} was cancelled"
+            )
     if (
         limits.deadline_monotonic is not None
         and time.monotonic() >= limits.deadline_monotonic

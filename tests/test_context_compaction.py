@@ -9,6 +9,7 @@ from dynamic_agent_runner.decision_models import (
     DecisionModelResultItem,
     DecisionModelScore,
     DecisionMode,
+    DecisionModelUse,
 )
 from dynamic_agent_runner import (
     ProviderContextCompactionRequest,
@@ -36,7 +37,12 @@ def test_provider_context_compaction_contract_is_public() -> None:
     assert result.messages == request.messages
 
 
-def _retention_binding(adapter: object) -> DecisionModelBinding:
+def _retention_binding(
+    adapter: object,
+    permitted_uses: frozenset[DecisionModelUse] = frozenset(
+        {DecisionModelUse.CONTEXT_RETENTION}
+    ),
+) -> DecisionModelBinding:
     return DecisionModelBinding(
         profile=DecisionModelProfile(
             identity=DecisionModelIdentity(
@@ -51,6 +57,7 @@ def _retention_binding(adapter: object) -> DecisionModelBinding:
         ),
         adapter=adapter,
         execution_limits=DecisionExecutionLimits(),
+        permitted_uses=permitted_uses,
     )
 
 
@@ -110,10 +117,13 @@ def test_retention_scoring_uses_bounded_batches_stable_ids_and_atomic_turns() ->
     assert adapter.requests[0].questions[0].id == "turn_0"
     assert adapter.requests[0].questions[1].id == "turn_1"
     assert [
-        message["id"]
-        for message in adapter.requests[0].context["candidate_messages"]
+        message["id"] for message in adapter.requests[0].context["candidate_messages"]
     ] == ["message-0000", "message-0001", "message-0002", "message-0003"]
-    assert selected.diagnostics == {"status": "scored", "scored_turns": 3, "selected_turns": 1}
+    assert selected.diagnostics == {
+        "status": "scored",
+        "scored_turns": 3,
+        "selected_turns": 1,
+    }
 
 
 def test_retention_scores_are_diagnostic_without_explicit_selection() -> None:
@@ -148,10 +158,16 @@ def test_retention_scores_are_diagnostic_without_explicit_selection() -> None:
     )
 
     assert result.turns == ()
-    assert result.diagnostics == {"status": "diagnostic_only", "scored_turns": 1, "selected_turns": 0}
+    assert result.diagnostics == {
+        "status": "diagnostic_only",
+        "scored_turns": 1,
+        "selected_turns": 0,
+    }
 
 
-def test_retention_threshold_selection_requires_probabilities_and_keeps_only_thresholded_turns() -> None:
+def test_retention_threshold_selection_requires_probabilities_and_keeps_only_thresholded_turns() -> (
+    None
+):
     class Adapter:
         def decide(self, request) -> DecisionModelResult:
             return DecisionModelResult(
@@ -175,7 +191,10 @@ def test_retention_threshold_selection_requires_probabilities_and_keeps_only_thr
 
     self_binding = _retention_binding(Adapter())
     candidates = tuple(
-        (f"turn_{index}", ((f"message-{index}", OpenAIMessage("user", f"turn {index}")),))
+        (
+            f"turn_{index}",
+            ((f"message-{index}", OpenAIMessage("user", f"turn {index}")),),
+        )
         for index in range(2)
     )
     result = _score_retention_turns(
@@ -246,7 +265,11 @@ def test_retention_scoring_failures_never_return_deletions(failure: str) -> None
             if failure == "abstained":
                 return DecisionModelResult(
                     self_binding.profile.identity,
-                    (DecisionModelResultItem(request.questions[0].id, status="abstained"),),
+                    (
+                        DecisionModelResultItem(
+                            request.questions[0].id, status="abstained"
+                        ),
+                    ),
                 )
             raise TimeoutError("private timeout details")
 
@@ -267,3 +290,30 @@ def test_retention_scoring_failures_never_return_deletions(failure: str) -> None
                 "fallback": "recency",
             },
         )
+
+
+def test_retention_scoring_rejects_workflow_only_binding_before_inference() -> None:
+    class Adapter:
+        called = False
+
+        def decide(self, _request):
+            self.called = True
+            raise AssertionError("adapter must not be called")
+
+    adapter = Adapter()
+    with pytest.raises(ValueError, match="context retention use"):
+        _score_retention_turns(
+            task_context="task",
+            candidates=(("turn_1", (("message_1", OpenAIMessage("user", "text")),)),),
+            binding=_retention_binding(
+                adapter, frozenset({DecisionModelUse.WORKFLOW_DECISION})
+            ),
+            policy={
+                "profile_id": "local.retention.v1",
+                "batch_size": 1,
+                "max_candidates": 1,
+                "fallback": "recency",
+                "selection": None,
+            },
+        )
+    assert not adapter.called

@@ -21,6 +21,13 @@ class DecisionMode(str, Enum):
     SCORES = "scores"
 
 
+class DecisionModelUse(str, Enum):
+    """Host-declared purpose for which a decision binding may be invoked."""
+
+    WORKFLOW_DECISION = "workflow_decision"
+    CONTEXT_RETENTION = "context_retention"
+
+
 class DecisionScoreSemantics(str, Enum):
     """Meaning assigned to option scores by the adapter."""
 
@@ -49,7 +56,9 @@ class DecisionModelIdentity:
         ):
             value = getattr(self, field_name)
             if not isinstance(value, str) or not value.strip() or "\x00" in value:
-                raise DecisionModelContractError(f"{field_name.replace('_', ' ')} is invalid")
+                raise DecisionModelContractError(
+                    f"{field_name.replace('_', ' ')} is invalid"
+                )
 
 
 @dataclass(frozen=True)
@@ -76,7 +85,9 @@ class DecisionExecutionLimits:
             if value is not None and (
                 not isinstance(value, int) or isinstance(value, bool) or value <= 0
             ):
-                raise DecisionModelContractError(f"{name.replace('_', ' ')} limit is invalid")
+                raise DecisionModelContractError(
+                    f"{name.replace('_', ' ')} limit is invalid"
+                )
         if self.deadline_monotonic is not None and (
             not isinstance(self.deadline_monotonic, (int, float))
             or not math.isfinite(self.deadline_monotonic)
@@ -137,7 +148,9 @@ class DecisionModelRequest:
         object.__setattr__(self, "mode", mode)
         if not isinstance(self.questions, tuple) or not self.questions:
             raise DecisionModelContractError("request questions must be non-empty")
-        if not all(isinstance(question, DecisionQuestion) for question in self.questions):
+        if not all(
+            isinstance(question, DecisionQuestion) for question in self.questions
+        ):
             raise DecisionModelContractError("request questions are invalid")
         _unique((question.id for question in self.questions), "question ids")
         if self.task_profile_id is not None:
@@ -179,11 +192,15 @@ class DecisionModelProfile:
         ):
             value = getattr(self, name)
             if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
-                raise DecisionModelContractError(f"profile {name.replace('_', ' ')} limit is invalid")
+                raise DecisionModelContractError(
+                    f"profile {name.replace('_', ' ')} limit is invalid"
+                )
         try:
             modes = frozenset(DecisionMode(mode) for mode in self.supported_modes)
         except (TypeError, ValueError) as exc:
-            raise DecisionModelContractError("profile supported modes are invalid") from exc
+            raise DecisionModelContractError(
+                "profile supported modes are invalid"
+            ) from exc
         if not modes:
             raise DecisionModelContractError("profile supported modes are empty")
         object.__setattr__(self, "supported_modes", modes)
@@ -232,10 +249,13 @@ class DecisionModelResultItem:
             try:
                 semantics = DecisionScoreSemantics(self.score_semantics)
             except (TypeError, ValueError) as exc:
-                raise DecisionModelContractError("score semantics is unsupported") from exc
+                raise DecisionModelContractError(
+                    "score semantics is unsupported"
+                ) from exc
             object.__setattr__(self, "score_semantics", semantics)
         if self.calibration_evidence is not None and (
-            not isinstance(self.calibration_evidence, str) or not self.calibration_evidence.strip()
+            not isinstance(self.calibration_evidence, str)
+            or not self.calibration_evidence.strip()
         ):
             raise DecisionModelContractError("calibration evidence is invalid")
 
@@ -272,14 +292,45 @@ class DecisionModelBinding:
     profile: DecisionModelProfile
     adapter: DecisionModelAdapter
     execution_limits: DecisionExecutionLimits = DecisionExecutionLimits()
+    permitted_uses: frozenset[DecisionModelUse] = frozenset()
 
     def __post_init__(self) -> None:
         if not isinstance(self.profile, DecisionModelProfile):
             raise DecisionModelContractError("decision binding profile is invalid")
         if not callable(getattr(self.adapter, "decide", None)):
             raise DecisionModelContractError("decision binding adapter is invalid")
+        adapter_identity = getattr(self.adapter, "identity", None)
+        if adapter_identity is not None and adapter_identity != self.profile.identity:
+            raise DecisionModelContractError(
+                "decision binding adapter identity does not match profile"
+            )
         if not isinstance(self.execution_limits, DecisionExecutionLimits):
             raise DecisionModelContractError("decision binding limits are invalid")
+        try:
+            uses = frozenset(DecisionModelUse(use) for use in self.permitted_uses)
+        except (TypeError, ValueError) as exc:
+            raise DecisionModelContractError(
+                "decision binding permitted uses are invalid"
+            ) from exc
+        if not uses:
+            raise DecisionModelContractError(
+                "decision binding permitted uses are empty"
+            )
+        adapter_uses = getattr(self.adapter, "permitted_uses", None)
+        if adapter_uses is not None:
+            try:
+                supported_uses = frozenset(
+                    DecisionModelUse(use) for use in adapter_uses
+                )
+            except (TypeError, ValueError) as exc:
+                raise DecisionModelContractError(
+                    "decision adapter permitted uses are invalid"
+                ) from exc
+            if not uses <= supported_uses:
+                raise DecisionModelContractError(
+                    "decision binding permits an unsupported use"
+                )
+        object.__setattr__(self, "permitted_uses", uses)
 
 
 def validate_decision_request(
@@ -288,7 +339,9 @@ def validate_decision_request(
 ) -> None:
     """Validate request modes, serialized size, and item/token limits."""
 
-    if not isinstance(request, DecisionModelRequest) or not isinstance(profile, DecisionModelProfile):
+    if not isinstance(request, DecisionModelRequest) or not isinstance(
+        profile, DecisionModelProfile
+    ):
         raise DecisionModelContractError("request or profile is invalid")
     if request.mode not in profile.supported_modes:
         raise DecisionModelContractError("request mode is not supported by profile")
@@ -329,12 +382,19 @@ def validate_decision_result(
     """Validate exact identity, request order, semantics, and result byte limits."""
 
     validate_decision_request(request, profile)
-    if not isinstance(result, DecisionModelResult) or result.identity != profile.identity:
-        raise DecisionModelContractError("adapter identity does not match selected profile")
+    if (
+        not isinstance(result, DecisionModelResult)
+        or result.identity != profile.identity
+    ):
+        raise DecisionModelContractError(
+            "adapter identity does not match selected profile"
+        )
     if tuple(item.question_id for item in result.results) != tuple(
         question.id for question in request.questions
     ):
-        raise DecisionModelContractError("result question order or cardinality does not match request")
+        raise DecisionModelContractError(
+            "result question order or cardinality does not match request"
+        )
     for item, question in zip(result.results, request.questions, strict=True):
         _validate_result_item(item, question.options, request.mode)
     encoded = _canonical_json(_result_mapping(result), "result")
@@ -347,7 +407,12 @@ def validate_decision_result(
 
 
 def _validate_id(value: object, label: str) -> None:
-    if not isinstance(value, str) or not value or len(value.encode("utf-8")) > 128 or "\x00" in value:
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value.encode("utf-8")) > 128
+        or "\x00" in value
+    ):
         raise DecisionModelContractError(f"{label} is invalid")
 
 
@@ -374,7 +439,9 @@ def _effective_limit(profile_limit: int, host_limit: int | None) -> int:
     return min(profile_limit, host_limit) if host_limit is not None else profile_limit
 
 
-def _enforce_limit(value: int, profile_limit: int, host_limit: int | None, label: str) -> None:
+def _enforce_limit(
+    value: int, profile_limit: int, host_limit: int | None, label: str
+) -> None:
     if value > _effective_limit(profile_limit, host_limit):
         raise DecisionModelContractError(f"{label} exceeds limit")
 
@@ -386,11 +453,15 @@ def _validate_result_item(
 ) -> None:
     if item.status == "abstained":
         if item.choice is not None or item.scores or item.score_semantics is not None:
-            raise DecisionModelContractError("abstention must not contain a decision payload")
+            raise DecisionModelContractError(
+                "abstention must not contain a decision payload"
+            )
         return
     if mode is DecisionMode.CHOICE:
         if item.choice is None or item.scores or item.score_semantics is not None:
-            raise DecisionModelContractError("choice result must contain exactly one choice")
+            raise DecisionModelContractError(
+                "choice result must contain exactly one choice"
+            )
         if item.choice not in {option.id for option in options}:
             raise DecisionModelContractError("choice is not a declared option")
         return
@@ -402,23 +473,35 @@ def _validate_score_item(
     options: tuple[DecisionOption, ...],
 ) -> None:
     if item.choice is not None or item.score_semantics is None:
-        raise DecisionModelContractError("score result must contain scores and score semantics")
-    if tuple(score.option_id for score in item.scores) != tuple(option.id for option in options):
-        raise DecisionModelContractError("result scores must match option order exactly")
+        raise DecisionModelContractError(
+            "score result must contain scores and score semantics"
+        )
+    if tuple(score.option_id for score in item.scores) != tuple(
+        option.id for option in options
+    ):
+        raise DecisionModelContractError(
+            "result scores must match option order exactly"
+        )
     values = tuple(score.value for score in item.scores)
     if item.score_semantics in {
         DecisionScoreSemantics.PROBABILITY,
         DecisionScoreSemantics.CALIBRATED_PROBABILITY,
     }:
         if any(value < 0.0 or value > 1.0 for value in values):
-            raise DecisionModelContractError("probability scores must be in range [0, 1]")
+            raise DecisionModelContractError(
+                "probability scores must be in range [0, 1]"
+            )
         if not math.isclose(sum(values), 1.0, rel_tol=0.0, abs_tol=1e-6):
             raise DecisionModelContractError("probability scores must sum to one")
     calibrated = item.score_semantics is DecisionScoreSemantics.CALIBRATED_PROBABILITY
     if calibrated and item.calibration_evidence is None:
-        raise DecisionModelContractError("calibrated probability requires calibration evidence")
+        raise DecisionModelContractError(
+            "calibrated probability requires calibration evidence"
+        )
     if not calibrated and item.calibration_evidence is not None:
-        raise DecisionModelContractError("calibration evidence requires calibrated probability")
+        raise DecisionModelContractError(
+            "calibration evidence requires calibrated probability"
+        )
 
 
 def _result_mapping(result: DecisionModelResult) -> dict[str, Any]:

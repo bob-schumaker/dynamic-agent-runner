@@ -15,6 +15,7 @@ from dynamic_agent_runner.decision_models import (
     DecisionModelRequest,
     DecisionModelResult,
     DecisionMode,
+    DecisionModelUse,
     DecisionOption,
     DecisionQuestion,
     DecisionScoreSemantics,
@@ -114,6 +115,10 @@ def _validate_scoring_policy(
     binding: DecisionModelBinding,
     policy: Mapping[str, object],
 ) -> None:
+    if DecisionModelUse.CONTEXT_RETENTION not in binding.permitted_uses:
+        raise DecisionContextScoringError(
+            "decision binding lacks context retention use"
+        )
     if policy.get("profile_id") != binding.profile.identity.profile_id:
         raise DecisionContextScoringError("decision scoring profile mismatch")
     if DecisionMode.SCORES not in binding.profile.supported_modes:
@@ -132,7 +137,11 @@ def _validate_scoring_policy(
 def _validate_retention_selection(policy: Mapping[str, object]) -> None:
     if policy.get("selection") is not None:
         max_selected = policy.get("max_selected_turns")
-        if not isinstance(max_selected, int) or isinstance(max_selected, bool) or max_selected <= 0:
+        if (
+            not isinstance(max_selected, int)
+            or isinstance(max_selected, bool)
+            or max_selected <= 0
+        ):
             raise DecisionContextScoringError("decision scoring limits are invalid")
     if policy.get("selection") == "threshold":
         threshold = policy.get("threshold")
@@ -156,7 +165,12 @@ def _score_retention_batch(
     binding: DecisionModelBinding,
 ) -> dict[str, tuple[float, float, DecisionScoreSemantics]]:
     candidate_messages = [
-        {"id": message_id, "turn_id": turn_id, "role": message.role, "content": message.content}
+        {
+            "id": message_id,
+            "turn_id": turn_id,
+            "role": message.role,
+            "content": message.content,
+        }
         for turn_id, messages in candidates
         for message_id, message in messages
     ]
@@ -176,7 +190,10 @@ def _score_retention_batch(
     )
     request = DecisionModelRequest(
         decision_id=f"context-retention-{candidates[0][0]}",
-        context={"task_context": task_context, "candidate_messages": candidate_messages},
+        context={
+            "task_context": task_context,
+            "candidate_messages": candidate_messages,
+        },
         questions=questions,
         mode=DecisionMode.SCORES,
         task_profile_id="context_retention_v1",
@@ -190,7 +207,9 @@ def _score_retention_batch(
             close = getattr(result, "close", None)
             if callable(close):
                 close()
-            raise DecisionContextScoringError("async scoring adapters are unsupported here")
+            raise DecisionContextScoringError(
+                "async scoring adapters are unsupported here"
+            )
         _check_scoring_lifecycle(binding)
         if not isinstance(result, DecisionModelResult):
             raise DecisionContextScoringError("decision scoring result is invalid")
@@ -210,7 +229,11 @@ def _retention_batch_scores(
         if item.status != "ok" or item.score_semantics is None:
             raise DecisionContextScoringError("decision scoring abstained")
         values = {score.option_id: score.value for score in item.scores}
-        scores[item.question_id] = (values["keep"], values["drop"], item.score_semantics)
+        scores[item.question_id] = (
+            values["keep"],
+            values["drop"],
+            item.score_semantics,
+        )
     return scores
 
 
@@ -238,7 +261,7 @@ def _select_retention_turns(
             for turn_id, _messages in candidates
             if scores[turn_id][0] >= float(policy["threshold"])
         ]
-        selected_ids = set(eligible[-int(policy["max_selected_turns"]):])
+        selected_ids = set(eligible[-int(policy["max_selected_turns"]) :])
     else:
         ranking = sorted(
             enumerate(candidates),
@@ -248,17 +271,15 @@ def _select_retention_turns(
             ),
         )
         positive = [
-            pair
-            for pair in ranking
-            if scores[pair[1][0]][0] > scores[pair[1][0]][1]
+            pair for pair in ranking if scores[pair[1][0]][0] > scores[pair[1][0]][1]
         ]
         selected_ids = {
             turn_id
-            for _index, (turn_id, _messages) in positive[: int(policy["max_selected_turns"])]
+            for _index, (turn_id, _messages) in positive[
+                : int(policy["max_selected_turns"])
+            ]
         }
-    return tuple(
-        candidate for candidate in candidates if candidate[0] in selected_ids
-    )
+    return tuple(candidate for candidate in candidates if candidate[0] in selected_ids)
 
 
 def _effective_scoring_limits(binding: DecisionModelBinding) -> DecisionExecutionLimits:
@@ -290,7 +311,10 @@ def _check_scoring_lifecycle(binding: DecisionModelBinding) -> None:
             raise_if_cancelled()
         if getattr(cancellation, "cancelled", False):
             raise DecisionContextScoringError("decision scoring cancelled")
-    if limits.deadline_monotonic is not None and time.monotonic() >= limits.deadline_monotonic:
+    if (
+        limits.deadline_monotonic is not None
+        and time.monotonic() >= limits.deadline_monotonic
+    ):
         raise DecisionContextScoringError("decision scoring deadline expired")
 
 
