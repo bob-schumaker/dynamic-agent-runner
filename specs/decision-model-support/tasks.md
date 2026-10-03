@@ -633,12 +633,12 @@ added.
   `<2.9` requirement conflicts with DAR's current `>=2.9` optional dependency.
   The focused fake suite, including material-manifest and smoke-runner tests,
   passed with 334 tests; Ruff, `poetry check --lock`, and `git diff --check`
-  passed. No DMS-16 model weights were downloaded and no adapter-facing
-  inference was run. The refreshed no-download preflight still
-  blocks on 29 missing or mismatched model/runtime files. SHA-256
-  digests are now pinned for Julia's default Torch runtime source, and source
-  review confirms local checkpoint paths with `trust_remote_code=False`; exact
-  material checks and approved compatibility smokes remain open. The three
+  passed. The post-download preflight verifies all 29 pinned model/runtime
+  files. SHA-256 digests are pinned for Julia's default Torch runtime source,
+  and source review confirms local checkpoint paths with
+  `trust_remote_code=False`. Julia 1 and Laya-MLX passed their approved
+  compatibility smokes; Von's adapter-facing inference failed and requires
+  diagnosis before any new approved attempt. The three
   installable extras were also installed independently on Python 3.13.16;
   package imports passed, including Laya-MLX's load-only Metal import outside
   the sandbox. Kev-0.6B is deferred because its upstream Torch cap conflicts
@@ -662,7 +662,7 @@ added.
   per-profile approval digest with `--print-scope`, then invoke it only after
   matching approval. Its fake tests are in `tests/test_dms16_smoke_runner.py`.
   The runner stages only the frozen file allowlist and verifies it before
-  loading offline. No DMS-16 download or inference has been performed.
+  loading offline. Approved materials and smoke outcomes are recorded below.
 - [x] Resolve and freeze a closed profile/material/runtime row list before
   RED/GREEN work. Start from the evaluated Von 1.2.0 and Laya-MLX candidates,
   the Julia 1 candidate (`SupersonicLabs/Julia-1`), and selected Kev/Qwen
@@ -723,19 +723,25 @@ added.
   (334 tests); each installable extra resolved and installed independently on
   Python 3.13 and 3.14. The DMS-07 full suite passes (3,029 passed, 4 skipped,
   7 deselected), and Ruff, `poetry check --lock`, and `git diff --check` pass.
-- [ ] Before exposing each profile, pass exact-material preflight and
-  post-install load/one bounded compatibility inference on its pinned
-  artifacts, using synthetic non-sensitive input and confirming a
-  contract-valid result with no network access after material admission.
-  Existing smoke evidence may be reused only when it binds the identical
-  material digests, runtime/extra lock, platform, and adapter-facing execution
-  path. Obtain matching approval before any new download or inference; this is
-  not a DMS quality run or context-management recommendation.
+- [x] Download only the approved, immutable model/runtime allowlists and pass
+  the exact-material preflight. The post-download receipt verifies all 29 files,
+  Julia runtime-source hashes, runtime package versions, and the shared lock.
+- [x] Run one approved synthetic, offline-after-staging compatibility smoke
+  each for Julia 1 and Laya-MLX. Both returned contract-valid results and are
+  admitted for optional `workflow_decision` use only. See their redacted
+  receipts in `evaluation/` and the per-profile approval scopes in
+  `validation.md`.
+- [ ] Resolve the failed Von compatibility smoke before exposing Von. Its six
+  pinned files verified and local CPU model loading succeeded, but its one
+  approved inference failed. The one-run receipt prevents replay; diagnose the
+  failure and obtain approval for a new exact scope before another inference.
+  This is not a DMS quality run or context-management recommendation.
 - [x] Record technical support status independently from context-management
   quality status in `model-evaluation.md` and `validation.md`. Record a separate
   support/defer disposition for each frozen profile row. Do not enable any
   workflow-decision-only adapter for compaction or context management until the
   relevant quality criteria are revisited and passed. Current dispositions are
-  explicit: Von, Julia 1, and Laya-MLX are not admitted pending exact current
-  materials and compatibility smokes; Kev-0.6B/Qwen3 is deferred for the
-  dependency conflict. No profile is exposed for context management.
+  explicit: Julia 1 and Laya-MLX are admitted for `workflow_decision`; Von is
+  not admitted pending diagnosis and a newly approved compatibility smoke;
+  Kev-0.6B/Qwen3 is deferred for the dependency conflict. No profile is
+  admitted for `context_retention`.

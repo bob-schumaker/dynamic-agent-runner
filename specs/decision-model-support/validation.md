@@ -1,6 +1,9 @@
 # Decision Model Support Readiness Validation
 
-## DMS-16 Adapter and Optional Runtime Progress — 2026-10-02
+## DMS-16 Adapter and Optional Runtime Progress Before Approved Smokes — 2026-10-02
+
+This is the pre-material, pre-inference snapshot. Current approved-run
+outcomes and material verification are recorded below.
 
 Implemented fake-backed adapter slices for the pinned Von, Julia 1, Laya-MLX,
 and Kev-0.6B/Qwen3 candidates. The generic workflow executor now requires
@@ -134,6 +137,29 @@ completed: the focused DMS-16 suite passed **334 tests**; the DMS-07 full suite
 passed **3,029 passed, 4 skipped, 7 deselected**; Ruff, `poetry check --lock`,
 and `git diff --check` passed. These checks do not load candidate weights or
 replace the outstanding exact-material smoke gate.
+
+## DMS-16 Approved Material and Compatibility Smoke Results — 2026-10-02
+
+The user approved downloading the exact pinned model/runtime allowlists and
+one synthetic choice smoke for each of Von, Julia 1, and Laya-MLX. The current
+post-download [preflight receipt](evaluation/preflight-dms16-post-download-2026-10-02.json)
+passes with all 29 required files verified, Julia's pinned runtime-source
+hashes matching, the shared Poetry lock matching, and the Python 3.14.7
+optional package versions matching. The machine is macOS 26.7 arm64 with 36
+GiB RAM; about 59.8 GiB remained free after material staging. The checker
+itself performed no download or inference.
+
+| Profile | Approved scope | Result |
+|---|---|---|
+| Von `wfzyx/von@5df8185a4f2327ad0a7cd117cc4f701ac557b9ae`; source `fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54` | `2ad8672a9abe45589ecc5c6746025b4ea7878a2d99529b6bc4f654a2fd9396b6` | All six pinned files verified and local CPU model loading succeeded. One adapter-facing inference was attempted and failed; the [redacted receipt](evaluation/dms16-smoke-von.json) records `inference_failed`. The one-run receipt prevents replay. Von remains unadmitted pending diagnosis and approval for a new attempt. |
+| Julia 1 `SupersonicLabs/Julia-1@a85b127321d580d65176c89ced8273f305745d85` | `721237326dc8029411ada2bd6fc5659747efd4b7a03eb72da8103f901daae43b` | All 17 pinned model, tokenizer, and runtime-source files verified. One offline CPU inference returned a contract-valid choice in 27.841 ms; see the [redacted receipt](evaluation/dms16-smoke-julia1.json). Admitted for optional `workflow_decision` use only. |
+| Laya-MLX `aac6fef/laya-typed-decisions-mlx@28416e78cb26a239a4eabaa2e084904ec5e6cacb`; source `0a859518634112655cb97c745dbf04f5191aaf13` | `f24b022fa00836a7836e8cdba2faa98d8a78cd88bfcb2c06ddd6935f20971c05` | All six pinned files verified. A sandboxed model load failed before inference; the single approved offline Metal smoke was then run outside the sandbox and returned a contract-valid choice in 1,277.511 ms. The model warned that one confidence bucket is uncalibrated; confidence was not consumed. See the [redacted receipt](evaluation/dms16-smoke-laya-mlx.json). Admitted for optional `workflow_decision` use only. |
+
+All three runs used the synthetic request in `tests/manual/smoke_dms16.py`;
+network fallback was disabled before model loading. No user or transcript data
+was used. No profile is admitted for `context_retention`. Von's failed
+inference has no raw exception or model output in its receipt by design; no
+second call has been made.
 
 ## DMS-16 Readiness Review After Adding Julia 1 — 2026-10-02
 

@@ -1,0 +1,16 @@
+{
+  "approval_scope": "721237326dc8029411ada2bd6fc5659747efd4b7a03eb72da8103f901daae43b",
+  "elapsed_ms": 27.841,
+  "inference_count": 1,
+  "material_file_count": 17,
+  "missing_materials_before_staging": true,
+  "model_id": "SupersonicLabs/Julia-1",
+  "model_revision": "a85b127321d580d65176c89ced8273f305745d85",
+  "network_disabled_before_load": true,
+  "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+  "profile_id": "julia1",
+  "python": "3.14.7",
+  "result_valid": true,
+  "runtime_lock_sha256": "6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a",
+  "source_revision": "a85b127321d580d65176c89ced8273f305745d85"
+}
