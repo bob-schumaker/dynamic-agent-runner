@@ -1,0 +1,75 @@
+{
+  "schema": "dms01-additions-matrix-v1",
+  "approved_fixture": {
+    "inputs_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+    "labels_sha256": "a87f79b376b7e0c790df78cdd6a623d06450364d6d7c708974c8a953d7b7c7a5",
+    "cases": 240,
+    "criteria": "Existing DMS-01 thresholds and token-weighted recency baseline; unchanged"
+  },
+  "authorization": {
+    "user_request": "execute DMS-01 additions",
+    "scope": "Run all four rows in this exact matrix once; local CPU inference only; no server or external prompt service"
+  },
+  "candidates": {
+    "macjev-torch-cpu": {
+      "model_id": "chaoliangUNSW/MacJev-322M-4K-Laya",
+      "model_revision": "92b182e653ebd8facd04ec9bddf6f63c4a7b7c22",
+      "base_model_id": "convaiinnovations/laya",
+      "base_revision": "1c5edc17a7acd8701df6fc341c0d179f1c62c982",
+      "tokenizer_id": "chaoliangUNSW/MacJev-322M-4K-Laya",
+      "tokenizer_revision": "92b182e653ebd8facd04ec9bddf6f63c4a7b7c22",
+      "precision": "fp32",
+      "device": "cpu",
+      "limit_tokens": 4096,
+      "model_file_sha256": "a1c8cb93485dc32a499cd221dfc9a534dd4e309f5c3ab908ea13d0190a203750",
+      "runtime_manifest_sha256": "ec1e230eea74cdf684ec932ef6666395316dcfcd1e800b84b4f6130936c1f839"
+    },
+    "lev-torch-cpu": {
+      "source_id": "https://github.com/franckverrot/lev",
+      "source_revision": "c48a945dbf629998d7458dcc5c16f58df964db94",
+      "model_id": "franckverrot/lev-350m",
+      "model_revision": "ab08ad8b8f346994d983152917e114224f6adac7",
+      "base_model_id": "LiquidAI/LFM2.5-350M",
+      "base_revision": "9e6c6ccf47cd318696e137d381a7ded8fe4df09f",
+      "tokenizer_id": "LiquidAI/LFM2.5-350M",
+      "tokenizer_revision": "9e6c6ccf47cd318696e137d381a7ded8fe4df09f",
+      "precision": "fp32",
+      "device": "cpu",
+      "source_lock_sha256": "80f64725a453da0b995ce07ff4af7e2b7ba84295af60a340a07e50969b009f67",
+      "adapter_sha256": "1913ba42604d6bbaa87c1f9fad13abeff8c7b4015542d49d00ec4d1160a6479e",
+      "head_sha256": "2a87a544442ba7872de277d925cc30351999bd27bd900b2dc5b911859dc82096",
+      "base_weight_sha256": "1c9c77a4471a7f590f85240f74ed1fc26df7fbde88c3006724e2f93ca993ea4e",
+      "license": "LFM Open License v1.0"
+    },
+    "jevstyle-torch-cpu": {
+      "model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3",
+      "model_revision": "b023d1f9c7858fbf01504577a3bfc349ea5c7385",
+      "base_model_id": "Qwen/Qwen3.5-0.8B-Base",
+      "base_revision": "dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68",
+      "tokenizer_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3",
+      "tokenizer_revision": "b023d1f9c7858fbf01504577a3bfc349ea5c7385",
+      "precision": "bf16",
+      "device": "cpu",
+      "model_file_sha256": "0f8c861605dcdfb356a63e056baa2106e81042e8981e8d0d26fe50b34599541e",
+      "runtime_file_sha256": "b93c2345732be8ef5ec4274b77ded564e421ccb91967a207de4f18254438ce42",
+      "runtime_manifest_sha256": "979e6697aea53b5d50d468aefba421ecbf3935fbf158d4a929377c7d264d4835"
+    },
+    "jevstyle-gguf-f16-cpu": {
+      "model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3-GGUF",
+      "model_revision": "edf37c26a1098f83cf4264b8adbe0dca2d2ebb0c",
+      "base_model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3",
+      "base_revision": "b023d1f9c7858fbf01504577a3bfc349ea5c7385",
+      "tokenizer_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3-GGUF",
+      "tokenizer_revision": "edf37c26a1098f83cf4264b8adbe0dca2d2ebb0c",
+      "quantization": "F16",
+      "precision": "fp16",
+      "device": "cpu",
+      "model_file_sha256": "a33f709e10009c3fe182b51e4945d440288b137a35ad5d481e4ac1f2800b1a27",
+      "scorer_source_sha256": "90d848a61546286c74e484f61126f572b79c6f77f835450d8fc970b8547ce603",
+      "runtime_file_sha256": "e6b028f043d943b5e33d63368070405c5f038b6ee6f71a11b44e93caa562f5ed",
+      "runtime_manifest_sha256": "e370c55aa62c6b47154e72e56608bde79c691cc857c10b9adf1339306ece3473",
+      "build_script_sha256": "5789a1585c51fbc4a03b423099a451e05cb66b9db49bc6c9361f326aca170fda",
+      "llama_cpp_revision": "441df11f65ea0b6d0c72965aaf70c8241070ddcb"
+    }
+  }
+}

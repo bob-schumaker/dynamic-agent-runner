@@ -1,0 +1,222 @@
+{
+  "schema": "jevstyle-v3-dms17-profile-admission-v1",
+  "profile_set_id": "jevstyle-v3-auto",
+  "adapter_id": "dar.jevstyle-v3-auto",
+  "admission_status": "all_profiles_admitted_for_workflow_decision",
+  "source_evidence": {
+    "dms01_matrix": "dms01-additions-matrix.json",
+    "torch_receipt": "jevstyle-v3-torch-dms01-receipt.json",
+    "gguf_receipt": "jevstyle-v3-gguf-f16-dms01-receipt.json",
+    "mlx_receipt": "jevstyle-dms12-receipt.json",
+    "torch_preflight": "preflight-dms01-additions-jevstyle-torch-cpu-retry-2026-10-03.json",
+    "gguf_preflight": "preflight-dms01-additions-jevstyle-gguf-f16-cpu-retry2-2026-10-03.json",
+    "mlx_preflight": "preflight-jevstyle-dms12-2026-09-28.json"
+  },
+  "host_policy": {
+    "machine_facts_source": "host supplied",
+    "material_availability_source": "host supplied exact sealed ModelExecutionBinding",
+    "resource_admission_source": "host supplied resource budget admission",
+    "observed_dms01_host": {
+      "platform": "macOS 26.7 arm64",
+      "total_memory_bytes": 38654705664,
+      "available_memory_estimate_bytes": 14779826176,
+      "free_storage_bytes": 53150294016
+    },
+    "note": "Measured peak RSS is evidence from one host and is not a universal minimum-memory guarantee."
+  },
+  "profiles": {
+    "mlx-metal": {
+      "profile_id": "jevstyle-v3.mlx-metal.v1",
+      "model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3-MLX",
+      "model_revision": "1235ccd1c95d5228a07616cd7e323c9e0532c1dc",
+      "base_model_id": "Qwen/Qwen3.5-0.8B-Base",
+      "base_revision": "dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68",
+      "precision": "8-bit",
+      "device": "Apple Silicon Metal",
+      "license": "Apache-2.0",
+      "license_note": "The model card reports training data with restrictive or unclear terms; consider this before redistributing derived artifacts.",
+      "materials": {
+        "source": "pinned model repository manifest; prior DMS-12 preflight verified the listed runtime and selected 8-bit artifacts",
+        "files": {
+          "8bit/config.json": "5cfb0922af6406668fc828adc5630b9a5606d46bb31b7a6b2262c3d0674ae419",
+          "8bit/model.safetensors": "36890afff7a9da5b7228d81cd79434088267bd250c9eafab14539e6a5161a5fe",
+          "8bit/tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "8bit/tokenizer_config.json": "95c557768e6b88a7128befc7bfd3c7de50e5d51af9b8b33a9f4dee0e04f99679",
+          "NOTICE": "904080b91d63823afc510a45332e7cd28c1ff517b8ca5937502cded42d1d359b",
+          "jev_style_decision_mlx.py": "e3ba700043d764f0fe50931cc3524d8329552bf4f4187f411671fd323e363acf",
+          "readout_config.json": "01de9bcce7effbfd1ae0a3fa13e52d7fa9aa4dd1cd1e47977d6bbdcd5e63054a",
+          "release_config.json": "3921e2bde22223eb677961ea3b75d8cff48ceb4112c3fff0f94a0c190e1408b9",
+          "manifest.json": "4edd953bc1256dde93a748942bb23f3fdd50e47a87fe9881a2c7221a4ac9e685",
+          "LICENSE": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+          "8bit/chat_template.jinja": "273d8e0e683b885071fb17e08d71e5f2a5ddfb5309756181681de4f5a1822d80",
+          "8bit/generation_config.json": "62153eb6c69f2e1f426beaa8002b7186437e949c7588167085df14e10e9c0a73",
+          "8bit/model.safetensors.index.json": "6d0e74ad17103021d9748ca2279ff13a5cae9a3b3e1f9e6422d18cb39dac3150",
+          "requirements.txt": "c35f1b50cb5ba6ea636534023694e8d8fafcf0015f0412a1c36626a025ca8d43"
+        }
+      },
+      "runtime": {
+        "python": "3.14.7",
+        "packages": {
+          "huggingface-hub": "1.33.0",
+          "mlx": "0.32.2",
+          "mlx-lm": "0.31.3",
+          "numpy": "2.5.3",
+          "tokenizers": "0.23.2",
+          "dynamic-agent-runner": "0.1.21"
+        },
+        "lock_sha256": "8e50ab3a48cc4b0b6896cf8241b111d1619d50af41982257970dfb7689d4078d",
+        "dms12_evaluation_runtime_python": "3.14.6",
+        "engine_interface": "JevStyleDecisionMLX.decide_many(state, questions)"
+      },
+      "input_limits": {
+        "model_state_tokens": 25600,
+        "question_and_options_head_tokens": 2048,
+        "decision_adapter_max_questions": 64,
+        "decision_adapter_max_options_per_question": 10,
+        "decision_adapter_max_input_bytes": 1000000
+      },
+      "observed_peak_rss_bytes": 1161052160,
+      "runner_execution_binding": {
+        "runtime_lock_sha256": "8e50ab3a48cc4b0b6896cf8241b111d1619d50af41982257970dfb7689d4078d",
+        "weights_sha256": "36890afff7a9da5b7228d81cd79434088267bd250c9eafab14539e6a5161a5fe",
+        "runtime_source_sha256": "e3ba700043d764f0fe50931cc3524d8329552bf4f4187f411671fd323e363acf"
+      },
+      "isolated_runtime_install": "passed with pinned backend and DAR core lock under Python 3.14.7; import passed",
+      "technical_admission": "admitted_for_workflow_decision_only_after_DMS17_smoke",
+      "adapter_id": "dar.jevstyle-v3-auto",
+      "host_resource_admission": {
+        "selection_gate": "requires a caller-supplied positive resource_admitted decision; no universal host memory minimum is implied",
+        "observed_peak_rss_bytes": 1161052160,
+        "smoke_gate": "current available free, inactive, and speculative memory pages must total at least twice this measured DMS-01 peak RSS"
+      },
+      "smoke_result": "Attempt 3 completed one offline synthetic choice via the DAR adapter using MLX/Metal; result was valid supplied option billing. Earlier attempts 1 and 2 failed before inference and are preserved in dms17-smoke-mlx-metal-failure.json.",
+      "smoke_failure_receipt": "dms17-smoke-mlx-metal-failure.json",
+      "dms17_smoke_receipt": "dms17-smoke-mlx-metal-attempt-3.json",
+      "runtime_manifest_verified_files": 14
+    },
+    "gguf-f16-cpu": {
+      "profile_id": "jevstyle-v3.gguf-f16-cpu.v1",
+      "model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3-GGUF",
+      "model_revision": "edf37c26a1098f83cf4264b8adbe0dca2d2ebb0c",
+      "base_model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3",
+      "base_revision": "b023d1f9c7858fbf01504577a3bfc349ea5c7385",
+      "precision": "F16",
+      "device": "CPU",
+      "license": "Apache-2.0",
+      "materials": {
+        "source": "pinned GGUF repository manifest; artifacts were present and digest-verified for DMS-01",
+        "files": {
+          "Jev-Style-0.8B-Decision-v3-F16.gguf": "a33f709e10009c3fe182b51e4945d440288b137a35ad5d481e4ac1f2800b1a27",
+          "LICENSE": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+          "NOTICE": "5b20e266b5b9b9c12df4cb53db6801bc08fe8f1471355aaec15c1a9f9aa0b201",
+          "jev_style_decision_gguf.py": "e6b028f043d943b5e33d63368070405c5f038b6ee6f71a11b44e93caa562f5ed",
+          "jev_score.cpp": "90d848a61546286c74e484f61126f572b79c6f77f835450d8fc970b8547ce603",
+          "build_jev_score.sh": "5789a1585c51fbc4a03b423099a451e05cb66b9db49bc6c9361f326aca170fda"
+        },
+        "llama_cpp_source_revision": "441df11f65ea0b6d0c72965aaf70c8241070ddcb",
+        "tested_scorer_binary_sha256": "072ac7464d3b6c436116bc839c347daa0a36d11e673abebf4acde39f8e38d46e"
+      },
+      "runtime": {
+        "python": "3.14.7",
+        "packages": {
+          "numpy": "2.5.3",
+          "tokenizers": "0.23.2",
+          "dynamic-agent-runner": "0.1.21"
+        },
+        "lock_sha256": "e0273c1d05185421eff953f538a59de7213b6b1731993831878943215568f975",
+        "dms01_evaluation_runtime_lock_sha256": "6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a",
+        "engine_interface": "JevStyleDecisionGGUF.decide(state, question)",
+        "loader_note": "The DMS-01 scorer is a pinned native binary, not the llama-cpp-python package."
+      },
+      "input_limits": {
+        "model_state_tokens": 25600,
+        "question_and_options_head_tokens": 2048,
+        "decision_adapter_max_questions": 64,
+        "decision_adapter_max_options_per_question": 10,
+        "decision_adapter_max_input_bytes": 1000000
+      },
+      "observed_peak_rss_bytes": 2754215936,
+      "runner_execution_binding": {
+        "runtime_lock_sha256": "e0273c1d05185421eff953f538a59de7213b6b1731993831878943215568f975",
+        "weights_sha256": "a33f709e10009c3fe182b51e4945d440288b137a35ad5d481e4ac1f2800b1a27",
+        "runtime_source_sha256": "e6b028f043d943b5e33d63368070405c5f038b6ee6f71a11b44e93caa562f5ed",
+        "scorer_binary_sha256": "072ac7464d3b6c436116bc839c347daa0a36d11e673abebf4acde39f8e38d46e"
+      },
+      "isolated_runtime_install": "passed with pinned backend and DAR core lock under Python 3.14.7; import passed",
+      "technical_admission": "admitted_for_workflow_decision_only_after_DMS17_smoke",
+      "adapter_id": "dar.jevstyle-v3-auto",
+      "host_resource_admission": {
+        "selection_gate": "requires a caller-supplied positive resource_admitted decision; no universal host memory minimum is implied",
+        "observed_peak_rss_bytes": 2754215936,
+        "smoke_gate": "current available free, inactive, and speculative memory pages must total at least twice this measured DMS-01 peak RSS"
+      },
+      "dms17_smoke_receipt": "dms17-smoke-gguf-f16-cpu.json",
+      "smoke_result": "one offline synthetic choice returned a valid supplied option; see receipt"
+    },
+    "torch-bf16-cpu": {
+      "profile_id": "jevstyle-v3.torch-cpu.v1",
+      "model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3",
+      "model_revision": "b023d1f9c7858fbf01504577a3bfc349ea5c7385",
+      "base_model_id": "Qwen/Qwen3.5-0.8B-Base",
+      "base_revision": "dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68",
+      "precision": "BF16",
+      "device": "CPU only; Metal and CUDA disabled",
+      "license": "Apache-2.0",
+      "materials": {
+        "source": "pinned model repository manifest; artifacts were present and digest-verified for DMS-01",
+        "files": {
+          "model.safetensors": "0f8c861605dcdfb356a63e056baa2106e81042e8981e8d0d26fe50b34599541e",
+          "LICENSE": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+          "NOTICE": "3c1bee42827901d754cf64e437cf8837ea94241348f5f4be9e6c4e14fbfc5716",
+          "jev_style_decision.py": "b93c2345732be8ef5ec4274b77ded564e421ccb91967a207de4f18254438ce42",
+          "tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "release_config.json": "505f8a31754cdd5988e2d41813f2fbfff52520b598a22911066b5c55dab028a3"
+        }
+      },
+      "runtime": {
+        "python": "3.14.7",
+        "packages": {
+          "huggingface-hub": "1.33.0",
+          "numpy": "2.5.3",
+          "safetensors": "0.8.0",
+          "tokenizers": "0.23.2",
+          "torch": "2.14.0",
+          "transformers": "5.17.0",
+          "dynamic-agent-runner": "0.1.21"
+        },
+        "lock_sha256": "82e6a2853231188d2fed184459aede8c9f72090e083da8d7053d6bc4166a0a5b",
+        "dms01_evaluation_runtime_lock_sha256": "6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a",
+        "engine_interface": "JevStyleDecision.decide(state, question)",
+        "remote_code": false
+      },
+      "input_limits": {
+        "model_state_tokens": 25600,
+        "question_and_options_head_tokens": 2048,
+        "decision_adapter_max_questions": 64,
+        "decision_adapter_max_options_per_question": 10,
+        "decision_adapter_max_input_bytes": 1000000
+      },
+      "observed_peak_rss_bytes": 1661403136,
+      "runner_execution_binding": {
+        "runtime_lock_sha256": "82e6a2853231188d2fed184459aede8c9f72090e083da8d7053d6bc4166a0a5b",
+        "weights_sha256": "0f8c861605dcdfb356a63e056baa2106e81042e8981e8d0d26fe50b34599541e",
+        "runtime_source_sha256": "b93c2345732be8ef5ec4274b77ded564e421ccb91967a207de4f18254438ce42"
+      },
+      "isolated_runtime_install": "passed with pinned backend and DAR core lock under Python 3.14.7; import passed",
+      "technical_admission": "admitted_for_workflow_decision_only_after_DMS17_smoke",
+      "adapter_id": "dar.jevstyle-v3-auto",
+      "host_resource_admission": {
+        "selection_gate": "requires a caller-supplied positive resource_admitted decision; no universal host memory minimum is implied",
+        "observed_peak_rss_bytes": 1661403136,
+        "smoke_gate": "current available free, inactive, and speculative memory pages must total at least twice this measured DMS-01 peak RSS"
+      },
+      "dms17_smoke_receipt": "dms17-smoke-torch-bf16-cpu.json",
+      "smoke_result": "one offline synthetic choice returned a valid supplied option; see receipt"
+    }
+  },
+  "approval": {
+    "required_before_model_loading": true,
+    "status": "not_requested",
+    "reason": "DMS-01 evaluation approvals do not authorize a new DMS-17 backend compatibility run."
+  }
+}

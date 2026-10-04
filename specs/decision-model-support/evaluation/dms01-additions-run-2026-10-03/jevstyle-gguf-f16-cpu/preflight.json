@@ -1,0 +1,70 @@
+{
+  "accelerator_status": "CPU selected; Metal and CUDA disabled for this row",
+  "approval_source": "User request: run the full DMS-01 additions matrix using its profile-locked runtime",
+  "artifacts": [
+    {
+      "id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3-GGUF",
+      "revision": "edf37c26a1098f83cf4264b8adbe0dca2d2ebb0c"
+    }
+  ],
+  "blockers": [],
+  "candidate_id": "jevstyle-gguf-f16-cpu",
+  "candidate_run_approved": true,
+  "created_at_utc": "2026-10-03T17:33:27.343989+00:00",
+  "current_harness_sha256": "dd69612cd2833b7c1086005b472a7c432ab24296ad91606dc329c32229901335",
+  "dar_profile_id": null,
+  "evaluation_harness_files": [
+    {
+      "id": "scripts/evaluate_decision_models.py",
+      "sha256": "d75057e68ec8b7cd2f98a99ca8527dc3a92c597391adec7ad12a0d657cc7bd1b"
+    },
+    {
+      "id": "tests/manual/run_dms01_additions.py",
+      "sha256": "dd69612cd2833b7c1086005b472a7c432ab24296ad91606dc329c32229901335"
+    }
+  ],
+  "execution_mode": "external_research_harness",
+  "fixture_criteria_approved": true,
+  "fixture_hashes_valid": true,
+  "gguf_build": {
+    "ccache": false,
+    "cuda": false,
+    "metal": false,
+    "shared_libraries": true
+  },
+  "harness": {
+    "id": "dynamic-agent-runner DMS-01 additions: jevstyle-gguf-f16-cpu",
+    "revision": "a89097a12f90fab85e11b7494d68f281fa8f2566"
+  },
+  "host": {
+    "architecture": "arm64",
+    "available_memory_estimate_bytes": 14779826176,
+    "free_storage_bytes": 53150294016,
+    "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+    "required_free_storage_bytes": 8589934592,
+    "storage_path": "/private/tmp/dms01-additions",
+    "total_memory_bytes": 38654705664
+  },
+  "input_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+  "labels_sha256": "a87f79b376b7e0c790df78cdd6a623d06450364d6d7c708974c8a953d7b7c7a5",
+  "llama_cpp_revision": "441df11f65ea0b6d0c72965aaf70c8241070ddcb",
+  "matrix_sha256": "803e746dac5dc685aeb241973bc61d9eb7dbb0ac727fbfc356948904180bb327",
+  "remote_code_allowed": false,
+  "retry_of": "preflight-dms01-additions-jevstyle-gguf-f16-cpu-retry-2026-10-03.json",
+  "run_allowed": true,
+  "runner_sha256": "dd69612cd2833b7c1086005b472a7c432ab24296ad91606dc329c32229901335",
+  "runtime": {
+    "available": true,
+    "executable": "/private/tmp/dms16-von-compatible-py314/bin/python",
+    "id": "Jev-Style jevstyle-gguf-f16-cpu Python 3.14.7; lock e0273c1d05185421eff953f538a59de7213b6b1731993831878943215568f975",
+    "lock_sha256": "e0273c1d05185421eff953f538a59de7213b6b1731993831878943215568f975",
+    "packages": {
+      "huggingface-hub": "1.33.0",
+      "numpy": "2.5.3",
+      "tokenizers": "0.23.2"
+    },
+    "python_version": "3.14.7"
+  },
+  "runtime_lock_path": "/Users/roschuma/Personal/dynamic-agent-runner/specs/decision-model-support/evaluation/jevstyle-gguf-runtime/poetry.lock",
+  "scorer_sha256": "072ac7464d3b6c436116bc839c347daa0a36d11e673abebf4acde39f8e38d46e"
+}

@@ -1,0 +1,240 @@
+{"choice": "over", "id": "D001", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.5663, "within": 0.4337}, "status": "ok"}
+{"choice": "over", "id": "D002", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.6637, "within": 0.3363}, "status": "ok"}
+{"choice": "over", "id": "D003", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.5552, "within": 0.4448}, "status": "ok"}
+{"choice": "within", "id": "D004", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.4897, "within": 0.5103}, "status": "ok"}
+{"choice": "within", "id": "D005", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.4168, "within": 0.5832}, "status": "ok"}
+{"choice": "within", "id": "D006", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.4304, "within": 0.5696}, "status": "ok"}
+{"choice": "over", "id": "D007", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.6719, "within": 0.3281}, "status": "ok"}
+{"choice": "over", "id": "D008", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.5958, "within": 0.4042}, "status": "ok"}
+{"choice": "within", "id": "D009", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.2361, "within": 0.7639}, "status": "ok"}
+{"choice": "over", "id": "D010", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.661, "within": 0.339}, "status": "ok"}
+{"choice": "over", "id": "D011", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.5478, "within": 0.4522}, "status": "ok"}
+{"choice": "over", "id": "D012", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.5427, "within": 0.4573}, "status": "ok"}
+{"choice": "over", "id": "D013", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.5923, "within": 0.4077}, "status": "ok"}
+{"choice": "within", "id": "D014", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.3744, "within": 0.6256}, "status": "ok"}
+{"choice": "over", "id": "D015", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.6598, "within": 0.3402}, "status": "ok"}
+{"choice": "over", "id": "D016", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.6597, "within": 0.3403}, "status": "ok"}
+{"choice": "over", "id": "D017", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.5917, "within": 0.4083}, "status": "ok"}
+{"choice": "over", "id": "D018", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.5303, "within": 0.4697}, "status": "ok"}
+{"choice": "within", "id": "D019", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.3187, "within": 0.6813}, "status": "ok"}
+{"choice": "over", "id": "D020", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.652, "within": 0.348}, "status": "ok"}
+{"choice": "within", "id": "D021", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.422, "within": 0.578}, "status": "ok"}
+{"choice": "over", "id": "D022", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.6618, "within": 0.3382}, "status": "ok"}
+{"choice": "over", "id": "D023", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.6303, "within": 0.3697}, "status": "ok"}
+{"choice": "within", "id": "D024", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.3356, "within": 0.6644}, "status": "ok"}
+{"choice": "over", "id": "D025", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.604, "within": 0.396}, "status": "ok"}
+{"choice": "over", "id": "D026", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.6083, "within": 0.3917}, "status": "ok"}
+{"choice": "over", "id": "D027", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.6656, "within": 0.3344}, "status": "ok"}
+{"choice": "over", "id": "D028", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.5225, "within": 0.4775}, "status": "ok"}
+{"choice": "over", "id": "D029", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.6296, "within": 0.3704}, "status": "ok"}
+{"choice": "within", "id": "D030", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.4179, "within": 0.5821}, "status": "ok"}
+{"choice": "over", "id": "D031", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.6529, "within": 0.3471}, "status": "ok"}
+{"choice": "over", "id": "D032", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.6057, "within": 0.3943}, "status": "ok"}
+{"choice": "over", "id": "D033", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.6533, "within": 0.3467}, "status": "ok"}
+{"choice": "over", "id": "D034", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.661, "within": 0.339}, "status": "ok"}
+{"choice": "over", "id": "D035", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.6382, "within": 0.3618}, "status": "ok"}
+{"choice": "within", "id": "D036", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.473, "within": 0.527}, "status": "ok"}
+{"choice": "over", "id": "D037", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.5241, "within": 0.4759}, "status": "ok"}
+{"choice": "within", "id": "D038", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.4224, "within": 0.5776}, "status": "ok"}
+{"choice": "over", "id": "D039", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.6558, "within": 0.3442}, "status": "ok"}
+{"choice": "over", "id": "D040", "kind": "decision", "score_semantics": "probability", "scores": {"over": 0.5671, "within": 0.4329}, "status": "ok"}
+{"choice": "ineligible", "id": "D041", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2891, "ineligible": 0.7109}, "status": "ok"}
+{"choice": "ineligible", "id": "D042", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3104, "ineligible": 0.6896}, "status": "ok"}
+{"choice": "ineligible", "id": "D043", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3206, "ineligible": 0.6794}, "status": "ok"}
+{"choice": "ineligible", "id": "D044", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2406, "ineligible": 0.7594}, "status": "ok"}
+{"choice": "ineligible", "id": "D045", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3024, "ineligible": 0.6976}, "status": "ok"}
+{"choice": "ineligible", "id": "D046", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3137, "ineligible": 0.6863}, "status": "ok"}
+{"choice": "ineligible", "id": "D047", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2896, "ineligible": 0.7104}, "status": "ok"}
+{"choice": "ineligible", "id": "D048", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3119, "ineligible": 0.6881}, "status": "ok"}
+{"choice": "ineligible", "id": "D049", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3093, "ineligible": 0.6907}, "status": "ok"}
+{"choice": "ineligible", "id": "D050", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2575, "ineligible": 0.7425}, "status": "ok"}
+{"choice": "ineligible", "id": "D051", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3051, "ineligible": 0.6949}, "status": "ok"}
+{"choice": "ineligible", "id": "D052", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3025, "ineligible": 0.6975}, "status": "ok"}
+{"choice": "ineligible", "id": "D053", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.318, "ineligible": 0.682}, "status": "ok"}
+{"choice": "ineligible", "id": "D054", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3009, "ineligible": 0.6991}, "status": "ok"}
+{"choice": "ineligible", "id": "D055", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2899, "ineligible": 0.7101}, "status": "ok"}
+{"choice": "ineligible", "id": "D056", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2981, "ineligible": 0.7019}, "status": "ok"}
+{"choice": "ineligible", "id": "D057", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2993, "ineligible": 0.7007}, "status": "ok"}
+{"choice": "ineligible", "id": "D058", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2307, "ineligible": 0.7693}, "status": "ok"}
+{"choice": "ineligible", "id": "D059", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2852, "ineligible": 0.7148}, "status": "ok"}
+{"choice": "ineligible", "id": "D060", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2897, "ineligible": 0.7103}, "status": "ok"}
+{"choice": "ineligible", "id": "D061", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2897, "ineligible": 0.7103}, "status": "ok"}
+{"choice": "ineligible", "id": "D062", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3129, "ineligible": 0.6871}, "status": "ok"}
+{"choice": "ineligible", "id": "D063", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2932, "ineligible": 0.7068}, "status": "ok"}
+{"choice": "ineligible", "id": "D064", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3309, "ineligible": 0.6691}, "status": "ok"}
+{"choice": "ineligible", "id": "D065", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3001, "ineligible": 0.6999}, "status": "ok"}
+{"choice": "ineligible", "id": "D066", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3065, "ineligible": 0.6935}, "status": "ok"}
+{"choice": "ineligible", "id": "D067", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2992, "ineligible": 0.7008}, "status": "ok"}
+{"choice": "ineligible", "id": "D068", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2697, "ineligible": 0.7303}, "status": "ok"}
+{"choice": "ineligible", "id": "D069", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3087, "ineligible": 0.6913}, "status": "ok"}
+{"choice": "ineligible", "id": "D070", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3045, "ineligible": 0.6955}, "status": "ok"}
+{"choice": "ineligible", "id": "D071", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3029, "ineligible": 0.6971}, "status": "ok"}
+{"choice": "ineligible", "id": "D072", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2654, "ineligible": 0.7346}, "status": "ok"}
+{"choice": "ineligible", "id": "D073", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2897, "ineligible": 0.7103}, "status": "ok"}
+{"choice": "ineligible", "id": "D074", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.25, "ineligible": 0.75}, "status": "ok"}
+{"choice": "ineligible", "id": "D075", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2977, "ineligible": 0.7023}, "status": "ok"}
+{"choice": "ineligible", "id": "D076", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3142, "ineligible": 0.6858}, "status": "ok"}
+{"choice": "ineligible", "id": "D077", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3064, "ineligible": 0.6936}, "status": "ok"}
+{"choice": "ineligible", "id": "D078", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3309, "ineligible": 0.6691}, "status": "ok"}
+{"choice": "ineligible", "id": "D079", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.3082, "ineligible": 0.6918}, "status": "ok"}
+{"choice": "ineligible", "id": "D080", "kind": "decision", "score_semantics": "probability", "scores": {"eligible": 0.2654, "ineligible": 0.7346}, "status": "ok"}
+{"choice": "loc-3", "id": "D081", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.1331, "loc-2": 0.1276, "loc-3": 0.4116, "loc-4": 0.2563, "unknown": 0.0714}, "status": "ok"}
+{"choice": "loc-2", "id": "D082", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.1498, "loc-2": 0.387, "loc-3": 0.1617, "loc-4": 0.1472, "unknown": 0.1543}, "status": "ok"}
+{"choice": "loc-1", "id": "D083", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.3516, "loc-2": 0.1043, "loc-3": 0.2341, "loc-4": 0.1985, "unknown": 0.1115}, "status": "ok"}
+{"choice": "unknown", "id": "D084", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.16101610161016103, "loc-2": 0.16931693169316933, "loc-3": 0.22562256225622562, "loc-4": 0.16101610161016103, "unknown": 0.283028302830283}, "status": "ok"}
+{"id": "D085", "kind": "decision", "status": "invalid"}
+{"choice": "loc-1", "id": "D086", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.3659, "loc-2": 0.3227, "loc-3": 0.1534, "loc-4": 0.0889, "unknown": 0.0691}, "status": "ok"}
+{"choice": "loc-1", "id": "D087", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.3399, "loc-2": 0.2846, "loc-3": 0.3399, "loc-4": 0.0212, "unknown": 0.0144}, "status": "ok"}
+{"choice": "loc-4", "id": "D088", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.19958004199580043, "loc-2": 0.21877812218778123, "loc-3": 0.22157784221577842, "loc-4": 0.27697230276972307, "unknown": 0.0830916908309169}, "status": "ok"}
+{"choice": "loc-4", "id": "D089", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.1277, "loc-2": 0.1072, "loc-3": 0.2342, "loc-4": 0.4048, "unknown": 0.1261}, "status": "ok"}
+{"choice": "loc-3", "id": "D090", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.1618, "loc-2": 0.1029, "loc-3": 0.403, "loc-4": 0.1839, "unknown": 0.1484}, "status": "ok"}
+{"choice": "loc-3", "id": "D091", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.174, "loc-2": 0.174, "loc-3": 0.33, "loc-4": 0.1366, "unknown": 0.1854}, "status": "ok"}
+{"id": "D092", "kind": "decision", "status": "invalid"}
+{"choice": "loc-2", "id": "D093", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.09219078092190781, "loc-2": 0.38806119388061194, "loc-3": 0.26047395260473954, "loc-4": 0.1280871912808719, "unknown": 0.1311868813118688}, "status": "ok"}
+{"choice": "loc-1", "id": "D094", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.3092309230923092, "loc-2": 0.25082508250825086, "loc-3": 0.19221922192219223, "loc-4": 0.16541654165416542, "unknown": 0.0823082308230823}, "status": "ok"}
+{"choice": "loc-4", "id": "D095", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.1346134613461346, "loc-2": 0.09890989098909891, "loc-3": 0.13251325132513253, "loc-4": 0.4962496249624962, "unknown": 0.1377137713771377}, "status": "ok"}
+{"id": "D096", "kind": "decision", "status": "invalid"}
+{"choice": "loc-1", "id": "D097", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.36653665366536653, "loc-2": 0.09100910091009101, "loc-3": 0.36653665366536653, "loc-4": 0.13701370137013702, "unknown": 0.0389038903890389}, "status": "ok"}
+{"choice": "loc-3", "id": "D098", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.13902780556111224, "loc-2": 0.21694338867773555, "loc-3": 0.2795559111822365, "loc-4": 0.21694338867773555, "unknown": 0.14752950590118022}, "status": "ok"}
+{"choice": "loc-4", "id": "D099", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.0295, "loc-2": 0.2299, "loc-3": 0.3397, "loc-4": 0.3573, "unknown": 0.0436}, "status": "ok"}
+{"choice": "loc-3", "id": "D100", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.0958904109589041, "loc-2": 0.29127087291270876, "loc-3": 0.29487051294870514, "loc-4": 0.21497850214978503, "unknown": 0.102989701029897}, "status": "ok"}
+{"choice": "loc-2", "id": "D101", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.1113111311131113, "loc-2": 0.3805380538053805, "loc-3": 0.1638163816381638, "loc-4": 0.18741874187418742, "unknown": 0.1569156915691569}, "status": "ok"}
+{"choice": "loc-2", "id": "D102", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.0788, "loc-2": 0.3143, "loc-3": 0.2829, "loc-4": 0.2086, "unknown": 0.1154}, "status": "ok"}
+{"choice": "loc-2", "id": "D103", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.23997600239976002, "loc-2": 0.2587741225877412, "loc-3": 0.24547545245475452, "loc-4": 0.1723827617238276, "unknown": 0.08339166083391661}, "status": "ok"}
+{"choice": "loc-2", "id": "D104", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.3096309630963096, "loc-2": 0.3096309630963096, "loc-3": 0.3096309630963096, "loc-4": 0.05390539053905391, "unknown": 0.017201720172017203}, "status": "ok"}
+{"choice": "loc-2", "id": "D105", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.14088591140885912, "loc-2": 0.33326667333266674, "loc-3": 0.142985701429857, "loc-4": 0.2511748825117488, "unknown": 0.1316868313168683}, "status": "ok"}
+{"choice": "loc-1", "id": "D106", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.3228, "loc-2": 0.2145, "loc-3": 0.2013, "loc-4": 0.1662, "unknown": 0.0952}, "status": "ok"}
+{"choice": "loc-3", "id": "D107", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.1197, "loc-2": 0.1788, "loc-3": 0.3374, "loc-4": 0.2037, "unknown": 0.1604}, "status": "ok"}
+{"choice": "loc-3", "id": "D108", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.1466, "loc-2": 0.1264, "loc-3": 0.3712, "loc-4": 0.2891, "unknown": 0.0667}, "status": "ok"}
+{"choice": "loc-1", "id": "D109", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.3173, "loc-2": 0.1803, "loc-3": 0.235, "loc-4": 0.1513, "unknown": 0.1161}, "status": "ok"}
+{"choice": "loc-3", "id": "D110", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.3023697630236976, "loc-2": 0.3080691930806919, "loc-3": 0.3080691930806919, "loc-4": 0.05679432056794321, "unknown": 0.024697530246975304}, "status": "ok"}
+{"choice": "loc-3", "id": "D111", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.1217, "loc-2": 0.0916, "loc-3": 0.3698, "loc-4": 0.2921, "unknown": 0.1248}, "status": "ok"}
+{"choice": "loc-2", "id": "D112", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.1477, "loc-2": 0.3477, "loc-3": 0.2451, "loc-4": 0.1524, "unknown": 0.1071}, "status": "ok"}
+{"choice": "loc-3", "id": "D113", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.0854, "loc-2": 0.1547, "loc-3": 0.3575, "loc-4": 0.3183, "unknown": 0.0841}, "status": "ok"}
+{"choice": "loc-2", "id": "D114", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.1822, "loc-2": 0.3201, "loc-3": 0.2445, "loc-4": 0.1597, "unknown": 0.0935}, "status": "ok"}
+{"choice": "loc-3", "id": "D115", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.1261, "loc-2": 0.2163, "loc-3": 0.3224, "loc-4": 0.2265, "unknown": 0.1087}, "status": "ok"}
+{"choice": "loc-3", "id": "D116", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.09390939093909391, "loc-2": 0.18041804180418042, "loc-3": 0.38953895389538956, "loc-4": 0.1662166216621662, "unknown": 0.1699169916991699}, "status": "ok"}
+{"choice": "loc-3", "id": "D117", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.0697, "loc-2": 0.0647, "loc-3": 0.406, "loc-4": 0.406, "unknown": 0.0536}, "status": "ok"}
+{"choice": "loc-3", "id": "D118", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.4015, "loc-2": 0.0556, "loc-3": 0.4015, "loc-4": 0.0947, "unknown": 0.0467}, "status": "ok"}
+{"choice": "loc-3", "id": "D119", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.3199, "loc-2": 0.0166, "loc-3": 0.326, "loc-4": 0.3199, "unknown": 0.0176}, "status": "ok"}
+{"choice": "loc-4", "id": "D120", "kind": "decision", "score_semantics": "probability", "scores": {"loc-1": 0.0759075907590759, "loc-2": 0.0759075907590759, "loc-3": 0.32333233323332333, "loc-4": 0.3354335433543354, "unknown": 0.18941894189418942}, "status": "ok"}
+{"choice": "hold", "id": "D121", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.7382, "proceed": 0.2618}, "status": "ok"}
+{"choice": "hold", "id": "D122", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6898, "proceed": 0.3102}, "status": "ok"}
+{"choice": "hold", "id": "D123", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6898, "proceed": 0.3102}, "status": "ok"}
+{"choice": "hold", "id": "D124", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6667, "proceed": 0.3333}, "status": "ok"}
+{"choice": "hold", "id": "D125", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.7535, "proceed": 0.2465}, "status": "ok"}
+{"choice": "hold", "id": "D126", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6745, "proceed": 0.3255}, "status": "ok"}
+{"choice": "hold", "id": "D127", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6482, "proceed": 0.3518}, "status": "ok"}
+{"choice": "hold", "id": "D128", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.7535, "proceed": 0.2465}, "status": "ok"}
+{"choice": "hold", "id": "D129", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6976, "proceed": 0.3024}, "status": "ok"}
+{"choice": "proceed", "id": "D130", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.452, "proceed": 0.548}, "status": "ok"}
+{"choice": "hold", "id": "D131", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6274, "proceed": 0.3726}, "status": "ok"}
+{"choice": "hold", "id": "D132", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6843, "proceed": 0.3157}, "status": "ok"}
+{"choice": "hold", "id": "D133", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6274, "proceed": 0.3726}, "status": "ok"}
+{"choice": "hold", "id": "D134", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6572, "proceed": 0.3428}, "status": "ok"}
+{"choice": "hold", "id": "D135", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6976, "proceed": 0.3024}, "status": "ok"}
+{"choice": "hold", "id": "D136", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6976, "proceed": 0.3024}, "status": "ok"}
+{"choice": "hold", "id": "D137", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6667, "proceed": 0.3333}, "status": "ok"}
+{"choice": "hold", "id": "D138", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.7382, "proceed": 0.2618}, "status": "ok"}
+{"choice": "hold", "id": "D139", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.7382, "proceed": 0.2618}, "status": "ok"}
+{"choice": "hold", "id": "D140", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6858, "proceed": 0.3142}, "status": "ok"}
+{"choice": "hold", "id": "D141", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6635, "proceed": 0.3365}, "status": "ok"}
+{"choice": "hold", "id": "D142", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6274, "proceed": 0.3726}, "status": "ok"}
+{"choice": "hold", "id": "D143", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6274, "proceed": 0.3726}, "status": "ok"}
+{"choice": "proceed", "id": "D144", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.452, "proceed": 0.548}, "status": "ok"}
+{"choice": "hold", "id": "D145", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6667, "proceed": 0.3333}, "status": "ok"}
+{"choice": "hold", "id": "D146", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6976, "proceed": 0.3024}, "status": "ok"}
+{"choice": "hold", "id": "D147", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6976, "proceed": 0.3024}, "status": "ok"}
+{"choice": "hold", "id": "D148", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6898, "proceed": 0.3102}, "status": "ok"}
+{"choice": "hold", "id": "D149", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6687, "proceed": 0.3313}, "status": "ok"}
+{"choice": "hold", "id": "D150", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6976, "proceed": 0.3024}, "status": "ok"}
+{"choice": "hold", "id": "D151", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6687, "proceed": 0.3313}, "status": "ok"}
+{"choice": "hold", "id": "D152", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6274, "proceed": 0.3726}, "status": "ok"}
+{"choice": "hold", "id": "D153", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6817, "proceed": 0.3183}, "status": "ok"}
+{"choice": "hold", "id": "D154", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.736, "proceed": 0.264}, "status": "ok"}
+{"choice": "hold", "id": "D155", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6976, "proceed": 0.3024}, "status": "ok"}
+{"choice": "hold", "id": "D156", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6898, "proceed": 0.3102}, "status": "ok"}
+{"choice": "hold", "id": "D157", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6843, "proceed": 0.3157}, "status": "ok"}
+{"choice": "hold", "id": "D158", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.7382, "proceed": 0.2618}, "status": "ok"}
+{"choice": "hold", "id": "D159", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6667, "proceed": 0.3333}, "status": "ok"}
+{"choice": "hold", "id": "D160", "kind": "decision", "score_semantics": "probability", "scores": {"hold": 0.6482, "proceed": 0.3518}, "status": "ok"}
+{"choice": "unknown", "id": "D161", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.22512251225122512, "south": 0.22632263226322633, "unknown": 0.5485548554855485}, "status": "ok"}
+{"choice": "unknown", "id": "D162", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2249, "south": 0.2286, "unknown": 0.5465}, "status": "ok"}
+{"choice": "unknown", "id": "D163", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2194, "south": 0.234, "unknown": 0.5466}, "status": "ok"}
+{"choice": "unknown", "id": "D164", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2304, "south": 0.2268, "unknown": 0.5428}, "status": "ok"}
+{"choice": "unknown", "id": "D165", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.21667833216678334, "south": 0.23827617238276175, "unknown": 0.545045495450455}, "status": "ok"}
+{"choice": "unknown", "id": "D166", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.22647735226477353, "south": 0.22717728227177283, "unknown": 0.5463453654634537}, "status": "ok"}
+{"choice": "unknown", "id": "D167", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2224, "south": 0.236, "unknown": 0.5416}, "status": "ok"}
+{"choice": "unknown", "id": "D168", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.22717728227177283, "south": 0.2288771122887711, "unknown": 0.5439456054394561}, "status": "ok"}
+{"choice": "unknown", "id": "D169", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2254, "south": 0.2283, "unknown": 0.5463}, "status": "ok"}
+{"choice": "unknown", "id": "D170", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2341, "south": 0.2264, "unknown": 0.5395}, "status": "ok"}
+{"choice": "unknown", "id": "D171", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2314, "south": 0.2255, "unknown": 0.5431}, "status": "ok"}
+{"choice": "unknown", "id": "D172", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2259225922592259, "south": 0.2296229622962296, "unknown": 0.5444544454445445}, "status": "ok"}
+{"choice": "unknown", "id": "D173", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2246, "south": 0.2311, "unknown": 0.5443}, "status": "ok"}
+{"choice": "unknown", "id": "D174", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.23512351235123513, "south": 0.22482248224822482, "unknown": 0.54005400540054}, "status": "ok"}
+{"choice": "unknown", "id": "D175", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2206, "south": 0.2276, "unknown": 0.5518}, "status": "ok"}
+{"choice": "unknown", "id": "D176", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2375, "south": 0.2212, "unknown": 0.5413}, "status": "ok"}
+{"choice": "unknown", "id": "D177", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2275, "south": 0.2298, "unknown": 0.5427}, "status": "ok"}
+{"choice": "unknown", "id": "D178", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.22372237223722374, "south": 0.23302330233023302, "unknown": 0.5432543254325433}, "status": "ok"}
+{"choice": "unknown", "id": "D179", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.22117788221177884, "south": 0.2331766823317668, "unknown": 0.5456454354564543}, "status": "ok"}
+{"choice": "unknown", "id": "D180", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2392, "south": 0.2226, "unknown": 0.5382}, "status": "ok"}
+{"choice": "unknown", "id": "D181", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2169, "south": 0.2339, "unknown": 0.5492}, "status": "ok"}
+{"choice": "unknown", "id": "D182", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2283, "south": 0.2279, "unknown": 0.5438}, "status": "ok"}
+{"choice": "unknown", "id": "D183", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2265, "south": 0.2277, "unknown": 0.5458}, "status": "ok"}
+{"choice": "unknown", "id": "D184", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2174, "south": 0.2373, "unknown": 0.5453}, "status": "ok"}
+{"choice": "unknown", "id": "D185", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2237, "south": 0.2291, "unknown": 0.5472}, "status": "ok"}
+{"choice": "unknown", "id": "D186", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2176, "south": 0.2373, "unknown": 0.5451}, "status": "ok"}
+{"choice": "unknown", "id": "D187", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2195, "south": 0.2341, "unknown": 0.5464}, "status": "ok"}
+{"choice": "unknown", "id": "D188", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2276, "south": 0.2307, "unknown": 0.5417}, "status": "ok"}
+{"choice": "unknown", "id": "D189", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2293, "south": 0.233, "unknown": 0.5377}, "status": "ok"}
+{"choice": "unknown", "id": "D190", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2258774122587741, "south": 0.2318768123187681, "unknown": 0.5422457754224578}, "status": "ok"}
+{"choice": "unknown", "id": "D191", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2248775122487751, "south": 0.23057694230576942, "unknown": 0.5445455454454554}, "status": "ok"}
+{"choice": "unknown", "id": "D192", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2213, "south": 0.2389, "unknown": 0.5398}, "status": "ok"}
+{"choice": "unknown", "id": "D193", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2341, "south": 0.2219, "unknown": 0.544}, "status": "ok"}
+{"choice": "unknown", "id": "D194", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.22807719228077192, "south": 0.2258774122587741, "unknown": 0.5460453954604539}, "status": "ok"}
+{"choice": "unknown", "id": "D195", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2191, "south": 0.2368, "unknown": 0.5441}, "status": "ok"}
+{"choice": "unknown", "id": "D196", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.22927707229277072, "south": 0.22417758224177584, "unknown": 0.5465453454654534}, "status": "ok"}
+{"choice": "unknown", "id": "D197", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.22412241224122412, "south": 0.23412341234123413, "unknown": 0.5417541754175417}, "status": "ok"}
+{"choice": "unknown", "id": "D198", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2222, "south": 0.2286, "unknown": 0.5492}, "status": "ok"}
+{"choice": "unknown", "id": "D199", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2255, "south": 0.2341, "unknown": 0.5404}, "status": "ok"}
+{"choice": "unknown", "id": "D200", "kind": "decision", "score_semantics": "probability", "scores": {"north": 0.2226222622262226, "south": 0.23182318231823182, "unknown": 0.5455545554555455}, "status": "ok"}
+{"id": "R001", "kind": "retention", "score_semantics": "probability", "scores": {"R001-M1": 0.4151, "R001-M2": 0.4151, "R001-M3": 0.4151, "R001-M4": 0.4151}, "status": "ok"}
+{"id": "R002", "kind": "retention", "score_semantics": "probability", "scores": {"R002-M1": 0.3926, "R002-M2": 0.3926, "R002-M3": 0.3926, "R002-M4": 0.3926}, "status": "ok"}
+{"id": "R003", "kind": "retention", "score_semantics": "probability", "scores": {"R003-M1": 0.4977, "R003-M2": 0.4977, "R003-M3": 0.4977, "R003-M4": 0.4977}, "status": "ok"}
+{"id": "R004", "kind": "retention", "score_semantics": "probability", "scores": {"R004-M1": 0.4417, "R004-M2": 0.4417, "R004-M3": 0.4417, "R004-M4": 0.4417}, "status": "ok"}
+{"id": "R005", "kind": "retention", "score_semantics": "probability", "scores": {"R005-M1": 0.4208, "R005-M2": 0.4208, "R005-M3": 0.4208, "R005-M4": 0.4208}, "status": "ok"}
+{"id": "R006", "kind": "retention", "score_semantics": "probability", "scores": {"R006-M1": 0.367, "R006-M2": 0.367, "R006-M3": 0.367, "R006-M4": 0.367}, "status": "ok"}
+{"id": "R007", "kind": "retention", "score_semantics": "probability", "scores": {"R007-M1": 0.3647, "R007-M2": 0.3647, "R007-M3": 0.3647, "R007-M4": 0.3647}, "status": "ok"}
+{"id": "R008", "kind": "retention", "score_semantics": "probability", "scores": {"R008-M1": 0.4816, "R008-M2": 0.4816, "R008-M3": 0.4816, "R008-M4": 0.4816}, "status": "ok"}
+{"id": "R009", "kind": "retention", "score_semantics": "probability", "scores": {"R009-M1": 0.4622, "R009-M2": 0.4622, "R009-M3": 0.4622, "R009-M4": 0.4622}, "status": "ok"}
+{"id": "R010", "kind": "retention", "score_semantics": "probability", "scores": {"R010-M1": 0.4375, "R010-M2": 0.4375, "R010-M3": 0.4375, "R010-M4": 0.4375}, "status": "ok"}
+{"id": "R011", "kind": "retention", "score_semantics": "probability", "scores": {"R011-M1": 0.3097, "R011-M2": 0.3097, "R011-M3": 0.3097, "R011-M4": 0.3097}, "status": "ok"}
+{"id": "R012", "kind": "retention", "score_semantics": "probability", "scores": {"R012-M1": 0.3938, "R012-M2": 0.3938, "R012-M3": 0.3938, "R012-M4": 0.3938}, "status": "ok"}
+{"id": "R013", "kind": "retention", "score_semantics": "probability", "scores": {"R013-M1": 0.5255, "R013-M2": 0.5255, "R013-M3": 0.5255, "R013-M4": 0.5255}, "status": "ok"}
+{"id": "R014", "kind": "retention", "score_semantics": "probability", "scores": {"R014-M1": 0.4101, "R014-M2": 0.4101, "R014-M3": 0.4101, "R014-M4": 0.4101}, "status": "ok"}
+{"id": "R015", "kind": "retention", "score_semantics": "probability", "scores": {"R015-M1": 0.4627, "R015-M2": 0.4627, "R015-M3": 0.4627, "R015-M4": 0.4627}, "status": "ok"}
+{"id": "R016", "kind": "retention", "score_semantics": "probability", "scores": {"R016-M1": 0.3217, "R016-M2": 0.3217, "R016-M3": 0.3217, "R016-M4": 0.3217}, "status": "ok"}
+{"id": "R017", "kind": "retention", "score_semantics": "probability", "scores": {"R017-M1": 0.3725, "R017-M2": 0.3725, "R017-M3": 0.3725, "R017-M4": 0.3725}, "status": "ok"}
+{"id": "R018", "kind": "retention", "score_semantics": "probability", "scores": {"R018-M1": 0.5124, "R018-M2": 0.5124, "R018-M3": 0.5124, "R018-M4": 0.5124}, "status": "ok"}
+{"id": "R019", "kind": "retention", "score_semantics": "probability", "scores": {"R019-M1": 0.4341, "R019-M2": 0.4341, "R019-M3": 0.4341, "R019-M4": 0.4341}, "status": "ok"}
+{"id": "R020", "kind": "retention", "score_semantics": "probability", "scores": {"R020-M1": 0.453, "R020-M2": 0.453, "R020-M3": 0.453, "R020-M4": 0.453}, "status": "ok"}
+{"id": "R021", "kind": "retention", "score_semantics": "probability", "scores": {"R021-M1": 0.333, "R021-M2": 0.333, "R021-M3": 0.333, "R021-M4": 0.333}, "status": "ok"}
+{"id": "R022", "kind": "retention", "score_semantics": "probability", "scores": {"R022-M1": 0.3741, "R022-M2": 0.3741, "R022-M3": 0.3741, "R022-M4": 0.3741}, "status": "ok"}
+{"id": "R023", "kind": "retention", "score_semantics": "probability", "scores": {"R023-M1": 0.4702, "R023-M2": 0.4702, "R023-M3": 0.4702, "R023-M4": 0.4702}, "status": "ok"}
+{"id": "R024", "kind": "retention", "score_semantics": "probability", "scores": {"R024-M1": 0.4362, "R024-M2": 0.4362, "R024-M3": 0.4362, "R024-M4": 0.4362}, "status": "ok"}
+{"id": "R025", "kind": "retention", "score_semantics": "probability", "scores": {"R025-M1": 0.4307, "R025-M2": 0.4307, "R025-M3": 0.4307, "R025-M4": 0.4307}, "status": "ok"}
+{"id": "R026", "kind": "retention", "score_semantics": "probability", "scores": {"R026-M1": 0.3159, "R026-M2": 0.3159, "R026-M3": 0.3159, "R026-M4": 0.3159}, "status": "ok"}
+{"id": "R027", "kind": "retention", "score_semantics": "probability", "scores": {"R027-M1": 0.357, "R027-M2": 0.357, "R027-M3": 0.357, "R027-M4": 0.357}, "status": "ok"}
+{"id": "R028", "kind": "retention", "score_semantics": "probability", "scores": {"R028-M1": 0.5819, "R028-M2": 0.5819, "R028-M3": 0.5819, "R028-M4": 0.5819}, "status": "ok"}
+{"id": "R029", "kind": "retention", "score_semantics": "probability", "scores": {"R029-M1": 0.4544, "R029-M2": 0.4544, "R029-M3": 0.4544, "R029-M4": 0.4544}, "status": "ok"}
+{"id": "R030", "kind": "retention", "score_semantics": "probability", "scores": {"R030-M1": 0.4482, "R030-M2": 0.4482, "R030-M3": 0.4482, "R030-M4": 0.4482}, "status": "ok"}
+{"id": "R031", "kind": "retention", "score_semantics": "probability", "scores": {"R031-M1": 0.349, "R031-M2": 0.349, "R031-M3": 0.349, "R031-M4": 0.349}, "status": "ok"}
+{"id": "R032", "kind": "retention", "score_semantics": "probability", "scores": {"R032-M1": 0.3712, "R032-M2": 0.3712, "R032-M3": 0.3712, "R032-M4": 0.3712}, "status": "ok"}
+{"id": "R033", "kind": "retention", "score_semantics": "probability", "scores": {"R033-M1": 0.5154, "R033-M2": 0.5154, "R033-M3": 0.5154, "R033-M4": 0.5154}, "status": "ok"}
+{"id": "R034", "kind": "retention", "score_semantics": "probability", "scores": {"R034-M1": 0.4082, "R034-M2": 0.4082, "R034-M3": 0.4082, "R034-M4": 0.4082}, "status": "ok"}
+{"id": "R035", "kind": "retention", "score_semantics": "probability", "scores": {"R035-M1": 0.4578, "R035-M2": 0.4578, "R035-M3": 0.4578, "R035-M4": 0.4578}, "status": "ok"}
+{"id": "R036", "kind": "retention", "score_semantics": "probability", "scores": {"R036-M1": 0.4535, "R036-M2": 0.4535, "R036-M3": 0.4535, "R036-M4": 0.4535}, "status": "ok"}
+{"id": "R037", "kind": "retention", "score_semantics": "probability", "scores": {"R037-M1": 0.3552, "R037-M2": 0.3552, "R037-M3": 0.3552, "R037-M4": 0.3552}, "status": "ok"}
+{"id": "R038", "kind": "retention", "score_semantics": "probability", "scores": {"R038-M1": 0.4324, "R038-M2": 0.4324, "R038-M3": 0.4324, "R038-M4": 0.4324}, "status": "ok"}
+{"id": "R039", "kind": "retention", "score_semantics": "probability", "scores": {"R039-M1": 0.4504, "R039-M2": 0.4504, "R039-M3": 0.4504, "R039-M4": 0.4504}, "status": "ok"}
+{"id": "R040", "kind": "retention", "score_semantics": "probability", "scores": {"R040-M1": 0.4614, "R040-M2": 0.4614, "R040-M3": 0.4614, "R040-M4": 0.4614}, "status": "ok"}

@@ -1,0 +1,65 @@
+{
+  "accelerator_status": "CPU selected; Metal and CUDA disabled for this row",
+  "approval_source": "User request: run the full DMS-01 additions matrix using its profile-locked runtime",
+  "artifacts": [
+    {
+      "id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3",
+      "revision": "b023d1f9c7858fbf01504577a3bfc349ea5c7385"
+    }
+  ],
+  "blockers": [],
+  "candidate_id": "jevstyle-torch-cpu",
+  "candidate_run_approved": true,
+  "created_at_utc": "2026-10-03T17:33:27.332552+00:00",
+  "current_harness_sha256": "dd69612cd2833b7c1086005b472a7c432ab24296ad91606dc329c32229901335",
+  "dar_profile_id": null,
+  "evaluation_harness_files": [
+    {
+      "id": "scripts/evaluate_decision_models.py",
+      "sha256": "d75057e68ec8b7cd2f98a99ca8527dc3a92c597391adec7ad12a0d657cc7bd1b"
+    },
+    {
+      "id": "tests/manual/run_dms01_additions.py",
+      "sha256": "dd69612cd2833b7c1086005b472a7c432ab24296ad91606dc329c32229901335"
+    }
+  ],
+  "execution_mode": "external_research_harness",
+  "fixture_criteria_approved": true,
+  "fixture_hashes_valid": true,
+  "harness": {
+    "id": "dynamic-agent-runner DMS-01 additions: jevstyle-torch-cpu",
+    "revision": "a89097a12f90fab85e11b7494d68f281fa8f2566"
+  },
+  "host": {
+    "architecture": "arm64",
+    "available_memory_estimate_bytes": 14784954368,
+    "free_storage_bytes": 53150294016,
+    "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+    "required_free_storage_bytes": 8589934592,
+    "storage_path": "/private/tmp/dms01-additions",
+    "total_memory_bytes": 38654705664
+  },
+  "input_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+  "labels_sha256": "a87f79b376b7e0c790df78cdd6a623d06450364d6d7c708974c8a953d7b7c7a5",
+  "matrix_sha256": "803e746dac5dc685aeb241973bc61d9eb7dbb0ac727fbfc356948904180bb327",
+  "remote_code_allowed": false,
+  "retry_of": "preflight-dms01-additions-jevstyle-torch-cpu-2026-10-03.json",
+  "run_allowed": true,
+  "runner_sha256": "dd69612cd2833b7c1086005b472a7c432ab24296ad91606dc329c32229901335",
+  "runtime": {
+    "available": true,
+    "executable": "/private/tmp/dms16-von-compatible-py314/bin/python",
+    "id": "Jev-Style jevstyle-torch-cpu Python 3.14.7; lock 82e6a2853231188d2fed184459aede8c9f72090e083da8d7053d6bc4166a0a5b",
+    "lock_sha256": "82e6a2853231188d2fed184459aede8c9f72090e083da8d7053d6bc4166a0a5b",
+    "packages": {
+      "huggingface-hub": "1.33.0",
+      "numpy": "2.5.3",
+      "safetensors": "0.8.0",
+      "tokenizers": "0.23.2",
+      "torch": "2.14.0",
+      "transformers": "5.17.0"
+    },
+    "python_version": "3.14.7"
+  },
+  "runtime_lock_path": "/Users/roschuma/Personal/dynamic-agent-runner/specs/decision-model-support/evaluation/jevstyle-torch-runtime/poetry.lock"
+}

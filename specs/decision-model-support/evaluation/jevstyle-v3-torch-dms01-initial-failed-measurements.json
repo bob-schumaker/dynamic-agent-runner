@@ -1,0 +1,23 @@
+{
+  "artifact_revision": "b023d1f9c7858fbf01504577a3bfc349ea5c7385",
+  "base_model_id": "Qwen/Qwen3.5-0.8B-Base",
+  "base_revision": "dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68",
+  "candidate_id": "jevstyle-torch-cpu",
+  "cold_latency_ms": 4200.948957994115,
+  "device": "cpu",
+  "error_types": [
+    "KeyError"
+  ],
+  "harness_id": "dynamic-agent-runner DMS-01 additions",
+  "harness_revision": "2c1027c924cf8a3979927c962b01b47a0e0618c81804b3ee62beb9ffe3f0b7a6",
+  "model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3",
+  "model_server": false,
+  "oom": false,
+  "peak_rss_bytes": 1647345664,
+  "precision": "bf16",
+  "runtime": "DAR Poetry Python 3.14.7; lock 6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a",
+  "runtime_lock_sha256": "6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a",
+  "tokenizer_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3",
+  "tokenizer_revision": "b023d1f9c7858fbf01504577a3bfc349ea5c7385",
+  "warm_latency_ms": []
+}

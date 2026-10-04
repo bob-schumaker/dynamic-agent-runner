@@ -1,0 +1,104 @@
+{
+  "candidate_count": 4,
+  "cases_per_candidate": 240,
+  "inputs_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+  "labels_sha256": "a87f79b376b7e0c790df78cdd6a623d06450364d6d7c708974c8a953d7b7c7a5",
+  "matrix": "specs/decision-model-support/evaluation/dms01-additions-matrix.json",
+  "matrix_sha256": "803e746dac5dc685aeb241973bc61d9eb7dbb0ac727fbfc356948904180bb327",
+  "results": [
+    {
+      "all_predictions_ok": true,
+      "artifact_revision": "92b182e653ebd8facd04ec9bddf6f63c4a7b7c22",
+      "candidate_id": "macjev-torch-cpu",
+      "case_count": 240,
+      "decision_accuracy": 0.66,
+      "decision_passes_thresholds": false,
+      "model_id": "chaoliangUNSW/MacJev-322M-4K-Laya",
+      "oom": false,
+      "operations_passes_thresholds": true,
+      "peak_rss_bytes": 6197067776,
+      "precision": "fp32",
+      "retention_baseline_utility": 0.2784710438662645,
+      "retention_model_utility": 0.19131158873805934,
+      "retention_passes_thresholds": false,
+      "retention_utility_improvement": -0.08715945512820514,
+      "runtime": "DAR Poetry Python 3.14.7; lock 9713cb4663eb95611d563ceb8b44feeb6bf89582b9eb67b9513186b7b3e0c231",
+      "runtime_lock_sha256": "9713cb4663eb95611d563ceb8b44feeb6bf89582b9eb67b9513186b7b3e0c231",
+      "warm_latency_ms": {
+        "p50": 40.37533397786319,
+        "p95": 170.40770899620838
+      }
+    },
+    {
+      "all_predictions_ok": true,
+      "artifact_revision": "ab08ad8b8f346994d983152917e114224f6adac7",
+      "candidate_id": "lev-torch-cpu",
+      "case_count": 240,
+      "decision_accuracy": 0.54,
+      "decision_passes_thresholds": false,
+      "model_id": "franckverrot/lev-350m",
+      "oom": false,
+      "operations_passes_thresholds": true,
+      "peak_rss_bytes": 2654027776,
+      "precision": "fp32",
+      "retention_baseline_utility": 0.30561317655139164,
+      "retention_model_utility": 0.39100152115026254,
+      "retention_passes_thresholds": false,
+      "retention_utility_improvement": 0.0853883445988709,
+      "runtime": "Lev upstream Python 3.13.15; lock 80f64725a453da0b995ce07ff4af7e2b7ba84295af60a340a07e50969b009f67",
+      "runtime_lock_sha256": "80f64725a453da0b995ce07ff4af7e2b7ba84295af60a340a07e50969b009f67",
+      "warm_latency_ms": {
+        "p50": 92.5858750124462,
+        "p95": 380.5810429912526
+      }
+    },
+    {
+      "all_predictions_ok": true,
+      "artifact_revision": "b023d1f9c7858fbf01504577a3bfc349ea5c7385",
+      "candidate_id": "jevstyle-torch-cpu",
+      "case_count": 240,
+      "decision_accuracy": 0.84,
+      "decision_passes_thresholds": false,
+      "model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3",
+      "oom": false,
+      "operations_passes_thresholds": true,
+      "peak_rss_bytes": 1637007360,
+      "precision": "bf16",
+      "retention_baseline_utility": 0.3086017628205128,
+      "retention_model_utility": 0.47660938012911697,
+      "retention_passes_thresholds": false,
+      "retention_utility_improvement": 0.16800761730860414,
+      "runtime": "Jev-Style jevstyle-torch-cpu Python 3.14.7; lock 82e6a2853231188d2fed184459aede8c9f72090e083da8d7053d6bc4166a0a5b",
+      "runtime_lock_sha256": "82e6a2853231188d2fed184459aede8c9f72090e083da8d7053d6bc4166a0a5b",
+      "warm_latency_ms": {
+        "p50": 2650.481791002676,
+        "p95": 11066.115415014792
+      }
+    },
+    {
+      "all_predictions_ok": true,
+      "artifact_revision": "edf37c26a1098f83cf4264b8adbe0dca2d2ebb0c",
+      "candidate_id": "jevstyle-gguf-f16-cpu",
+      "case_count": 240,
+      "decision_accuracy": 0.84,
+      "decision_passes_thresholds": false,
+      "model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3-GGUF",
+      "oom": false,
+      "operations_passes_thresholds": true,
+      "peak_rss_bytes": 2753986560,
+      "precision": "fp16",
+      "retention_baseline_utility": 0.3086017628205128,
+      "retention_model_utility": 0.47660938012911697,
+      "retention_passes_thresholds": false,
+      "retention_utility_improvement": 0.16800761730860414,
+      "runtime": "Jev-Style jevstyle-gguf-f16-cpu Python 3.14.7; lock e0273c1d05185421eff953f538a59de7213b6b1731993831878943215568f975",
+      "runtime_lock_sha256": "e0273c1d05185421eff953f538a59de7213b6b1731993831878943215568f975",
+      "warm_latency_ms": {
+        "p50": 271.3929160090629,
+        "p95": 1150.8193329791538
+      }
+    }
+  ],
+  "schema": "dms01-additions-run-summary-v1",
+  "total_candidate_cases": 960
+}
