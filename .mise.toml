@@ -6,7 +6,7 @@
 
 [tools]
 # dot-mise-toml-tools:start -- DO NOT EDIT BETWEEN THESE COMMENTS
-python = "3.14.7"
+python = "3.13"
 # dot-mise-toml-tools:end -- DO NOT EDIT BETWEEN THESE COMMENTS
 
 # dot-mise-poetry-tools:start -- DO NOT EDIT BETWEEN THESE COMMENTS
@@ -16,16 +16,11 @@ python = "3.14.7"
 # dot-mise-toml-env:start -- DO NOT EDIT BETWEEN THESE COMMENTS
 
 # dot-mise-toml-env:end -- DO NOT EDIT BETWEEN THESE COMMENTS
-
 # dot-mise-poetry-env:start -- DO NOT EDIT BETWEEN THESE COMMENTS
 POETRY_ACTIVE = true
 POETRY_REQUESTS_TIMEOUT = 60
 POETRY_VIRTUALENVS_IN_PROJECT = true
 # dot-mise-poetry-env:end -- DO NOT EDIT BETWEEN THESE COMMENTS
-[_.python]
-# dot-mise-python-venv:start -- DO NOT EDIT BETWEEN THESE COMMENTS
-venv = ".venv"
-# dot-mise-python-venv:end -- DO NOT EDIT BETWEEN THESE COMMENTS
 
 [tasks."project-update"]
 # dot-mise-project-update-task:start -- DO NOT EDIT BETWEEN THESE COMMENTS
