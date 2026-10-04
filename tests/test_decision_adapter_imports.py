@@ -26,6 +26,10 @@ import pytest
             "dynamic_agent_runner.workflow_host.kev_decision_adapter",
             ("torch", "transformers", "peft", "kev"),
         ),
+        (
+            "dynamic_agent_runner.workflow_host.jevstyle_decision_adapter",
+            ("torch", "transformers", "mlx", "mlx_lm", "llama_cpp"),
+        ),
     ],
 )
 def test_importing_adapter_does_not_import_its_optional_runtime(

@@ -37,6 +37,16 @@ from dynamic_agent_runner.decision_models import (
     DecisionMode,
     DecisionModelUse,
 )
+from dynamic_agent_runner.workflow_host.jevstyle_decision_adapter import (
+    JEVSTYLE_V3_GGUF_PROFILE,
+    JevStyleBackend,
+    JevStyleMachineConfiguration,
+    JevStyleModelCandidate,
+    load_jevstyle_v3_binding,
+)
+from dynamic_agent_runner.workflow_host.model_execution_binding import (
+    ModelExecutionBinding,
+)
 from dynamic_agent_runner.errors import (
     EmbeddingResultError,
     GuardrailExecutionError,
@@ -377,7 +387,7 @@ def workflow_from(data: dict[str, object]) -> LoadedAgentWorkflow:
     return LoadedAgentWorkflow(runtime_manifest=load_runtime_manifest(data))
 
 
-def decision_workflow() -> LoadedAgentWorkflow:
+def decision_workflow(profile_id: str = "local.test.v1") -> LoadedAgentWorkflow:
     return workflow_from(
         {
             "format_version": 1,
@@ -391,7 +401,7 @@ def decision_workflow() -> LoadedAgentWorkflow:
                     "id": "decide",
                     "kind": "decision_step",
                     "decision_subtype": "decision_model",
-                    "decision_profile": "local.test.v1",
+                    "decision_profile": profile_id,
                     "context_from": "prompt",
                     "question": {
                         "id": "route-choice",
@@ -448,6 +458,40 @@ def decision_binding(
         adapter=adapter,
         execution_limits=limits or DecisionExecutionLimits(),
         permitted_uses=permitted_uses,
+    )
+
+
+def _jevstyle_test_binding(
+    engine: object, *, limits: DecisionExecutionLimits | None = None
+) -> DecisionModelBinding:
+    execution_binding = ModelExecutionBinding(
+        logical_model_id=JEVSTYLE_V3_GGUF_PROFILE.identity.model_id,
+        runner_contract_id="jevstyle-gguf-v1",
+        runner_contract_version="1",
+        loader_profile_contract_id="jevstyle-gguf-loader-v1",
+        loader_profile_contract_version="1",
+        material_lock_digest="a" * 64,
+        capability_requirements_digest="b" * 64,
+        runner_capability_id="jevstyle-gguf-runner-v1",
+        runner_capability_version="1",
+        runner_capability_digest="c" * 64,
+    )
+    candidate = JevStyleModelCandidate(
+        backend=JevStyleBackend.GGUF,
+        profile=JEVSTYLE_V3_GGUF_PROFILE,
+        execution_binding=execution_binding,
+        materials_admitted=True,
+        resource_admitted=True,
+        load_engine=lambda _binding: engine,
+    )
+    selected = load_jevstyle_v3_binding(
+        JevStyleMachineConfiguration("darwin", "arm64", False), (candidate,)
+    )
+    return DecisionModelBinding(
+        profile=selected.profile,
+        adapter=selected.adapter,
+        execution_limits=limits or DecisionExecutionLimits(),
+        permitted_uses=selected.permitted_uses,
     )
 
 
@@ -536,6 +580,85 @@ def test_decision_model_step_uses_exact_binding_and_routes_to_mapped_edge() -> N
         event for event in result.state.trace_events if event.event_type == "decision"
     )
     assert "private decision context" not in str(decision_event.payload)
+
+
+def test_jevstyle_binding_runs_through_the_workflow_decision_host() -> None:
+    class Engine:
+        def decide(self, _state: object, _question: object) -> dict[str, object]:
+            return {
+                "answer": "right",
+                "probabilities": {"left": 0.1, "right": 0.9},
+            }
+
+    binding = _jevstyle_test_binding(Engine())
+    profile_id = binding.profile.identity.profile_id
+    result = execute_workflow(
+        decision_workflow(profile_id),
+        prompt="choose the right branch",
+        model_adapter=make_adapter([{"id": "final", "output_text": "selected"}]),
+        decision_model_bindings={profile_id: binding},
+    )
+
+    assert result.final_result == "selected"
+    assert [execution.node_id for execution in result.state.executions] == [
+        "decide",
+        "right",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("limits", "message"),
+    [
+        (DecisionExecutionLimits(max_input_bytes=1), "bounded request"),
+        (DecisionExecutionLimits(deadline_monotonic=0.0), "deadline"),
+        (
+            DecisionExecutionLimits(cancellation=SimpleNamespace(cancelled=True)),
+            "cancelled",
+        ),
+    ],
+)
+def test_jevstyle_binding_obeys_workflow_host_limits(
+    limits: DecisionExecutionLimits, message: str
+) -> None:
+    class Engine:
+        calls = 0
+
+        def decide(self, _state: object, _question: object) -> dict[str, object]:
+            self.calls += 1
+            raise AssertionError("host-rejected request reached the model")
+
+    engine = Engine()
+    binding = _jevstyle_test_binding(engine, limits=limits)
+    profile_id = binding.profile.identity.profile_id
+
+    with pytest.raises(WorkflowExecutionError, match=message):
+        execute_workflow(
+            decision_workflow(profile_id),
+            prompt="private decision context",
+            model_adapter=make_adapter([{"id": "final", "output_text": "unused"}]),
+            decision_model_bindings={profile_id: binding},
+        )
+
+    assert engine.calls == 0
+
+
+def test_jevstyle_engine_errors_are_redacted_by_the_workflow_host() -> None:
+    class Engine:
+        def decide(self, _state: object, _question: object) -> dict[str, object]:
+            raise RuntimeError("private model payload")
+
+    binding = _jevstyle_test_binding(Engine())
+    profile_id = binding.profile.identity.profile_id
+
+    with pytest.raises(WorkflowExecutionError, match="adapter failed") as error:
+        execute_workflow(
+            decision_workflow(profile_id),
+            prompt="private decision context",
+            model_adapter=make_adapter([{"id": "final", "output_text": "unused"}]),
+            decision_model_bindings={profile_id: binding},
+        )
+
+    assert "private model payload" not in str(error.value)
 
 
 def test_decision_model_step_rejects_retention_only_binding_before_inference() -> None:
