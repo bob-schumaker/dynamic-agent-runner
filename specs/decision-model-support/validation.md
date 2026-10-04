@@ -1,5 +1,179 @@
 # Decision Model Support Readiness Validation
 
+## DMS-01 Local Candidate Additions — 2026-10-03
+
+Ran the four frozen additions-matrix rows against all 240 approved DMS-01
+fixtures on local CPU. MacJev, Lev, Jev-Style PyTorch BF16, and Jev-Style GGUF
+F16 completed without inference failures or OOM and passed operations; all
+failed one or more quality thresholds. Exact metrics, immutable pins,
+preflights, evaluator receipts, and artifacts are in `model-evaluation.md`
+and `evaluation/`.
+
+The initial PyTorch Jev-Style attempt failed all rows due to a runner/upstream
+API contract mismatch. Added a fake-backed regression test, corrected the
+adapter, preserved the initial failed outputs, and reran the pinned row. Also
+corrected GGUF RSS measurement to include scorer-child high-water RSS; its
+preflight-bound rerun completed with the quality scores unchanged. Focused
+verification passed: `poetry run pytest tests/test_dms01_additions_runner.py
+-q` (6 passed) and Ruff reported no issues for the runner and its tests.
+
+## DMS-17 Jev-Style v3 Selector Specification — 2026-10-03
+
+Added FR-12 and DMS-17 for an opt-in `jevstyle-v3-auto` profile. “Best” means
+the first profile in a fixed pre-load preference among profiles admitted for
+the host: MLX/Metal on Apple Silicon, then GGUF F16 CPU, then PyTorch BF16 CPU.
+The preference reflects DMS-01's measured warm-inference advantage for GGUF
+over PyTorch on the tested Mac; it does not benchmark models at startup. The
+DMS-01 PyTorch profile is CPU-only; CUDA is outside scope
+until a separate exact profile is reviewed and admitted. The task now covers
+the shared contract's `choice` and ordered `scores` modes, with native `noul`
+output mapped only for exact yes/no options inside a `scores` request; it does
+not add a public `noul` mode. Calibrated semantics require pinned evidence. A
+backend unavailable before
+loading may be skipped, but a load or inference failure after profile
+selection cannot switch models. The selector uses sealed local
+profile/material availability and does not download or scan arbitrary model
+paths. All variants remain `workflow_decision` only; none is admitted yet.
+
+The recorded DMS-01 model quality and latency results informed this preference.
+DMS-17 still requires completed material/license/runtime admission, isolated
+backend checks, host-boundary tests, and separate compatibility-smoke
+authorization before any profile is exposed.
+
+## DMS-17 Selector Adapter Implementation — 2026-10-03
+
+Implemented `jevstyle_decision_adapter.py` as an opt-in selector over the
+three exact DMS-01 v3 identities. The host supplies normalized machine facts,
+pre-admitted candidates, and their local loaders. The selector applies the
+fixed MLX/Metal, GGUF F16 CPU, then PyTorch BF16 CPU preference, passes the
+chosen sealed `ModelExecutionBinding` to exactly one loader, and does not
+fallback after loading or inference begins. The adapter maps Jev `choice` and
+ordered `score` responses to the shared contract; native `noul` is used only
+for a `scores` request with exactly the `yes` and `no` option IDs. Outputs are
+probability scores, not calibrated probabilities. All bindings permit only
+`workflow_decision`.
+
+Optional backend packages are not imported by the adapter. A subprocess
+import-isolation case covers MLX, PyTorch/Transformers, and llama.cpp. Focused
+verification passed: `poetry run pytest
+tests/test_jevstyle_decision_adapter.py
+tests/test_workflow_model_execution_binding.py
+tests/test_decision_adapter_imports.py -q` (**30 passed**) and Ruff lint
+passed. Formatting was applied to the new adapter tests. This verifies the
+selector and shared mapping only: no backend runtime was resolved/installed,
+no model was loaded, and no profile is technically admitted or exposed.
+Final verification also passed the complete suite (`poetry run pytest -q`:
+**3063 passed, 1 skipped, 7 deselected**), repository Ruff checks, focused
+format checks, and `git diff --check`.
+
+## DMS-17 Isolated Runtime and Smoke Readiness — 2026-10-03
+
+Added `dynamic-agent-runner` as a local path dependency in each isolated
+Jev-Style Poetry runtime so the DAR adapter and pinned model backend can run in
+one process. The three Python 3.14.7 locks now include DAR core dependencies;
+their SHA-256 digests are recorded in the profile admission ledger. Resolved
+and installed with:
+
+```sh
+export POETRY_VIRTUALENVS_IN_PROJECT=false
+export POETRY_VIRTUALENVS_PATH=/private/tmp/dms17-jevstyle-venvs
+for runtime_project in jevstyle-mlx-runtime jevstyle-torch-runtime jevstyle-gguf-runtime; do
+  poetry -C "specs/decision-model-support/evaluation/$runtime_project" lock
+  poetry -C "specs/decision-model-support/evaluation/$runtime_project" install --no-root --only main
+done
+```
+
+The exact backend and DAR adapter imports pass for MLX 0.32.2 / mlx-lm 0.31.3,
+Torch 2.14.0 / Transformers 5.17.0, and Tokenizers 0.23.2; the MLX import
+confirmed Metal availability. No weights were loaded. Current DMS-17 preflight
+reverified every PyTorch and GGUF material digest and their host resource
+gates; the exact MLX files are pinned but not staged.
+
+Added the one-request offline smoke runner
+`tests/manual/smoke_jevstyle_dms17.py` and fake-only checks in
+`tests/test_jevstyle_dms17_smoke_runner.py`. The smoke requires a scope-bound
+approval receipt covering all three exact profiles, checks runtime/material
+pins and current resource budget before loading, disables network access,
+passes the selected engine through `load_jevstyle_v3_binding`, validates one
+synthetic `choice`, and records one receipt per profile. Focused verification
+passed across the Jev-Style adapter, smoke runner, executor, execution binding,
+and import-isolation tests (**282 passed**); Ruff passed. The current preflight
+scope digest is
+`3c244212a6ce0317acc69a455db62b459ca46898d896705efc094862ce7d3712` and
+`run_allowed` is false pending separate user authorization. No DMS-17 weights
+were loaded and no compatibility smoke has run.
+
+## DMS-17 Task Readiness Review — 2026-10-03
+
+Reviewed the DMS-17 task against `spec.md`, `plan.md`, the DMS-01 model table,
+and the exact additions matrix. The architecture triad was run as sequential
+persona passes in this session (reduced independence; no delegated councillor
+agents or external backend were used), followed by a challenge round.
+
+### Council architecture triad
+
+- **Aristotle:** The task has a coherent unit of work: freeze three exact
+  runtime/material profiles, select one by host eligibility, implement the
+  shared adapter, then admit each backend independently. The original CUDA
+  branch was a category mismatch because the only frozen PyTorch row is CPU.
+- **Ada:** Model selection is a deterministic mapping from host capability,
+  admitted materials, and resource eligibility to one exact profile. The
+  output must stay bound to that identity; quality thresholds and runtime
+  calibration are separate concerns. The supported contract modes should be
+  explicit rather than inferred from the model family's name.
+- **Feynman:** The DMS-01 measurements establish that GGUF is faster than
+  PyTorch for the tested CPU setup, but they do not establish a CUDA profile or
+  a universally fastest model across all hosts. A small preference order with
+  a fail-closed no-eligible case is testable; model load/inference failures
+  must not trigger a second backend.
+
+In the challenge round, the triad agreed to keep backend preference bounded
+to observed host classes, separate technical admission from DMS-01 quality,
+and require host resource-budget eligibility. The task now covers shared
+contract modes (`choice` and `scores`), including constrained mapping of
+native `noul` output without adding a public mode; it explicitly defers CUDA
+pending its own exact profile and tests the no-eligible-profile
+path. Remaining profile-specific runtime and package details are discovery
+outputs of the first task, not readiness blockers.
+
+### Ponytail
+
+Lean already. Ship. The three-backend freeze, selector rules, fake test gate,
+and per-profile admission steps each establish separate required evidence;
+removing them would leave the adapter task unable to start or verify safely.
+
+### Disposition and verification
+
+DMS-17 is ready to begin with profile freeze. Backend implementation and
+exposure remain gated on exact runtime/material closure, resource admission,
+fake tests, isolated backend checks, and separately authorized compatibility
+smokes. DMS-01 quality rejection remains independent of client workflow
+support; no profile is admitted for context retention.
+
+`git diff --check` passed. No code tests were run because this review changed
+specification and task artifacts only; Markdown lint could not run because
+`rumdl` is not installed in the Poetry environment.
+
+## Julia 1 DMS-01 Comparison — 2026-10-03
+
+Added `tests/manual/run_julia1_dms01.py` and fake-only coverage in
+`tests/test_julia1_dms01_runner.py`. The runner uses the exact admitted Julia 1
+CPU profile, does not provide labels to the model, scores the unchanged 240
+frozen DMS-01 cases, and emits redacted predictions plus tokenizer and
+operation measurements. The exact preflight at
+`evaluation/preflight-julia1-dms01-2026-10-03.json` passed before the user's
+requested run. The offline inference completed all 240 cases with no invalid,
+missing, oversize, abstained, timeout, or error outputs.
+
+Julia 1 scored 0.445 decision accuracy, 0.358 retention F1, 0.363 keep recall,
+and −0.0158 category-macro utility improvement over recency. It failed both
+quality gates and passed operation limits: 3.385 s cold load, 14 ms warm p50,
+76 ms p95, 1,183,350,784 bytes peak RSS, no OOM. The full comparison with Von
+is in `model-evaluation.md`; aggregate metrics and redacted run artifacts are
+in `evaluation/julia1-dms01-*`. Focused verification:
+`poetry run pytest tests/test_julia1_dms01_runner.py -q` (2 passed) and Ruff
+on the runner and test (passed).
+
 ## DMS-16 Adapter and Optional Runtime Progress Before Approved Smokes — 2026-10-02
 
 This is the pre-material, pre-inference snapshot. Current approved-run
@@ -1099,3 +1273,15 @@ item 13 remained partial at 225 Von scores and zero judge calls. These partial
 outputs are not used as evaluation results. Preserve the run receipt and
 checkpoints as historical artifacts; resume only after an explicit new
 decision. The 60-item pilot proposal is shelved with the full run.
+
+## DMS-17 Jev-Style v3 Backend Smokes — 2026-10-03
+
+The user approved scope `3c244212a6ce0317acc69a455db62b459ca46898d896705efc094862ce7d3712` for the three pinned profiles. Exact MLX materials were staged from the pinned revision and all eight SHA-256 digests matched. The PyTorch BF16 CPU and GGUF F16 CPU profiles each completed one offline synthetic choice through the DAR adapter; both returned the valid supplied option `billing`. Receipts are `dms17-smoke-torch-bf16-cpu.json` and `dms17-smoke-gguf-f16-cpu.json`.
+
+The MLX smoke did not reach inference. The sandbox attempt could not access Metal; outside the sandbox, MLX initialization reached the upstream repository integrity check, which requires `manifest.json`. That file was not in the pinned material allowlist, so it was not staged. The failure and zero-inference status are recorded in `dms17-smoke-mlx-metal-failure.json`. MLX remains deferred. Supporting it requires pinning the manifest digest, updating the scope, and obtaining approval for that revised scope. The two CPU profiles are technically admitted for `workflow_decision` use only; DMS-01 quality results remain separate, and none is admitted for context retention.
+
+## DMS-17 MLX/Metal Follow-up Smoke — 2026-10-03
+
+Executed the explicitly requested MLX-only retry under scope `decb9724f9850d226d874ccf19c0e79e7de0dc80b49fbc313eb5ca1df7867e40`. Added SHA-256 pins for `manifest.json`, `LICENSE`, the remaining manifest-listed 8-bit files, and `requirements.txt`. All 14 staged files required by the upstream verifier for the selected 8-bit profile matched their pinned digests. The pre-load selector chose the MLX/Metal profile; one offline synthetic choice returned the valid supplied option `billing` in 1,074 ms. Receipt: `evaluation/dms17-smoke-mlx-metal-attempt-3.json`.
+
+Two earlier attempts failed before inference: attempt 1 lacked `manifest.json`; attempt 2 exposed the verifier-required `requirements.txt`. Both are retained in `evaluation/dms17-smoke-mlx-metal-failure.json`. GGUF, PyTorch, and MLX are now admitted for `workflow_decision` only. None is admitted for context retention. `git diff --check` and JSON parsing passed; no evaluation fixture, training, calibration, or inference-time network access was used.

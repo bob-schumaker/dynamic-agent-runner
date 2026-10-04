@@ -16,14 +16,20 @@
   DMS-15 adds an audit-first review for runtime-neutral adapter helpers, with
   implementation conditional on proven reuse across backends. DMS-16 now has
   fake-backed adapter slices for Von, Julia 1, Laya-MLX, and Kev/Qwen, with
-  the `workflow_decision` use guard in the shared host path.
+  the `workflow_decision` use guard in the shared host path. DMS-17 specifies
+  an opt-in Jev-Style v3 selector across exact MLX/Metal, PyTorch, and GGUF
+  profiles; its host-supplied loader adapter and fake-backed contract mapping
+  are implemented, while backend admission remains pending.
   See `tasks.md` and `validation.md`.
 - Readiness: the generic contract and workflow path are implemented. Optional
   adapter and fake-test slices exist for Von, Julia 1, Laya-MLX, and Kev/Qwen.
   Their profiles are not admitted or exposed until exact material, runtime,
   contract, and host-boundary validation plus approved compatibility smokes
   pass. Kev packaging remains deferred over its Torch constraint conflict.
-  Context-management use still requires its own quality review.
+  Jev-Style v3 has a first-party selector/decision adapter, but no runtime
+  profile is admitted or exposed until each exact runtime/material smoke and
+  host-boundary check passes. Context-management use still requires its own
+  quality review.
 - Implementation procedure: spec-driven development, followed by
   `execute-ready-item` for this feature
 
@@ -37,7 +43,19 @@ installable in-process backends for Von, Julia 1, Laya-MLX, and reviewed
 Qwen-based decision profiles, all behind the shared contract and exact
 profile/material binding. Keep backend dependencies out of the core install,
 require explicit profile selection, and preserve host-owned limits, lifecycle,
-tracing, and redaction. A caller-supplied adapter can still implement server-backed runtimes
+tracing, and redaction. Jev-Style adds an explicit `jevstyle-v3-auto` profile
+whose host-side selector resolves once to one exact admitted backend profile
+before material loading. “Best” means the deterministic pre-load preference
+MLX/Metal on Apple Silicon, then GGUF F16 on CPU, then PyTorch BF16 on CPU.
+This reflects DMS-01's faster measured warm inference for GGUF than PyTorch on
+the tested Mac; it does not benchmark models at startup. CUDA is out of scope
+until a separate exact profile is reviewed and admitted. Select only among profiles
+admitted for host capability and the host-provided resource budget; if none is
+eligible, fail before loading. A selector may pass over a backend unavailable
+before loading, but a selected backend's load/inference failure never triggers
+another backend. The selector uses only host capability data and sealed
+profile/material availability; it does not scan model
+directories or download weights. A caller-supplied adapter can still implement server-backed runtimes
 such as Laya; the external client owns any server and its lifecycle.
 
 These optional backends do not imply a default model. Their purpose is to let
@@ -75,6 +93,8 @@ always performs truncation and message deletion.
 | Pinned Kev competency run | `tests/manual/run_kev_dms01.py`, `tests/test_kev_dms01_runner.py` | Historical evaluation-only runner for the exact approved Kev-0.6B artifact; its quality outcome does not gate DMS-16 client support |
 | Von alternative evaluation | `tests/manual/run_von_dms06.py`, `tests/test_von_dms06_runner.py` | Completed evaluation-only runner for pinned Von 1.2.0; its quality outcome does not gate DMS-16 client support |
 | Jev-Style 0.8B v3 evaluation | `tests/manual/run_jevstyle_dms12.py`, `tests/test_jevstyle_dms12_runner.py`, `specs/decision-model-support/evaluation/jevstyle-mlx-runtime/` | Completed evaluation-only runner for the pinned 8-bit MLX checkpoint; it does not authorize client backend support or context-management use |
+| Jev-Style v3 backend selector (DMS-17) | `src/dynamic_agent_runner/workflow_host/jevstyle_decision_adapter.py`, `tests/test_jevstyle_decision_adapter.py`, `tests/test_jevstyle_dms17_smoke_runner.py`, `tests/manual/smoke_jevstyle_dms17.py`, `tests/test_decision_adapter_imports.py`, and `tests/test_workflow_model_execution_binding.py` | Implemented opt-in selection from host-reported machine facts and pre-admitted candidates; invokes exactly the selected candidate's loader with its sealed execution binding. Translates Jev choice/score/noul outputs to the shared contract. Isolated locks include DAR core and backend dependencies; package imports pass. Profiles remain unadmitted pending current material verification and separately authorized exact model smokes. CUDA is outside DMS-17 pending a separate exact profile review. |
+| Jev-Style v3 profile evidence (DMS-17) | `specs/decision-model-support/evaluation/dms01-additions-matrix.json` and `model-evaluation.md` | Reuse the exact MLX, PyTorch BF16, and GGUF F16 identities and comparative evidence. Client-runtime admission remains separate from DMS-01 context-management quality. |
 | Laya-MLX candidate evaluation | `tests/manual/run_laya_mlx_dms08.py`, `tests/test_laya_mlx_dms08_runner.py`, `specs/decision-model-support/evaluation/` | Completed evaluation-only runner for the exact source/checkpoint/tokenizer/runtime; its quality outcome does not gate DMS-16 client support |
 | DAR MLX dependency compatibility | `pyproject.toml`, `poetry.lock`, MLX generation and embedding checks | Choose a compatible optional-extra/runtime boundary without importing upstream `uv.lock`; change shared ranges only after existing MLX consumers pass compatibility checks |
 | Laya-MLX decision adapter and binding (DMS-16) | `src/dynamic_agent_runner/workflow_host/laya_mlx_decision_adapter.py`, `src/dynamic_agent_runner/workflow_host/model_execution_binding.py`, `src/dynamic_agent_runner/workflow_host/capabilities.py`; `tests/test_laya_mlx_decision_adapter.py`, `tests/test_workflow_model_execution_binding.py`, `tests/test_capabilities.py` | Implement optional client-facing in-process support after exact runtime/material, output-mapping, and host-boundary checks; keep its DMS-08 quality result as a context-management finding, not an adapter-support gate. |

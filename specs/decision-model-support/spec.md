@@ -92,6 +92,11 @@ Julia 1, Laya-MLX, and reviewed Qwen-based profiles.
     and isolated optional extra. Its quality results do not gate client
     workflow support; context-management use remains subject to separately
     reviewed criteria.
+13. An opt-in Jev-Style 0.8B v3 selector that resolves to one exact
+    MLX/Metal, PyTorch, or GGUF backend using host capabilities and locally
+    admitted runtime/material availability. Selection finishes before loading
+    and produces an exact profile binding; it does not download models or
+    switch backends after a load or inference failure.
 
 ## Non-goals
 
@@ -102,9 +107,10 @@ Julia 1, Laya-MLX, and reviewed Qwen-based profiles.
 - Claiming that schema-valid output, a high score, or a confidence value means a
   decision is correct or calibrated.
 - DAR-owned support for arbitrary model families, checkpoints, or runtimes.
-  Each supported Von, Julia 1, Laya-MLX, or Qwen-based profile is exact and
-  explicitly reviewed for technical compatibility, material provenance,
-  licensing, and host-boundary safety.
+  Each supported Von, Julia 1, Laya-MLX, Qwen-based, or Jev-Style profile is
+  exact and reviewed for technical compatibility, material provenance,
+  licensing, and host-boundary safety. Jev-Style automatic selection is
+  limited to the three enumerated v3 backend profiles.
 - DAR-owned server-backed Laya support or server lifecycle. External clients
   own those integrations. The narrowly scoped in-process Laya-MLX profile in
   scope does not generalize to other Laya runtimes, loaders, or checkpoints.
@@ -188,9 +194,10 @@ default edge.
 ## Local Model Profiles and Client Adapters
 
 DAR will provide reviewed optional local execution profiles for Von 1.2.0,
-the Julia 1 candidate after technical admission, Laya-MLX, and selected
-Qwen/Kev decision models using immutable model-material declarations and
-existing host admission, resource-budget, lifecycle, and tracing boundaries.
+the Julia 1 candidate after technical admission, Laya-MLX, selected Qwen/Kev
+decision models, and Jev-Style 0.8B v3 using immutable model-material
+declarations and existing host admission, resource-budget, lifecycle, and
+tracing boundaries.
 Profiles are limited to exact artifacts evaluated or otherwise technically
 reviewed in `tasks.md`; a model-family name alone is never sufficient for
 admission. Kev-0.6B remains the provisional smallest
@@ -200,6 +207,26 @@ support. Adapter support still requires reviewed source/model/runtime identity,
 license and material closure, bounded contract translation, and host-boundary
 tests. Unit tests use fake adapters and never load real weights. Any manual
 inference on real weights requires its own exact preflight and approval.
+
+Jev-Style automatic selection is an explicit opt-in profile, not a generic
+default. The host selector considers only compatible backends whose exact
+runtime and local materials have already passed admission and fit the
+host-provided resource budget. Its preference is
+MLX/Metal on Apple Silicon when the MLX runtime and Metal device are available;
+otherwise GGUF F16 on CPU, then PyTorch BF16 on CPU if GGUF is unavailable.
+DMS-01 measured faster warm inference for GGUF than PyTorch on the tested Mac.
+The frozen PyTorch profile is CPU-only; CUDA selection is outside this scope
+until an exact CUDA profile is separately reviewed and admitted. Selection
+among eligible profiles may continue past a backend that is unavailable
+before loading, but once one exact profile is selected, load or inference
+failure is returned without trying another backend. The selector never scans
+arbitrary model folders or downloads materials. Every binding records the
+selected backend and exact checkpoint/runtime identity.
+
+The admitted Julia 1 profile was also evaluated on the frozen DMS-01 fixtures
+under the existing criteria. It failed the decision and retention quality
+gates; this comparative result does not change its separate client-workflow
+admission.
 
 DAR's local model execution has no server requirement. Server-backed Laya
 integrations remain external-client-owned, including their server, lifecycle,
@@ -351,6 +378,45 @@ model-loading behavior is added to the generic contract. Quality results do
 not gate client workflow support; context-management use requires a separate
 quality decision.
 
+### FR-12: Select an admitted Jev-Style v3 backend for the local machine
+
+DAR may offer an explicit Jev-Style v3 automatic profile that resolves once,
+before model loading, from host-reported machine facts and locally admitted
+candidates, to one of three exact local profiles: Jev-Style v3 MLX
+8-bit on Apple Silicon/Metal, Jev-Style v3 PyTorch BF16 on CPU, and
+Jev-Style v3 GGUF F16 on CPU. “Best” means the first profile in this
+deterministic preference order that is compatible with the host and admitted
+for its runtime, exact local materials, and resource budget:
+
+1. MLX 8-bit with Metal on Apple Silicon.
+2. GGUF F16 on CPU.
+3. PyTorch BF16 on CPU.
+
+This order reflects DMS-01's results: MLX/Metal is preferred for Apple
+hardware, and GGUF had faster warm inference than PyTorch on the tested Mac.
+The selector does not benchmark models at startup. The frozen PyTorch profile
+does not support CUDA selection; that requires a separately reviewed exact
+profile. A profile may be skipped only when its platform, runtime, device, or
+pre-admitted local materials are unavailable before selection, or host
+admission says its resource budget cannot run it. If no profile is eligible,
+selection fails before loading. It binds the chosen exact model, runtime,
+material manifest, and adapter identity before loading. It must not download,
+scan arbitrary paths, or switch profiles after loading or inference starts.
+Each backend's
+translation to existing `choice` and ordered `scores` requests is tested
+independently. A native `noul` result may map only to a `scores` request with
+exactly the `yes` and `no` option IDs; it does not add a public `noul` mode.
+Calibrated score semantics require pinned calibration evidence. All three
+profiles are `workflow_decision` only; DMS-01 quality results do not gate that
+client use, and none is admitted for context retention.
+
+The host supplies normalized machine facts, exact pre-admitted candidates, and
+their local loaders. Each candidate binds a sealed `ModelExecutionBinding`;
+the selector invokes only the chosen candidate's loader. DAR does not install
+or import these optional runtimes as part of its core package. Host loaders
+remain responsible for using the bound material/runtime and enforcing the
+existing resource, deadline, cancellation, and lifecycle controls.
+
 ## Acceptance Criteria
 
 - Contract tests cover valid choice and score requests and malformed
@@ -370,6 +436,11 @@ quality decision.
   DMS-01's context-management recommendation is separate from client workflow
   support; runtime binding, limits, lifecycle, and material admission remain
   required.
+- Jev-Style automatic selection is opt-in and chooses only among its exact
+  admitted MLX/Metal, PyTorch, and GGUF profiles. Fake tests cover platform and
+  runtime eligibility, selection priority, unavailable profiles, exact
+  identity binding, no arbitrary model scanning/download, and no post-selection
+  fallback. Real compatibility smokes remain separate from unit tests.
 - The Laya-MLX profile is separately limited to its exact reviewed source,
   checkpoint, tokenizer, runtime, and material combination. Its direct local
   adapter passes fake binding tests and technical/runtime compatibility
@@ -408,8 +479,9 @@ quality decision.
 The implementation procedure is the repository's spec-driven development
 workflow. The concrete source and test targets, task dependencies, test-first
 requirements, and delivery gates are in `plan.md` and `tasks.md`. Optional
-client workflow support for Von, Julia 1, Laya-MLX, and reviewed Qwen-based
-profiles is independent of context-management quality gates. It still requires
+client workflow support for Von, Julia 1, Laya-MLX, reviewed Qwen-based
+profiles, and the opt-in Jev-Style selector is independent of context-management
+quality gates. It still requires
 exact profile and material binding, technical runtime compatibility,
 output-contract validation, and host-safety checks. Each DMS-16 profile is
 explicitly workflow-decision-only, and host admission must reject it for context retention
@@ -421,9 +493,11 @@ new helper code is warranted.
 
 The typed contract, workflow decision node, and fake-backed compaction scoring
 are implemented. Adapter and fake-test slices now exist for Von, Julia 1,
-Laya-MLX, and Kev/Qwen; optional runtime installs passed for Von, Julia 1, and
-Laya-MLX. No profile is admitted or exposed yet: exact local material closure
-and approved adapter-facing compatibility smokes remain required, and Kev's
+Laya-MLX, Kev/Qwen, and Jev-Style v3; optional runtime installs passed for Von,
+Julia 1, and Laya-MLX. Jev-Style's selector is implemented, but none of its
+backends is first-party-admitted. No profile is admitted or exposed until
+exact local material closure and approved adapter-facing compatibility smokes
+are complete, and Kev's
 root optional packaging is deferred over its Torch constraint conflict.
 Existing context-management quality results do not gate client support and
 remain separate from compaction admission. NanoJev remains deferred for host

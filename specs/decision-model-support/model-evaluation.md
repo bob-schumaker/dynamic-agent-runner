@@ -2,10 +2,11 @@
 
 Status: **DMS-01 evaluated; no candidate recommended.** Kev-0.6B completed the
 approved synthetic evaluation and failed the decision and retention quality
-thresholds. Kev-0.8B, Jev-Style 0.8B v3, and the approved DMS-06 runs for Von,
-PoorJev, and LitJev also failed one or more quality gates; NanoJev remains
-deferred. No model is recommended for context management. DMS-16 client
-workflow support is recorded separately below.
+thresholds. The expanded MacJev, Lev, and Jev-Style CPU/GGUF runs below also
+failed one or more quality gates. Kev-0.8B, the Jev-Style MLX run, and the
+approved DMS-06 runs for Von, PoorJev, and LitJev failed one or more quality
+gates; NanoJev remains deferred. No model is recommended for context
+management. DMS-16 client workflow support is recorded separately below.
 The original Qwen candidate cohort is local-only. Server-backed Laya
 integration remains external-client-owned. Laya-MLX is a separate direct,
 in-process local candidate under DMS-08. Its approved frozen-fixture run failed
@@ -660,12 +661,90 @@ quality gates; NanoJev remains deferred for the host and licensing reasons
 above. These quality dispositions do not gate DMS-16 client support, whose
 independent optional-profile technical checks remain in progress.
 
+### Julia 1 frozen-fixture comparison
+
+At the user's request, Julia 1 was added as an evaluation-only DMS-01
+candidate using the unchanged 240-case fixtures, labels, thresholds, and
+token-weighted recency baseline. Its fake-backed runner is
+[`run_julia1_dms01.py`](../../tests/manual/run_julia1_dms01.py); focused tests
+are in [`test_julia1_dms01_runner.py`](../../tests/test_julia1_dms01_runner.py).
+The exact CPU preflight is
+[`preflight-julia1-dms01-2026-10-03.json`](evaluation/preflight-julia1-dms01-2026-10-03.json).
+The one approved run completed all 240 cases with no invalid, missing,
+oversize, abstaining, timed-out, or error results. Aggregate-only metrics are
+in [`julia1-dms01-receipt.json`](evaluation/julia1-dms01-receipt.json); the
+local synthetic predictions, tokenizer counts, and measurements are in the
+matching `julia1-dms01-*` files.
+
+| Measure | Von 1.2.0 / CPU | Julia 1 / CPU |
+|---|---:|---:|
+| Decision accuracy (200 cases) | 0.775 (95% Wilson 0.712–0.827) | 0.445 (95% Wilson 0.378–0.514) |
+| Category accuracy, lowest | Fact selection 0.550 | Explicit rule 0.250 |
+| Retention F1 / keep recall | 0.387 / 0.363 | 0.358 / 0.363 |
+| Retention utility vs recency | 0.3355 vs 0.3062 (+0.0293) | 0.2627 vs 0.2785 (−0.0158) |
+| Decision / retention ECE | 0.219 / 0.083 | 0.432 / 0.384 |
+| Cold model load | 57.27 s | 3.39 s |
+| Warm latency p50 / p95 | 178 / 953 ms | 14 / 76 ms |
+| Peak RSS | 3.94 GiB | 1.10 GiB |
+| Model weights | 3.16 GB across model and option-marker files | 577 MB |
+
+Both candidates fail the pre-registered decision and retention quality gates.
+Von is substantially more accurate on decisions and improves retention over
+recency; Julia 1 is smaller, loads faster, has lower measured memory use, and
+has lower observed latency. The warm latency units are not identical: Von
+times its individual choice calls, while Julia batches the four retention
+questions within each retention case. Runs also used separate host sessions
+and macOS minor releases, so latency and peak-memory comparisons are
+indicative. Retention utility uses each candidate's own tokenizer counts, so
+its comparison to recency is matched within a candidate but should not be read
+as a strict cross-tokenizer ranking. Julia's ECE values are descriptive and
+remain uncalibrated. The result is comparative evidence only; it does not
+change either candidate's optional client-workflow admission.
+
 The earlier Jev-style literature review remains available at
 [references/jev-style-local-options.md](references/jev-style-local-options.md).
 It informed discovery only and does not substitute for the pinned artifact or
 the DMS-01 frozen evaluation. Jev-Style 0.8B v3 has since completed its
 separate DMS-12 evaluation and failed the frozen quality gates; see the result
 below.
+
+### DMS-01 local-model additions — 2026-10-03
+
+The four rows below used the same approved 240-case fixtures, labels, scoring,
+and thresholds. Every row ran locally on CPU without a model server. The frozen
+revisions, preflight receipts, file digests, and runtime/build pins are in
+[`evaluation/dms01-additions-matrix.json`](evaluation/dms01-additions-matrix.json)
+and its linked preflight receipts. Full prediction, token-count, measurement,
+and evaluator artifacts are linked in each row's receipt.
+
+| Candidate/runtime | Decision accuracy (200) | Retention keep F1 / recall | Retention utility Δ vs recency | Warm p50 / p95 per case | Peak RSS | Quality / operations |
+|---|---:|---:|---:|---:|---:|---|
+| MacJev-322M-4K-Laya / PyTorch CPU | 0.660 | 0.298 / 0.313 | −0.087 | 41 / 173 ms | 5.68 GiB | Fail / pass |
+| Lev LFM2.5-350M / CPU | 0.540 | 0.483 / 0.450 | +0.085 | 102 / 418 ms | 2.52 GiB | Fail / pass |
+| Jev-Style 0.8B v3 / PyTorch BF16 CPU | 0.840 | 0.548 / 0.500 | +0.168 | 2,367 / 9,819 ms | 1.55 GiB | Fail / pass |
+| Jev-Style 0.8B v3 / GGUF F16 CPU | 0.840 | 0.548 / 0.500 | +0.168 | 259 / 1,209 ms | 2.56 GiB* | Fail / pass |
+
+Retention utility is the approved category-macro token-weighted gold-keep
+recall. All four improved no worse than the listed amount over their matched
+recency baseline, but each failed the frozen decision and/or retention
+thresholds; none is recommended for context management. All passed the
+operations gate, with no OOM or inference errors. Probability calibration
+remains uncalibrated for every row.
+
+| Row | Evaluator receipt | Run artifacts |
+|---|---|---|
+| MacJev | [`macjev-dms01-receipt.json`](evaluation/macjev-dms01-receipt.json) | [`predictions`](evaluation/macjev-dms01-predictions.jsonl), [`token counts`](evaluation/macjev-dms01-token-counts.jsonl), [`measurements`](evaluation/macjev-dms01-measurements.json) |
+| Lev | [`lev-350m-dms01-receipt.json`](evaluation/lev-350m-dms01-receipt.json) | [`predictions`](evaluation/lev-350m-dms01-predictions.jsonl), [`token counts`](evaluation/lev-350m-dms01-token-counts.jsonl), [`measurements`](evaluation/lev-350m-dms01-measurements.json) |
+| Jev-Style PyTorch | [`jevstyle-v3-torch-dms01-receipt.json`](evaluation/jevstyle-v3-torch-dms01-receipt.json) | [`predictions`](evaluation/jevstyle-v3-torch-dms01-predictions.jsonl), [`token counts`](evaluation/jevstyle-v3-torch-dms01-token-counts.jsonl), [`measurements`](evaluation/jevstyle-v3-torch-dms01-measurements.json) |
+| Jev-Style GGUF F16 | [`jevstyle-v3-gguf-f16-dms01-receipt.json`](evaluation/jevstyle-v3-gguf-f16-dms01-receipt.json) | [`predictions`](evaluation/jevstyle-v3-gguf-f16-dms01-predictions.jsonl), [`token counts`](evaluation/jevstyle-v3-gguf-f16-dms01-token-counts.jsonl), [`measurements`](evaluation/jevstyle-v3-gguf-f16-dms01-measurements.json) |
+
+The initial Jev-Style PyTorch attempt recorded 240 errors because the harness
+used the wrong upstream request/result keys. Its failed redacted artifacts are
+preserved as `jevstyle-v3-torch-dms01-initial-failed-*`. A fake-backed adapter
+regression test caught the contract mismatch; the corrected, preflight-bound
+retry above completed successfully. GGUF RSS includes the Python parent plus
+the scorer child's high-water RSS as a conservative upper bound; process peaks
+are not timestamp-synchronized (*).
 
 ## DMS-14 Published Decision Transfer Matrix
 

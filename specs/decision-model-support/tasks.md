@@ -7,10 +7,19 @@ context-management quality. DMS-01/DMS-06/DMS-08/DMS-12/DMS-14 results remain
 historical context-management evidence; revisit criteria when that work
 resumes. DMS-16 plans optional client workflow support for exact Von,
 Julia 1, Laya-MLX, and Qwen-based profiles without using those quality results
-as adapter prerequisites.
+as adapter prerequisites. DMS-17 plans an opt-in Jev-Style v3 selector across
+the exact MLX/Metal, PyTorch, and GGUF profiles evaluated in DMS-01.
 
 ## Readiness Review
 
+- [x] Review DMS-17 against `spec.md` and `plan.md` with the Council
+  architecture triad and Ponytail. The task is ready to begin profile freeze
+  under its stated runtime/material, host resource-budget, and authorization
+  gates. The review excluded CUDA until a separate exact profile exists and
+  completed mapping coverage for `choice`, ordered `scores`, and constrained
+  native `noul` output without adding a public mode.
+  Council and Ponytail findings, dispositions, and verification are recorded
+  in `validation.md`.
 - [x] Re-review DMS-16 against `spec.md` and `plan.md` with the Council
   architecture triad and Ponytail after adding the Julia 1 candidate. The
   profile-freeze/admit-or-defer discovery step is ready to begin; Julia
@@ -129,14 +138,28 @@ passes. Do not use real model weights in unit tests.
   candidates. This recommendation is not production admission; DMS-04 must
   bind and fake-verify the exact runner/material lock, then complete its
   separately authorized competency check before the production decision.
-  Kev-0.6B, Kev-0.8B, Von, PoorJev, and LitJev failed one or more required
-  quality gates. NanoJev remains deferred for host and licensing constraints.
+  Kev-0.6B, Kev-0.8B, Von, Julia 1, PoorJev, and LitJev failed one or more
+  required quality gates. NanoJev remains deferred for host and licensing constraints.
   No candidate is recommended. Stop before DMS-04 until a future candidate or
   criteria change is approved.
+- [x] Add the technically admitted Julia 1 profile to the DMS-01 comparison
+  without changing fixtures or thresholds. Add a fake-backed, candidate-bound
+  CPU runner, record the exact preflight and outputs, and compare decision,
+  retention, calibration, and operation metrics against the existing Von
+  result. Julia 1 completed all 240 frozen cases; its result is recorded in
+  `model-evaluation.md` and `evaluation/julia1-dms01-receipt.json`.
 - [x] Run the approved Kev-0.8B candidate-specific evaluation on the frozen
   DMS-01 fixtures and record its exact preflight, predictions, token counts,
   measurements, and aggregate threshold results. It completed 240 cases and
   passed operations only; it does not qualify for DMS-04.
+- [x] Expand and run the DMS-01 comparison for MacJev-322M-4K-Laya / PyTorch
+  CPU, Lev LFM2.5-350M / CPU, and Jev-Style 0.8B v3 / PyTorch CPU and GGUF F16
+  CPU. Freeze exact revisions, runtime/build materials, licenses, and
+  preflight receipts; reuse the 240 frozen fixtures and thresholds unchanged.
+  All four rows completed without inference errors or OOM and passed the
+  operations gate, but all failed one or more DMS-01 quality gates. Results,
+  failed first-attempt evidence, and exact artifacts are in
+  `model-evaluation.md` and `evaluation/`.
 
 ## DMS-02 Decision Contract (FR-1, FR-3, FR-6)
 
@@ -751,3 +774,70 @@ added.
   with their recorded profile runtimes; the shared-lock `von` extra remains
   incompatible for inference. Kev-0.6B/Qwen3 is deferred for the dependency
   conflict. No profile is admitted for `context_retention`.
+
+## DMS-17 Optional Jev-Style v3 Machine-Selected Adapter
+
+- Depends on: the DMS-02 decision contract, DMS-16 optional-backend admission
+  boundary, and the exact DMS-01 Jev-Style v3 MLX, PyTorch BF16, and GGUF F16
+  evidence. DMS-01 quality results do not gate client workflow use; none of
+  these profiles is admitted for `context_retention`.
+- [x] Pin the three model identities and artifact revisions from the DMS-01
+  additions matrix: `chaoliangUNSW/Jev-Style-0.8B-Decision-v3-MLX` revision
+  `1235ccd1c95d5228a07616cd7e323c9e0532c1dc` for Apple Silicon/Metal,
+  `chaoliangUNSW/Jev-Style-0.8B-Decision-v3` revision
+  `b023d1f9c7858fbf01504577a3bfc349ea5c7385` for PyTorch BF16, and
+  `chaoliangUNSW/Jev-Style-0.8B-Decision-v3-GGUF` revision
+  `edf37c26a1098f83cf4264b8adbe0dca2d2ebb0c` for GGUF F16 CPU.
+- [x] Record each profile's runtime, license, local material manifest,
+  supported input limit, adapter identity, and host resource-budget admission
+  policy in `evaluation/jevstyle-v3-dms17-profile-admission.json`. Keep
+  optional backend dependencies isolated. Current file availability is tracked
+  separately in the DMS-17 preflight.
+- [x] Define and fake-test the opt-in selector over the exact DMS-01 profiles.
+  “Best” is the fixed pre-load preference MLX/Metal on Apple Silicon, then
+  GGUF F16 CPU, then PyTorch BF16 CPU, filtered by host capabilities, exact
+  local materials, and host resource-budget admission. This reflects DMS-01's
+  measured warm-inference advantage of GGUF over PyTorch on the tested Mac; it
+  is not a startup benchmark. The frozen PyTorch row is CPU-only; CUDA is
+  deferred until a separate exact CUDA profile is reviewed and admitted. Skip
+  only profiles unavailable before loading; bind the selected profile to its
+  sealed `ModelExecutionBinding`; never switch after load or inference failure.
+  Selection does not scan arbitrary paths or download weights.
+- [x] **RED/GREEN:** Add
+  `tests/test_jevstyle_decision_adapter.py` before implementing
+  `src/dynamic_agent_runner/workflow_host/jevstyle_decision_adapter.py`.
+  Cover deterministic selection, unavailable/no-eligible candidates, selected
+  identity and sealed material binding, `choice` and ordered `scores` mapping,
+  constrained `noul` mapping, lazy unselected loaders, and no fallback after
+  load or inference failure. The adapter invokes only the selected host loader
+  and does not import an optional runtime itself.
+- [x] Extend the host-boundary tests for Jev-Style runtime/material admission,
+  declared-option validation, error/redaction behavior, resource limits,
+  cancellation/deadline, and `workflow_decision`-only use. Fake tests confirm
+  unadmitted/missing materials never invoke a loader; the selector itself has
+  no download path.
+- [x] Resolve and install the three backend runtimes independently in isolated
+  Poetry environments that also install DAR's core package. Record exact lock
+  hashes in the admission ledger and run:
+
+  ```sh
+  poetry run pytest tests/test_jevstyle_decision_adapter.py tests/test_workflow_model_execution_binding.py -q
+  poetry run ruff check src/dynamic_agent_runner/workflow_host/jevstyle_decision_adapter.py tests/test_jevstyle_decision_adapter.py tests/test_workflow_model_execution_binding.py
+  ```
+
+  Adapter and runtime imports pass in the exact isolated environments.
+- [x] Revalidate exact materials and run one offline model load plus one
+  synthetic choice through the adapter for each compatible profile, after its
+  exact material preflight and separate run authorization. The bounded smoke
+  harness is `tests/manual/smoke_jevstyle_dms17.py`, guarded by the approved
+  scope-bound receipt. GGUF F16 CPU and PyTorch BF16 CPU each completed one
+  inference; their receipts are in the evaluation folder. MLX material hashes
+  matched, but its loader requires upstream `manifest.json`, which was absent
+  from the approved material list, so no MLX inference occurred. Record that
+  profile as deferred and obtain approval on an updated material/scope before
+  retrying it. DMS-01 receipts remain quality evidence, separate from runtime
+  compatibility evidence.
+- [x] Record per-backend technical admit/defer outcomes separately from the
+  DMS-01 quality result in `evaluation/jevstyle-v3-dms17-profile-admission.json`.
+  GGUF, PyTorch, and MLX are admitted for `workflow_decision` only. None is
+  enabled for context retention.
