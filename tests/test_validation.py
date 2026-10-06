@@ -276,6 +276,82 @@ def test_decision_model_node_requires_one_question_and_complete_unique_routes() 
             validate_mapping(data)
 
 
+def test_decision_model_scores_and_noul_manifest_policies_are_bounded() -> None:
+    scores = decision_model_manifest_data()
+    node = scores["nodes"][0]
+    assert isinstance(node, dict)
+    node.update(
+        {
+            "decision_output_mode": "scores",
+            "decision_route_policy": {"kind": "argmax"},
+        }
+    )
+    validate_mapping(scores)
+
+    noul = decision_model_manifest_data()
+    node = noul["nodes"][0]
+    assert isinstance(node, dict)
+    question = node["question"]
+    assert isinstance(question, dict)
+    question["options"] = [{"id": "yes", "label": "Yes"}, {"id": "no", "label": "No"}]
+    node.update(
+        {
+            "decision_output_mode": "noul",
+            "decision_route_policy": {
+                "kind": "threshold",
+                "option": "yes",
+                "threshold": 0.7,
+            },
+        }
+    )
+    for target, manifest_node in zip(("yes", "no"), noul["nodes"][1:], strict=True):
+        assert isinstance(manifest_node, dict)
+        manifest_node["id"] = target
+    noul["edges"] = [
+        {
+            "source": "decide",
+            "target": target,
+            "edge_kind": "branch",
+            "condition": condition,
+        }
+        for target, condition in (("yes", "yes"), ("no", "no"))
+    ]
+    validate_mapping(noul)
+
+    invalid_threshold = decision_model_manifest_data()
+    node = invalid_threshold["nodes"][0]
+    assert isinstance(node, dict)
+    node.update(
+        {
+            "decision_output_mode": "scores",
+            "decision_route_policy": {
+                "kind": "threshold",
+                "option": "left",
+                "threshold": 1.1,
+            },
+        }
+    )
+    with pytest.raises(WorkflowValidationError, match="threshold"):
+        validate_mapping(invalid_threshold)
+
+    ranking_threshold = decision_model_manifest_data()
+    node = ranking_threshold["nodes"][0]
+    assert isinstance(node, dict)
+    node.update(
+        {
+            "decision_output_mode": "scores",
+            "decision_route_policy": {
+                "kind": "threshold",
+                "option": "left",
+                "threshold": 0.5,
+                "score_semantics": "ranking_score",
+            },
+        }
+    )
+    with pytest.raises(WorkflowValidationError, match="probability"):
+        validate_mapping(ranking_threshold)
+
+
 @pytest.mark.parametrize(
     ("field", "value", "error"),
     [

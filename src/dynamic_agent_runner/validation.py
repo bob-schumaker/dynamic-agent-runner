@@ -896,9 +896,11 @@ def _decision_model_entry_errors(node: RuntimeNode) -> tuple[list[str], list[str
             "label",
             "decision_subtype",
             "decision_profile",
+            "decision_output_mode",
+            "decision_route_policy",
             "context_from",
             "question",
-    }
+        }
     for field_name in raw.keys() - allowed_fields:
         errors.append(
             f"decision_model node {node.id!r} has unsupported field {field_name!r}"
@@ -912,7 +914,96 @@ def _decision_model_entry_errors(node: RuntimeNode) -> tuple[list[str], list[str
         )
     question_errors, option_ids = _decision_question_errors(node, raw.get("question"))
     errors.extend(question_errors)
+    errors.extend(_decision_model_policy_errors(node, option_ids))
     return errors, option_ids
+
+
+def _decision_model_policy_errors(
+    node: RuntimeNode, option_ids: list[str]
+) -> list[str]:
+    """Validate score/noul output modes and deterministic route policies."""
+
+    raw = node.raw
+    output_mode = raw.get("decision_output_mode", "choice")
+    if output_mode not in {"choice", "scores", "noul"}:
+        return [
+            f"decision_model node {node.id!r} has unsupported decision_output_mode"
+        ]
+    policy = raw.get("decision_route_policy")
+    if output_mode == "choice":
+        if policy is not None:
+            return [
+                f"decision_model node {node.id!r} choice output must not declare a route policy"
+            ]
+        return []
+    if not isinstance(policy, Mapping):
+        return [
+            f"decision_model node {node.id!r} {output_mode} output requires a route policy"
+        ]
+    errors: list[str] = []
+    kind = policy.get("kind")
+    if kind not in {"argmax", "threshold"}:
+        errors.append(
+            f"decision_model node {node.id!r} has unsupported score route policy"
+        )
+        return errors
+    allowed_policy_fields = {"kind"} if kind == "argmax" else {
+        "kind",
+        "option",
+        "threshold",
+        "score_semantics",
+    }
+    for field_name in policy.keys() - allowed_policy_fields:
+        errors.append(
+            f"decision_model node {node.id!r} route policy has unsupported field {field_name!r}"
+        )
+    if kind == "argmax":
+        if output_mode == "noul":
+            errors.append(
+                f"decision_model node {node.id!r} noul output requires threshold policy"
+            )
+        return errors
+    errors.extend(_decision_model_threshold_policy_errors(node, option_ids, output_mode, policy))
+    return errors
+
+
+def _decision_model_threshold_policy_errors(
+    node: RuntimeNode,
+    option_ids: list[str],
+    output_mode: str,
+    policy: Mapping[str, object],
+) -> list[str]:
+    """Validate a probability threshold route policy."""
+
+    errors: list[str] = []
+    option = policy.get("option")
+    if option not in option_ids:
+        errors.append(
+            f"decision_model node {node.id!r} threshold option is not declared"
+        )
+    threshold = policy.get("threshold")
+    if (
+        not isinstance(threshold, (int, float))
+        or isinstance(threshold, bool)
+        or not 0.0 <= threshold <= 1.0
+    ):
+        errors.append(
+            f"decision_model node {node.id!r} threshold must be between 0 and 1"
+        )
+    semantics = policy.get("score_semantics", "probability")
+    if semantics not in {"probability", "calibrated_probability"}:
+        errors.append(
+            f"decision_model node {node.id!r} threshold policy requires probability semantics"
+        )
+    if output_mode == "noul" and option != "yes":
+        errors.append(
+            f"decision_model node {node.id!r} noul threshold must target yes"
+        )
+    if output_mode == "noul" and option_ids != ["yes", "no"]:
+        errors.append(
+            f"decision_model node {node.id!r} noul output requires yes and no options in order"
+        )
+    return errors
 
 
 def _decision_question_errors(
@@ -984,7 +1075,15 @@ def _decision_model_route_errors(
     concrete_conditions = [condition for condition in conditions if condition is not None]
     if len(set(concrete_conditions)) != len(concrete_conditions):
         errors.append(f"decision_model node {node.id!r} has duplicate option-to-edge mappings")
-    if set(concrete_conditions) != set(option_ids):
+    output_mode = node.raw.get("decision_output_mode", "choice")
+    allowed_conditions = set(option_ids)
+    if output_mode in {"scores", "noul"}:
+        allowed_conditions.add("abstained")
+    if not set(concrete_conditions).issubset(allowed_conditions):
+        errors.append(
+            f"decision_model node {node.id!r} route mapping has undeclared conditions"
+        )
+    if not set(option_ids).issubset(set(concrete_conditions)):
         errors.append(f"decision_model node {node.id!r} route mapping must match all options")
     return errors
 

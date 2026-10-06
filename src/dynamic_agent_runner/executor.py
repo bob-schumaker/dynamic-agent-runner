@@ -2275,9 +2275,13 @@ async def _execute_decision_step_async(
         raise WorkflowExecutionError(
             f"decision_model node {node.id!r} binding lacks workflow decision use"
         )
-    if DecisionMode.CHOICE not in binding.profile.supported_modes:
+    output_mode = node.raw.get("decision_output_mode", "choice")
+    request_mode = (
+        DecisionMode.SCORES if output_mode in {"scores", "noul"} else DecisionMode.CHOICE
+    )
+    if request_mode not in binding.profile.supported_modes:
         raise WorkflowExecutionError(
-            f"decision_model node {node.id!r} profile does not support choice output"
+            f"decision_model node {node.id!r} profile does not support {request_mode.value} output"
         )
     request = _build_decision_model_request(node, state, binding)
     outcome = await _invoke_decision_model_adapter(
@@ -2294,20 +2298,55 @@ async def _execute_decision_step_async(
             f"decision_model node {node.id!r} returned an invalid adapter result"
         ) from exc
     item: DecisionModelResultItem = outcome.results[0]
-    if item.status == "abstained" or item.choice is None:
-        raise WorkflowExecutionError(
-            f"decision_model node {node.id!r} adapter abstained"
-        )
+    route = _decision_model_route(node, item)
     tracer.emit(
         "decision",
         node_id=node.id,
         payload={
-            "route": item.choice,
+            "route": route,
             "profile_id": binding.profile.identity.profile_id,
             "adapter_id": binding.profile.identity.adapter_id,
         },
     )
-    return item.choice
+    return route
+
+
+def _decision_model_route(
+    node: PreparedNode, item: DecisionModelResultItem
+) -> str:
+    """Convert one validated decision result into the declared branch route."""
+
+    output_mode = node.raw.get("decision_output_mode", "choice")
+    if output_mode == "choice":
+        if item.status == "abstained" or item.choice is None:
+            raise WorkflowExecutionError(
+                f"decision_model node {node.id!r} adapter abstained"
+            )
+        return item.choice
+    if item.status == "abstained":
+        return "abstained"
+    policy = node.raw.get("decision_route_policy")
+    if not isinstance(policy, Mapping):
+        raise WorkflowExecutionError(
+            f"decision_model node {node.id!r} has an invalid route policy"
+        )
+    scores = {score.option_id: score.value for score in item.scores}
+    if policy.get("kind") == "argmax":
+        return max((score.option_id for score in item.scores), key=lambda option: scores[option])
+    option = policy.get("option")
+    threshold = policy.get("threshold")
+    if not isinstance(option, str) or not isinstance(threshold, (int, float)):
+        raise WorkflowExecutionError(
+            f"decision_model node {node.id!r} has an invalid threshold policy"
+        )
+    expected_semantics = policy.get("score_semantics", "probability")
+    if item.score_semantics.value != expected_semantics:
+        raise WorkflowExecutionError(
+            f"decision_model node {node.id!r} returned incompatible score semantics"
+        )
+    if output_mode == "noul":
+        return "yes" if scores[option] >= threshold else "no"
+    return option if scores[option] >= threshold else "abstained"
 
 
 def _build_decision_model_request(
@@ -2333,7 +2372,11 @@ def _build_decision_model_request(
             decision_id=node.id,
             context=context,
             questions=(question,),
-            mode=DecisionMode.CHOICE,
+            mode=(
+                DecisionMode.SCORES
+                if node.raw.get("decision_output_mode") in {"scores", "noul"}
+                else DecisionMode.CHOICE
+            ),
             execution_limits=execution_limits,
         )
         validate_decision_request(request, binding.profile)

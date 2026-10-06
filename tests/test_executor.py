@@ -434,6 +434,61 @@ def decision_workflow(profile_id: str = "local.test.v1") -> LoadedAgentWorkflow:
     )
 
 
+def scored_decision_workflow(
+    *,
+    output_mode: str = "scores",
+    policy: dict[str, object] | None = None,
+    options: tuple[str, str] = ("left", "right"),
+    profile_id: str = "local.test.v1",
+) -> LoadedAgentWorkflow:
+    left, right = options
+    return workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "scored-decision-model-agent",
+            "entrypoint": "decide",
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "decide",
+                    "kind": "decision_step",
+                    "decision_subtype": "decision_model",
+                    "decision_profile": profile_id,
+                    "decision_output_mode": output_mode,
+                    "decision_route_policy": policy or {"kind": "argmax"},
+                    "context_from": "prompt",
+                    "question": {
+                        "id": "route-choice",
+                        "text": "Choose a route.",
+                        "options": [
+                            {"id": left, "label": left.title()},
+                            {"id": right, "label": right.title()},
+                        ],
+                    },
+                },
+                *[
+                    {
+                        "id": target,
+                        "kind": "llm_step",
+                        "prompt": {"user_template": target},
+                    }
+                    for target in options
+                ],
+            ],
+            "edges": [
+                {
+                    "source": "decide",
+                    "target": target,
+                    "edge_kind": "branch",
+                    "condition": target,
+                }
+                for target in options
+            ],
+        }
+    )
+
+
 def decision_binding(
     adapter: object,
     *,
@@ -580,6 +635,78 @@ def test_decision_model_step_uses_exact_binding_and_routes_to_mapped_edge() -> N
         event for event in result.state.trace_events if event.event_type == "decision"
     )
     assert "private decision context" not in str(decision_event.payload)
+
+
+def test_scores_decision_step_routes_argmax_and_resolves_ties_by_option_order() -> None:
+    class Adapter:
+        def decide(self, _request: object) -> DecisionModelResult:
+            return DecisionModelResult(
+                decision_binding(self).profile.identity,
+                (
+                    DecisionModelResultItem(
+                        "route-choice",
+                        scores=(
+                            DecisionModelScore("left", 0.5),
+                            DecisionModelScore("right", 0.5),
+                        ),
+                        score_semantics="ranking_score",
+                    ),
+                ),
+            )
+
+    adapter = Adapter()
+    result = execute_workflow(
+        scored_decision_workflow(),
+        prompt="choose",
+        model_adapter=make_adapter([{"id": "final", "output_text": "left result"}]),
+        decision_model_bindings={
+            "local.test.v1": decision_binding(
+                adapter, modes=frozenset({DecisionMode.SCORES})
+            )
+        },
+    )
+
+    assert result.final_result == "left result"
+
+
+def test_scores_threshold_routes_probability_and_noul_routes_no_below_threshold() -> None:
+    class Adapter:
+        def __init__(self, yes_probability: float) -> None:
+            self.yes_probability = yes_probability
+
+        def decide(self, _request: object) -> DecisionModelResult:
+            return DecisionModelResult(
+                decision_binding(self).profile.identity,
+                (
+                    DecisionModelResultItem(
+                        "route-choice",
+                        scores=(
+                            DecisionModelScore("yes", self.yes_probability),
+                            DecisionModelScore("no", 1.0 - self.yes_probability),
+                        ),
+                        score_semantics="probability",
+                    ),
+                ),
+            )
+
+    workflow = scored_decision_workflow(
+        output_mode="noul",
+        policy={"kind": "threshold", "option": "yes", "threshold": 0.7},
+        options=("yes", "no"),
+    )
+    for probability, expected in ((0.8, "yes result"), (0.2, "no result")):
+        adapter = Adapter(probability)
+        result = execute_workflow(
+            workflow,
+            prompt="choose",
+            model_adapter=make_adapter([{"id": "final", "output_text": expected}]),
+            decision_model_bindings={
+                "local.test.v1": decision_binding(
+                    adapter, modes=frozenset({DecisionMode.SCORES})
+                )
+            },
+        )
+        assert result.final_result == expected
 
 
 def test_jevstyle_binding_runs_through_the_workflow_decision_host() -> None:

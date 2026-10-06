@@ -336,6 +336,44 @@ def test_calibrated_probability_requires_evidence_and_choice_mode_requires_choic
     with pytest.raises(DecisionModelContractError, match="calibration evidence"):
         validate_decision_result(calibrated, source, profile())
 
+    with pytest.raises(DecisionModelContractError, match="profile binding"):
+        validate_decision_result(
+            DecisionModelResult(
+                IDENTITY,
+                (
+                    DecisionModelResultItem(
+                        "question-1",
+                        scores=(
+                            DecisionModelScore("yes", 0.7),
+                            DecisionModelScore("no", 0.3),
+                        ),
+                        score_semantics="calibrated_probability",
+                        calibration_evidence="calibration.v1",
+                    ),
+                ),
+            ),
+            source,
+            profile(),
+        )
+    validate_decision_result(
+        DecisionModelResult(
+            IDENTITY,
+            (
+                DecisionModelResultItem(
+                    "question-1",
+                    scores=(
+                        DecisionModelScore("yes", 0.7),
+                        DecisionModelScore("no", 0.3),
+                    ),
+                    score_semantics="calibrated_probability",
+                    calibration_evidence="calibration.v1",
+                ),
+            ),
+        ),
+        source,
+        profile(calibration_evidence_id="calibration.v1"),
+    )
+
     choice_source = request()
     scores_only = DecisionModelResult(
         IDENTITY,

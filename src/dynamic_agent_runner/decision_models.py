@@ -179,6 +179,7 @@ class DecisionModelProfile:
     max_options_per_question: int
     max_result_bytes: int
     supported_modes: frozenset[DecisionMode]
+    calibration_evidence_id: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.identity, DecisionModelIdentity):
@@ -204,6 +205,8 @@ class DecisionModelProfile:
         if not modes:
             raise DecisionModelContractError("profile supported modes are empty")
         object.__setattr__(self, "supported_modes", modes)
+        if self.calibration_evidence_id is not None:
+            _validate_id(self.calibration_evidence_id, "calibration evidence id")
 
 
 @dataclass(frozen=True)
@@ -396,7 +399,7 @@ def validate_decision_result(
             "result question order or cardinality does not match request"
         )
     for item, question in zip(result.results, request.questions, strict=True):
-        _validate_result_item(item, question.options, request.mode)
+        _validate_result_item(item, question.options, request.mode, profile)
     encoded = _canonical_json(_result_mapping(result), "result")
     limit = _effective_limit(
         profile.max_result_bytes,
@@ -450,6 +453,7 @@ def _validate_result_item(
     item: DecisionModelResultItem,
     options: tuple[DecisionOption, ...],
     mode: DecisionMode,
+    profile: DecisionModelProfile,
 ) -> None:
     if item.status == "abstained":
         if item.choice is not None or item.scores or item.score_semantics is not None:
@@ -465,12 +469,13 @@ def _validate_result_item(
         if item.choice not in {option.id for option in options}:
             raise DecisionModelContractError("choice is not a declared option")
         return
-    _validate_score_item(item, options)
+    _validate_score_item(item, options, profile)
 
 
 def _validate_score_item(
     item: DecisionModelResultItem,
     options: tuple[DecisionOption, ...],
+    profile: DecisionModelProfile,
 ) -> None:
     if item.choice is not None or item.score_semantics is None:
         raise DecisionModelContractError(
@@ -497,6 +502,10 @@ def _validate_score_item(
     if calibrated and item.calibration_evidence is None:
         raise DecisionModelContractError(
             "calibrated probability requires calibration evidence"
+        )
+    if calibrated and item.calibration_evidence != profile.calibration_evidence_id:
+        raise DecisionModelContractError(
+            "calibration evidence does not match profile binding"
         )
     if not calibrated and item.calibration_evidence is not None:
         raise DecisionModelContractError(
