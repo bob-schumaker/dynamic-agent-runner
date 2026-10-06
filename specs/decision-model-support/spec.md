@@ -20,7 +20,12 @@
   DMS-14 completed its approved published
   general-transfer matrix; no candidate met both thresholds, and the results
   remain comparative evidence only. DMS-15 is an
-  audit-first task for reusable adapter helpers; no helper is presumed.
+  audit-first task for reusable adapter helpers; no helper is presumed. DMS-18
+  extends workflow decision nodes beyond choice-only routing to general scores
+  and explicit yes/no (`noul`) handling. DMS-19 defines the caller-owned
+  llama.cpp adapter surface across chat, structured output, tools, embeddings,
+  multimodal input, and decision inference; DAR does not own a llama.cpp
+  server or its lifecycle.
 - Owner: workflow runtime and local model execution boundaries
 - Related:
   - `specs/dynamic-agent-runner/spec.md`
@@ -43,6 +48,9 @@ Keep model inference behind a package-owned
 typed contract so external clients can adapt server-backed runtimes such as
 Laya, and DAR can add separately installed in-process adapters for Von,
 Julia 1, Laya-MLX, and reviewed Qwen-based profiles.
+Workflow nodes must be able to consume the full decision contract, including
+choice, ordered scores, and bounded yes/no (`noul`) outcomes, without exposing
+model-specific protocols.
 
 ## Scope
 
@@ -97,6 +105,16 @@ Julia 1, Laya-MLX, and reviewed Qwen-based profiles.
     admitted runtime/material availability. Selection finishes before loading
     and produces an exact profile binding; it does not download models or
     switch backends after a load or inference failure.
+14. General workflow use of `scores` results and constrained `noul` results.
+    Score-based routing is deterministic and declared by the workflow; a model
+    never chooses an edge policy or threshold. A `noul` result is a bounded
+    yes/no probability with explicit complement semantics and may route only
+    through declared yes/no edges.
+15. A caller-owned llama.cpp support surface that lets clients bind the
+    existing DAR model and decision contracts to direct in-process or
+    caller-managed llama.cpp runtimes. The surface may cover text generation,
+    structured output, tool calls, embeddings, multimodal input, and native
+    decision-model inference; each capability remains opt-in and exact.
 
 ## Non-goals
 
@@ -177,8 +195,12 @@ The existing `decision_step` is extended with the `decision_model` subtype
 rather than adding a new primitive node kind. Each node declares exactly one decision
 question, its finite options and option-to-edge mapping, references bounded
 context from workflow state through the existing safe state-reference rules,
-and names a required decision-model profile supporting `choice` output. A
-workflow can express multiple decisions as multiple nodes. The contract may
+and names a required decision-model profile supporting the node's declared
+output mode. A choice node routes by its selected option. A scores node must
+declare a deterministic score-routing policy (for example, argmax over the
+declared options or a threshold over one declared option); a noul node must
+declare yes/no edges and a threshold or explicit boolean interpretation.
+A workflow can express multiple decisions as multiple nodes. The contract may
 batch questions for internal use such as compaction scoring. A profile declares
 the maximum input and output sizes; the host enforces its own stricter limits.
 The node does not declare adapter code, local paths, runtime imports, or an
@@ -290,6 +312,35 @@ declared edge. Failure behavior is explicit, deterministic, and observable.
 A caller-supplied adapter can implement the public contract for a nonstandard
 runtime such as Laya. The run-time binding identifies the supported profile
 exactly; workflow packages cannot install or replace adapters.
+
+### FR-13: Execute score and noul workflow decisions
+
+An admitted `decision_model` node may request `choice`, `scores`, or constrained
+`noul` output. Scores remain ordered by the declared option IDs and retain their
+explicit `ranking_score`, `probability`, or `calibrated_probability` semantics.
+The workflow declares how a score result becomes a route; DAR evaluates that
+policy deterministically after validating the result. A `noul` result is valid
+only for exactly two declared options with IDs `yes` and `no`, carries a finite
+true probability and its complement, and cannot silently become a choice or a
+deletion authorization. Missing, malformed, ambiguous, or below-threshold
+results fail closed.
+
+### FR-14: Provide a caller-owned llama.cpp adapter surface
+
+DMS-19 owns a capability matrix for caller-owned llama.cpp bindings and may
+define transport- and runtime-neutral helpers where an identified client need
+exists. The matrix records the existing DAR contract, caller-owned work, exact
+upstream API/profile, modalities, bounds, identity, observable lifecycle state,
+cancellation/deadline behavior, errors, and unsupported cases. Existing
+DAR-owned direct llama.cpp chat/embedding loaders remain separate from this
+caller-owned surface. New decision or multimodal bindings keep model loading,
+native bindings, optional server processes, endpoint transport, lifecycle,
+credentials, and artifact paths with the caller. DAR owns request
+construction, typed-result validation, limits, identity binding, cancellation,
+redaction, and contract validation. Helpers must not require a llama.cpp
+server, expose a SystemOne endpoint, or add llama.cpp dependencies to the core
+install. Unsupported upstream surfaces fail explicitly rather than falling
+back to text generation or a different model.
 
 ### FR-4: Support selected Qwen decision profiles
 
@@ -471,6 +522,11 @@ existing resource, deadline, cancellation, and lifecycle controls.
   tokenization, calibration, and model-specific score interpretation in the
   adapters. If no repeated translation is demonstrated, record the audit and
   add no helper.
+- DMS-18 covers workflow score/noul routing with fake adapters for argmax,
+  threshold, complement, malformed, abstention, and fail-closed behavior.
+- DMS-19 covers caller-owned llama.cpp capability bindings with fake backends
+  for chat, structured output, tools, embeddings, multimodal input, and
+  decision inference. It does not add server lifecycle or a SystemOne endpoint.
 - No unit test downloads or invokes real weights, and no default trace contains
   transcript content or raw model payloads.
 

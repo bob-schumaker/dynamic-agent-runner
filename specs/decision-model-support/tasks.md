@@ -9,6 +9,9 @@ resumes. DMS-16 plans optional client workflow support for exact Von,
 Julia 1, Laya-MLX, and Qwen-based profiles without using those quality results
 as adapter prerequisites. DMS-17 plans an opt-in Jev-Style v3 selector across
 the exact MLX/Metal, PyTorch, and GGUF profiles evaluated in DMS-01.
+DMS-18 extends workflow nodes to general scores and constrained noul routing;
+DMS-19 expands caller-owned llama.cpp capability coverage without adding a DAR
+server or endpoint.
 
 ## Readiness Review
 
@@ -841,3 +844,82 @@ added.
   DMS-01 quality result in `evaluation/jevstyle-v3-dms17-profile-admission.json`.
   GGUF, PyTorch, and MLX are admitted for `workflow_decision` only. None is
   enabled for context retention.
+
+## DMS-18 General Workflow Scores and Noul Support
+
+- Depends on: the DMS-02 decision contract and DMS-03 workflow node. Preserve
+  the existing choice-node behavior and compaction safeguards while adding
+  workflow-facing score and yes/no decision paths.
+- [ ] **RED:** Add fake-only contract, validation, and executor tests for
+  `scores` workflow nodes, deterministic argmax routing, threshold routing,
+  ordered probability scores, ranking scores, calibrated-probability evidence,
+  explicit abstention, and fail-closed behavior. Add `noul` cases requiring
+  exactly `yes` and `no` option IDs, finite true probability, complement
+  calculation, option-order preservation, malformed probabilities, and
+  threshold boundaries. Prove that a score or noul result cannot select an
+  undeclared edge or authorize deletion.
+- [ ] Define the manifest shape for a score/noul node. The node must declare
+  its output mode and a deterministic route policy; policy values are workflow
+  data, never model output. Reject ambiguous policies, missing edges,
+  unsupported score semantics, thresholds outside `[0, 1]`, and score-only
+  profiles used by a choice node.
+- [ ] **GREEN:** Implement the smallest extension to
+  `src/dynamic_agent_runner/decision_models.py`, `validation.py`, and
+  `executor.py` that reuses existing result validation and preserves the
+  current `decision_step` primitive. Do not add a second node kind, implicit
+  argmax fallback, or public model-specific protocol. Keep `noul` bounded to
+  yes/no semantics with explicit probability mapping.
+- [ ] Add adapter conformance coverage for every current decision adapter
+  (Von, Julia 1, Laya-MLX, Jev-Style, Kev when available) and a caller-owned
+  Clef fake. Each adapter must demonstrate choice, scores, and constrained
+  noul mapping where its backend supports them; unsupported shapes fail closed.
+- [ ] Run focused decision-model, validation, and executor tests, then the full
+  suite and Ruff. Record the exact route-policy and score-semantics contract
+  in `validation.md`.
+
+## DMS-19 Caller-Owned llama.cpp Capability Surface
+
+- Authoritative owner: this DMS-19 task. The llama.cpp-local-model package
+  contributes existing loader/normalization evidence only and must not
+  duplicate this matrix or its generic contract tests.
+- Depends on: the existing caller-supplied adapter seam, the
+  `llama-cpp-local-model` feature, and DMS-02/DMS-18 decision contracts. This
+  task expands the client surface; it does not make DAR a llama.cpp server or
+  model distributor.
+- [ ] Freeze a capability matrix for caller-owned llama.cpp bindings. Each row
+  must name the existing DAR contract, caller-owned work, exact upstream
+  API/profile, sync/async shape, input/output modality and payload type,
+  limits, identity binding, observable lifecycle state, cancellation/deadline
+  behavior, error taxonomy, and unsupported cases. Start only with rows that
+  have an identified client use case: text/chat generation, structured output,
+  tool calls, embeddings, multimodal input, and decision-model inference.
+- [ ] **RED:** Add fake backend tests for each matrix row through the existing
+  DAR seams. Cover request normalization, response normalization, tool-call
+  preservation, embedding dimensions/batching, multimodal payload bounds,
+  decision mapping, unsupported-surface errors, and per-row identity/limit
+  behavior. Reuse existing DAR cancellation, deadline, and redaction tests
+  rather than duplicating generic coverage. Tests must not launch a server or
+  download model files.
+- [ ] Define the caller-owned boundary explicitly: the caller owns model
+  loading, native bindings, optional server processes, transport, credentials,
+  lifecycle, and artifact paths. DAR owns only typed request construction,
+  bounded result normalization, profile/material identity checks supplied by
+  the caller, host limits, cancellation/deadline checks, redaction, and
+  contract validation. DAR must not expose or launch `/v1/systemone`.
+- [ ] **GREEN:** Deliver the minimum reusable DAR surface identified by the
+  matrix; a single capability with a real identified caller is sufficient, and
+  shared helpers require demonstrated reuse across two rows. Keep
+  llama.cpp-specific loading, tokenization, multimodal encoding, native batch
+  APIs, and score interpretation in caller adapters or injected backends. DAR
+  validates typed results and observable lifecycle/deadline state but does not
+  own model loading, server lifecycle, or transport for this caller-owned
+  surface. Do not add llama.cpp to core dependencies or introduce a parallel
+  provider protocol.
+- [ ] Add an optional caller-owned Clef decision example only if the frozen
+  matrix identifies a Clef-capable in-process binding as a real client use
+  case. It must map native output to `DecisionModelBinding` outside DAR and
+  demonstrate an existing workflow node without requiring DAR endpoint or
+  server lifecycle code.
+- [ ] Run focused local-model, OpenAI/client-seam, decision-contract, and
+  executor tests, then the full suite and Ruff. Record capability coverage,
+  unsupported surfaces, and the no-server boundary in `validation.md`.

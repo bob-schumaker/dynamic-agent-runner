@@ -20,6 +20,9 @@
   an opt-in Jev-Style v3 selector across exact MLX/Metal, PyTorch, and GGUF
   profiles; its host-supplied loader adapter and fake-backed contract mapping
   are implemented, while backend admission remains pending.
+  DMS-18 adds general score/noul workflow routing. DMS-19 defines the
+  caller-owned llama.cpp capability surface without adding server lifecycle or
+  a SystemOne endpoint.
   See `tasks.md` and `validation.md`.
 - Readiness: the generic contract and workflow path are implemented. Optional
   adapter and fake-test slices exist for Von, Julia 1, Laya-MLX, and Kev/Qwen.
@@ -36,8 +39,10 @@
 ## Approach
 
 Use one package-owned request/result contract with explicit `choice` and
-`scores` modes. Workflow `decision_step` nodes use one `choice` question; the
-internal compaction scorer batches `scores` questions. The first DAR-owned
+`scores` modes plus constrained yes/no (`noul`) semantics. Workflow
+`decision_step` nodes may use choice, scores, or noul routing under an explicit
+deterministic route policy; the internal compaction scorer batches `scores`
+questions. The first DAR-owned
 implementation supports local models only. Plan optional, separately
 installable in-process backends for Von, Julia 1, Laya-MLX, and reviewed
 Qwen-based decision profiles, all behind the shared contract and exact
@@ -103,6 +108,8 @@ always performs truncation and message deletion.
 | Workflow tests | `tests/test_validation.py`, `tests/test_executor.py` | Test schema rejection, exact routing, failure behavior, and no implicit fallback |
 | Host binding tests | `tests/test_workflow_model_execution_binding.py`, `tests/test_local_model_runners.py` | Test exact profile/material admission and rejected candidates |
 | Compaction tests | `tests/test_executor.py` | Test deterministic protection, fallback, redaction, and score application |
+| Workflow score/noul routing (DMS-18) | `src/dynamic_agent_runner/validation.py`, `src/dynamic_agent_runner/executor.py`, `src/dynamic_agent_runner/decision_models.py`, `tests/test_validation.py`, `tests/test_executor.py`, `tests/test_decision_models.py` | Add explicit node output modes and deterministic score/noul route policies; preserve option order, probability semantics, complement checks, abstention, limits, redaction, and fail-closed behavior. |
+| Caller-owned llama.cpp surface (DMS-19) | `src/dynamic_agent_runner/local_models.py`, `src/dynamic_agent_runner/openai_client.py`, `src/dynamic_agent_runner/decision_models.py`, `tests/test_local_models.py`, `tests/test_openai_client.py`, `tests/test_decision_models.py` | Define and fake-test caller-owned bindings for chat, structured output, tools, embeddings, multimodal input, and decision inference. Keep model loading, native bindings, optional server lifecycle, and transport outside DAR core; do not expose `/v1/systemone`. |
 
 If discovery shows a named module no longer owns one of these responsibilities,
 update this plan before changing implementation scope. Do not duplicate the
