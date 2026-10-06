@@ -197,9 +197,15 @@ question, its finite options and option-to-edge mapping, references bounded
 context from workflow state through the existing safe state-reference rules,
 and names a required decision-model profile supporting the node's declared
 output mode. A choice node routes by its selected option. A scores node must
-declare a deterministic score-routing policy (for example, argmax over the
-declared options or a threshold over one declared option); a noul node must
-declare yes/no edges and a threshold or explicit boolean interpretation.
+declare a deterministic score-routing policy. `argmax` accepts finite ranking,
+probability, or calibrated-probability scores and resolves ties by the first
+declared option. `threshold` targets one declared option, accepts only
+probability or calibrated-probability semantics, routes when the value is
+greater than or equal to the declared threshold, and otherwise uses an
+explicit abstain edge or fails closed. A noul node must declare yes/no edges
+and a threshold over the normalized true probability. A caller adapter that
+starts with a native boolean must translate it to the exact ordered yes/no
+score result before DAR validation; DAR does not add a boolean result shape.
 A workflow can express multiple decisions as multiple nodes. The contract may
 batch questions for internal use such as compaction scoring. A profile declares
 the maximum input and output sizes; the host enforces its own stricter limits.
@@ -319,19 +325,33 @@ An admitted `decision_model` node may request `choice`, `scores`, or constrained
 `noul` output. Scores remain ordered by the declared option IDs and retain their
 explicit `ranking_score`, `probability`, or `calibrated_probability` semantics.
 The workflow declares how a score result becomes a route; DAR evaluates that
-policy deterministically after validating the result. A `noul` result is valid
-only for exactly two declared options with IDs `yes` and `no`, carries a finite
-true probability and its complement, and cannot silently become a choice or a
-deletion authorization. Missing, malformed, ambiguous, or below-threshold
-results fail closed.
+policy deterministically after validating the result. Threshold routing is
+limited to probability semantics; ranking scores are not bounded to `[0, 1]`.
+An explicit abstention is routable only through a declared abstain edge;
+otherwise it fails closed. Calibrated probabilities require pinned profile
+evidence that establishes calibration; an unadmitted calibration claim is
+unsupported; the result's calibration evidence must equal the exact
+host-pinned evidence ID bound by profile admission, and a profile without that
+binding cannot advertise calibrated semantics. A `noul` result is valid only
+for exactly two declared options
+with IDs `yes` and `no`, and is normalized by the caller adapter to a complete
+ordered probability pair before DAR validation. The adapter derives the
+complement from the native true probability or boolean; DAR verifies the pair
+sums to one and preserves the declared option order as the mapping authority.
+For a `noul` threshold policy, DAR routes `yes` when `p_yes >= threshold` and
+`no` otherwise. An explicit abstained result uses a declared abstain edge or
+fails closed. No result can silently
+become a choice or a deletion authorization. Missing, malformed, ambiguous,
+or below-threshold results fail closed.
 
 ### FR-14: Provide a caller-owned llama.cpp adapter surface
 
 DMS-19 owns a capability matrix for caller-owned llama.cpp bindings and may
 define transport- and runtime-neutral helpers where an identified client need
 exists. The matrix records the existing DAR contract, caller-owned work, exact
-upstream API/profile, modalities, bounds, identity, observable lifecycle state,
-cancellation/deadline behavior, errors, and unsupported cases. Existing
+upstream API/profile, modalities, bounds, identity, observable request
+lifecycle state limited to deadline and cancellation, errors, and unsupported
+cases. Existing
 DAR-owned direct llama.cpp chat/embedding loaders remain separate from this
 caller-owned surface. New decision or multimodal bindings keep model loading,
 native bindings, optional server processes, endpoint transport, lifecycle,

@@ -1285,3 +1285,81 @@ The MLX smoke did not reach inference. The sandbox attempt could not access Meta
 Executed the explicitly requested MLX-only retry under scope `decb9724f9850d226d874ccf19c0e79e7de0dc80b49fbc313eb5ca1df7867e40`. Added SHA-256 pins for `manifest.json`, `LICENSE`, the remaining manifest-listed 8-bit files, and `requirements.txt`. All 14 staged files required by the upstream verifier for the selected 8-bit profile matched their pinned digests. The pre-load selector chose the MLX/Metal profile; one offline synthetic choice returned the valid supplied option `billing` in 1,074 ms. Receipt: `evaluation/dms17-smoke-mlx-metal-attempt-3.json`.
 
 Two earlier attempts failed before inference: attempt 1 lacked `manifest.json`; attempt 2 exposed the verifier-required `requirements.txt`. Both are retained in `evaluation/dms17-smoke-mlx-metal-failure.json`. GGUF, PyTorch, and MLX are now admitted for `workflow_decision` only. None is admitted for context retention. `git diff --check` and JSON parsing passed; no evaluation fixture, training, calibration, or inference-time network access was used.
+
+## DMS-18/DMS-19 Readiness Review — 2026-10-06
+
+The named target was the DMS-18/DMS-19 addition in `tasks.md`, reviewed
+against `spec.md` and `plan.md`. Council and Ponytail found the additions ready
+for contract freeze and matrix discovery, but not ready to claim that the new
+capabilities are implemented. DMS-18 lacked exact score-policy edge behavior
+and `noul` complement ownership. DMS-19 lacked auditable row dispositions and
+precise caller identity/lifecycle evidence. Council also found that DMS-19's
+decision-inference row must wait for the DMS-18 contract while other discovery
+rows may proceed.
+
+Repairs applied:
+
+- `argmax` ties resolve by first declared option; threshold routing is
+  probability-only, uses `>=`, and routes abstention only through an explicit
+  abstain edge or fails closed. For `noul`, `yes` is selected at or above the
+  threshold and `no` below it; an explicitly abstained result uses the abstain
+  edge or fails closed.
+- Calibrated probabilities require an exact host-pinned evidence ID bound by
+  profile admission. Caller adapters derive the finite `noul` complement and
+  provide the complete ordered `yes`/`no` probability pair; DAR verifies and
+  routes that result. Native booleans must be translated at the caller
+  boundary.
+- DMS-18 conformance uses a generic caller-owned fake and does not presume a
+  Kev adapter.
+- DMS-19 enumerates the six requested capability families and requires each
+  row to be selected, deferred, or unsupported with caller/use-case evidence,
+  contract details, and rationale. Identity is a caller-supplied claim check;
+  DAR validates only observable request lifecycle state (deadline/cancellation)
+  and does not attest to private native-model lifecycle.
+- The task list now records the staged execution dependency and the
+  implementation-ready disposition for contract freeze/matrix discovery.
+
+Validation: `git diff --check` passed. No model, endpoint, server, network, or
+download was used. Later GREEN work must run the task-specified fake-focused
+tests, full suite, and Ruff after the contracts and matrix are frozen.
+
+## DMS-18 Implementation and DMS-19 Capability Matrix — 2026-10-06
+
+DMS-18 is implemented through the existing `decision_step` primitive. The
+manifest accepts `choice`, `scores`, and constrained `noul` modes; score results
+are validated in declared option order; `argmax` is deterministic; threshold
+routing is probability-only and inclusive; and calibrated results require the
+profile's exact `calibration_evidence_id`. Noul remains a caller adapter
+translation to an ordered `yes`/`no` probability pair. Focused decision,
+validation, and executor tests pass (`378 passed` in the adjacent suite).
+Current Von, Julia 1, Laya-MLX, and Jev-Style adapter tests cover their native
+score/noul shapes where supported; the generic executor fake covers workflow
+routing.
+
+DMS-19's initial matrix is deliberately limited to the existing
+`llama-cpp-python>=0.3.29,<0.4.0` direct in-process seam. DAR does not expose a
+server endpoint or own model/runtime lifecycle.
+
+| Capability | Disposition and identified caller | DAR contract and upstream surface | Acceptance / limits / unsupported cases |
+| --- | --- | --- | --- |
+| Text/chat generation | selected — `local_models` direct caller | `OpenAIModelRequest` → `Llama.create_chat_completion`; sync and async adapters; text in/text out | Existing fake-backend parity tests normalize content, identity, limits, errors, and deadlines; no server or download in tests. |
+| Structured output | selected — workflow model caller using `response_format` | Same chat API with JSON-schema `response_format`; text/JSON out | Existing tests preserve schema request and bounded response normalization; malformed output and identity failures are rejected. |
+| Tool calls | selected — workflow tool-calling caller | Same chat API with `tools`/`tool_choice`; ChatML function-calling profile when configured | Existing fake tests preserve explicit and ChatML function-call tool calls; unsupported profiles do not advertise tool capability. |
+| Embeddings | selected — retrieval/index caller | `Llama.create_embedding`; sync and async embedding adapters; text in/vector out | Existing tests cover dimensions, batching, identity, result limits, and backend errors; multimodal embeddings are unsupported. |
+| Multimodal input | unsupported — no DAR request modality or identified llama.cpp caller contract | No `OpenAIModelRequest` image/audio payload is admitted by this seam | Not advertised and no adapter normalization is added; a future row requires a named caller, payload bounds, and fake evidence. |
+| Decision-model inference | deferred — no identified llama.cpp-native decision caller yet | Generic `DecisionModelBinding` is available; a caller must map native output to it and request `DecisionMode.SCORES` for DMS-18 scores/noul | No llama.cpp decision capability is advertised; Clef remains optional and in-process only if a caller supplies that binding. |
+
+Across selected rows, callers own model loading, native bindings, transport,
+credentials, lifecycle, and artifact paths. DAR validates caller-supplied
+identity claims and only observable deadline/cancellation state; it does not
+observe private native lifecycle state. The matrix intentionally contains no
+`/v1/systemone` endpoint.
+
+Validation: `poetry run pytest tests/test_decision_models.py
+tests/test_validation.py tests/test_executor.py -q` → `378 passed`. The full
+local-model and client-seam checks and Ruff pass. A full `poetry run pytest -q`
+run reached 3,077 tests but failed in three unrelated pre-existing harness
+tests: two DMS-17 approval-receipt tests and one M4-4 clean-Codex-harness test.
+Those failures do not exercise the changed decision-model or llama.cpp paths;
+the final closeout checkbox remains open until the repository baseline is
+repaired or explicitly waived.
