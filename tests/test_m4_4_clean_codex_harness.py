@@ -122,6 +122,17 @@ def test_clean_codex_environment_exposes_successor_path_not_legacy_state(
         if "DAR_AUTHORING" in key or "BROKER" in key or "MCP_MODE" in key
     }
 
+    shared_cache = tmp_path / "shared-uv-cache"
+    shared_environment = build_clean_codex_environment(
+        codex_home=tmp_path / "codex-home-2",
+        working_directory=tmp_path / "workspace-2",
+        wheel=tmp_path / "dynamic_agent_runner-2.whl",
+        state_root=tmp_path / "state-2",
+        template_root=tmp_path / "templates-2",
+        inherited={"PATH": "/usr/bin:/bin", "UV_CACHE_DIR": str(shared_cache)},
+    )
+    assert shared_environment["UV_CACHE_DIR"] == str(shared_cache)
+
 
 def test_scenario_codex_home_copies_only_test_authentication(tmp_path: Path) -> None:
     module = _harness_module()

@@ -104,9 +104,16 @@ def _base_environment(
     path = inherited.get("PATH")
     if not isinstance(path, str) or not path:
         raise M44CleanCodexError("clean Codex PATH is invalid")
+    inherited_cache = inherited.get("UV_CACHE_DIR")
+    cache_directory = (
+        Path(inherited_cache)
+        if isinstance(inherited_cache, str) and inherited_cache
+        else working_directory / ".uv-cache"
+    )
+    _absolute_not_symlink(cache_directory, "uv cache directory")
     return {
         "CODEX_HOME": str(codex_home),
-        "UV_CACHE_DIR": str(working_directory / ".uv-cache"),
+        "UV_CACHE_DIR": str(cache_directory),
         "HOME": str(working_directory),
         "LANG": "C.UTF-8",
         "PATH": path,
