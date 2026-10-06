@@ -23,7 +23,8 @@ class FakeEngine:
 
 
 def _write_approval(path: Path, scope: str, profiles: list[str]) -> None:
-    assert profiles == sorted(_SMOKE.PROFILE_RECORDS)
+    assert profiles
+    assert all(profile in _SMOKE.PROFILE_RECORDS for profile in profiles)
     path.write_text(
         json.dumps(
             {
@@ -86,7 +87,7 @@ def test_smoke_verifies_materials_then_runs_one_adapter_decision(
     monkeypatch.setattr(_SMOKE, "ROOT", tmp_path)
     monkeypatch.setattr(_SMOKE, "scope_digest", lambda *_args, **_kwargs: "approved")
     monkeypatch.setattr(_SMOKE, "PREFLIGHT_PATH", tmp_path / "preflight.json")
-    _write_approval(_SMOKE.PREFLIGHT_PATH, "approved", sorted(_SMOKE.PROFILE_RECORDS))
+    _write_approval(_SMOKE.PREFLIGHT_PATH, "approved", [profile_id])
     monkeypatch.setattr(_SMOKE, "_runtime_ready", lambda *_args: None)
     monkeypatch.setattr(_SMOKE, "_materials_present", lambda *_args: True)
     monkeypatch.setattr(
@@ -133,7 +134,7 @@ def test_smoke_does_not_load_when_exact_material_verification_fails(
     monkeypatch.setattr(_SMOKE, "ROOT", tmp_path)
     monkeypatch.setattr(_SMOKE, "scope_digest", lambda *_args, **_kwargs: "approved")
     monkeypatch.setattr(_SMOKE, "PREFLIGHT_PATH", tmp_path / "preflight.json")
-    _write_approval(_SMOKE.PREFLIGHT_PATH, "approved", sorted(_SMOKE.PROFILE_RECORDS))
+    _write_approval(_SMOKE.PREFLIGHT_PATH, "approved", [profile_id])
     monkeypatch.setattr(_SMOKE, "_runtime_ready", lambda *_args: None)
     monkeypatch.setattr(_SMOKE, "_materials_present", lambda *_args: True)
     monkeypatch.setattr(
