@@ -1360,9 +1360,10 @@ tests/test_validation.py tests/test_executor.py -q` → `378 passed`. The full
 tests/test_validation.py tests/test_executor.py -q` → `379 passed`; with the
 llama.cpp local-model and OpenAI client-seam suites included, `619 passed`.
 Ruff and diff checks pass. After repairing the DMS-17 test fixture to bind
-approval to the selected profile, a full `poetry run pytest -q` run reached
-3,082 tests: 3,080 passed, one skipped, and two unrelated environment-bound
-tests failed. The failures are macOS `sandbox-exec` startup exceeding the
+approval to the selected profile, a full `poetry run pytest -q` run executed
+3,083 tests: 3,080 passed, one skipped, and two unrelated environment-bound
+tests failed (seven additional tests were deselected by repository config). The
+failures are macOS `sandbox-exec` startup exceeding the
 one-second SVG fixture limit and the M4.4 clean-Codex author actor timing out;
 neither exercises the changed decision-model or llama.cpp paths. The final
 closeout checkbox remains open until those repository-level failures are
