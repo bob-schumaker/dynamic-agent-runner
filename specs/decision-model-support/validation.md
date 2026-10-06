@@ -1357,7 +1357,9 @@ observe private native lifecycle state. The matrix intentionally contains no
 
 Validation: `poetry run pytest tests/test_decision_models.py
 tests/test_validation.py tests/test_executor.py -q` → `378 passed`. The full
-local-model and client-seam checks and Ruff pass. A full `poetry run pytest -q`
+tests/test_validation.py tests/test_executor.py -q` → `379 passed`; with the
+llama.cpp local-model and OpenAI client-seam suites included, `619 passed`.
+Ruff and diff checks pass. A full `poetry run pytest -q`
 run reached 3,077 tests but failed in three unrelated pre-existing harness
 tests: two DMS-17 approval-receipt tests and one M4-4 clean-Codex-harness test.
 Those failures do not exercise the changed decision-model or llama.cpp paths;
