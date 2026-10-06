@@ -1368,3 +1368,8 @@ one-second SVG fixture limit and the M4.4 clean-Codex author actor timing out;
 neither exercises the changed decision-model or llama.cpp paths. The final
 closeout checkbox remains open until those repository-level failures are
 repaired or explicitly waived.
+
+An escalated rerun of both failing tests outside the workspace sandbox produced
+the same results. The platform test reports a `sandbox-exec` child timeout, and
+the M4.4 actor still reaches its harness timeout while bootstrapping its
+isolated `uv` environment. Escalation therefore does not remove this gate.
