@@ -887,9 +887,12 @@ added.
   Each admitted adapter must demonstrate choice, scores, and constrained noul
   mapping where its backend supports them; native booleans are translated at
   the caller boundary and unsupported shapes fail closed.
-- [ ] Run focused decision-model, validation, and executor tests, then the full
-  suite and Ruff. Record the exact route-policy and score-semantics contract
-  in `validation.md`.
+- [x] Run focused decision-model, validation, and executor tests and Ruff. The
+  focused decision/local-model/client seam run passes; the exact route-policy
+  and score-semantics contract is recorded in `validation.md`.
+- [ ] Complete a clean full-suite run. The current full run is blocked by the
+  unrelated macOS sandbox-exec and M4.4 harness failures recorded in
+  `validation.md`.
 
 ## DMS-19 Caller-Owned llama.cpp Capability Surface
 
@@ -943,9 +946,12 @@ added.
   admitted; a future example must map native output to `DecisionModelBinding`
   outside DAR and demonstrate an existing workflow node without requiring a
   DAR endpoint or server lifecycle code.
-- [ ] Run focused local-model, OpenAI/client-seam, decision-contract, and
-  executor tests, then the full suite and Ruff. Record capability coverage,
-  unsupported surfaces, and the no-server boundary in `validation.md`.
+- [x] Run focused local-model, OpenAI/client-seam, decision-contract, and
+  executor tests and Ruff. Record capability coverage, unsupported surfaces,
+  and the no-server boundary in `validation.md`.
+- [ ] Complete a clean full-suite run. The current full run is blocked by the
+  unrelated macOS sandbox-exec and M4.4 harness failures recorded in
+  `validation.md`.
 
 ## Readiness Disposition — DMS-18 and DMS-19
 
