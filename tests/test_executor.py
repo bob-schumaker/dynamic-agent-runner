@@ -440,6 +440,7 @@ def scored_decision_workflow(
     policy: dict[str, object] | None = None,
     options: tuple[str, str] = ("left", "right"),
     profile_id: str = "local.test.v1",
+    abstain_target: str | None = None,
 ) -> LoadedAgentWorkflow:
     left, right = options
     return workflow_from(
@@ -475,6 +476,17 @@ def scored_decision_workflow(
                     }
                     for target in options
                 ],
+                *(
+                    [
+                        {
+                            "id": abstain_target,
+                            "kind": "llm_step",
+                            "prompt": {"user_template": abstain_target},
+                        }
+                    ]
+                    if abstain_target is not None
+                    else []
+                ),
             ],
             "edges": [
                 {
@@ -484,7 +496,19 @@ def scored_decision_workflow(
                     "condition": target,
                 }
                 for target in options
-            ],
+            ]
+            + (
+                [
+                    {
+                        "source": "decide",
+                        "target": abstain_target,
+                        "edge_kind": "branch",
+                        "condition": "abstained",
+                    }
+                ]
+                if abstain_target is not None
+                else []
+            ),
         }
     )
 
@@ -707,6 +731,59 @@ def test_scores_threshold_routes_probability_and_noul_routes_no_below_threshold(
             },
         )
         assert result.final_result == expected
+
+
+def test_scores_threshold_abstention_uses_explicit_edge_and_rejects_mismatched_semantics() -> None:
+    class Adapter:
+        def __init__(self, semantics: str) -> None:
+            self.semantics = semantics
+
+        def decide(self, _request: object) -> DecisionModelResult:
+            return DecisionModelResult(
+                decision_binding(self).profile.identity,
+                (
+                    DecisionModelResultItem(
+                        "route-choice",
+                        scores=(
+                            DecisionModelScore("left", 0.2),
+                            DecisionModelScore("right", 0.8),
+                        ),
+                        score_semantics=self.semantics,
+                    ),
+                ),
+            )
+
+    workflow = scored_decision_workflow(
+        policy={
+            "kind": "threshold",
+            "option": "left",
+            "threshold": 0.7,
+        },
+        abstain_target="abstain",
+    )
+    with pytest.raises(WorkflowExecutionError, match="incompatible score semantics"):
+        execute_workflow(
+            workflow,
+            prompt="choose",
+            model_adapter=make_adapter([{"id": "final", "output_text": "unused"}]),
+            decision_model_bindings={
+                "local.test.v1": decision_binding(
+                    Adapter("ranking_score"), modes=frozenset({DecisionMode.SCORES})
+                )
+            },
+        )
+
+    result = execute_workflow(
+        workflow,
+        prompt="choose",
+        model_adapter=make_adapter([{"id": "final", "output_text": "abstained"}]),
+        decision_model_bindings={
+            "local.test.v1": decision_binding(
+                Adapter("probability"), modes=frozenset({DecisionMode.SCORES})
+            )
+        },
+    )
+    assert result.final_result == "abstained"
 
 
 def test_jevstyle_binding_runs_through_the_workflow_decision_host() -> None:

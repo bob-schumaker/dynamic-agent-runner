@@ -937,11 +937,12 @@ added.
   validates typed results and the caller-reported lifecycle/deadline state.
   Do not add llama.cpp to core dependencies or introduce a parallel provider
   protocol.
-- [ ] Add an optional caller-owned Clef decision example only if the frozen
+- [x] Add an optional caller-owned Clef decision example only if the frozen
   matrix identifies a Clef-capable in-process binding as a real client use
-  case. It must map native output to `DecisionModelBinding` outside DAR and
-  demonstrate an existing workflow node without requiring DAR endpoint or
-  server lifecycle code.
+  case. The frozen matrix identifies no such caller yet, so no example is
+  admitted; a future example must map native output to `DecisionModelBinding`
+  outside DAR and demonstrate an existing workflow node without requiring a
+  DAR endpoint or server lifecycle code.
 - [ ] Run focused local-model, OpenAI/client-seam, decision-contract, and
   executor tests, then the full suite and Ruff. Record capability coverage,
   unsupported surfaces, and the no-server boundary in `validation.md`.
