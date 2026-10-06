@@ -1,7 +1,8 @@
 # llama.cpp Local-Model Adapter Task List
 
-Status: active feature record; Slices 1-3, T5.0 planning, T5.1 contract, T5.2
-RED tests, T5.3 standalone implementation, T5.4 validation/docs, and T5.5
+Status: implementation-ready feature record; Slices 1-3, T5.0 planning, T5.1
+contract, T5.2 RED tests, T5.3 standalone implementation, T5.4 validation/docs,
+and T5.5
 terminal workflow integration and T5.6 tool exposure complete
 
 ## Prerequisites
@@ -37,8 +38,10 @@ terminal workflow integration and T5.6 tool exposure complete
   (`feat(local-models): preserve authoritative model identity`); the Slice 2
   validation checkpoint is complete through T4.4 and the first validation pass
   remains complete through T4.5
-- Current execution gate: no remaining planned task; direct in-process
-  llama.cpp chat and all authorized embedding work are complete through T5.6
+- Current execution gate: no remaining planned task in this feature; direct
+  in-process llama.cpp chat and all authorized embedding work are complete
+  through T5.6. Broader capability work starts at the DMS-19 matrix gate in
+  `specs/decision-model-support/tasks.md`.
 - Scope rule: keep completed endpoint-wrapper, direct-chat, and embedding work
   separate from any future graph-mutation or runtime-managed server slice
 
@@ -668,3 +671,20 @@ terminal workflow integration and T5.6 tool exposure complete
   deployer-owned.
 - Bounded-context or translation checks: local-model config must translate into
   provider config and adapter metadata rather than into executor-specific logic.
+
+## Readiness Disposition
+
+- Review target: this task list and its linked local-model spec, plan, and
+  validation log.
+- Council and Ponytail review: no remaining correctable finding in the local
+  task scope. DMS-19 is the sole owner of broader llama.cpp capability
+  discovery and implementation; no duplicate local T6 task is required.
+- Execution handoff: satisfied for the completed local-model scope; there is
+  no remaining local mutation to authorize. The next broader implementation
+  action is the DMS-19 capability-matrix freeze, which is separately gated.
+- Limitation: DMS-19 is ready to begin matrix freeze, not yet implementation-
+  ready for new capability rows. It must select named client use cases and
+  freeze each row's upstream/profile, DAR contract, bounds, ownership,
+  identity, lifecycle observation, and unsupported cases.
+- Disposition: implementation-ready for this feature's stated completed
+  scope. This plan is ready to execute under its stated gates.

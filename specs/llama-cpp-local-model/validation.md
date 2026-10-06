@@ -2,7 +2,8 @@
 
 Status: complete through Slice 3 and T5.0 embedding planning; standalone
 embedding contract, T5.2 RED suite, T5.3 implementation, T5.4 validation/docs,
-T5.5 terminal workflow integration, and T5.6 tool exposure complete
+T5.5 terminal workflow integration, and T5.6 tool exposure complete. Broader
+capability-surface work is owned by DMS-19.
 
 ## Scope
 
@@ -274,7 +275,7 @@ T5.5 terminal workflow integration, and T5.6 tool exposure complete
   errors, normalize chat responses, and preserve strict/augmented adapter
   coverage behavior without requiring live GGUF models or a llama.cpp server.
 
-## Pending Follow-up
+## Completed Follow-up
 
 ### T5.0 — Separate local embedding planning
 
@@ -562,3 +563,26 @@ T5.5 terminal workflow integration, and T5.6 tool exposure complete
 - Explicit exclusions: no producer/profile registry, context binding,
   coordinator branch, approval bypass, remote fallback, endpoint, live model,
   network, RAG, or vector store.
+
+## DMS-19 coordination review — Council/Ponytail findings and repairs
+
+- Review scope: the caller-owned broader llama.cpp capability surface added in
+  the current spec/task refresh, including decision/Clef integration.
+- Council (Aristotle/Ada/Feynman) found the package not ready for
+  implementation because the capability surface was duplicated in this task
+  list and DMS-19, the caller/DAR loading boundary was ambiguous, lifecycle
+  ownership was imprecise, and the validation status still stopped at T5.6.
+- Ponytail found the same duplication and recommended one authoritative task,
+  capability-specific evidence instead of repeated generic contract tests, and
+  an optional rather than Clef-dependent example.
+- Repairs applied: DMS-19 is now the sole authoritative capability-matrix and
+  decision-model task; the duplicate llama.cpp T6 checklist was removed; FR-7
+  is reduced to a coordination link; and plan/spec status now points to DMS-19
+  without implying a second llama.cpp task track.
+- Final Council/Ponytail verdict: the llama.cpp package is ready to begin the
+  DMS-19 capability-matrix and readiness phase. It is not evidence that any
+  new capability is implemented or admitted. DMS-19 must freeze each selected
+  row's client use case, upstream/profile, DAR contract, bounds, caller-vs-DAR
+  ownership, identity behavior, lifecycle observation, and unsupported cases
+  before implementation. No live model, endpoint, server, network, or model
+  download was used for this review.

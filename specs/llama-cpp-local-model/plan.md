@@ -3,7 +3,7 @@
 Status: active implementation record; Slices 1-3, T5.0 planning, T5.1
 standalone embedding contract, T5.2 RED suite, T5.3 implementation, T5.4
 validation/docs, T5.5 terminal workflow integration, and T5.6 tool exposure
-complete
+complete. Broader capability-surface work is owned by DMS-19.
 
 ## Goal
 
@@ -15,6 +15,7 @@ the existing OpenAI-compatible endpoint path when callers already provide one.
 ## Spec Trace
 
 - Spec: `specs/llama-cpp-local-model/spec.md`
+- Broader capability owner: `specs/decision-model-support/spec.md` (DMS-19)
 - Related repo guardrails:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/openai-compatible-provider-wrapper/spec.md`
@@ -517,8 +518,8 @@ Initial recorded evidence:
 
 ## Plan Approval
 
-- Status: active as the approved implementation record through completed
-  Slice 2
+- Status: active as the approved implementation record through completed T5.6;
+  broader capability-surface work is tracked by DMS-19
 - Notes: created by explicit user direction after the authoritative spec was
   approved and committed; the user later directed `execute T1.1 and commit`,
   producing RED commit `a5798cc`, and later directed T1.2 execution, producing
