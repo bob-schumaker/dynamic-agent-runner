@@ -2,6 +2,10 @@
 
 ## Status
 
+The evaluation corpus is governed by the merged
+`evaluation/dms01-dms12-merged-matrix.json` manifest. DMS-12 is a result row in
+that matrix, not a separate candidate cohort; new candidates append rows there.
+
 - Feature spec: `spec.md`
 - Mode: guided
 - Plan status: partial implementation. DMS-01, DMS-06, DMS-08, DMS-12, and

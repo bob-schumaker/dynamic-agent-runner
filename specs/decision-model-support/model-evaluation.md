@@ -1,5 +1,19 @@
 # Decision Model Candidate Evaluation
 
+## Canonical DMS-01/DMS-12 matrix
+
+The merged matrix is [`evaluation/dms01-dms12-merged-matrix.json`](evaluation/dms01-dms12-merged-matrix.json).
+It is the durable source of truth for the twelve historical DMS-01 rows plus
+the completed DMS-12 Jev-Style MLX row. The older dated full-matrix JSON and
+the DMS-12 receipt are retained as immutable evidence snapshots only.
+
+The first appended candidate is Cloudflare Clef-Flash Q4_K_M GGUF. Its
+preflight is [`evaluation/preflight-clef-dms01-2026-10-06.json`](evaluation/preflight-clef-dms01-2026-10-06.json).
+Execution stopped before download: the official 6.49 GB artifact was not
+cached and the installed llama.cpp 0.5.0 build did not expose a decision
+surface. This is an execution blocker, not a model-quality result; HTTP and
+text-generation fallbacks are outside the caller-owned adapter standard.
+
 Status: **DMS-01 evaluated; no candidate recommended.** Kev-0.6B completed the
 approved synthetic evaluation and failed the decision and retention quality
 thresholds. The expanded MacJev, Lev, and Jev-Style CPU/GGUF runs below also

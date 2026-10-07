@@ -1,5 +1,21 @@
 # Decision Model Support Readiness Validation
 
+## Canonical DMS-01/DMS-12 matrix and Clef preflight — 2026-10-07
+
+The merged matrix is now explicit at
+`evaluation/dms01-dms12-merged-matrix.json` with 13 rows: the twelve existing
+DMS-01 rows, including the completed DMS-12 Jev-Style MLX row, plus
+`clef-flash-q4-k-m-gguf`.
+
+The Clef row's preflight was executed and recorded in
+`evaluation/preflight-clef-dms01-2026-10-06.json`. Host memory is 36 GiB and
+free storage was 70,161,719,296 bytes. The official GGUF artifact is 6,486,448,288
+bytes, is not cached, and the installed llama.cpp 0.5.0 build (`7fe450e19`)
+does not expose a decision/SystemOne surface. The row therefore stopped before
+download with `blocked-before-download`; no DMS-01 cases were scored. This
+preserves the in-process, caller-owned boundary and avoids claiming a result
+from HTTP or generated text.
+
 ## DMS-01 Local Candidate Additions — 2026-10-03
 
 Ran the four frozen additions-matrix rows against all 240 approved DMS-01

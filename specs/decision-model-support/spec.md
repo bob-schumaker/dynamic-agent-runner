@@ -1,5 +1,13 @@
 # Decision Model Support
 
+## Canonical evaluation matrix
+
+The DMS corpus uses one merged DMS-01/DMS-12 matrix. The canonical manifest is
+[`evaluation/dms01-dms12-merged-matrix.json`](evaluation/dms01-dms12-merged-matrix.json).
+It names all twelve historical DMS-01 rows, marks the Jev-Style MLX row as the
+completed DMS-12 result, and is the only place to append new candidate rows.
+The dated full-matrix JSON and DMS-12 receipt remain immutable source snapshots.
+
 ## Metadata
 
 - Feature slug: `decision-model-support`

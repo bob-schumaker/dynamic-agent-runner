@@ -93,6 +93,14 @@ passes. Do not use real model weights in unit tests.
 
 ## DMS-01 Candidate Evidence Gate
 
+- [x] Make the merged DMS-01/DMS-12 matrix explicit in
+  `evaluation/dms01-dms12-merged-matrix.json`; preserve the twelve historical
+  rows and append new candidates only there.
+- [x] Add the Cloudflare Clef-Flash Q4_K_M row and execute its host/material
+  preflight. The row is recorded as blocked before download because the
+  artifact is not cached and the installed llama.cpp build has no decision
+  surface; no HTTP or text-generation substitute is permitted.
+
 - [x] Review primary repositories and cards, and record immutable revisions,
   license, task/output contract, inference format, runtime, input length, and
   available memory evidence for Kev 0.5B, 0.6B, 4B, and 8B, and Bespoke Nimble
