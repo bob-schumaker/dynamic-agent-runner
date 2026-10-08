@@ -1,0 +1,16 @@
+{
+  "approval_scope": "c5e20834b40ae5ee47b8e82b1e856fb0aeddc77d576a14e2404a455b4a2571ca",
+  "elapsed_ms": 1062.933,
+  "inference_count": 1,
+  "material_file_count": 6,
+  "missing_materials_before_staging": false,
+  "model_id": "wfzyx/von",
+  "model_revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
+  "network_disabled_before_load": true,
+  "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+  "profile_id": "von",
+  "python": "3.14.7",
+  "result_valid": true,
+  "runtime_lock_sha256": "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41",
+  "source_revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54"
+}

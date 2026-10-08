@@ -10,6 +10,7 @@ from pathlib import Path
 import socket
 import subprocess
 import sys
+import tomllib
 from contextlib import contextmanager
 from uuid import uuid4
 
@@ -26,6 +27,12 @@ from m4_4_clean_codex import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HARNESS = REPO_ROOT / "scripts" / "run_m4_4_clean_codex.py"
+DAR_RUNTIME_VERSION = tomllib.loads(
+    (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+)["project"]["version"]
+DAR_RUNTIME_WHEEL = (
+    REPO_ROOT / "dist" / f"dynamic_agent_runner-{DAR_RUNTIME_VERSION}-py3-none-any.whl"
+)
 
 
 def _harness_module() -> object:
@@ -114,6 +121,17 @@ def test_clean_codex_environment_exposes_successor_path_not_legacy_state(
         for key in environment
         if "DAR_AUTHORING" in key or "BROKER" in key or "MCP_MODE" in key
     }
+
+    shared_cache = tmp_path / "shared-uv-cache"
+    shared_environment = build_clean_codex_environment(
+        codex_home=tmp_path / "codex-home-2",
+        working_directory=tmp_path / "workspace-2",
+        wheel=tmp_path / "dynamic_agent_runner-2.whl",
+        state_root=tmp_path / "state-2",
+        template_root=tmp_path / "templates-2",
+        inherited={"PATH": "/usr/bin:/bin", "UV_CACHE_DIR": str(shared_cache)},
+    )
+    assert shared_environment["UV_CACHE_DIR"] == str(shared_cache)
 
 
 def test_scenario_codex_home_copies_only_test_authentication(tmp_path: Path) -> None:
@@ -249,7 +267,7 @@ def test_unavailable_evidence_uses_its_declared_terminal_boundary() -> None:
     evidence = module._unavailable_evidence(
         contract,
         subprocess.CompletedProcess(("codex",), 0, "capability_unavailable", ""),
-        REPO_ROOT / "dist" / "dynamic_agent_runner-0.2.1-py3-none-any.whl",
+        DAR_RUNTIME_WHEEL,
         "materials",
         (100,),
         "agent-engineering@0.1.0",
@@ -273,7 +291,7 @@ def test_refusal_evidence_preserves_the_declared_refusal_status() -> None:
     evidence = module._unavailable_evidence(
         contract,
         subprocess.CompletedProcess(("codex",), 0, "capability_unavailable", ""),
-        REPO_ROOT / "dist" / "dynamic_agent_runner-0.2.1-py3-none-any.whl",
+        DAR_RUNTIME_WHEEL,
         "materials",
         (100,),
         "agent-engineering@0.1.0",
@@ -863,7 +881,7 @@ def test_generated_root_launches_isolated_author_and_invocation_actors(
             ),
             codex_home=codex_home,
             plugin_root=REPO_ROOT / ".codex-plugin" / "generated" / "agent-engineering",
-            wheel=REPO_ROOT / "dist" / "dynamic_agent_runner-0.1.18-py3-none-any.whl",
+            wheel=DAR_RUNTIME_WHEEL,
             package_name="m44-isolated-actors",
             workflow_id="m44-isolated-actors",
             author_prompt="Author the declared DAR document-summary workflow.",

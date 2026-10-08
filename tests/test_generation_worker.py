@@ -852,6 +852,32 @@ def test_launcher_rejects_a_non_boolean_reap_confirmation() -> None:
         )
 
 
+def test_launcher_cleanup_exposes_confirmed_reap_for_protocol_adapters() -> None:
+    events: list[str] = []
+
+    class Controller:
+        def terminate(self, _child: object) -> None:
+            events.append("terminate")
+
+        def kill(self, _child: object) -> None:
+            events.append("kill")
+
+        def reap(self, _child: object, _timeout: float) -> bool:
+            events.append("reap")
+            return True
+
+    assert (
+        GenerationWorkerLauncher().cleanup(
+            child=object(),
+            controller=Controller(),
+            deadline=GenerationDeadline.start(0.0, max_runtime_milliseconds=1_000),
+            clock=lambda: 0.0,
+        )
+        is False
+    )
+    assert events == ["reap"]
+
+
 def test_worker_requires_a_matching_pack_receipt_before_authorized_result() -> None:
     worker = GenerationWorkerSession(
         invocation_id="invocation-1",

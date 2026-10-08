@@ -82,10 +82,19 @@ controlled fixture.
 | Direct llama.cpp sync and async adapters | injected llama.cpp backend | eligible with a pinned GGUF artifact |
 | In-process MLX sync and async adapters | owned Qwen3 MLX helper with fake native generation | deterministic matrix complete; the stock backend remains unsupported |
 | Apple Foundation Models async adapter | injected SDK/bridge seam | eligible on an eligible Mac as a separate provider-family run |
+| Chrome Built-in AI external adapter | fake authenticated Chrome bridge | not applicable to the tool-parity matrix; v1 is final-response-only and omits `tool_calling` |
 
 The model-agnostic executor-level fixture must also run with sync and async
 fake adapters. That protects shared tool-loop behavior even where a concrete
 provider has no local live-model run.
+
+The Chrome row is contract coverage, not a live S1--S5 target. Its
+receiver-approved plugin is covered by fake-bridge tests for descriptor, trust,
+replay, request-context, and final-response behavior. DAR does not discover or
+construct a browser bridge, and the v1 adapter cannot satisfy the tool-calling
+scenarios in this matrix. A future Chrome tool-capable protocol version would
+need a new matrix row and an explicit host bridge rather than being added to
+the current live selector.
 
 ## Controlled Tool Contract
 

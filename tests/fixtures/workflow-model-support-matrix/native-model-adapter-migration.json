@@ -1,0 +1,46 @@
+{
+  "format_version": 1,
+  "rows": [
+    {
+      "adapter_id": "apple-foundation-models.external.v1",
+      "canonical_identity": "apple/<binding-digest>",
+      "capabilities": [
+        "text_generation",
+        "structured_output"
+      ],
+      "execution_mode": "async",
+      "material_identity": "system-managed",
+      "model_alias": "apple-system-language-model",
+      "ownership": "caller-resolved-native-binding",
+      "provider": "apple-foundation-models"
+    },
+    {
+      "adapter_id": "llama-cpp.external.v1",
+      "canonical_identity": "llama.cpp/<material-and-config-digest>",
+      "capabilities": [
+        "text_generation",
+        "structured_output"
+      ],
+      "execution_mode": "sync",
+      "material_identity": "caller-prepared-material",
+      "model_alias": "llama-local",
+      "ownership": "caller-resolved-native-binding",
+      "provider": "llama.cpp"
+    },
+    {
+      "adapter_id": "mlx.external.v1",
+      "canonical_identity": "mlx/<material-and-config-digest>",
+      "capabilities": [
+        "text_generation"
+      ],
+      "conditional_capabilities": [
+        "tool_calling:exact-versioned-codec"
+      ],
+      "execution_mode": "sync-or-async",
+      "material_identity": "caller-resolved-material",
+      "model_alias": "mlx-local",
+      "ownership": "caller-resolved-native-binding",
+      "provider": "mlx"
+    }
+  ]
+}

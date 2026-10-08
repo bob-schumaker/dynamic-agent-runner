@@ -1,11 +1,12 @@
 [project]
 name = "dynamic-agent-runner"
-version = "0.1.18"
+version = "0.1.21"
 description = ""
 authors = [
     {name = "Bob Schumaker",email = "bob.schumaker@oracle.com"}
 ]
 dynamic = ["dependencies", "requires-python"]
+dependencies = ["ocihelper (==0.3.51)"]
 
 [project.scripts]
 dynamic-agent-runner = "dynamic_agent_runner.cli:console_main"
@@ -26,11 +27,26 @@ mlx = ["mlx-lm>=0.31.3,<0.32.0"]
 mlx-embedding = ["mlx==0.32.2; platform_system == 'Darwin'"]
 transformers-peft = [
     "transformers>=5.0.0,<6.0.0",
-    "peft>=0.19.1,<0.20.0",
+    "peft>=0.19.1,<0.22.0",
     "torch>=2.9.0,<3.0.0",
     "Pillow>=11.0.0,<12.0.0",
     "torchvision>=0.24.0,<0.29.0",
     "lm-format-enforcer>=0.11.3,<0.12.0",
+]
+julia1 = [
+    "torch>=2.9.0,<3.0.0",
+    "transformers>=5.0.0,<5.1.0",
+    "safetensors>=0.5.0",
+    "numpy>=1.26.0",
+    "tokenizers>=0.22.0,<=0.23.0",
+]
+von = [
+    "von-sdk @ git+https://github.com/wfzyx/von.git@fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54",
+    "torch>=2.9.0,<3.0.0",
+    "transformers>=5.0.0,<6.0.0",
+]
+laya-mlx = [
+    "laya-mlx @ git+https://github.com/mizorewww/laya-mlx.git@0a859518634112655cb97c745dbf04f5191aaf13",
 ]
 
 [tool.poetry]
@@ -55,8 +71,9 @@ apple-fm-sdk = {version = ">=0.2.1", optional = true}
 mlx-lm = {version = ">=0.31.3,<0.32.0", optional = true}
 mlx = {version = "0.32.2", optional = true, markers = "platform_system == 'Darwin' and extra == 'mlx-embedding'"}
 transformers = {version = ">=5.0.0,<6.0.0", optional = true}
-peft = {version = ">=0.19.1,<0.20.0", optional = true}
+peft = {version = ">=0.19.1,<0.22.0", optional = true}
 torch = {version = ">=2.9.0,<3.0.0", optional = true}
+tokenizers = {version = ">=0.22.0,<=0.23.0", optional = true}
 Pillow = {version = ">=11.0.0,<12.0.0", optional = true}
 torchvision = {version = ">=0.24.0,<0.29.0", optional = true}
 lm-format-enforcer = {version = ">=0.11.3,<0.12.0", optional = true}

@@ -22,6 +22,14 @@ from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
 from dynamic_agent_runner.workflow_host.profiles import LocalModelProfile
 
 
+def _has_mps() -> bool:
+    try:
+        import torch
+    except ImportError:
+        return False
+    return torch.backends.mps.is_available()
+
+
 def test_host_delegates_a_nonstandard_model_to_the_client_runner() -> None:
     profile = LocalModelProfile(
         profile_id="profile",
@@ -184,6 +192,7 @@ def test_host_rejects_a_partial_builtin_worker_pair() -> None:
 
 
 def test_host_builds_a_cpu_gated_dar_owned_worker_pair(tmp_path, monkeypatch) -> None:
+    from dynamic_agent_runner.workflow_host import host as workflow_host
     from dynamic_agent_runner.workflow_host import generation_worker_controllers
     from dynamic_agent_runner.workflow_host.transformers_peft_model import (
         TRANSFORMERS_GENERATE_CAPABILITY,
@@ -197,6 +206,7 @@ def test_host_builds_a_cpu_gated_dar_owned_worker_pair(tmp_path, monkeypatch) ->
         "machine_generation_worker_controllers",
         lambda **kwargs: original_factory(**kwargs, platform_system=lambda: "Linux"),
     )
+    monkeypatch.setattr(workflow_host.platform, "system", lambda: "Linux")
 
     factory, controller = _dar_owned_generation_worker_pair(
         store=PrivateStateStore(tmp_path), owner="test-owner"
@@ -208,7 +218,9 @@ def test_host_builds_a_cpu_gated_dar_owned_worker_pair(tmp_path, monkeypatch) ->
     assert "cpu" in controller.supported_execution_devices
 
 
-@pytest.mark.skipif(platform.system() != "Darwin", reason="requires Darwin MPS")
+@pytest.mark.skipif(
+    platform.system() != "Darwin" or not _has_mps(), reason="requires available Darwin MPS"
+)
 def test_host_builds_the_separate_dar_owned_mps_worker_pair(tmp_path) -> None:
     factory, controller = _dar_owned_generation_worker_pair(
         store=PrivateStateStore(tmp_path), owner="test-owner"

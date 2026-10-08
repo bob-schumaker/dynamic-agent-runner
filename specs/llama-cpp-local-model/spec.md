@@ -10,8 +10,9 @@
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model follow-up
   work
-- Next gate: no remaining planned task; `validation.md` remains the source of
-  truth for fresh execution evidence
+- Next gate: no remaining llama.cpp-local-model task; broader capability work is
+  owned by DMS-19 in `specs/decision-model-support/`. `validation.md` remains
+  the source of truth for fresh execution evidence.
 - Approval state: user-directed refresh to make this file the authoritative SDD
   spec for the feature
   - first-slice local endpoint helper implementation landed in commit `6d269ad`
@@ -42,6 +43,7 @@
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/workflow-model-materials/spec.md`
   - `specs/openai-compatible-provider-wrapper/spec.md`
+  - `specs/decision-model-support/spec.md`
   - `specs/internal-graph-mutation/spec.md`
   - `specs/llama-cpp-local-model/plan.md`
   - `specs/llama-cpp-local-model/tasks.md`
@@ -159,6 +161,10 @@ This feature specification covers:
    endpoints through the existing provider seam
 7. runtime-owned download of referenced model assets when they are missing
    locally
+8. the llama.cpp-specific implementation boundary for the broader capability
+   surface owned by DMS-19 in `specs/decision-model-support/`; this feature
+   remains responsible for local-model loading, normalization, and lifecycle
+   boundaries without adding a DAR-owned endpoint
 
 ## Current Status and Boundary
 
@@ -628,6 +634,12 @@ Acceptance criteria:
   execution consumes a provided OpenAI-compatible wrapper or endpoint rather
   than launching and supervising a local server itself.
 
+### FR-7: Coordinate with DMS-19
+
+The broader llama.cpp capability matrix and follow-up work are owned by DMS-19;
+this feature remains the source for existing llama.cpp-specific loader,
+normalization, and server-ownership evidence.
+
 ## Non-Functional Requirements
 
 ### NFR-1: Preserve architecture continuity
@@ -783,7 +795,8 @@ this specification.
 
 - No blocking `NEEDS CLARIFICATION` items remain for the completed feature.
 - Any next SDD gate must define a separate advisory feature, such as llama.cpp
-  memory-fit profiling.
+  memory-fit profiling. Broader capability coverage is tracked separately by
+  DMS-19, not by this feature.
 - `tasks.md` should keep any future advisory profiling work separate from
   completed local chat and embedding integrations.
 

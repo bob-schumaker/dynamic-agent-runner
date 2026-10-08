@@ -1,0 +1,124 @@
+{
+  "corpus_id": "jaredpalmer/kev:evals/v4/transfer-v4",
+  "upstream_revision": "5920c5fe4ca8e0970ed4209ac2c9b8e18bea5109",
+  "upstream_manifest_path": "evals/v4/transfer-v4/manifest.json",
+  "upstream_manifest_sha256": "31677c2256b406222e7d94ffdc0a02a70ce05746b9efe307876024c4e77291d1",
+  "split": "development",
+  "split_path": "evals/v4/transfer-v4/development.jsonl",
+  "raw_split_sha256": "ff374c49c6c9f15f8a56fb274b4a4857d20497eb8dd1ac07ce01560e682a5f2e",
+  "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "item_count": 684,
+  "upstream_item_count": 764,
+  "upstream_category_counts": {
+    "composition_holdout": 96,
+    "emotion": 116,
+    "legacy_holdout": 80,
+    "mmlu": 116,
+    "paws": 80,
+    "qnli": 80,
+    "sciq": 116,
+    "tweet_offensive": 80
+  },
+  "excluded_categories": {
+    "tweet_offensive": "Explicitly excluded by the user on 2026-09-27 because its full-text TweetEval/OLID items have unresolved X policy permissions. Exclusion is applied before normalization for every matrix row."
+  },
+  "excluded_category_counts": {
+    "tweet_offensive": 80
+  },
+  "excluded_id_sha256": {
+    "tweet_offensive": "eda6f32cd670ceb798e4419fc047622a7b6d64cdbd75b57abf8f580604c36017"
+  },
+  "category_counts": {
+    "composition_holdout": 96,
+    "emotion": 116,
+    "legacy_holdout": 80,
+    "mmlu": 116,
+    "paws": 80,
+    "qnli": 80,
+    "sciq": 116
+  },
+  "task_type_counts": {
+    "choice": 444,
+    "noul": 280,
+    "score": 40
+  },
+  "task_mapping": {
+    "choice": "Preserve criteria option IDs and non-empty labels; when an upstream category descriptor is null, use its stable option ID as the display label. Preserve the correct option ID.",
+    "noul": "Convert the boolean task to a two-option choice with stable true/false IDs. Preserve upstream option descriptions when provided; otherwise use Yes/No. Convert the boolean gold label to its true/false option ID.",
+    "score": "Convert each ordered rubric entry to a string option ID equal to its zero-based position; convert the integer gold label to that option ID."
+  },
+  "candidate_contract": "Every included source row maps to one ordered bounded choice request. All six pinned candidates expose choice inference; common input feasibility is established by exact per-candidate tokenizer preflight before outputs.",
+  "category_counts_verified_before_candidate_outputs": true,
+  "license_review_status": "cleared",
+  "license_review": [
+    {
+      "source_category": "mmlu",
+      "source": "cais/mmlu@c30699e8356da336a370243923dbaf21066bb9fe",
+      "declared_terms": "MIT",
+      "evidence": "https://huggingface.co/datasets/cais/mmlu/tree/c30699e8356da336a370243923dbaf21066bb9fe",
+      "status": "identified; attribution obligations retained"
+    },
+    {
+      "source_category": "emotion",
+      "source": "dair-ai/emotion@cab853a1dbdf4c42c2b3ef2173804746df8825fe",
+      "declared_terms": "Dataset owner permits educational and research purposes only and requires citation of CARER (Saravia et al., 2018). No standard license identifier is stated.",
+      "evidence": [
+        "https://github.com/dair-ai/emotion_dataset/blob/master/README.md",
+        "https://huggingface.co/datasets/dair-ai/emotion/tree/cab853a1dbdf4c42c2b3ef2173804746df8825fe"
+      ],
+      "status": "purpose-limited; this local comparative evaluation is scoped as research; no commercial or production use or dataset redistribution is covered"
+    },
+    {
+      "source_category": "sciq",
+      "source": "allenai/sciq@2c94ad3e1aafab77146f384e23536f97a4849815",
+      "declared_terms": "Creative Commons Attribution-NonCommercial 3.0 Unported (CC BY-NC 3.0).",
+      "evidence": "https://huggingface.co/datasets/allenai/sciq/tree/2c94ad3e1aafab77146f384e23536f97a4849815",
+      "status": "identified; noncommercial use and attribution required"
+    },
+    {
+      "source_category": "tweet_offensive",
+      "source": "cardiffnlp/tweet_eval@b3a375baf0f409c77e6bc7aa35102b7b3534f8be, offensive subset",
+      "declared_terms": "TweetEval says the suite is released without restrictions but warns individual datasets and Twitter terms may impose restrictions; it directs users to original task licenses and Twitter regulations. The fixture contains full post text, and the Offensive subset does not establish a separate license.",
+      "evidence": [
+        "https://github.com/cardiffnlp/tweeteval/tree/b3a375baf0f409c77e6bc7aa35102b7b3534f8be",
+        "https://sites.google.com/site/offensevalsharedtask/offenseval-2019",
+        "https://docs.x.com/developer-terms/policy"
+      ],
+      "status": "excluded from this evaluation by explicit user direction; no TweetEval/OLID items are normalized, passed to candidates, or included in metrics"
+    },
+    {
+      "source_category": "qnli",
+      "source": "nyu-mll/glue@bcdcba79d07bc864c1c254ccfcedcce55bcc9a8c",
+      "declared_terms": "GLUE refers users to original dataset licenses. QNLI is derived from SQuAD; the SQuAD project publishes the dataset under CC BY-SA 4.0.",
+      "evidence": [
+        "https://gluebenchmark.com/faq/",
+        "https://rajpurkar.github.io/SQuAD-explorer/",
+        "https://huggingface.co/datasets/nyu-mll/glue/tree/bcdcba79d07bc864c1c254ccfcedcce55bcc9a8c"
+      ],
+      "status": "identified as CC BY-SA 4.0 for the QNLI source; retain attribution and share-alike obligations"
+    },
+    {
+      "source_category": "paws",
+      "source": "google-research-datasets/paws@161ece9501cf0a11f3e48bd356eaa82de46d6a09",
+      "declared_terms": "Dataset card permits free use for any purpose and requests acknowledgement of Google as data source.",
+      "evidence": "https://huggingface.co/datasets/google-research-datasets/paws/tree/161ece9501cf0a11f3e48bd356eaa82de46d6a09",
+      "status": "terms identified; retain acknowledgement"
+    },
+    {
+      "source_category": "composition_holdout and legacy_holdout",
+      "source": "Kev transfer-v4 derived/generated records",
+      "declared_terms": "Kev repository is Apache-2.0. The pinned study_v3.py generates legacy_holdout policy cases and composition_holdout rule structures via repository generators; transfer-v4 marks both categories evaluation-only. The repository has no separate data license.",
+      "evidence": [
+        "https://github.com/jaredpalmer/kev/blob/5920c5fe4ca8e0970ed4209ac2c9b8e18bea5109/LICENSE",
+        "https://github.com/jaredpalmer/kev/blob/5920c5fe4ca8e0970ed4209ac2c9b8e18bea5109/kev/study_v3.py",
+        "https://github.com/jaredpalmer/kev/blob/5920c5fe4ca8e0970ed4209ac2c9b8e18bea5109/kev/composition.py",
+        "https://github.com/jaredpalmer/kev/tree/5920c5fe4ca8e0970ed4209ac2c9b8e18bea5109/evals/v4/transfer-v4"
+      ],
+      "status": "identified as pinned Apache-2.0 repository material generated by the repository's own code; no separate data license is declared"
+    }
+  ],
+  "run_gate": "All included sources have declared terms compatible with the scoped local noncommercial comparative research use. The user explicitly excluded all 80 TweetEval/OLID offensive items due to unresolved X policy permission; no items from that category may be normalized, supplied to candidate models, or included in results. One matrix-level approval for the revised corpus and full runnable candidate/runtime matrix is still required before runtime installation, weight download, or inference.",
+  "license_reviewed_on": "2026-09-27",
+  "intended_use": "Local, noncommercial comparative research evaluation; raw text rows are not redistributed in this repository or in the evaluation report."
+}

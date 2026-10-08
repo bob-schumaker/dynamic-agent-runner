@@ -1,0 +1,17 @@
+{
+  "adapter_id": "dar.jevstyle-v3-auto",
+  "approval_scope": "3c244212a6ce0317acc69a455db62b459ca46898d896705efc094862ce7d3712",
+  "choice": "billing",
+  "elapsed_ms": 227.46383299818262,
+  "inference_count": 1,
+  "material_file_count": 6,
+  "model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3-GGUF",
+  "model_revision": "edf37c26a1098f83cf4264b8adbe0dca2d2ebb0c",
+  "network_disabled_before_load": true,
+  "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+  "profile_id": "gguf-f16-cpu",
+  "python": "3.14.7",
+  "result_valid": true,
+  "runtime_lock_sha256": "e0273c1d05185421eff953f538a59de7213b6b1731993831878943215568f975",
+  "selected_profile_id": "jevstyle-v3.gguf-f16-cpu.v1"
+}

@@ -14,6 +14,7 @@ from dynamic_agent_runner.workflow_host.authorized_tools import LocalApprovalDec
 from dynamic_agent_runner.workflow_host.capabilities import (
     ReviewedCapabilityTemplate,
     ReviewedCapabilityTemplateOutput,
+    reviewed_capability_manifest_schema_digest,
     reviewed_capability_template_digest,
 )
 from dynamic_agent_runner.workflow_host.reviewed_capability_execution import (
@@ -134,7 +135,9 @@ def _job() -> SealedReviewedCapabilityJob:
 
 
 def _template(
-    *, extension_binding: str = "host-vector-index-v1"
+    *,
+    extension_binding: str = "host-vector-index-v1",
+    canonical_manifest_schema: dict[str, object] | None = None,
 ) -> ReviewedCapabilityTemplate:
     outputs = (
         ReviewedCapabilityTemplateOutput(
@@ -147,6 +150,11 @@ def _template(
             "coverage_report", "application/json", 1024, 60
         ),
     )
+    manifest_schema = canonical_manifest_schema or {
+        "additionalProperties": False,
+        "properties": {"index_digest": {"type": "string"}},
+        "type": "object",
+    }
     values = {
         "capability_id": "vector_index.build.v1",
         "contract_version": "1",
@@ -163,12 +171,16 @@ def _template(
             "query_current_outcome",
         ),
         "success_receipt_schema_digest": "d" * 64,
+        "canonical_manifest_schema": manifest_schema,
         "generation_id_max_bytes": 128,
         "artifact_handle_max_bytes": 128,
         "count_ceiling": 1024,
         "failure_classifications": ("host_failure",),
         "enabled": True,
     }
+    values["canonical_manifest_schema_digest"] = (
+        reviewed_capability_manifest_schema_digest(values["canonical_manifest_schema"])
+    )
     return ReviewedCapabilityTemplate(
         template_digest=reviewed_capability_template_digest(**values), **values
     )
@@ -376,6 +388,40 @@ def test_executor_aborts_when_the_registered_template_changes_before_dispatch(
         assert capability_id == "vector_index.build.v1"
         calls += 1
         return _template() if calls == 1 else _template(extension_binding="changed")
+
+    executor = _executor(tmp_path, resolver, host, current_template)
+
+    with pytest.raises(ReviewedCapabilityDispatchError, match="unavailable"):
+        executor.dispatch(_request(), now=NOW)
+
+    assert host.calls == []
+
+
+def test_executor_aborts_when_manifest_schema_changes_before_dispatch(
+    tmp_path: Path,
+) -> None:
+    resolver = _FakeJobResolver(_job())
+    host = _FakeHost()
+    calls = 0
+
+    def current_template(capability_id: str) -> ReviewedCapabilityTemplate:
+        nonlocal calls
+        assert capability_id == "vector_index.build.v1"
+        calls += 1
+        return (
+            _template()
+            if calls == 1
+            else _template(
+                canonical_manifest_schema={
+                    "additionalProperties": False,
+                    "properties": {
+                        "index_digest": {"type": "string"},
+                        "source_records": {"type": "integer"},
+                    },
+                    "type": "object",
+                }
+            )
+        )
 
     executor = _executor(tmp_path, resolver, host, current_template)
 

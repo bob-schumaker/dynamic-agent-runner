@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from dynamic_agent_runner.context_compaction import ProviderContextCompactor
 from dynamic_agent_runner.context_selection import ContextSelector
+from dynamic_agent_runner.decision_models import DecisionModelBinding
+from dynamic_agent_runner.external_adapter import DARExternalAdapterProtocol
 from dynamic_agent_runner.models import CompiledAgentWorkflow, LoadedAgentWorkflow
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
@@ -33,7 +35,10 @@ class WorkflowExecutionContext:
     model_adapter: (
         OpenAIClientAdapter
         | AsyncOpenAIClientAdapter
-        | Sequence[OpenAIClientAdapter | AsyncOpenAIClientAdapter]
+        | DARExternalAdapterProtocol
+        | Sequence[
+            OpenAIClientAdapter | AsyncOpenAIClientAdapter | DARExternalAdapterProtocol
+        ]
         | None
     ) = None
     max_steps: int | None = None
@@ -46,6 +51,7 @@ class WorkflowExecutionContext:
     embedding_profile_id: str | None = None
     embedding_producer: object | None = None
     embedding_producer_mode: str | None = None
+    decision_model_bindings: Mapping[str, DecisionModelBinding] | None = None
 
 
 RunContext = WorkflowExecutionContext

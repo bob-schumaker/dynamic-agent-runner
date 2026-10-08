@@ -240,6 +240,8 @@ When the user corrects your approach, append a one-line rule here before ending 
   corpus, prior-generation, or index-profile inputs.
 - Require every reviewed dense-vector index job to bind one host-selected
   embedding capability; do not describe that dependency as optional.
+- Build approval receipts from machine-read artifact digests and verify their
+  bindings against the frozen artifacts before starting gated runs.
 
 ---
 

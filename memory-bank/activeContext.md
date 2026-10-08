@@ -3,6 +3,16 @@
 
 ## Current Focus
 
+- `external-model-adapter-protocol` remains the approved v1 boundary from
+  `916d8324`: fail-closed, text-only `DARExternalAdapterProtocol`,
+  receiver-owned install/remove/list lifecycle, exported BYOM seam, exact
+  identity admission, and an optional Chrome Built-in AI/Gemini Nano target.
+  Commit `4a412e7a` adds the approved `native-model-adapter-migration` spec,
+  plan, and tasks for caller-constructed AFM, direct llama.cpp, and MLX text
+  wrappers. Runtime implementation has not started. The embedding and
+  multimodal protocol specs are proposed future extensions; Ollama remains
+  covered by the existing OpenAI-compatible endpoint path rather than a native
+  provider rewrite.
 - `reviewed-vector-index-host-extension` is complete. DAR now supplies generic
   reviewed-capability registration, admission, approval, sealed-artifact
   staging, bounded redacted receipts, and recovery-aware publication. The
@@ -20,7 +30,7 @@
   are gated by reviewed capabilities, enforceable containment, and confirmed
   bounded reap before sealed-input ingress.
 - Release publication is not yet authorized. The checked-out runtime version is
-  `0.1.18`; converter-plugin T5.6 has a verified local package build but still
+  `0.1.20`; converter-plugin T5.6 has a verified local package build but still
   requires an explicit unreleased PEP 440 version and publish target before any
   publication attempt.
 - `workflow-model-support-matrix` is complete through WMS5. Its deterministic
@@ -706,6 +716,7 @@
   - `specs/mlx-local-embedding-adapter/spec.md`
   - `specs/workflow-model-support-matrix/spec.md`
 - Implementation-ready feature packages:
+  - `specs/external-model-adapter-protocol/`
   - `specs/apple-foundation-model-adapter/`
 - Deferred implementation follow-ups:
   - upstream LiteLLM publication and global default Codex-provider replacement

@@ -1,0 +1,27 @@
+{
+  "schema": "dms01-clef-preflight-v1",
+  "candidate_id": "clef-flash-q4-k-m-gguf",
+  "requested_model": "Cloudflare/clef",
+  "model_revision": "2f3de3dd85f379784083b0814d997ab627200f0c",
+  "evaluation_artifact": "ggml-org/Clef-Flash-GGUF/Clef-Flash-Q4_K_M.gguf",
+  "evaluation_artifact_revision": "4a192915ef971886004b5b13294f2b4c7a7fc39d",
+  "evaluation_artifact_bytes": 6486448288,
+  "license": "Apache-2.0",
+  "host": {
+    "memory_bytes": 38654705664,
+    "available_storage_bytes": 70161719296,
+    "llama_cpp": "0.5.0",
+    "llama_cpp_revision": "7fe450e19"
+  },
+  "checks": {
+    "official_artifact_cached": false,
+    "in_process_decision_binding_available": false,
+    "installed_llama_cpp_exposes_decision_surface": false,
+    "http_server_substitution_allowed": false,
+    "text_generation_substitution_allowed": false
+  },
+  "run_allowed": false,
+  "status": "blocked-before-download",
+  "reason": "The requested caller-owned in-process path cannot execute on this host yet: the official artifact is not cached and the installed llama.cpp build has no Clef/SystemOne decision surface. Downloading the 6.49 GB artifact would not produce a valid DMS result without a compatible decision-capable binding.",
+  "executed_on": "2026-10-06"
+}

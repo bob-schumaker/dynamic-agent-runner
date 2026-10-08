@@ -4,9 +4,10 @@
 
 ## Status
 
-In-progress implementation plan derived from `spec.md`. The reviewed contract
-is the entry criterion; T001 established the exact test-fixture shape. The plan
-does not authorize an MLX, vault, index, or publication implementation.
+Implemented plan derived from `spec.md`. The reviewed contract
+was the entry criterion; T001 established the exact test-fixture shape. The
+implemented boundary does not authorize an MLX, vault, index, or publication
+implementation outside the host extension.
 
 ## Goal
 
@@ -44,7 +45,7 @@ retain all corpus, model, index, and publication authority.
 | Reviewed host bindings and discovery API | `workflow_host/reviewed_tool_packages.py` | Reuse durable host-owned binding records for template registration and expose the separate authoring discovery API; do not overload package allowlists with index semantics. |
 | Authoring contract | External authoring client, descriptor/parser, and `workflow_host/workflow_authoring_registration.py` boundary | The client calls the host API before package output and binds the returned exact version/digest; do not inject vector-template behavior into `WorkflowAuthoringHost`. |
 | Policy/admission | `workflow_host/policy.py`, registration, preflight, and `workflow_host/host.py` | Bind and revalidate the template identity before ingress, execution, or output allocation. |
-| Approval and idempotency | `workflow_host/authorized_tools.py` and `workflow_host/action_ledger.py` | Bind the one-time approval tuple, one-call-per-run budget, one-job reservation, and recovery state. |
+| Approval and idempotency | `workflow_host/authorized_tools.py`, `reviewed_capability_tools.py`, `reviewed_capability_execution.py`, `runner.py`, and `workflow_host/action_ledger.py` | Adapt the normal local action presenter privately to the reviewed reservation-aware approval broker; bind the one-time approval tuple, one-call-per-run budget, one-job reservation, and recovery state. |
 | Sealed input/output artifacts | `workflow_host/sealed_artifact_preparation.py`, `workflow_host/sealed_artifact_runner.py`, and artifact services | Add generic staged candidate retention and atomic public-handle promotion without parsing index bytes. |
 | Existing index precedent | `workflow_host/embedding_index_artifacts.py` and `embedding_sealed_artifact_callback.py` | Preserve as a concrete legacy contract; use it only for regression and provenance/receipt precedent. |
 
@@ -52,8 +53,9 @@ retain all corpus, model, index, and publication authority.
 
 1. A reviewed template is distinct from a capability provider. The template is
    a host-owned, immutable registration record containing the exact capability
-   ID, version, digest, closed input/output contract, success-receipt schema
-   digest, receipt bounds, finite failure classifications, approval
+   ID, version, digest, closed input/output contract, success-receipt and
+   bounded closed canonical-manifest schemas and their verified digests, receipt
+   bounds, finite failure classifications, approval
    classification, mandatory dependency declaration, recovery operations, and
    extension binding. Provider selection remains DAR-private.
 2. Before writing a package, an authoring client calls a separate host
@@ -69,12 +71,23 @@ retain all corpus, model, index, and publication authority.
    remain private admission facts.
 4. The existing DAR action ledger is extended, not replaced. A new durable,
    single-store reservation record atomically consumes the approval tuple,
-   one-call-per-run budget, and job reservation before dispatch. Its identity
+   one-call-per-run budget, and job reservation before dispatch. DAR first
+   validates current bindings, mints the approval nonce, and computes a
+   prospective digest from the canonical full tuple; after approval it rebuilds
+   a current candidate tuple from authoritative bindings using the original
+   nonce and atomically compares tuple and digest before consumption. Drift or
+   mismatch expires the approval without consumption or dispatch.
+   Its identity
    includes the run, package registration and revision, call site, template
    identity, job issuer and opaque ID, job revision and digest, principal, and
    approval nonce. It supplies replay lookup and is the recovery idempotency
    key; recoverable attempt resumption is introduced only with the completion
    state machine in S4.
+   The runner owns a narrow private adapter from `LocalActionApprovalBroker` to
+   `ReviewedCapabilityApprovalBroker`: it presents one DAR-created external
+   action and approval to the normal broker while retaining the reservation
+   digest in the DAR approval/ledger/executor path. The host does not implement
+   the reservation-aware interface or a second approval route.
 5. Candidate outputs progress through `prepared`, `commit_intent`,
    `host_pending`, `dar_promoted`, `host_visible`, and `completed`. Public
    handles and the published receipt exist only at `completed`. Nonterminal
@@ -104,8 +117,9 @@ retain all corpus, model, index, and publication authority.
    one/multiple/zero registry matches, disabled registrations, exact
    `{job_handle}` input schema, `vector_index.build.v1`'s required output
    triple, per-role media/byte/retention limits, maximum receipt size, bounded
-   handle/generation-ID grammars, count ceiling, closed receipt schema, stable
-   classifications, required `embedding.execute.v1` dependency/binding, and
+   handle/generation-ID grammars, count ceiling, closed receipt and
+   canonical-manifest schemas and digest verification, stable classifications, required
+   `embedding.execute.v1` dependency/binding, and
    required reversible pending-publication/idempotent-recovery operations.
 2. Add narrow immutable template and registry-resolution values adjacent to the current
    capability/host-binding primitives. Persist template registration in the
@@ -177,9 +191,23 @@ while legacy packages retain their existing admission path.
    before dispatch, without fallback selection. Add a host-dispatch failure
    vector that durably reaches `aborted`, publishes no generation, creates no
    public handle, and returns only the closed redacted failure receipt.
+5. Add a DAR-private approval-broker adapter before constructing the reviewed
+   capability executor. It accepts the existing `LocalActionApprovalBroker`,
+   presents one DAR-created external action containing only the public
+   `job_handle` invocation and the pending approval, and returns its unchanged
+   decision to the reservation-aware executor interface. The nonce and digest
+   remain private to DAR. Add fake-only approved, denied, cancelled, missing,
+   malformed, presenter-failure, binding-drift, and digest-mismatch vectors:
+   only an approved, unchanged pending binding reaches one reservation and one
+   dispatch; every other outcome has zero reservation, dispatch, publication,
+   and output handles. After drift, prove a distinct nonce/digest and one fresh
+   presentation for the current binding may consume and dispatch once while the
+   expired decision remains unusable. Do not alter the terminal broker's public
+   interface or create host-specific or run-wide approval bypasses.
 
 Exit: every invalid/replayed/concurrent attempt makes zero host dispatches and
-no output handles; a valid attempt can dispatch exactly once.
+no output handles; a valid attempt can dispatch exactly once through one normal
+local approval presentation and its exact reservation-aware adapter.
 
 ### S4 — Staged egress and recoverable publication completion
 
@@ -198,10 +226,15 @@ no output handles; a valid attempt can dispatch exactly once.
    closed host-result contribution containing only `generation_id` and
    aggregate counts; reject host-supplied status, artifact handles, timestamps,
    or any other receipt field. Validate the complete closed receipt only after
-   DAR writes `published_at` from its fake host clock at `completed`. Add RED
-   rejection cases for manifest source identifiers, content, vectors, paths, or
-   profile contents, and for non-aggregate coverage fields, before
-   `host_pending`. The vector template supplies the required output triple.
+   DAR writes `published_at` from its fake host clock at `completed`. The
+   template separately carries a bounded closed canonical-manifest schema whose
+   canonical digest DAR verifies at registration, resolution, and execution
+   admission; DAR validates that representation without parsing index bytes.
+   Add RED rejection cases for substituted schema/content, a schema-invalid
+   manifest, or prohibited source
+   identifiers, content, vectors, paths, or profile contents, and for
+   non-aggregate coverage fields, before `host_pending`. The vector template
+   supplies the required output triple.
 3. Add a narrow host-extension recovery protocol keyed by the durable
    reservation-record identity: begin pending publication, query current
    outcome, acknowledge visibility, and compensate. DAR durably records
@@ -270,5 +303,6 @@ corresponding side-effect sentinels remain at zero.
 | Cross-store completion is treated as a transaction | Crash between host publication and DAR promotion | Use durable recovery states and the original idempotency key; do not claim simultaneous distributed atomicity. |
 | New registry changes legacy admissions | A generic catalog path starts requiring a vector template | Keep template resolution opt-in and add legacy regression fixtures. |
 | Approval leaks across jobs or runs | Run-scoped approval bypasses the bound tuple | Atomically consume the exact approval/call/job tuple and test replay/concurrency. |
+| Approval-broker protocol mismatch | The runner passes a normal action broker directly to the reservation-aware reviewed executor | Use one DAR-private adapter; bind the single prompt to a prospective canonical tuple/digest; recompute it atomically after approval; and test drift, mismatch, redaction, and zero side effects for every non-approved outcome. |
 | Published generation outlives retained artifacts | DAR expiry revokes an artifact still needed by the host | Require `assert_generation_current` before revocation; retain on `current` or either host-operation failure, otherwise atomically unpublish first. |
 | Scope expands into an index implementation | A slice adds MLX, vault, ANN, or publication code | Reject it as host-extension work; DAR only receives fake implementations in tests. |

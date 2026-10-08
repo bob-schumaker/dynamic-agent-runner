@@ -1,0 +1,423 @@
+{
+  "authorization_status": "pending one approval covering the exact complete matrix; no per-model approval prompts",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "created_at_utc": "2026-09-27T20:02:04+00:00",
+  "excluded_category_counts": {
+    "tweet_offensive": 80
+  },
+  "excluded_id_sha256": {
+    "tweet_offensive": "eda6f32cd670ceb798e4419fc047622a7b6d64cdbd75b57abf8f580604c36017"
+  },
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "host": {
+    "architecture": "arm64",
+    "available_memory_estimate_bytes": 11484463104,
+    "available_memory_method": "vm_stat free + inactive + speculative pages",
+    "cpu_count": 11,
+    "free_storage_bytes": 73952952320,
+    "metal_device": "Device(gpu, 0)",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "storage_path": "/private/tmp",
+    "total_memory_bytes": 38654705664
+  },
+  "matrix_approval_receipt_present": false,
+  "matrix_sha256": "6dd0764bdcd122227ace407820fcb8d5a8cdf3aa73f19562b97e72e7046b24b9",
+  "no_runtime_install_weight_download_or_inference": true,
+  "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "preflight_scope": "Pinned source/runtime/import/artifact checks; offline local artifact resolution; tokenizer-only fit checks for all 684 selected items; no model weight load or inference.",
+  "raw_upstream_split_sha256": "ff374c49c6c9f15f8a56fb274b4a4857d20497eb8dd1ac07ce01560e682a5f2e",
+  "rows": {
+    "kev-0.6b-cpu": {
+      "artifact_files": [
+        {
+          "cached_path": "/private/tmp/dms01-hf-cache/hub/models--jaredpalmer--kev-0.6b/snapshots/dece6dba8d43f0f7ded45e9f5b9df12474d90843/adapter_model.safetensors",
+          "exists": true,
+          "expected_sha256": "deaab63b61f95d628503831e8b336e1c3e334b9a42d3530d979a5149b429c492",
+          "match": true,
+          "path": "adapter_model.safetensors",
+          "repository": "jaredpalmer/kev-0.6b",
+          "revision": "dece6dba8d43f0f7ded45e9f5b9df12474d90843",
+          "sha256": "deaab63b61f95d628503831e8b336e1c3e334b9a42d3530d979a5149b429c492",
+          "size_bytes": 40419816
+        },
+        {
+          "cached_path": "/private/tmp/dms01-hf-cache/hub/models--jaredpalmer--kev-0.6b/snapshots/dece6dba8d43f0f7ded45e9f5b9df12474d90843/head.pt",
+          "exists": true,
+          "expected_sha256": "ce6cd9ffc54db41c179b65a33d60973dc8280c29e886218eb3ec07dc28d6f28b",
+          "match": true,
+          "path": "head.pt",
+          "repository": "jaredpalmer/kev-0.6b",
+          "revision": "dece6dba8d43f0f7ded45e9f5b9df12474d90843",
+          "sha256": "ce6cd9ffc54db41c179b65a33d60973dc8280c29e886218eb3ec07dc28d6f28b",
+          "size_bytes": 2102399
+        },
+        {
+          "cached_path": "/private/tmp/dms01-hf-cache/hub/models--Qwen--Qwen3-0.6B-Base/snapshots/da87bfb608c14b7cf20ba1ce41287e8de496c0cd/model.safetensors",
+          "exists": true,
+          "expected_sha256": "cd2a512003e2f9f3cd3c32a9c3573f820bb28c940f73c57b1ddaa983d9223eba",
+          "match": true,
+          "path": "model.safetensors",
+          "repository": "Qwen/Qwen3-0.6B-Base",
+          "revision": "da87bfb608c14b7cf20ba1ce41287e8de496c0cd",
+          "sha256": "cd2a512003e2f9f3cd3c32a9c3573f820bb28c940f73c57b1ddaa983d9223eba",
+          "size_bytes": 1192135096
+        }
+      ],
+      "artifact_hashes_match": true,
+      "inference_performed": false,
+      "installation_required": false,
+      "model_directory": "/private/tmp/dms01-hf-cache",
+      "offline_artifact_resolution_probe": true,
+      "run_allowed": true,
+      "runtime": {
+        "packages": {
+          "huggingface-hub": "1.32.0",
+          "numpy": "2.5.3",
+          "peft": "0.21.0",
+          "torch": "2.8.0",
+          "transformers": "5.17.0"
+        },
+        "python": "3.13.15"
+      },
+      "runtime_executable": "/private/tmp/dms06-kev-source/.venv/bin/python",
+      "runtime_lock": "/private/tmp/dms06-kev-source/uv.lock",
+      "runtime_lock_match": true,
+      "runtime_lock_sha256": "a9922dbb89acdef78299fd2b4a8c3f7f0fa1b2bc08b55595b6926fa785a9c466",
+      "runtime_match": true,
+      "source_checkout": "/private/tmp/dms14-kev06-source",
+      "source_clean": true,
+      "source_import_probe": true,
+      "source_revision": "41c7b5a384ce93dd88ae0a28c379e947fe716a8d",
+      "source_revision_match": true,
+      "tokenizer_feasibility": {
+        "items": 684,
+        "limits": {
+          "row": 8192,
+          "state": 8192
+        },
+        "max_encoded_row_tokens": 380,
+        "max_state_tokens": 338,
+        "over_row_limit": 0,
+        "over_state_limit": 0,
+        "tokenizer": "Qwen base pinned in matrix"
+      },
+      "weights_download_required": false
+    },
+    "kev-0.8b-cpu": {
+      "artifact_files": [
+        {
+          "cached_path": "/private/tmp/dms06-hf-cache/hub/models--jaredpalmer--kev-0.8b/snapshots/9a45d25eb2ab761841196625383fa1dff0e56c1e/adapter_model.safetensors",
+          "exists": true,
+          "expected_sha256": "9b908623acb162118575f4e7a94524f9c139c335be4bfb74d6cfceca01e1885a",
+          "match": true,
+          "path": "adapter_model.safetensors",
+          "repository": "jaredpalmer/kev-0.8b",
+          "revision": "9a45d25eb2ab761841196625383fa1dff0e56c1e",
+          "sha256": "9b908623acb162118575f4e7a94524f9c139c335be4bfb74d6cfceca01e1885a",
+          "size_bytes": 43338624
+        },
+        {
+          "cached_path": "/private/tmp/dms06-hf-cache/hub/models--jaredpalmer--kev-0.8b/snapshots/9a45d25eb2ab761841196625383fa1dff0e56c1e/head.pt",
+          "exists": true,
+          "expected_sha256": "f400bd12802b2b105ae45d6b03774a158a3db4fccff42413734ddca2e5c920b6",
+          "match": true,
+          "path": "head.pt",
+          "repository": "jaredpalmer/kev-0.8b",
+          "revision": "9a45d25eb2ab761841196625383fa1dff0e56c1e",
+          "sha256": "f400bd12802b2b105ae45d6b03774a158a3db4fccff42413734ddca2e5c920b6",
+          "size_bytes": 2103999
+        },
+        {
+          "cached_path": "/private/tmp/dms06-hf-cache/hub/models--Qwen--Qwen3.5-0.8B-Base/snapshots/dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68/model.safetensors-00001-of-00001.safetensors",
+          "exists": true,
+          "expected_sha256": "c2b1e5a17d9c1e27685d92ed9b382911ebb99955ecd89052d1721241adfbab6c",
+          "match": true,
+          "path": "model.safetensors-00001-of-00001.safetensors",
+          "repository": "Qwen/Qwen3.5-0.8B-Base",
+          "revision": "dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68",
+          "sha256": "c2b1e5a17d9c1e27685d92ed9b382911ebb99955ecd89052d1721241adfbab6c",
+          "size_bytes": 1746942600
+        }
+      ],
+      "artifact_hashes_match": true,
+      "inference_performed": false,
+      "installation_required": false,
+      "model_directory": "/private/tmp/dms06-hf-cache",
+      "offline_artifact_resolution_probe": true,
+      "run_allowed": true,
+      "runtime": {
+        "packages": {
+          "huggingface-hub": "1.32.0",
+          "numpy": "2.5.3",
+          "peft": "0.21.0",
+          "torch": "2.8.0",
+          "transformers": "5.17.0"
+        },
+        "python": "3.13.15"
+      },
+      "runtime_executable": "/private/tmp/dms06-kev-source/.venv/bin/python",
+      "runtime_lock": "/private/tmp/dms06-kev-source/uv.lock",
+      "runtime_lock_match": true,
+      "runtime_lock_sha256": "a9922dbb89acdef78299fd2b4a8c3f7f0fa1b2bc08b55595b6926fa785a9c466",
+      "runtime_match": true,
+      "source_checkout": "/private/tmp/dms06-kev-source",
+      "source_clean": true,
+      "source_import_probe": true,
+      "source_revision": "5920c5fe4ca8e0970ed4209ac2c9b8e18bea5109",
+      "source_revision_match": true,
+      "tokenizer_feasibility": {
+        "items": 684,
+        "limits": {
+          "row": 73728,
+          "state": 65536
+        },
+        "max_encoded_row_tokens": 380,
+        "max_state_tokens": 336,
+        "over_row_limit": 0,
+        "over_state_limit": 0,
+        "tokenizer": "Qwen base pinned in matrix"
+      },
+      "weights_download_required": false
+    },
+    "laya-mlx-metal": {
+      "artifact_files": [
+        {
+          "cached_path": "/private/tmp/dms08-laya-cache/model/model.safetensors",
+          "exists": true,
+          "expected_sha256": "804ef8802b4cac7a67913b0cfb8448659e934a50284aaa867b98d7d9a6e7d1e0",
+          "match": true,
+          "path": "model.safetensors",
+          "repository": "aac6fef/laya-typed-decisions-mlx",
+          "revision": "28416e78cb26a239a4eabaa2e084904ec5e6cacb",
+          "sha256": "804ef8802b4cac7a67913b0cfb8448659e934a50284aaa867b98d7d9a6e7d1e0",
+          "size_bytes": 842609225
+        }
+      ],
+      "artifact_hashes_match": true,
+      "inference_performed": false,
+      "installation_required": false,
+      "model_directory": "/private/tmp/dms08-laya-cache/model",
+      "offline_artifact_resolution_probe": true,
+      "run_allowed": true,
+      "runtime": {
+        "packages": {
+          "huggingface-hub": "1.33.0",
+          "mlx": "0.32.2",
+          "numpy": "2.5.3",
+          "tokenizers": "0.23.2"
+        },
+        "python": "3.14.7"
+      },
+      "runtime_executable": "/private/tmp/dms08-poetry-venvs/dms08-laya-mlx-runtime-E33OzdFt-py3.14/bin/python",
+      "runtime_lock": "specs/decision-model-support/evaluation/laya-mlx-runtime/poetry.lock",
+      "runtime_lock_match": true,
+      "runtime_lock_sha256": "8e985781ad08f589f20780b0ee971f26ce6f3a526ec4111e2031765894e75884",
+      "runtime_match": true,
+      "source_checkout": "/private/tmp/dms08-laya-mlx-source",
+      "source_clean": true,
+      "source_import_probe": true,
+      "source_revision": "0a859518634112655cb97c745dbf04f5191aaf13",
+      "source_revision_match": true,
+      "tokenizer_feasibility": {
+        "head_max_len": 256,
+        "items": 684,
+        "items_over_limit": 0,
+        "limit": 1024,
+        "max_input_tokens": 376,
+        "tokenizer": "Laya-MLX checkpoint tokenizer pinned in matrix"
+      },
+      "weights_download_required": false
+    },
+    "litjev-cpu": {
+      "artifact_files": [
+        {
+          "cached_path": "/private/tmp/dms06-litjev-cache/model.safetensors",
+          "exists": true,
+          "expected_sha256": "cd2a512003e2f9f3cd3c32a9c3573f820bb28c940f73c57b1ddaa983d9223eba",
+          "match": true,
+          "path": "model.safetensors",
+          "repository": "Qwen/Qwen3-0.6B-Base",
+          "revision": "da87bfb608c14b7cf20ba1ce41287e8de496c0cd",
+          "sha256": "cd2a512003e2f9f3cd3c32a9c3573f820bb28c940f73c57b1ddaa983d9223eba",
+          "size_bytes": 1192135096
+        }
+      ],
+      "artifact_hashes_match": true,
+      "inference_performed": false,
+      "installation_required": false,
+      "model_directory": "/private/tmp/dms06-litjev-cache",
+      "offline_artifact_resolution_probe": true,
+      "run_allowed": true,
+      "runtime": {
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "numpy": "2.5.3",
+          "safetensors": "0.8.0",
+          "torch": "2.11.0",
+          "torchvision": "0.26.0",
+          "transformers": "5.17.0"
+        },
+        "python": "3.14.7"
+      },
+      "runtime_executable": "/private/tmp/dms06-litjev-source/.venv/bin/python",
+      "runtime_lock": "/private/tmp/dms06-litjev-source/uv.lock",
+      "runtime_lock_match": true,
+      "runtime_lock_sha256": "bf0e1ff4aeda5ffe276e58f64edd7324bbaa8cec941fa174312b23e6bab0f1d8",
+      "runtime_match": true,
+      "source_checkout": "/private/tmp/dms06-litjev-source",
+      "source_clean": true,
+      "source_import_probe": true,
+      "source_revision": "e7fb109a7466da9709028eb9c4e9f16eaeb4e2a3",
+      "source_revision_match": true,
+      "tokenizer_feasibility": {
+        "compile_errors": 0,
+        "items": 684,
+        "items_over_16384": 0,
+        "limit": 16384,
+        "max_compiled_tokens": 508,
+        "tokenizer": "Qwen3-0.6B tokenizer pinned in matrix"
+      },
+      "weights_download_required": false
+    },
+    "poorjev-cpu": {
+      "artifact_files": [
+        {
+          "cached_path": "/private/tmp/dms06-poorjev-cache/model.safetensors",
+          "exists": true,
+          "expected_sha256": "6e8f2af78c828dcbd5243aac40fb87430376f0b8a9c288f4993df3ea3558d557",
+          "match": true,
+          "path": "model.safetensors",
+          "repository": "MoritzLaurer/deberta-v3-base-zeroshot-v2.0",
+          "revision": "8e7e5af5983a0ddb1a5b45a38b129ab69e2258e8",
+          "sha256": "6e8f2af78c828dcbd5243aac40fb87430376f0b8a9c288f4993df3ea3558d557",
+          "size_bytes": 368871908
+        }
+      ],
+      "artifact_hashes_match": true,
+      "inference_performed": false,
+      "installation_required": false,
+      "model_directory": "/private/tmp/dms06-poorjev-cache",
+      "offline_artifact_resolution_probe": true,
+      "run_allowed": true,
+      "runtime": {
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "torch": "2.14.0",
+          "transformers": "5.17.0"
+        },
+        "python": "3.14.7"
+      },
+      "runtime_executable": "/private/tmp/dms06-von-source/.venv/bin/python",
+      "runtime_lock": "/private/tmp/dms06-von-source/uv.lock",
+      "runtime_lock_match": true,
+      "runtime_lock_sha256": "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41",
+      "runtime_match": true,
+      "source_checkout": "/private/tmp/dms06-poorjev-source",
+      "source_clean": true,
+      "source_import_probe": true,
+      "source_revision": "7e684e95db13b90238c63e6ab39e1a016263a168",
+      "source_revision_match": true,
+      "tokenizer_feasibility": {
+        "backend_truncates_over_limit": true,
+        "items": 684,
+        "limit": 512,
+        "max_pair_tokens": 346,
+        "pair_count": 2372,
+        "pairs_over_512": 0,
+        "tokenizer": "MoritzLaurer tokenizer pinned in matrix"
+      },
+      "weights_download_required": false
+    },
+    "von-cpu": {
+      "artifact_files": [
+        {
+          "cached_path": "/private/tmp/dms06-von-cache/wfzyx-von-5df8185a4f2327ad0a7cd117cc4f701ac557b9ae/model.safetensors",
+          "exists": true,
+          "expected_sha256": "af57d5d2ab15715a753a1eb4add4271d1aecce7e76f3365f629c082df329297a",
+          "match": true,
+          "path": "model.safetensors",
+          "repository": "wfzyx/von",
+          "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
+          "sha256": "af57d5d2ab15715a753a1eb4add4271d1aecce7e76f3365f629c082df329297a",
+          "size_bytes": 1579143688
+        },
+        {
+          "cached_path": "/private/tmp/dms06-von-cache/wfzyx-von-5df8185a4f2327ad0a7cd117cc4f701ac557b9ae/option_marker.pt",
+          "exists": true,
+          "expected_sha256": "3faf27f88d30aaf9aa37860d4cdef99f1d05450cf40364f6236ac892d4d139ed",
+          "match": true,
+          "path": "option_marker.pt",
+          "repository": "wfzyx/von",
+          "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
+          "sha256": "3faf27f88d30aaf9aa37860d4cdef99f1d05450cf40364f6236ac892d4d139ed",
+          "size_bytes": 1581316459
+        },
+        {
+          "cached_path": "/private/tmp/dms06-von-cache/wfzyx-von-5df8185a4f2327ad0a7cd117cc4f701ac557b9ae/marker_calibration.json",
+          "exists": true,
+          "expected_sha256": "9b32949dcd0cfd122db509c9bd5be67f0cfe35696153aa93d667caf0aae147c9",
+          "match": true,
+          "path": "marker_calibration.json",
+          "repository": "wfzyx/von",
+          "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
+          "sha256": "9b32949dcd0cfd122db509c9bd5be67f0cfe35696153aa93d667caf0aae147c9",
+          "size_bytes": 1456
+        }
+      ],
+      "artifact_hashes_match": true,
+      "inference_performed": false,
+      "installation_required": false,
+      "model_directory": "/private/tmp/dms06-von-cache/wfzyx-von-5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
+      "offline_artifact_resolution_probe": true,
+      "run_allowed": true,
+      "runtime": {
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "torch": "2.14.0",
+          "transformers": "5.17.0"
+        },
+        "python": "3.14.7"
+      },
+      "runtime_executable": "/private/tmp/dms06-von-source/.venv/bin/python",
+      "runtime_lock": "/private/tmp/dms06-von-source/uv.lock",
+      "runtime_lock_match": true,
+      "runtime_lock_sha256": "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41",
+      "runtime_match": true,
+      "source_checkout": "/private/tmp/dms06-von-source",
+      "source_clean": true,
+      "source_import_probe": true,
+      "source_revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54",
+      "source_revision_match": true,
+      "tokenizer_feasibility": {
+        "digit_split": false,
+        "items": 684,
+        "items_over_8192": 0,
+        "limit": 8192,
+        "max_packed_tokens": 354,
+        "tokenizer": "Von model tokenizer pinned in matrix"
+      },
+      "weights_download_required": false
+    }
+  },
+  "run_allowed": true,
+  "selected_category_counts": {
+    "composition_holdout": 96,
+    "emotion": 116,
+    "legacy_holdout": 80,
+    "mmlu": 116,
+    "paws": 80,
+    "qnli": 80,
+    "sciq": 116
+  },
+  "selected_item_count": 684,
+  "tokenizer_preflight_script": {
+    "output_path": "/private/tmp/dms14-token-preflight-output.json",
+    "output_sha256": "96110dc387139ba63c8adcb502ddf9ae96ce7cbe8787c6587f44788b5110bab0",
+    "path": "/private/tmp/dms14-token-preflight.py",
+    "sha256": "ec61bc9e24a0cc76d10a5846ba2779c05fea7c55aedb3444f74cd2a87954172f"
+  },
+  "track": "DMS-14"
+}

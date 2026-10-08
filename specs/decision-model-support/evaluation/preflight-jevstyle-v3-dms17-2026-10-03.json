@@ -1,0 +1,259 @@
+{
+  "schema": "jevstyle-v3-dms17-smoke-preflight-v1",
+  "profile_set_id": "jevstyle-v3-auto",
+  "created_at_utc": "2026-10-03T22:09:39.838849+00:00",
+  "scope_sha256": "decb9724f9850d226d874ccf19c0e79e7de0dc80b49fbc313eb5ca1df7867e40",
+  "scope_payload": {
+    "action": "verify exact local files, stage only missing allowlisted files from the pinned revision, load offline through the Jev-Style selector, and make one synthetic choice request for each selected profile",
+    "attempt": 3,
+    "selected_profiles": [
+      "mlx-metal"
+    ],
+    "adapter_id": "dar.jevstyle-v3-auto",
+    "host": {
+      "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+      "architecture": "arm64",
+      "metal_available": true,
+      "python": "3.14.7",
+      "resource_policy": "available free, inactive, and speculative pages must total at least twice the pinned DMS-01 peak RSS"
+    },
+    "materials": {
+      "mlx-metal": {
+        "model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3-MLX",
+        "model_revision": "1235ccd1c95d5228a07616cd7e323c9e0532c1dc",
+        "expected_files": {
+          "8bit/config.json": "5cfb0922af6406668fc828adc5630b9a5606d46bb31b7a6b2262c3d0674ae419",
+          "8bit/model.safetensors": "36890afff7a9da5b7228d81cd79434088267bd250c9eafab14539e6a5161a5fe",
+          "8bit/tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "8bit/tokenizer_config.json": "95c557768e6b88a7128befc7bfd3c7de50e5d51af9b8b33a9f4dee0e04f99679",
+          "NOTICE": "904080b91d63823afc510a45332e7cd28c1ff517b8ca5937502cded42d1d359b",
+          "jev_style_decision_mlx.py": "e3ba700043d764f0fe50931cc3524d8329552bf4f4187f411671fd323e363acf",
+          "readout_config.json": "01de9bcce7effbfd1ae0a3fa13e52d7fa9aa4dd1cd1e47977d6bbdcd5e63054a",
+          "release_config.json": "3921e2bde22223eb677961ea3b75d8cff48ceb4112c3fff0f94a0c190e1408b9",
+          "manifest.json": "4edd953bc1256dde93a748942bb23f3fdd50e47a87fe9881a2c7221a4ac9e685",
+          "LICENSE": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+          "8bit/chat_template.jinja": "273d8e0e683b885071fb17e08d71e5f2a5ddfb5309756181681de4f5a1822d80",
+          "8bit/generation_config.json": "62153eb6c69f2e1f426beaa8002b7186437e949c7588167085df14e10e9c0a73",
+          "8bit/model.safetensors.index.json": "6d0e74ad17103021d9748ca2279ff13a5cae9a3b3e1f9e6422d18cb39dac3150",
+          "requirements.txt": "c35f1b50cb5ba6ea636534023694e8d8fafcf0015f0412a1c36626a025ca8d43"
+        },
+        "runtime_lock_sha256": "8e50ab3a48cc4b0b6896cf8241b111d1619d50af41982257970dfb7689d4078d",
+        "material_path": "/private/tmp/dms17-jevstyle-materials/mlx"
+      }
+    },
+    "scorer_path": "/private/tmp/dms01-additions/jev-score",
+    "scorer_sha256": "072ac7464d3b6c436116bc839c347daa0a36d11e673abebf4acde39f8e38d46e",
+    "scope_files": {
+      "tests/manual/smoke_jevstyle_dms17.py": "7de3ed4d5e4dcc302ce2eb85b68d1e8cddec94542e82aae314d9a43e0e7d9224",
+      "pyproject.toml": "b17b1cd89182d82041cab7d32dbdd8b3411251ce9fa6a8e4bbcc2e74e9576ce2",
+      "src/dynamic_agent_runner/__init__.py": "00c37fa47b14f4a0ee8213418531479fb0da7b390e7ea69d6b5ebeea3ca173da",
+      "src/dynamic_agent_runner/decision_models.py": "311c5d3045f67db5a23ae96ee8f3c6f89ff3177fb658a0a905842418153cee94",
+      "src/dynamic_agent_runner/workflow_host/jevstyle_decision_adapter.py": "453fcebf6b555e1d6c73cf9f0706e9b5390d89c028798bc4a49f8e1df7db631a",
+      "src/dynamic_agent_runner/workflow_host/model_execution_binding.py": "3002db175d9270d53dae6b2ad94399fa1b4716ec36104c5a8f1b07d7fc2dfe6b",
+      "src/dynamic_agent_runner/workflow_host/capabilities.py": "e6bdc3fd3ac9755e2831f32d9edba6a867f35e8827e41d47513bee31c59a665f",
+      "src/dynamic_agent_runner/workflow_host/execution_descriptors.py": "0a36a306a7a64f70fb318c20b23d081f05df78185c2b7c959dd093b1f459841d",
+      "src/dynamic_agent_runner/workflow_host/model_materials.py": "3e80dfbc2382acfbad781c1a6952f177a73b97d46a5b5d71efff087a225527a6",
+      "specs/decision-model-support/evaluation/jevstyle-v3-dms17-profile-admission.json": "974d4640485d34f808a8b383b9fe2d9a57a815fb2ece20620cffb944f7cefd05",
+      "specs/decision-model-support/evaluation/jevstyle-mlx-runtime/pyproject.toml": "76d8473fc59082390073567fb6f2dacb4478e6a30d3a11ae518965d595bf8d6a",
+      "specs/decision-model-support/evaluation/jevstyle-mlx-runtime/poetry.lock": "8e50ab3a48cc4b0b6896cf8241b111d1619d50af41982257970dfb7689d4078d",
+      "specs/decision-model-support/evaluation/jevstyle-gguf-runtime/pyproject.toml": "fddcc13c5ff3eedb1aa3f0b59ee966cfdb17ef947764de6e15b4f54f56751e4a",
+      "specs/decision-model-support/evaluation/jevstyle-gguf-runtime/poetry.lock": "e0273c1d05185421eff953f538a59de7213b6b1731993831878943215568f975",
+      "specs/decision-model-support/evaluation/jevstyle-torch-runtime/pyproject.toml": "a518334d6dc0e8d546855339841b00f703498872e789cf4d4e44ae84043a752a",
+      "specs/decision-model-support/evaluation/jevstyle-torch-runtime/poetry.lock": "82e6a2853231188d2fed184459aede8c9f72090e083da8d7053d6bc4166a0a5b"
+    }
+  },
+  "run_allowed": true,
+  "profiles": {
+    "mlx-metal": {
+      "model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3-MLX",
+      "model_revision": "1235ccd1c95d5228a07616cd7e323c9e0532c1dc",
+      "runtime_lock_sha256": "8e50ab3a48cc4b0b6896cf8241b111d1619d50af41982257970dfb7689d4078d",
+      "runtime_package_manifest": {
+        "huggingface-hub": "1.33.0",
+        "mlx": "0.32.2",
+        "mlx-lm": "0.31.3",
+        "numpy": "2.5.3",
+        "tokenizers": "0.23.2",
+        "dynamic-agent-runner": "0.1.21"
+      },
+      "runtime_files_verified": true,
+      "material_path": "/private/tmp/dms17-jevstyle-materials/mlx",
+      "files": {
+        "8bit/config.json": {
+          "expected_sha256": "5cfb0922af6406668fc828adc5630b9a5606d46bb31b7a6b2262c3d0674ae419",
+          "actual_sha256": "5cfb0922af6406668fc828adc5630b9a5606d46bb31b7a6b2262c3d0674ae419",
+          "match": true
+        },
+        "8bit/model.safetensors": {
+          "expected_sha256": "36890afff7a9da5b7228d81cd79434088267bd250c9eafab14539e6a5161a5fe",
+          "actual_sha256": "36890afff7a9da5b7228d81cd79434088267bd250c9eafab14539e6a5161a5fe",
+          "match": true
+        },
+        "8bit/tokenizer.json": {
+          "expected_sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "actual_sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "match": true
+        },
+        "8bit/tokenizer_config.json": {
+          "expected_sha256": "95c557768e6b88a7128befc7bfd3c7de50e5d51af9b8b33a9f4dee0e04f99679",
+          "actual_sha256": "95c557768e6b88a7128befc7bfd3c7de50e5d51af9b8b33a9f4dee0e04f99679",
+          "match": true
+        },
+        "NOTICE": {
+          "expected_sha256": "904080b91d63823afc510a45332e7cd28c1ff517b8ca5937502cded42d1d359b",
+          "actual_sha256": "904080b91d63823afc510a45332e7cd28c1ff517b8ca5937502cded42d1d359b",
+          "match": true
+        },
+        "jev_style_decision_mlx.py": {
+          "expected_sha256": "e3ba700043d764f0fe50931cc3524d8329552bf4f4187f411671fd323e363acf",
+          "actual_sha256": "e3ba700043d764f0fe50931cc3524d8329552bf4f4187f411671fd323e363acf",
+          "match": true
+        },
+        "readout_config.json": {
+          "expected_sha256": "01de9bcce7effbfd1ae0a3fa13e52d7fa9aa4dd1cd1e47977d6bbdcd5e63054a",
+          "actual_sha256": "01de9bcce7effbfd1ae0a3fa13e52d7fa9aa4dd1cd1e47977d6bbdcd5e63054a",
+          "match": true
+        },
+        "release_config.json": {
+          "expected_sha256": "3921e2bde22223eb677961ea3b75d8cff48ceb4112c3fff0f94a0c190e1408b9",
+          "actual_sha256": "3921e2bde22223eb677961ea3b75d8cff48ceb4112c3fff0f94a0c190e1408b9",
+          "match": true
+        }
+      },
+      "host_resource_gate": "pass",
+      "model_load_or_inference_run": true,
+      "smoke_status": "passed_attempt_3",
+      "smoke_failure_receipt": "dms17-smoke-mlx-metal-failure.json",
+      "smoke_receipt": "dms17-smoke-mlx-metal-attempt-3.json"
+    },
+    "gguf-f16-cpu": {
+      "model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3-GGUF",
+      "model_revision": "edf37c26a1098f83cf4264b8adbe0dca2d2ebb0c",
+      "runtime_lock_sha256": "e0273c1d05185421eff953f538a59de7213b6b1731993831878943215568f975",
+      "runtime_package_manifest": {
+        "numpy": "2.5.3",
+        "tokenizers": "0.23.2",
+        "dynamic-agent-runner": "0.1.21"
+      },
+      "runtime_files_verified": true,
+      "material_path": "/private/tmp/dms01-additions/materials/jevstyle-gguf",
+      "files": {
+        "Jev-Style-0.8B-Decision-v3-F16.gguf": {
+          "expected_sha256": "a33f709e10009c3fe182b51e4945d440288b137a35ad5d481e4ac1f2800b1a27",
+          "actual_sha256": "a33f709e10009c3fe182b51e4945d440288b137a35ad5d481e4ac1f2800b1a27",
+          "match": true
+        },
+        "LICENSE": {
+          "expected_sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+          "actual_sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+          "match": true
+        },
+        "NOTICE": {
+          "expected_sha256": "5b20e266b5b9b9c12df4cb53db6801bc08fe8f1471355aaec15c1a9f9aa0b201",
+          "actual_sha256": "5b20e266b5b9b9c12df4cb53db6801bc08fe8f1471355aaec15c1a9f9aa0b201",
+          "match": true
+        },
+        "jev_style_decision_gguf.py": {
+          "expected_sha256": "e6b028f043d943b5e33d63368070405c5f038b6ee6f71a11b44e93caa562f5ed",
+          "actual_sha256": "e6b028f043d943b5e33d63368070405c5f038b6ee6f71a11b44e93caa562f5ed",
+          "match": true
+        },
+        "jev_score.cpp": {
+          "expected_sha256": "90d848a61546286c74e484f61126f572b79c6f77f835450d8fc970b8547ce603",
+          "actual_sha256": "90d848a61546286c74e484f61126f572b79c6f77f835450d8fc970b8547ce603",
+          "match": true
+        },
+        "build_jev_score.sh": {
+          "expected_sha256": "5789a1585c51fbc4a03b423099a451e05cb66b9db49bc6c9361f326aca170fda",
+          "actual_sha256": "5789a1585c51fbc4a03b423099a451e05cb66b9db49bc6c9361f326aca170fda",
+          "match": true
+        }
+      },
+      "host_resource_gate": "pass",
+      "model_load_or_inference_run": true,
+      "smoke_receipt": "dms17-smoke-gguf-f16-cpu.json"
+    },
+    "torch-bf16-cpu": {
+      "model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3",
+      "model_revision": "b023d1f9c7858fbf01504577a3bfc349ea5c7385",
+      "runtime_lock_sha256": "82e6a2853231188d2fed184459aede8c9f72090e083da8d7053d6bc4166a0a5b",
+      "runtime_package_manifest": {
+        "huggingface-hub": "1.33.0",
+        "numpy": "2.5.3",
+        "safetensors": "0.8.0",
+        "tokenizers": "0.23.2",
+        "torch": "2.14.0",
+        "transformers": "5.17.0",
+        "dynamic-agent-runner": "0.1.21"
+      },
+      "runtime_files_verified": true,
+      "material_path": "/private/tmp/dms01-additions/materials/jevstyle-torch",
+      "files": {
+        "model.safetensors": {
+          "expected_sha256": "0f8c861605dcdfb356a63e056baa2106e81042e8981e8d0d26fe50b34599541e",
+          "actual_sha256": "0f8c861605dcdfb356a63e056baa2106e81042e8981e8d0d26fe50b34599541e",
+          "match": true
+        },
+        "LICENSE": {
+          "expected_sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+          "actual_sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+          "match": true
+        },
+        "NOTICE": {
+          "expected_sha256": "3c1bee42827901d754cf64e437cf8837ea94241348f5f4be9e6c4e14fbfc5716",
+          "actual_sha256": "3c1bee42827901d754cf64e437cf8837ea94241348f5f4be9e6c4e14fbfc5716",
+          "match": true
+        },
+        "jev_style_decision.py": {
+          "expected_sha256": "b93c2345732be8ef5ec4274b77ded564e421ccb91967a207de4f18254438ce42",
+          "actual_sha256": "b93c2345732be8ef5ec4274b77ded564e421ccb91967a207de4f18254438ce42",
+          "match": true
+        },
+        "tokenizer.json": {
+          "expected_sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "actual_sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "match": true
+        },
+        "release_config.json": {
+          "expected_sha256": "505f8a31754cdd5988e2d41813f2fbfff52520b598a22911066b5c55dab028a3",
+          "actual_sha256": "505f8a31754cdd5988e2d41813f2fbfff52520b598a22911066b5c55dab028a3",
+          "match": true
+        }
+      },
+      "host_resource_gate": "pass",
+      "model_load_or_inference_run": true,
+      "smoke_receipt": "dms17-smoke-torch-bf16-cpu.json"
+    }
+  },
+  "host": {
+    "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+    "architecture": "arm64",
+    "metal_available": true,
+    "total_memory_bytes": 38654705664,
+    "available_memory_estimate_bytes": 14533410816,
+    "free_storage_bytes": 45076807680,
+    "storage_path": "/private/tmp"
+  },
+  "runtime_import_checks": {
+    "mlx-metal": "passed with Metal device access; mlx 0.32.2 / mlx-lm 0.31.3 / DAR source adapter import",
+    "gguf-f16-cpu": "passed; tokenizers 0.23.2 / DAR source adapter import",
+    "torch-bf16-cpu": "passed; torch 2.14.0 / transformers 5.17.0 / DAR source adapter import"
+  },
+  "approval": {
+    "required_before_material_staging_and_model_loading": true,
+    "status": "approved",
+    "scope_sha256": "decb9724f9850d226d874ccf19c0e79e7de0dc80b49fbc313eb5ca1df7867e40",
+    "profiles": [
+      "mlx-metal"
+    ],
+    "action": "stage the exact missing pinned MLX verifier file and run one offline synthetic choice smoke through the adapter for MLX/Metal only",
+    "approved_by": "user",
+    "approved_at_utc": "2026-10-03 23:22:19 UTC",
+    "user_authorization": "User instructed: execute the MLX pass."
+  },
+  "notes": [
+    "MLX-only attempt 3; successful GGUF and PyTorch profiles are not rerun.",
+    "Manifest and all upstream verifier-selected 8-bit MLX files are explicitly SHA-256 pinned.",
+    "No DMS evaluation fixtures, training, calibration, or network access during model loading or inference."
+  ]
+}

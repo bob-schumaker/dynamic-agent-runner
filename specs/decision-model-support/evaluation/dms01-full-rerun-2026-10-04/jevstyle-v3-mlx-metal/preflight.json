@@ -1,0 +1,69 @@
+{
+  "artifacts": [
+    {
+      "id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3-MLX",
+      "revision": "1235ccd1c95d5228a07616cd7e323c9e0532c1dc"
+    }
+  ],
+  "blockers": [],
+  "candidate_run_approved": true,
+  "created_at_utc": "2026-10-04T16:16:16.161147+00:00",
+  "evaluation_harness_files": [
+    {
+      "id": "scripts/evaluate_decision_models.py",
+      "sha256": "d75057e68ec8b7cd2f98a99ca8527dc3a92c597391adec7ad12a0d657cc7bd1b"
+    },
+    {
+      "id": "tests/manual/run_jevstyle_dms12.py",
+      "sha256": "a5e5d92f98cf37cf4609310f5676ee042221fc9318a28f278eee0b066ee97d61"
+    }
+  ],
+  "execution_mode": "external_in_process_mlx",
+  "expected_model_files": {
+    "8bit/config.json": "5cfb0922af6406668fc828adc5630b9a5606d46bb31b7a6b2262c3d0674ae419",
+    "8bit/model.safetensors": "36890afff7a9da5b7228d81cd79434088267bd250c9eafab14539e6a5161a5fe",
+    "8bit/tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+    "8bit/tokenizer_config.json": "95c557768e6b88a7128befc7bfd3c7de50e5d51af9b8b33a9f4dee0e04f99679",
+    "NOTICE": "904080b91d63823afc510a45332e7cd28c1ff517b8ca5937502cded42d1d359b",
+    "jev_style_decision_mlx.py": "e3ba700043d764f0fe50931cc3524d8329552bf4f4187f411671fd323e363acf",
+    "readout_config.json": "01de9bcce7effbfd1ae0a3fa13e52d7fa9aa4dd1cd1e47977d6bbdcd5e63054a",
+    "release_config.json": "3921e2bde22223eb677961ea3b75d8cff48ceb4112c3fff0f94a0c190e1408b9"
+  },
+  "fixture_criteria_approved": true,
+  "host": {
+    "accelerator_status": "Metal available",
+    "architecture": "arm64",
+    "free_storage_bytes": 42721783808,
+    "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+    "required_free_storage_bytes": 8589934592,
+    "storage_path": "/private/tmp/dms17-jevstyle-materials",
+    "total_memory_bytes": 38654705664
+  },
+  "input_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+  "provenance_base": {
+    "id": "Qwen/Qwen3.5-0.8B-Base",
+    "revision": "dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68"
+  },
+  "run_allowed": true,
+  "runtime": {
+    "available": true,
+    "executable": "/private/tmp/dms17-jevstyle-venvs/dms-jevstyle-mlx-runtime-w1POa61p-py3.14/bin/python",
+    "lock_sha256": "8e50ab3a48cc4b0b6896cf8241b111d1619d50af41982257970dfb7689d4078d",
+    "packages": {
+      "huggingface-hub": "1.33.0",
+      "mlx": "0.32.2",
+      "mlx-lm": "0.31.3",
+      "numpy": "2.5.3",
+      "tokenizers": "0.23.2"
+    },
+    "python_version": "3.14.7",
+    "virtualenv": "/private/tmp/dms17-jevstyle-venvs/dms-jevstyle-mlx-runtime-w1POa61p-py3.14"
+  },
+  "runtime_file_sha256": "e3ba700043d764f0fe50931cc3524d8329552bf4f4187f411671fd323e363acf",
+  "runtime_source": "pinned checkpoint script; digest verified before local import",
+  "source": {
+    "id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3-MLX",
+    "revision": "1235ccd1c95d5228a07616cd7e323c9e0532c1dc"
+  },
+  "transformers_remote_code_allowed": false
+}

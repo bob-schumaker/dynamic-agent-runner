@@ -18,7 +18,19 @@ from dynamic_agent_runner.local_model_preparation import (
     TRANSFORMERS_PEFT_SINGLE_IMAGE_V1,
     _valid_loader_profile,
 )
-from dynamic_agent_runner.openai_client import ModelResponse, OpenAIModelRequest
+from dynamic_agent_runner.multimodal_model_runner import (
+    DARGenerationRequestContext,
+    MultimodalRunnerDescriptor,
+    MultimodalRunnerHealth,
+    MultimodalRunnerResult,
+    SealedMultimodalInputMaterializer,
+    SealedMultimodalRequest,
+)
+from dynamic_agent_runner.openai_client import (
+    ModelResponse,
+    OpenAIModelRequest,
+    build_openai_request,
+)
 from dynamic_agent_runner.workflow_host.capabilities import CapabilityContract
 from dynamic_agent_runner.workflow_host.descriptor import DeclaredInputConverter
 from dynamic_agent_runner.workflow_host.execution_descriptors import (
@@ -502,6 +514,36 @@ class TransformersPeftPackedInputAdapter:
     def clear_sealed_payload(self) -> None:
         self._sealed_payload = None
 
+    def create_response_from_canonical_payload(
+        self,
+        *,
+        content: bytes,
+        response_format: Mapping[str, object] | None = None,
+        max_tokens: int | None = None,
+    ) -> ModelResponse:
+        """Run one receiver-materialized converter payload without protocol messages."""
+
+        decode = getattr(self._converter, "decode_canonical_payload", None)
+        if not isinstance(content, bytes) or not content or not callable(decode):
+            raise ModelExecutionError("sealed converter input is unavailable")
+        try:
+            messages, payload = decode(content)
+            if not isinstance(payload, bytes) or not payload:
+                raise ModelExecutionError("sealed converter input is unavailable")
+            request = build_openai_request(
+                model=self._model_id,
+                messages=messages,
+                response_format=response_format,
+                max_tokens=max_tokens,
+            )
+            self.bind_sealed_payload(content=payload)
+            return self.create_response(request)
+        except ModelExecutionError:
+            raise
+        except Exception as error:  # noqa: BLE001 - converter errors vary.
+            raise ModelExecutionError("sealed converter input is unavailable") from error
+
+
     def set_debug_fragment_recorder(
         self, recorder: Callable[[GenerationDebugFragment], None] | None
     ) -> None:
@@ -767,6 +809,94 @@ class TransformersPeftPackedInputAdapter:
                 )
             )
             self._debug_fragment_index += 1
+
+
+class TransformersPeftMultimodalRunner:
+    """Expose one prepared Transformers adapter through the multimodal protocol."""
+
+    def __init__(
+        self,
+        *,
+        descriptor: MultimodalRunnerDescriptor,
+        adapter: TransformersPeftPackedInputAdapter,
+    ) -> None:
+        if not isinstance(descriptor, MultimodalRunnerDescriptor):
+            raise ModelExecutionError("multimodal runner descriptor is invalid")
+        if not callable(
+            getattr(adapter, "create_response_from_canonical_payload", None)
+        ):
+            raise ModelExecutionError("multimodal runner adapter is unavailable")
+        self._descriptor = descriptor
+        self._adapter = adapter
+
+    @property
+    def runner_id(self) -> str:
+        return self._descriptor.runner_id
+
+    @property
+    def protocol_id(self) -> str:
+        return self._descriptor.protocol_id
+
+    @property
+    def protocol_version(self) -> str:
+        return self._descriptor.protocol_version
+
+    def describe(self) -> MultimodalRunnerDescriptor:
+        return self._descriptor
+
+    def health(self) -> MultimodalRunnerHealth:
+        return MultimodalRunnerHealth("ready")
+
+    def run(
+        self,
+        request: SealedMultimodalRequest,
+        *,
+        context: DARGenerationRequestContext,
+        input_materializer: SealedMultimodalInputMaterializer | None = None,
+    ) -> MultimodalRunnerResult:
+        if input_materializer is None:
+            raise ModelExecutionError("sealed converter input is unavailable")
+        handles = tuple(
+            handle for handle in request.handles if handle.role == "converter_input"
+        )
+        if len(handles) != 1:
+            raise ModelExecutionError("sealed converter input is unavailable")
+        materialized = input_materializer.resolve(
+            handles[0],
+            package_id=request.package_id,
+            package_revision_digest=request.package_revision_digest,
+            invocation_id=request.invocation_id,
+            descriptor_digest=request.descriptor.contract_digest,
+            expires_at=getattr(input_materializer, "expires_at", None),
+            now=getattr(input_materializer, "now", None),
+        )
+        if not isinstance(materialized, bytes) or not materialized:
+            raise ModelExecutionError("sealed converter input is unavailable")
+        response = self._adapter.create_response_from_canonical_payload(
+            content=materialized
+        )
+        generated_tokens = 0
+        generation = response.metadata.get("generation")
+        if isinstance(generation, Mapping):
+            values = generation.get("generated_tokens")
+            if isinstance(values, Sequence) and not isinstance(values, (str, bytes)):
+                generated_tokens = sum(
+                    value for value in values if isinstance(value, int) and value >= 0
+                )
+        return MultimodalRunnerResult(
+            status="completed",
+            text=response.content,
+            output_handles=(),
+            generated_tokens=generated_tokens,
+            output_bytes=len(response.content.encode("utf-8")),
+            coverage={"image": 1},
+            worker_reaped=True,
+            package_id=request.package_id,
+            package_revision_digest=request.package_revision_digest,
+            material_lock_digest=request.descriptor.material_lock_digest,
+            converter_digest=request.descriptor.converter_digest,
+            contract_digest=request.descriptor.contract_digest,
+        )
 
 
 class TransformersPeftSingleImageAdapter:
@@ -1364,6 +1494,36 @@ class DeferredTransformersPeftSingleImageAdapter:
             raise ModelExecutionError("model generation budget is unavailable")
         self._resolved_packed_adapter().bind_sealed_payload(content=content)
         self._payload_bound = True
+
+    def create_response_from_canonical_payload(
+        self,
+        *,
+        content: bytes,
+        response_format: Mapping[str, object] | None = None,
+        max_tokens: int | None = None,
+    ) -> ModelResponse:
+        """Decode one converter-owned payload before entering the existing adapter."""
+
+        converter = self._converter
+        decode = getattr(converter, "decode_canonical_payload", None)
+        if not isinstance(content, bytes) or not content or not callable(decode):
+            raise ModelExecutionError("sealed converter input is unavailable")
+        try:
+            messages, payload = decode(content)
+            if not isinstance(payload, bytes) or not payload:
+                raise ModelExecutionError("sealed converter input is unavailable")
+            request = build_openai_request(
+                model=self._model_id,
+                messages=messages,
+                response_format=response_format,
+                max_tokens=max_tokens,
+            )
+            self.bind_sealed_payload(content=payload)
+            return self.create_response(request)
+        except ModelExecutionError:
+            raise
+        except Exception as error:  # noqa: BLE001 - converter errors vary.
+            raise ModelExecutionError("sealed converter input is unavailable") from error
 
     def bind_worker_converter_payload(
         self, *, package_root: Path, converter: DeclaredInputConverter, content: bytes

@@ -1,0 +1,30 @@
+{
+  "profile_id": "mlx-metal",
+  "approval_scope_sha256": "3c244212a6ce0317acc69a455db62b459ca46898d896705efc094862ce7d3712",
+  "approved_attempt": 1,
+  "inference_count": 0,
+  "outcomes": [
+    {
+      "environment": "sandbox",
+      "stage": "model_initialization",
+      "error": "Metal device unavailable in sandbox; no inference occurred."
+    },
+    {
+      "environment": "outside_sandbox",
+      "stage": "upstream_integrity_verification",
+      "error": "FileNotFoundError: manifest.json absent from staged pinned materials; no inference occurred."
+    },
+    {
+      "attempt": 2,
+      "environment": "outside_sandbox",
+      "stage": "upstream_integrity_verification",
+      "error": "RuntimeError: manifest verifier required requirements.txt; no inference occurred."
+    }
+  ],
+  "materials_staged": true,
+  "all_staged_files_match_pinned_hashes": true,
+  "model_load_or_inference_run": false,
+  "next_step": "No further MLX smoke is pending; attempt 3 passed after the complete selected-profile verifier file set was pinned and verified.",
+  "approved_attempts_without_inference": 2,
+  "successful_receipt": "dms17-smoke-mlx-metal-attempt-3.json"
+}

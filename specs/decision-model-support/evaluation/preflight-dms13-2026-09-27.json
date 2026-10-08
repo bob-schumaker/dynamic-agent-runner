@@ -1,0 +1,40 @@
+{
+  "created_at_utc": "2026-09-28T05:28:39.539509+00:00",
+  "benchmark_manifest": "evaluation/dms13-corpus-manifest.json",
+  "runtime_lock_sha256": "f490719fd8d20b7fb25dc5099732137353d8335e99e7cea275dd56affdb06aa5",
+  "runtime_executable": "/private/tmp/dms13-py-venvs/dms13-local-evaluation-runtime-3EepRVVB-py3.14/bin/python",
+  "python": "3.14.7",
+  "packages": {
+    "accelerate": "1.15.0",
+    "huggingface-hub": "1.32.0",
+    "mlx": "0.32.2",
+    "mlx-lm": "0.31.3",
+    "numpy": "2.5.3",
+    "openai": "2.54.0",
+    "tokenizers": "0.23.2",
+    "torch": "2.14.0",
+    "transformers": "5.17.0"
+  },
+  "package_versions_match_lock": true,
+  "von_source_revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54",
+  "von_source_matches_pin": true,
+  "von_source_import": "/private/tmp/dms06-von-source/src/von/__init__.py",
+  "metal_available": true,
+  "host": {
+    "system": "Darwin",
+    "release": "26.6.2",
+    "machine": "arm64",
+    "ram_bytes": 38654705664,
+    "free_bytes_private_tmp": 52979748864
+  },
+  "qwen_weights_cached": false,
+  "model_weights_loaded": false,
+  "inference_performed": false,
+  "scorer_approved": false,
+  "run_approved": false,
+  "run_allowed": false,
+  "blockers": [
+    "DMS-13 scorer and run approval are outstanding"
+  ],
+  "preflight_passed": true
+}

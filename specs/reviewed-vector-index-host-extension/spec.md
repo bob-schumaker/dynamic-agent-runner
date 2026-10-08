@@ -5,7 +5,7 @@
 ## Metadata
 
 - Feature slug: `reviewed-vector-index-host-extension`
-- Status: in progress
+- Status: implemented; validation recorded in `tasks.md`
 - Owner: dynamic-agent-runner host-extension, capability, sealed-artifact, and workflow-package boundaries
 - Related specifications:
   - `specs/workflow-capability-requirements/spec.md`
@@ -29,8 +29,10 @@ This feature defines:
 1. reviewed registration and separate host-template discovery of an exact
    capability identity before package authoring;
 2. a one-field, approval-gated package invocation contract;
-3. sealed-job and capability revalidation at authoring, package admission, and execution admission;
-4. generic bounded artifact-handle egress and aggregate-only receipts; and
+3. template revalidation at authoring discovery and package admission, plus
+   sealed-job and capability revalidation at execution admission;
+4. generic bounded artifact-handle egress and aggregate-only success-receipt
+   counts; and
 5. fail-closed behavior when the reviewed template or its host dependencies are unavailable or changed.
 
 ## Non-Goals
@@ -50,8 +52,10 @@ This feature does not:
 
 A reviewed template is an immutable host-registration record with a capability
 ID, contract version, immutable template digest, input schema, output-limit
-contract, success-receipt schema digest, receipt bounds, finite failure
-classifications, approval classification, and host extension binding. The
+contract, success-receipt schema digest, bounded closed canonical-manifest
+schema and its digest, receipt bounds, finite failure classifications, approval
+classification, and host extension binding. DAR shall verify each schema's
+canonical digest on registration, resolution, and execution admission. The
 output-limit contract fixes three required roles (`index_generation`,
 `index_manifest`, and `coverage_report`), each role's media type, positive
 maximum bytes, and retention lifetime. The receipt contract fixes a maximum
@@ -203,6 +207,32 @@ one-field public invocation shape. DAR shall reject malformed, foreign,
 expired, unauthorized, or template-mismatched job handles before extension
 dispatch.
 
+Before presenting approval, DAR shall validate the then-current sealed-job and
+template bindings, mint an `approval_nonce`, and construct an immutable pending
+reservation tuple. DAR computes the reservation digest from the canonical
+serialization of that full tuple. The invocation runner shall adapt its
+existing `LocalActionApprovalBroker` to the private reservation-aware
+`ReviewedCapabilityApprovalBroker` required by the reviewed executor. The
+adapter is DAR-owned: for one pending binding, it presents one DAR-created
+external action containing only the public invocation and the same approval to
+the local broker, returns that decision unchanged, and keeps the nonce,
+reservation digest, and sealed members private to DAR's approval, ledger, and
+executor path. A host supplies only the normal local action presenter; it
+supplies neither a reservation digest nor a second approval path.
+
+After an approved decision and before reservation, DAR shall revalidate the
+current authoritative bindings and construct a current candidate tuple using
+the original nonce. DAR atomically compares that candidate tuple and its
+canonical digest with the pending tuple and digest before consuming the pending
+tuple, the per-run call-site budget, and the job reservation. Any drift or
+digest mismatch expires the pending approval without consuming a reservation or
+dispatching; DAR returns a closed failure and requires a fresh approval against
+the then-current binding. Missing, malformed, denied,
+cancelled, unavailable, or presenter-exception outcomes likewise fail closed
+before reservation, extension dispatch, publication, or output-handle creation.
+The adapter shall not auto-approve, retry the prompt, or convert a run-wide
+grant into reviewed-capability authority.
+
 One durable single-store reservation record shall bind and atomically consume
 the immutable tuple `(run_id, package_registration_and_revision,
 declared_call_site_id, template_id_version_and_digest, job_issuer_id,
@@ -284,11 +314,15 @@ are nonempty bounded opaque strings with template-defined grammars;
 non-negative integer no greater than the template-defined ceiling. The receipt
 shall not contain paths, raw bytes, vectors, source identifiers, model or
 material identity, profile contents, retry history, host policy, or internal
-artifact metadata. The `index_manifest` contains only canonical provenance,
-digest bindings, and aggregate counts; it contains no source identifiers,
-content, vectors, paths, or profile contents. The `coverage_report` is
-aggregate-only. Both artifacts have the same principal/run-bound access,
-retention, and revocation policy as the generation handle.
+artifact metadata. The template shall declare `index_manifest` as a bounded,
+closed canonical-manifest representation, its immutable bounded closed schema,
+and its verified schema digest. DAR validates that representation, but never
+index bytes: it permits only the declared
+canonical provenance, digest bindings, and aggregate counts and rejects source
+identifiers, content, vectors, paths, or profile contents. The
+`coverage_report` is aggregate-only. Both artifacts have the same
+principal/run-bound access, retention, and revocation policy as the generation
+handle.
 
 ### FR-6: Failure and publication atomicity
 
@@ -348,27 +382,41 @@ The verification suite shall prove:
    approval tuple and per-run call-site budget are consumed once; and a second
    distinct job, job replay, approval replay, concurrent call, or retry cannot
    cause another dispatch;
-4. malformed, foreign, expired, unauthorized, envelope-mismatched, or
+4. DAR mints a prospective nonce and canonical tuple/digest before one normal
+   local approval presentation; the reviewed executor receives that exact
+   digest, and atomic consumption compares both with a candidate rebuilt from
+   current authoritative bindings using the original nonce. Binding drift or
+   digest mismatch after the prompt expires approval with zero reservation or
+   dispatch. The next attempt must mint a distinct nonce/digest, present one
+   fresh approval for the current binding, and may consume and dispatch only
+   once; the expired decision is unusable. A substituted manifest schema or
+   content rejected by its verified schema likewise cannot reach `host_pending`.
+   Denied, cancelled, missing,
+   malformed,
+   unavailable, or presenter-exception outcomes likewise create no reservation,
+   extension dispatch, publication, or output handle, and no terminal display,
+   trace, or model-visible argument contains a sealed member or digest;
+5. malformed, foreign, expired, unauthorized, envelope-mismatched, or
    member-mismatched jobs cause zero extension dispatches and zero output
    handles;
-5. a changed host-selected embedding/material dependency immediately before
+6. a changed host-selected embedding/material dependency immediately before
    dispatch causes zero publication and no fallback selection;
-6. every transition and crash boundary, including immediately before and after
+7. every transition and crash boundary, including immediately before and after
    every host recovery call, is durably recovered using the same reservation
    identity, never a fresh build, and exposes no success receipt or handle
    before `completed`;
-7. a successful extension result retains exactly three opaque artifact handles
+8. a successful extension result retains exactly three opaque artifact handles
    and one schema-valid, bounded aggregate-only receipt;
-8. missing roles, invalid role media type, oversized artifacts, invalid receipt
-   counts, unknown receipt fields, sensitive receipt fields, manifest source
+9. missing roles, invalid role media type, oversized artifacts, invalid receipt
+   counts, unknown receipt fields, sensitive receipt fields, an invalid declared
+   canonical-manifest representation or its prohibited source
    identifiers/content/vectors/paths/profile contents, or non-aggregate
    coverage fields are rejected before `host_pending`;
-9. an unrecoverable completion attempt returns only the closed redacted failure
-   receipt, has no handles, and leaves the prior visible generation unchanged;
-   and
-10. the package cannot specify a source, profile, prior generation, model,
-    provider, retry policy, destination, or publish/delete behavior.
-11. fake-clock expiry proves that DAR defers revocation when the host asserts a
+10. an unrecoverable completion attempt returns only the closed redacted failure
+    receipt, has no handles, and leaves the prior visible generation unchanged;
+11. the package cannot specify a source, profile, prior generation, model,
+    provider, retry policy, destination, or publish/delete behavior; and
+12. fake-clock expiry proves that DAR defers revocation when the host asserts a
     current generation; otherwise DAR revokes only after
     `unpublish_generation_atomically` succeeds. An
     `assert_generation_current` or unpublication error retains artifacts and
@@ -383,7 +431,8 @@ The feature is complete when a host can register an exact reviewed
 identity through the separate host API before package creation, and a package
 can declare, admit, approve, and invoke it using only one host-created sealed
 job handle. DAR must fail closed at authoring, package admission, and execution
-admission; enforce one invocation per workflow run and one dispatch attempt per
-job; recover completion idempotently; preserve host ownership of all indexing
-and publication behavior; and return only the bounded opaque artifacts and
-aggregate receipt defined above.
+admission; use only its private adapter to bridge one normal local approval
+presentation to the reservation-aware executor; enforce one invocation per
+workflow run and one dispatch attempt per job; recover completion idempotently;
+preserve host ownership of all indexing and publication behavior; and return
+only the bounded opaque artifacts and aggregate receipt defined above.

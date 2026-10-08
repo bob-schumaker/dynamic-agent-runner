@@ -1,0 +1,63 @@
+{
+  "accelerator_status": "CPU selected; Metal and CUDA disabled for this row",
+  "approval_source": "User request: run the full 12-row DMS-01 matrix on the updated Von-compatible environment",
+  "artifacts": [
+    {
+      "id": "chaoliangUNSW/MacJev-322M-4K-Laya",
+      "revision": "92b182e653ebd8facd04ec9bddf6f63c4a7b7c22"
+    }
+  ],
+  "blockers": [],
+  "candidate_id": "macjev-torch-cpu",
+  "candidate_run_approved": true,
+  "created_at_utc": "2026-10-04",
+  "dar_profile_id": null,
+  "evaluation_harness_files": [
+    {
+      "id": "scripts/evaluate_decision_models.py",
+      "sha256": "d75057e68ec8b7cd2f98a99ca8527dc3a92c597391adec7ad12a0d657cc7bd1b"
+    },
+    {
+      "id": "tests/manual/run_dms01_additions.py",
+      "sha256": "2c1027c924cf8a3979927c962b01b47a0e0618c81804b3ee62beb9ffe3f0b7a6"
+    }
+  ],
+  "execution_mode": "external_research_harness",
+  "fixture_criteria_approved": true,
+  "fixture_hashes_valid": true,
+  "harness": {
+    "id": "dynamic-agent-runner DMS-01 additions: macjev-torch-cpu",
+    "revision": "a89097a12f90fab85e11b7494d68f281fa8f2566"
+  },
+  "host": {
+    "architecture": "arm64",
+    "available_memory_estimate_bytes": 14783856640,
+    "free_storage_bytes": 53150298112,
+    "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+    "required_free_storage_bytes": 8589934592,
+    "storage_path": "/private/tmp/dms01-additions",
+    "total_memory_bytes": 38654705664
+  },
+  "input_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+  "labels_sha256": "a87f79b376b7e0c790df78cdd6a623d06450364d6d7c708974c8a953d7b7c7a5",
+  "matrix_sha256": "803e746dac5dc685aeb241973bc61d9eb7dbb0ac727fbfc356948904180bb327",
+  "remote_code_allowed": false,
+  "run_allowed": true,
+  "runner_sha256": "dd69612cd2833b7c1086005b472a7c432ab24296ad91606dc329c32229901335",
+  "runtime": {
+    "available": true,
+    "executable": "/Users/roschuma/.local/share/mise/installs/python/3.14.7/bin/python3.14",
+    "id": "Rerun profile runtime for macjev-torch-cpu",
+    "lock_sha256": "82e6a2853231188d2fed184459aede8c9f72090e083da8d7053d6bc4166a0a5b",
+    "packages": {
+      "huggingface-hub": "1.33.0",
+      "numpy": "2.5.3",
+      "safetensors": "0.8.0",
+      "tokenizers": "0.23.2",
+      "torch": "2.14.0",
+      "transformers": "5.17.0"
+    },
+    "python_version": "3.14.7"
+  },
+  "runtime_lock_path": "/Users/roschuma/Personal/dynamic-agent-runner/specs/decision-model-support/evaluation/jevstyle-torch-runtime/poetry.lock"
+}

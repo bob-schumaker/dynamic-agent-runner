@@ -1,0 +1,16 @@
+{
+  "approval_scope": "f24b022fa00836a7836e8cdba2faa98d8a78cd88bfcb2c06ddd6935f20971c05",
+  "elapsed_ms": 1277.511,
+  "inference_count": 1,
+  "material_file_count": 6,
+  "missing_materials_before_staging": false,
+  "model_id": "aac6fef/laya-typed-decisions-mlx",
+  "model_revision": "28416e78cb26a239a4eabaa2e084904ec5e6cacb",
+  "network_disabled_before_load": true,
+  "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+  "profile_id": "laya-mlx",
+  "python": "3.14.7",
+  "result_valid": true,
+  "runtime_lock_sha256": "6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a",
+  "source_revision": "0a859518634112655cb97c745dbf04f5191aaf13"
+}

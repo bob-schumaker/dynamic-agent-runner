@@ -6,7 +6,7 @@
 
 [tools]
 # dot-mise-toml-tools:start -- DO NOT EDIT BETWEEN THESE COMMENTS
-python = "3.14.7"
+python = "3.13"
 # dot-mise-toml-tools:end -- DO NOT EDIT BETWEEN THESE COMMENTS
 
 # dot-mise-poetry-tools:start -- DO NOT EDIT BETWEEN THESE COMMENTS
@@ -16,16 +16,11 @@ python = "3.14.7"
 # dot-mise-toml-env:start -- DO NOT EDIT BETWEEN THESE COMMENTS
 
 # dot-mise-toml-env:end -- DO NOT EDIT BETWEEN THESE COMMENTS
-
 # dot-mise-poetry-env:start -- DO NOT EDIT BETWEEN THESE COMMENTS
 POETRY_ACTIVE = true
 POETRY_REQUESTS_TIMEOUT = 60
 POETRY_VIRTUALENVS_IN_PROJECT = true
 # dot-mise-poetry-env:end -- DO NOT EDIT BETWEEN THESE COMMENTS
-[_.python]
-# dot-mise-python-venv:start -- DO NOT EDIT BETWEEN THESE COMMENTS
-venv = ".venv"
-# dot-mise-python-venv:end -- DO NOT EDIT BETWEEN THESE COMMENTS
 
 [tasks."project-update"]
 # dot-mise-project-update-task:start -- DO NOT EDIT BETWEEN THESE COMMENTS
@@ -37,6 +32,10 @@ run = "poetry update --with dev --with docs --with test"
 enter = [
   { shell = "bash", script = '''
 if [ -d "${MISE_PROJECT_ROOT}/.venv" ]; then
+    MISE_PROJECT_PREVIOUS_PATH="${PATH:-}"
+    export MISE_PROJECT_PREVIOUS_PATH
+    MISE_PROJECT_PREVIOUS_PATH_SET=1
+    export MISE_PROJECT_PREVIOUS_PATH_SET
     VIRTUAL_ENV="${MISE_PROJECT_ROOT}/.venv"
     export VIRTUAL_ENV
     case ":${PATH:-}:" in
@@ -50,6 +49,10 @@ fi
 ''' },
   { shell = "zsh", script = '''
 if [ -d "${MISE_PROJECT_ROOT}/.venv" ]; then
+    MISE_PROJECT_PREVIOUS_PATH="${PATH:-}"
+    export MISE_PROJECT_PREVIOUS_PATH
+    MISE_PROJECT_PREVIOUS_PATH_SET=1
+    export MISE_PROJECT_PREVIOUS_PATH_SET
     VIRTUAL_ENV="${MISE_PROJECT_ROOT}/.venv"
     export VIRTUAL_ENV
     case ":${PATH:-}:" in
@@ -66,7 +69,11 @@ fi
 # dot-mise-leave:start -- DO NOT EDIT BETWEEN THESE COMMENTS
 leave = [
   { shell = "bash", script = '''
-if [ -n "${VIRTUAL_ENV:-}" ]; then
+if [ "${MISE_PROJECT_PREVIOUS_PATH_SET:-}" = 1 ]; then
+    PATH="${MISE_PROJECT_PREVIOUS_PATH:-}"
+    export PATH
+    unset MISE_PROJECT_PREVIOUS_PATH MISE_PROJECT_PREVIOUS_PATH_SET
+elif [ -n "${VIRTUAL_ENV:-}" ]; then
     env_tools_mise_previous_path="${PATH:-}"
     PATH=$(printf '%s\n' "$env_tools_mise_previous_path" | awk -v RS=: -v ORS=: -v target="${VIRTUAL_ENV}/bin" '$0 != target && $0 != "" { print }')
     PATH="${PATH%:}"
@@ -75,7 +82,11 @@ fi
 unset VIRTUAL_ENV
 ''' },
   { shell = "zsh", script = '''
-if [ -n "${VIRTUAL_ENV:-}" ]; then
+if [ "${MISE_PROJECT_PREVIOUS_PATH_SET:-}" = 1 ]; then
+    PATH="${MISE_PROJECT_PREVIOUS_PATH:-}"
+    export PATH
+    unset MISE_PROJECT_PREVIOUS_PATH MISE_PROJECT_PREVIOUS_PATH_SET
+elif [ -n "${VIRTUAL_ENV:-}" ]; then
     env_tools_mise_previous_path="${PATH:-}"
     PATH=$(printf '%s\n' "$env_tools_mise_previous_path" | awk -v RS=: -v ORS=: -v target="${VIRTUAL_ENV}/bin" '$0 != target && $0 != "" { print }')
     PATH="${PATH%:}"

@@ -1,0 +1,54 @@
+{
+  "artifacts": [
+    {
+      "id": "wfzyx/von",
+      "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae"
+    }
+  ],
+  "blockers": [],
+  "candidate_run_approved": true,
+  "created_at_utc": "2026-09-27T02:55:28.093238+00:00",
+  "evaluation_harness_files": [
+    {
+      "id": "scripts/evaluate_decision_models.py",
+      "sha256": "48d0b4620fac49f257acab0619132b0c0268a7ea15a602c38cac0d0bab3dfbf6"
+    },
+    {
+      "id": "tests/manual/run_von_dms06.py",
+      "sha256": "9f4d9e4c4a7811e63c32c19b93375137f57b4f4b7327da7fac9f35fc02d31050"
+    }
+  ],
+  "execution_mode": "external_in_process_cpu",
+  "expected_model_file_sha256": {
+    "model.safetensors": "af57d5d2ab15715a753a1eb4add4271d1aecce7e76f3365f629c082df329297a",
+    "option_marker.pt": "3faf27f88d30aaf9aa37860d4cdef99f1d05450cf40364f6236ac892d4d139ed"
+  },
+  "fixture_criteria_approved": true,
+  "host": {
+    "architecture": "arm64",
+    "free_storage_bytes": 88582991872,
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "required_free_storage_bytes": 8589934592,
+    "storage_path": "/private/tmp/dms06-von-cache",
+    "total_memory_bytes": 38654705664
+  },
+  "input_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+  "remote_code_allowed": false,
+  "run_allowed": true,
+  "runtime": {
+    "available": true,
+    "executable": "/Users/roschuma/.local/share/mise/installs/python/3.14.7/bin/python3.14",
+    "lock_sha256": "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41",
+    "packages": {
+      "accelerate": "1.15.0",
+      "huggingface-hub": "1.32.0",
+      "torch": "2.14.0",
+      "transformers": "5.17.0"
+    },
+    "python_version": "3.14.7"
+  },
+  "source": {
+    "id": "wfzyx/von-source",
+    "revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54"
+  }
+}

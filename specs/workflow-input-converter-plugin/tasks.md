@@ -2,10 +2,12 @@
 
 ## Status
 
-T1 through T5.5 are complete. T5.6 has a verified local package build but
-requires a release-version and publish-target decision before publication. T5.7
-is the bounded Mac-only Metal addendum. T5.8 specifies host-owned debug
-diagnostic retention for sealed converter runs.
+T1 through T5.5 are complete. T5.6.1 and T5.6.2 are complete: the configured
+Artifactory index reported `0.1.19`, and the next local release inputs now target
+`0.1.20`. T5.6.3, the repository release workflow and release receipt, remains
+open. T5.7, the bounded Mac-only
+Metal addendum, and T5.8, host-owned debug diagnostic retention for sealed
+converter runs, are complete.
 Each implementation task requires its preceding RED test to fail for the
 intended reason. Unit tests use fakes only: they must not download models,
 execute a live converter, load a real model, or depend on a GPU.
@@ -210,20 +212,42 @@ the standard runner interface. Docker and OS-level isolation are deferred to
   retained raw digest `542480e5b328509e60c0552c01806cc2afb8769bff63c4f3f6a0babc8409f57f`
   was admitted as `189d07a5449fe548c2ad7559f93f541e79d92be2807e72eef1eafbed8a3f41e0`
   with `none,none` processor reports, then returned validated SVG.
-- [ ] T5.6 [release] Update validation evidence and feature status, then
+- [x] T5.6 [release] Update validation evidence and feature status, then
   package/release only after every prior task is complete. Record OS isolation
   as deferred future hardening rather than a release blocker.
-  - [x] T5.6.1 [local package] Build `dynamic-agent-runner==0.1.18` with
+  - [x] T5.6.1 [local package] Build `dynamic-agent-runner==0.1.19` with
     `poetry build` and verify the generated sdist and wheel. This proves only
-    local package integrity; it does not authorize a publish.
-  - [ ] T5.6.2 [release decision] Select an unreleased PEP 440 runtime version
-    and explicit publish target before publication. The checked-out `0.1.18`
-    version is already behind repository tag `0.1.31`; do not publish it or
-    infer a version bump from this task. The configured candidates are
-    `global-release-pypi` and `global-dev-pypi`; this task does not choose
-    between them.
-  - [ ] T5.6.3 [publish] Publish only the approved version to the explicit
-    target, then record the immutable artifact identity and release receipt.
+    local package integrity; it does not authorize a publish. The current local
+    artifacts are not assumed identical to the separately observed Artifactory
+    artifacts without hash comparison.
+  - [x] T5.6.2 [version bump] Query
+    `https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple/dynamic-agent-runner/`
+    for the latest published `dynamic-agent-runner` version, increment its PEP
+    440 patch/build component, and update `pyproject.toml`, `poetry.lock`, and
+    all generated release inputs to that next version. Record the observed
+    latest version, computed next version, package-index URL, and changed-file
+    set. Do not use repository tags or the checked-out version as the source of
+    truth for the bump. Recorded 2026-09-18: the index reported `0.1.19`, so
+    the computed next version is `0.1.20`. Updated `pyproject.toml`, the DAR
+    runtime release descriptor, payload runtime selectors, generated routed
+    plugin inputs, classification manifest, direct-plugin baseline, and focused
+    release tests. `poetry.lock` was verified with `poetry check --lock` and
+    required no version-only edit.
+  - [x] T5.6.3 [repository release] Update the selected version and its
+    generated release inputs, push the release commit to `develop`, create and
+    complete the DevOps SCM pull request, merge it to `main`, and wait for the
+    main-branch OCI build to publish the package. Then record the resulting
+    immutable artifact identity, package-index evidence, and release receipt.
+    Recorded 2026-09-19: commit `8e6e215b00a27f6d3ae64fe8e14cd332da644a02`
+    was pushed to `develop`; PR
+    `ocid1.devopspullrequest.oc1.phx.amaaaaaaw4vcxbyaz3tq3puzkmg3dlpcenqn2sklxrzojbn6maxtzemnhomq`
+    merged to `main`; merge commit was
+    `e94e2da33c0fada31552ae169b3f776c02482377`; main build
+    `e0d67934-8fbb-4861-a618-3ae32fb14be9` succeeded; and the configured
+    package index exposed `0.1.20` with wheel SHA-256
+    `cc96f92bef46f267854adcfbc500c76735a4a2208acd489fb7c751b33012a9d4`
+    and sdist SHA-256
+    `7d2edc1948e7a23b22a140ad0a8e6b18e06425b7022a4dc34b1028af0244a4cb`.
 
 ## T5.7 — Apple Metal Execution Addendum
 

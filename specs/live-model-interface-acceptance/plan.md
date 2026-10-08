@@ -2,8 +2,8 @@
 
 ## Metadata
 
-- Status: T5.1 endpoint diagnosis complete; T5.2 compatibility resolution
-  pending in `tasks.md`
+- Status: T5.2 compatibility resolution complete; B0--B2 endpoint combination
+  recorded unsupported in `validation.md`
 - Governing spec: `spec.md`
 - Parent deterministic contract: `../model-interface-parity/spec.md`
 - Delivery target: this repository's working tree at

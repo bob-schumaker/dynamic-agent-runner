@@ -1,0 +1,40 @@
+{
+  "adapter_id": "dar.chrome.external",
+  "descriptor": {
+    "adapter_id": "dar.chrome.external",
+    "canonical_model_id": "chrome://built-in-ai/gemini-nano",
+    "capabilities": [
+      "structured_output",
+      "text_generation"
+    ],
+    "contract_digest": "fc4d17b895435c285d77d272a70791da94b8b7e1545f0e133765048b349716f1",
+    "execution_location": "local",
+    "execution_modes": [
+      "async"
+    ],
+    "input_modalities": [
+      "text"
+    ],
+    "limits": {
+      "max_context_tokens": 8192,
+      "max_output_tokens": 2048
+    },
+    "model_alias": "gemini-nano",
+    "output_modalities": [
+      "text"
+    ],
+    "protocol_id": "dar.external-model.v1",
+    "protocol_version": "1.0",
+    "provider_id": "chrome-built-in-ai",
+    "response_formats": [
+      "json_schema",
+      "text"
+    ]
+  },
+  "distribution_name": "dar-chrome-external-adapter",
+  "distribution_version": "0.1.0",
+  "factory": "dar_chrome_external_adapter:create_adapter",
+  "manifest_version": 1,
+  "protocol_id": "dar.external-model.v1",
+  "protocol_version": "1.0"
+}

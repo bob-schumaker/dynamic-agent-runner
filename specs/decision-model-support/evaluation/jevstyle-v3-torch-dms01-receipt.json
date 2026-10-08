@@ -1,0 +1,233 @@
+{
+  "calibration": {
+    "decision": {
+      "brier_score": 0.34028554046929765,
+      "count": 200,
+      "ece_10_bins": 0.19710849681879722,
+      "passes_thresholds": false,
+      "prevalence_baseline_brier_score": 0.77103,
+      "status": "uncalibrated"
+    },
+    "passes_thresholds": false,
+    "retention": {
+      "brier_score": 0.2685075758846983,
+      "count": 160,
+      "ece_10_bins": 0.19481685144909006,
+      "passes_thresholds": false,
+      "prevalence_baseline_brier_score": 0.25,
+      "status": "uncalibrated"
+    },
+    "status": "uncalibrated"
+  },
+  "candidate": {
+    "artifact_revision": "b023d1f9c7858fbf01504577a3bfc349ea5c7385",
+    "base_model_id": "Qwen/Qwen3.5-0.8B-Base",
+    "base_revision": "dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68",
+    "device": "cpu",
+    "harness_id": "dynamic-agent-runner DMS-01 additions",
+    "harness_revision": "5b42673b311b98a07c8bbd46ea0b67c8725b28581bd30879cf1793ea226883b0",
+    "model_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3",
+    "model_server": false,
+    "precision": "bf16",
+    "runtime": "DAR Poetry Python 3.14.7; lock 6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a",
+    "runtime_lock_sha256": "6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a",
+    "tokenizer_id": "chaoliangUNSW/Jev-Style-0.8B-Decision-v3",
+    "tokenizer_revision": "b023d1f9c7858fbf01504577a3bfc349ea5c7385"
+  },
+  "decision": {
+    "accuracy": 0.84,
+    "by_category": {
+      "exception-precedence": {
+        "accuracy": 0.875,
+        "count": 40,
+        "wilson_95": {
+          "lower": 0.738878801611489,
+          "upper": 0.945404997490546
+        }
+      },
+      "explicit-rule": {
+        "accuracy": 0.35,
+        "count": 40,
+        "wilson_95": {
+          "lower": 0.2213452887317629,
+          "upper": 0.5049411916274231
+        }
+      },
+      "fact-selection": {
+        "accuracy": 0.975,
+        "count": 40,
+        "wilson_95": {
+          "lower": 0.8711863103652591,
+          "upper": 0.9955731684973186
+        }
+      },
+      "missing-evidence": {
+        "accuracy": 1.0,
+        "count": 40,
+        "wilson_95": {
+          "lower": 0.9123783988027135,
+          "upper": 1.0
+        }
+      },
+      "numeric-boundary": {
+        "accuracy": 1.0,
+        "count": 40,
+        "wilson_95": {
+          "lower": 0.9123783988027135,
+          "upper": 1.0
+        }
+      }
+    },
+    "count": 200,
+    "failure_rates": {
+      "abstained": 0.0,
+      "error": 0.0,
+      "invalid": 0.0,
+      "missing": 0.0,
+      "oversize": 0.0,
+      "timeout": 0.0
+    },
+    "passes_thresholds": false,
+    "wilson_95": {
+      "lower": 0.7828592983793289,
+      "upper": 0.8843258796841297
+    }
+  },
+  "evaluated_at_utc": "2026-10-03T18:14:09.049212+00:00",
+  "input_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+  "labels_sha256": "a87f79b376b7e0c790df78cdd6a623d06450364d6d7c708974c8a953d7b7c7a5",
+  "operations": {
+    "cold_latency_ms": 5300.989666982787,
+    "oom": false,
+    "passes_thresholds": true,
+    "peak_rss_bytes": 1661403136,
+    "warm_latency_ms": {
+      "p50": 2366.885125025874,
+      "p95": 9819.427249982255
+    }
+  },
+  "preflight_receipt": "preflight-dms01-additions-jevstyle-torch-cpu-retry-2026-10-03.json",
+  "retention": {
+    "baseline": {
+      "false_keep": 47,
+      "keep_f1": 0.3821656050955414,
+      "keep_precision": 0.38961038961038963,
+      "keep_recall": 0.375,
+      "missed_keep": 50,
+      "token_weighted_keep_recall": 0.3155515370705244,
+      "true_drop": 33,
+      "true_keep": 30
+    },
+    "baseline_utility": 0.3086017628205128,
+    "budget_fraction": 0.5,
+    "by_category": {
+      "booking": {
+        "baseline": {
+          "keep_f1": 0.4666666666666667,
+          "keep_precision": 0.5,
+          "keep_recall": 0.5,
+          "token_weighted_keep_recall": 0.35000000000000003
+        },
+        "baseline_utility": 0.35000000000000003,
+        "model": {
+          "keep_f1": 0.5333333333333333,
+          "keep_precision": 0.6666666666666666,
+          "keep_recall": 0.5,
+          "token_weighted_keep_recall": 0.4783783783783784
+        },
+        "model_utility": 0.4783783783783784
+      },
+      "invoice": {
+        "baseline": {
+          "keep_f1": 0.3333333333333333,
+          "keep_precision": 0.375,
+          "keep_recall": 0.3125,
+          "token_weighted_keep_recall": 0.25390625
+        },
+        "baseline_utility": 0.25390625,
+        "model": {
+          "keep_f1": 0.5416666666666666,
+          "keep_precision": 0.625,
+          "keep_recall": 0.5,
+          "token_weighted_keep_recall": 0.421875
+        },
+        "model_utility": 0.421875
+      },
+      "migration": {
+        "baseline": {
+          "keep_f1": 0.41666666666666663,
+          "keep_precision": 0.5,
+          "keep_recall": 0.375,
+          "token_weighted_keep_recall": 0.3076923076923077
+        },
+        "baseline_utility": 0.3076923076923077,
+        "model": {
+          "keep_f1": 0.6041666666666666,
+          "keep_precision": 0.8125,
+          "keep_recall": 0.5,
+          "token_weighted_keep_recall": 0.5673076923076923
+        },
+        "model_utility": 0.5673076923076923
+      },
+      "release": {
+        "baseline": {
+          "keep_f1": 0.2708333333333333,
+          "keep_precision": 0.3125,
+          "keep_recall": 0.25,
+          "token_weighted_keep_recall": 0.20833333333333331
+        },
+        "baseline_utility": 0.20833333333333331,
+        "model": {
+          "keep_f1": 0.5,
+          "keep_precision": 0.5,
+          "keep_recall": 0.5,
+          "token_weighted_keep_recall": 0.3289473684210526
+        },
+        "model_utility": 0.3289473684210526
+      },
+      "renewal": {
+        "baseline": {
+          "keep_f1": 0.5,
+          "keep_precision": 0.625,
+          "keep_recall": 0.4375,
+          "token_weighted_keep_recall": 0.42307692307692313
+        },
+        "baseline_utility": 0.42307692307692313,
+        "model": {
+          "keep_f1": 0.6458333333333333,
+          "keep_precision": 0.9375,
+          "keep_recall": 0.5,
+          "token_weighted_keep_recall": 0.5865384615384616
+        },
+        "model_utility": 0.5865384615384616
+      }
+    },
+    "failure_rates": {
+      "abstained": 0.0,
+      "error": 0.0,
+      "invalid": 0.0,
+      "missing": 0.0,
+      "oversize": 0.0,
+      "timeout": 0.0
+    },
+    "model": {
+      "false_keep": 26,
+      "keep_f1": 0.5479452054794521,
+      "keep_precision": 0.6060606060606061,
+      "keep_recall": 0.5,
+      "missed_keep": 40,
+      "token_weighted_keep_recall": 0.484629294755877,
+      "true_drop": 54,
+      "true_keep": 40
+    },
+    "model_utility": 0.47660938012911697,
+    "passes_thresholds": false,
+    "utility_definition": "category-macro token-weighted gold-keep recall",
+    "utility_improvement": 0.16800761730860414
+  },
+  "run_artifacts": {
+    "measurements": "jevstyle-v3-torch-dms01-measurements.json",
+    "predictions": "jevstyle-v3-torch-dms01-predictions.jsonl",
+    "token_counts": "jevstyle-v3-torch-dms01-token-counts.jsonl"
+  }
+}

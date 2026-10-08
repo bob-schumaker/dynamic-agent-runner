@@ -1,0 +1,47 @@
+{
+  "schema": "dms01-dms12-merged-matrix-v1",
+  "status": "canonical",
+  "purpose": "Single durable matrix for DMS-01 context-management evidence and the completed DMS-12 Jev-Style profile; new candidates are appended here rather than creating a second matrix.",
+  "fixture": {
+    "cases_per_candidate": 240,
+    "inputs_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+    "labels_sha256": "a87f79b376b7e0c790df78cdd6a623d06450364d6d7c708974c8a953d7b7c7a5",
+    "criteria": "Existing DMS-01 decision, retention, calibration, and operations thresholds; unchanged"
+  },
+  "source_snapshots": [
+    "dms01-full-matrix-2026-10-04.json",
+    "jevstyle-dms12-receipt.json"
+  ],
+  "merge_rule": "The 12 historical rows below retain their existing DMS-01 evidence and receipts. DMS-12 is represented by the Jev-Style MLX row; it is not a separate candidate. New candidates must be added as rows with an explicit execution status.",
+  "candidate_count": 13,
+  "rows": [
+    {"candidate_id": "jevstyle-v3-gguf-f16-cpu", "dms01": "complete", "dms12": "not-applicable", "source": "dms01-full-matrix-2026-10-04.json"},
+    {"candidate_id": "jevstyle-v3-mlx-metal", "dms01": "complete", "dms12": "complete", "source": "dms01-full-matrix-2026-10-04.json; jevstyle-dms12-receipt.json"},
+    {"candidate_id": "jevstyle-v3-torch-cpu", "dms01": "complete", "dms12": "not-applicable", "source": "dms01-full-matrix-2026-10-04.json"},
+    {"candidate_id": "julia1", "dms01": "complete", "dms12": "not-applicable", "source": "dms01-full-matrix-2026-10-04.json"},
+    {"candidate_id": "kev-0.6b", "dms01": "complete", "dms12": "not-applicable", "source": "dms01-full-matrix-2026-10-04.json"},
+    {"candidate_id": "kev-0.8b", "dms01": "complete", "dms12": "not-applicable", "source": "dms01-full-matrix-2026-10-04.json"},
+    {"candidate_id": "laya-mlx", "dms01": "complete", "dms12": "not-applicable", "source": "dms01-full-matrix-2026-10-04.json"},
+    {"candidate_id": "lev-torch-cpu", "dms01": "complete", "dms12": "not-applicable", "source": "dms01-full-matrix-2026-10-04.json"},
+    {"candidate_id": "litjev", "dms01": "complete", "dms12": "not-applicable", "source": "dms01-full-matrix-2026-10-04.json"},
+    {"candidate_id": "macjev-torch-cpu", "dms01": "complete", "dms12": "not-applicable", "source": "dms01-full-matrix-2026-10-04.json"},
+    {"candidate_id": "poorjev", "dms01": "complete", "dms12": "not-applicable", "source": "dms01-full-matrix-2026-10-04.json"},
+    {"candidate_id": "von", "dms01": "complete", "dms12": "not-applicable", "source": "dms01-full-matrix-2026-10-04.json"},
+    {
+      "candidate_id": "clef-flash-q4-k-m-gguf",
+      "family": "Cloudflare Clef",
+      "model_id": "ggml-org/Clef-Flash-GGUF",
+      "model_revision": "4a192915ef971886004b5b13294f2b4c7a7fc39d",
+      "base_model_id": "Cloudflare/clef-flash",
+      "artifact": "Clef-Flash-Q4_K_M.gguf",
+      "artifact_bytes": 6486448288,
+      "license": "Apache-2.0",
+      "runtime": "caller-owned in-process llama.cpp decision binding",
+      "dms01": "not-executed",
+      "dms12": "not-applicable",
+      "execution_status": "preflight-blocked",
+      "execution_receipt": "preflight-clef-dms01-2026-10-06.json",
+      "blocker": "No cached Clef artifact; installed llama.cpp 0.5.0 build 7fe450e19 has no decision/SystemOne support. Do not substitute HTTP or text generation."
+    }
+  ]
+}

@@ -5,7 +5,7 @@
 - Feature slug: `live-model-interface-acceptance`
 - Mode: `guided`
 - Artifact type: manually gated acceptance contract
-- Status: T1--T5.1 complete; T5.2 compatibility resolution pending
+- Status: T1--T5.2 complete; B0--B2 endpoint combination recorded unsupported
 - Owner: `specs/model-interface-parity/spec.md`
 - Related specs:
   - `specs/model-interface-parity/spec.md`
@@ -66,6 +66,12 @@ Herdr workspace where desired.
 | `endpoint` | sync, async | `--model` and `--base-url` |
 | `llama_cpp` | sync, async | `--model`, `--model-path` |
 | `mlx_qwen3` | sync, async | `--model`, `--model-path` |
+
+The Chrome Built-in AI external adapter is intentionally not a live target in
+this selector. Its v1 contract is final-response-only and requires a
+receiver-supplied authenticated browser bridge; DAR does not discover or
+construct that bridge. Its fake-bridge contract coverage is recorded in the
+model-interface parity matrix instead.
 
 An unsupported target/mode is not a behavioral mismatch. The selector must
 reject any scenario ID other than `S1`, `S2`, `S3`, `S4`, and `S5` before it

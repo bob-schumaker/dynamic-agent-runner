@@ -1,0 +1,58 @@
+{
+  "artifacts": [
+    {
+      "id": "aac6fef/laya-typed-decisions-mlx",
+      "revision": "28416e78cb26a239a4eabaa2e084904ec5e6cacb"
+    }
+  ],
+  "blockers": [],
+  "candidate_run_approved": true,
+  "created_at_utc": "2026-10-04T16:16:35.686711+00:00",
+  "evaluation_harness_files": [
+    {
+      "id": "scripts/evaluate_decision_models.py",
+      "sha256": "d75057e68ec8b7cd2f98a99ca8527dc3a92c597391adec7ad12a0d657cc7bd1b"
+    },
+    {
+      "id": "tests/manual/run_laya_mlx_dms08.py",
+      "sha256": "47bb4a1bd5acf5db70fca47f14a6b2a1f2e63cc8b8dd13242f46876fb2768aa3"
+    }
+  ],
+  "execution_mode": "external_in_process_mlx",
+  "expected_model_file_sha256": {
+    "model.safetensors": "804ef8802b4cac7a67913b0cfb8448659e934a50284aaa867b98d7d9a6e7d1e0"
+  },
+  "fixture_criteria_approved": true,
+  "host": {
+    "accelerator_status": "Metal available",
+    "architecture": "arm64",
+    "free_storage_bytes": 42721280000,
+    "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+    "required_free_storage_bytes": 8589934592,
+    "storage_path": "/private/tmp/dms16-materials",
+    "total_memory_bytes": 38654705664
+  },
+  "input_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+  "provenance_base": {
+    "id": "convaiinnovations/laya-typed-decisions",
+    "revision": "f9ab0b228f0fc0f14d873dbc99038f135c2da1b2"
+  },
+  "remote_code_allowed": false,
+  "run_allowed": true,
+  "runtime": {
+    "available": true,
+    "executable": "/Users/roschuma/.local/share/mise/installs/python/3.14.7/bin/python3.14",
+    "lock_sha256": "8e50ab3a48cc4b0b6896cf8241b111d1619d50af41982257970dfb7689d4078d",
+    "packages": {
+      "huggingface-hub": "1.33.0",
+      "mlx": "0.32.2",
+      "numpy": "2.5.3",
+      "tokenizers": "0.23.2"
+    },
+    "python_version": "3.14.7"
+  },
+  "source": {
+    "id": "mizorewww/laya-mlx",
+    "revision": "0a859518634112655cb97c745dbf04f5191aaf13"
+  }
+}

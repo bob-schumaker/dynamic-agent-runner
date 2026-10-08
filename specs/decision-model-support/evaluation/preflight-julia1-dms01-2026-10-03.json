@@ -1,0 +1,56 @@
+{
+  "accelerator_status": "CPU selected; MPS unavailable to PyTorch; CUDA unavailable",
+  "artifacts": [
+    {
+      "id": "SupersonicLabs/Julia-1",
+      "revision": "a85b127321d580d65176c89ced8273f305745d85"
+    }
+  ],
+  "blockers": [],
+  "created_at_utc": "2026-10-03T13:37:51.812144+00:00",
+  "dar_profile_id": "julia1.supersoniclabs.v1",
+  "evaluation_harness_files": [
+    {
+      "id": "scripts/evaluate_decision_models.py",
+      "sha256": "d75057e68ec8b7cd2f98a99ca8527dc3a92c597391adec7ad12a0d657cc7bd1b"
+    },
+    {
+      "id": "tests/manual/run_julia1_dms01.py",
+      "sha256": "fb11fa7dc7b8118a2e7459c7631fe94db7996b29d8d46d9dfe1eb1faf5ef8db8"
+    }
+  ],
+  "execution_mode": "dar_admitted_runner",
+  "fixture_criteria_approved": true,
+  "fixture_hashes_valid": true,
+  "harness": {
+    "id": "dynamic-agent-runner DMS-01 Julia 1",
+    "revision": "8cc66b0f81a55553a98a3f1b6c0cd0d0fd65ff73"
+  },
+  "host": {
+    "architecture": "arm64",
+    "available_memory_estimate_bytes": 14958510080,
+    "free_storage_bytes": 61201747968,
+    "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+    "required_free_storage_bytes": 8589934592,
+    "storage_path": "/private/tmp/dms16-materials",
+    "total_memory_bytes": 38654705664
+  },
+  "input_sha256": "6d0230190f455d3f488881ef0f709881fba783f33bab4d5a6a93db576cf5c73f",
+  "labels_sha256": "a87f79b376b7e0c790df78cdd6a623d06450364d6d7c708974c8a953d7b7c7a5",
+  "remote_code_allowed": false,
+  "run_allowed": true,
+  "runtime": {
+    "available": true,
+    "executable": "/private/tmp/dms16-poetry-envs/dynamic-agent-runner-liR8DTmq-py3.14/bin/python",
+    "id": "DAR Julia 1 profile; Python 3.14.7; Torch 2.14.0; Transformers 5.0.0; Tokenizers 0.22.2; Safetensors 0.8.0; NumPy 2.5.3",
+    "lock_sha256": "6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a",
+    "packages": {
+      "numpy": "2.5.3",
+      "safetensors": "0.8.0",
+      "tokenizers": "0.22.2",
+      "torch": "2.14.0",
+      "transformers": "5.0.0"
+    },
+    "python_version": "3.14.7"
+  }
+}

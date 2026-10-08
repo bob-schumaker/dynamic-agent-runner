@@ -63,6 +63,7 @@ def test_fixed_corpus_records_no_nltk_selection_quality_gain() -> None:
     assert deterministic.descriptor_token_reduction == nltk.descriptor_token_reduction
     assert measurement.nltk_dependency.closure_names == (
         "click",
+        "cloudpickle",
         "defusedxml",
         "joblib",
         "nltk",
@@ -70,6 +71,7 @@ def test_fixed_corpus_records_no_nltk_selection_quality_gain() -> None:
         "tqdm",
     )
     assert measurement.nltk_dependency.incremental_names == (
+        "cloudpickle",
         "defusedxml",
         "joblib",
         "nltk",

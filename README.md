@@ -145,6 +145,53 @@ Use `run_agent_workflow_async(...)` in async applications, or construct a
 `WorkflowExecutionContext` when several runs share the same loaded workflow and
 runtime collaborators.
 
+## External model adapters
+
+The exported `DARExternalAdapterProtocol` is the fail-closed BYOM seam for
+receiver-approved external models. Install an explicitly approved local
+adapter artifact before selecting it:
+
+```bash
+dynamic-agent-runner adapter install \
+  --state-root /path/to/dar-state \
+  /path/to/dar-external-adapter.whl
+dynamic-agent-runner adapter list --state-root /path/to/dar-state
+dynamic-agent-runner adapter remove dar.chrome.external \
+  --state-root /path/to/dar-state
+```
+
+BYOM callers can pass an object implementing the exported protocol through the
+existing `model_adapter` argument. DAR validates its descriptor, health,
+capabilities, limits, request context, response, and tool boundary before
+dispatch. Protocol v1 is text-only and final-response-only; adapters never
+receive tool handlers or approval objects. Invalid, unavailable, removed, or
+identity-mismatched adapters fail closed and do not fall back to OpenAI.
+
+Native providers have opt-in caller-owned protocol factories. Construct the
+native adapter with its resolved model/material configuration, then wrap that
+immutable binding:
+
+```python
+from dynamic_agent_runner import (
+    create_llama_cpp_external_adapter,
+    create_llama_cpp_local_adapter,
+)
+
+native = create_llama_cpp_local_adapter(resolved_llama_config)
+model_adapter = create_llama_cpp_external_adapter(
+    native,
+    adapter_id="llama.cpp.workstation",
+)
+```
+
+The Apple factory is async-only; llama.cpp is sync and is worker-offloaded by
+the existing façade; MLX offers matching sync and async factories. Factories
+derive the model identity and capabilities from the native binding, and reject
+unsupported structured output or tools before dispatch. Native loading,
+downloads, lifecycle, registry install/remove, streaming, embeddings, and
+callback-based Apple tools remain outside this migration and stay on their
+existing provider paths.
+
 Use direct execution for a single stateless run, `WorkflowExecutionContext` for
 reusing a loaded workflow with stable collaborators, and `AgentSession` when the
 caller needs retained prompt history or restartable in-memory session state.
@@ -298,6 +345,31 @@ result = run_agent_workflow(
 
 If the compatible provider requires authentication, set `api_key` on
 `LocalOpenAIEndpointConfig`. If it does not, the key may be omitted.
+
+For a direct BYOM adapter with strict single-model identity and no registry or
+CLI lifecycle, use the explicit external factory:
+
+```python
+from dynamic_agent_runner import (
+    OpenAICompatibleExternalConfig,
+    create_openai_compatible_external_adapter,
+)
+
+external_adapter = create_openai_compatible_external_adapter(
+    OpenAICompatibleExternalConfig(
+        adapter_id="ollama.workstation",
+        base_url="http://127.0.0.1:11434/v1",
+        model_alias="local-model",
+        service_model_id="qwen3:8b",
+        canonical_model_id="ollama/qwen3:8b",
+    ),
+)
+```
+
+The caller owns service startup and shutdown. Dynamic registry binding,
+install/remove commands, streaming, embeddings, and provider-family
+certification remain deferred; the adapter advertises only the capabilities
+explicitly configured by the caller.
 
 For direct in-process llama.cpp local models, provide a llama.cpp adapter and
 strict coverage when the workflow must stay local:

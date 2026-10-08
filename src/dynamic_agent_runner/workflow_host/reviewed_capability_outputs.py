@@ -7,6 +7,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from jsonschema import Draft202012Validator, SchemaError, ValidationError
+
 from dynamic_agent_runner.workflow_host.capabilities import (
     ReviewedCapabilityTemplateOutput,
 )
@@ -59,6 +61,7 @@ def validate_reviewed_capability_candidates(
     *,
     outputs: Sequence[ReviewedCapabilityTemplateOutput],
     candidates: Sequence[ReviewedCapabilityCandidateOutput],
+    canonical_manifest_schema: Mapping[str, object],
     contribution: ReviewedCapabilityHostContribution,
     count_ceiling: int,
 ) -> tuple[ReviewedCapabilityCandidateOutput, ...]:
@@ -86,7 +89,10 @@ def validate_reviewed_capability_candidates(
             raise ReviewedCapabilityCandidateOutputError("candidate is invalid")
     _validate_contribution(contribution, count_ceiling)
     values = {candidate.role: candidate for candidate in received}
-    _validate_manifest(values.get("index_manifest"))
+    _validate_manifest(
+        values.get("index_manifest"),
+        canonical_manifest_schema=canonical_manifest_schema,
+    )
     _validate_coverage(values.get("coverage_report"), count_ceiling)
     return received
 
@@ -97,6 +103,7 @@ def stage_reviewed_capability_candidates(
     template_digest: str,
     outputs: Sequence[ReviewedCapabilityTemplateOutput],
     candidates: Sequence[ReviewedCapabilityCandidateOutput],
+    canonical_manifest_schema: Mapping[str, object],
     contribution: ReviewedCapabilityHostContribution,
     count_ceiling: int,
     receiver_id: str,
@@ -110,6 +117,7 @@ def stage_reviewed_capability_candidates(
     accepted = validate_reviewed_capability_candidates(
         outputs=outputs,
         candidates=candidates,
+        canonical_manifest_schema=canonical_manifest_schema,
         contribution=contribution,
         count_ceiling=count_ceiling,
     )
@@ -165,10 +173,20 @@ def _validate_contribution(contribution: object, count_ceiling: int) -> None:
         raise ReviewedCapabilityCandidateOutputError("candidate is invalid")
 
 
-def _validate_manifest(candidate: ReviewedCapabilityCandidateOutput | None) -> None:
+def _validate_manifest(
+    candidate: ReviewedCapabilityCandidateOutput | None,
+    *,
+    canonical_manifest_schema: Mapping[str, object],
+) -> None:
     if candidate is None:
         return
     document = _json_object(candidate.content)
+    try:
+        schema = dict(canonical_manifest_schema)
+        Draft202012Validator.check_schema(schema)
+        Draft202012Validator(schema).validate(document)
+    except (SchemaError, ValidationError) as error:
+        raise ReviewedCapabilityCandidateOutputError("candidate is invalid") from error
     if _contains_unsafe_manifest_key(document):
         raise ReviewedCapabilityCandidateOutputError("candidate is invalid")
 

@@ -1,0 +1,191 @@
+{
+  "answer_model_proposal": {
+    "generation": {
+      "max_new_tokens": 512,
+      "system_prompt": "Answer the question using the conversation history. If the history does not contain the answer, say that it is unavailable.",
+      "temperature": 0,
+      "thinking": false
+    },
+    "license": "Apache-2.0",
+    "max_context_tokens": 262144,
+    "repository": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+    "reserved_generation_tokens": 512,
+    "revision": "50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
+    "token_measurements": {
+      "complete_prompt_tokens_min_p50_p95_max": [
+        112767,
+        120714,
+        123142,
+        125810
+      ],
+      "histories_over_proposed_budgets": {
+        "16384": 500,
+        "32768": 500,
+        "65536": 500,
+        "8192": 500
+      },
+      "history_tokens_min_p50_p95_max": [
+        112712,
+        120653,
+        123090,
+        125751
+      ],
+      "prompts_over_context_after_generation_reserve": 0,
+      "tokenizer": "the pinned model tokenizer with its chat template and enable_thinking=false"
+    },
+    "tokenizer_files": {
+      "chat_template.jinja": "40c21f34cf67d8c760ef72f8ad3ae5afad514299d4b06e91dd9a8d705af7b541",
+      "tokenizer.json": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+      "tokenizer_config.json": "4397cc477eb6d79715ccd2000accd6b3531928f30029665832fa1b255f24d2b9"
+    },
+    "weights_sha256": "2a73c6c248601ab904e035548abd8e6abb65ea27dcb5f342fb0a8910eb44173f",
+    "weights_size_bytes": 2263022417
+  },
+  "benchmark": "LongMemEval-S cleaned",
+  "compactor_proposal": {
+    "candidate": "Von 1.2.0",
+    "max_input_tokens": 8192,
+    "model": "wfzyx/von@5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
+    "qualification": "DMS-01 and DMS-14 rejected this candidate against their separate decision-model criteria. Its use here is exploratory and cannot reverse those results or admit a production profile.",
+    "runtime": {
+      "accelerate": "1.15.0",
+      "huggingface-hub": "1.32.0",
+      "python": "3.14.7",
+      "torch": "2.14.0",
+      "transformers": "5.17.0"
+    },
+    "runtime_lock_sha256": "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41",
+    "source": "https://github.com/wfzyx/von",
+    "source_revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54"
+  },
+  "dataset": {
+    "abstention_items": 30,
+    "annotation_policy": "has_answer evidence-turn annotations, questions, and gold answers are excluded from compactor input",
+    "conversation_turns": 122462,
+    "file": "longmemeval_s_cleaned.json",
+    "history_messages": 246750,
+    "items": 500,
+    "license": "MIT",
+    "question_types": {
+      "knowledge-update": 78,
+      "multi-session": 133,
+      "single-session-assistant": 56,
+      "single-session-preference": 30,
+      "single-session-user": 70,
+      "temporal-reasoning": 133
+    },
+    "repository": "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned",
+    "revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
+    "sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+    "size_bytes": 277383467
+  },
+  "proposed_protocol": {
+    "approval_status": "Protocol values and the pinned local Llama scorer are selected; exact run-level approval is required before benchmark inference.",
+    "bootstrap": {
+      "paired_conditions": true,
+      "resamples": 10000,
+      "seed": 13,
+      "stratification": "question type",
+      "unit": "question ID"
+    },
+    "budgets_history_tokens": [
+      8192,
+      16384,
+      32768,
+      65536
+    ],
+    "conditions": [
+      "full_history_when_it_fits",
+      "recency_at_matched_budget",
+      "model_guided_at_matched_budget"
+    ],
+    "judge_data_boundary": "Question, gold answer, and candidate answer are processed by the local pinned Llama scorer; no benchmark-derived data is sent to external model endpoints.",
+    "primary_budget_history_tokens": 32768,
+    "proposed_acceptance": {
+      "evidence_noninferiority": "model-guided evidence-turn recall is no more than 0.05 below recency",
+      "full_history_reference": "report separately as the uncompressed reference; no admission threshold is assigned",
+      "minimum_improvement": "at least 0.05 improvement over recency in answer accuracy or evidence-turn recall at the primary budget",
+      "primary_budget_noninferiority": "paired 95% CI lower bound for model-guided minus recency answer accuracy is greater than -0.03"
+    },
+    "scoring": "Answer accuracy, evidence-turn recall, retained-token ratio, question-type and answerability breakdowns, and runtime/memory. Record cold load time; p50/p95 compaction, answer, and scorer latency; host peak RSS; and MLX peak memory where available. Compare full history and matched-budget recency with model-guided compaction."
+  },
+  "repository": {
+    "license": "MIT",
+    "official_scorer": "src/evaluation/evaluate_qa.py",
+    "official_scorer_methods": [
+      "OpenAI gpt-4o-2024-08-06 API",
+      "OpenAI gpt-4o-mini-2024-07-18 API",
+      "local meta-llama/Meta-Llama-3.1-70B-Instruct behind OpenAI-compatible HTTP endpoint"
+    ],
+    "proposed_scorer": {
+      "approval_status": "The exact local-only run was approved but exited without usable results; new preflight and approval are required for the checkpointed harness and retry budget.",
+      "artifact_download_host": "huggingface.co; pinned model weights and tokenizer only",
+      "artifact_sha256": {
+        ".gitattributes": "34448b82c17d60fec9b65b1f093c115ddbaadc04beb1b0140b6bfed2e012a930",
+        "README.md": "df2b6fd835306d188b6193fa3dd075c72f4d52140f11e480fffb0f2e19c38cfd",
+        "config.json": "88804b1a541a86ce1b5b21dd0b38d95ee99006ef656a0b59ab267ecb0bce8b22",
+        "model.safetensors": "192065799d1621df78b68274137974d3258c5dadce9ca71305ed014d997d67c4",
+        "model.safetensors.index.json": "9a76e05055778bb04cacb7aff616b378da0e57c87a181c932037a943efba5997",
+        "special_tokens_map.json": "6f38c73729248f6c127296386e3cdde96e254636cc58b4169d3fd32328d9a8ec",
+        "tokenizer.json": "6b9e4e7fb171f92fd137b777cc2714bf87d11576700a1dcd7a399e7bbe39537b",
+        "tokenizer_config.json": "f0f2d5fa9caf736f4184e3fe3316378290696f9ebd9f11ac431d48fbda92a11c"
+      },
+      "base_model": "meta-llama/Llama-3.1-8B-Instruct",
+      "comparability": "This is not the official Llama 3.1 70B or GPT-4o scorer; scores are exploratory and not directly comparable to published scorer results.",
+      "data_sent_externally": [],
+      "expected_local_calls": 4500,
+      "expected_remote_judge_calls": 0,
+      "label_rule": "case-insensitive substring 'yes' in the returned text",
+      "license": "Llama 3.1 Community License",
+      "model": "mlx-community/Llama-3.1-8B-Instruct-4bit@90215b22ec18e72f623dde2ea7af4097025160e2",
+      "persistence": "Persist only boolean labels and aggregate metrics; do not save scorer prompts or raw responses.",
+      "precision": "4-bit MLX",
+      "prompt": "The exact pinned LongMemEval question-type and abstention-specific judge prompt",
+      "provider": "local MLX-LM in-process",
+      "repository": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+      "request_parameters": {
+        "api": "mlx_lm.generate in-process",
+        "max_output_tokens": 10,
+        "temperature": 0
+      },
+      "revision": "90215b22ec18e72f623dde2ea7af4097025160e2",
+      "runtime": "MLX-LM in-process using the existing pinned DMS-13 runtime",
+      "size_bytes": 4517489037
+    },
+    "revision": "9e0b455f4ef0e2ab8f2e582289761153549043fc",
+    "scorer_method_note": "The pinned official evaluator registers GPT-4o, GPT-4o mini, and local Llama 3.1 70B. It uses question-type-specific official prompts, temperature 0, max_tokens 10, and treats any response containing 'yes' as correct. The two API options send question, gold answer, and candidate answer outside the host; the documented local option requires serving infrastructure and a 70B model.",
+    "source_file_sha256": "ecce9c4c79dc89d99534ac17b383a5cbb5b9f0c69ee98adaf0684742e3d95251",
+    "url": "https://github.com/xiaowu0162/LongMemEval"
+  },
+  "runtime_proposal": {
+    "answer_model_weights_downloaded": true,
+    "boundary": "One in-process local runtime for Von CPU compaction, Qwen MLX answering, and Llama 3.1 8B MLX judging; no model server and no benchmark-data requests to external model endpoints.",
+    "lock_validation": "Updated Poetry lock includes Von-required pydantic 2.13.5; the isolated runtime is installed and package versions are verified.",
+    "packages": {
+      "accelerate": "1.15.0",
+      "huggingface-hub": "1.32.0",
+      "mlx": "0.32.2",
+      "mlx-lm": "0.31.3",
+      "numpy": "2.5.3",
+      "pydantic": "2.13.5",
+      "tokenizers": "0.23.2",
+      "torch": "2.14.0",
+      "transformers": "5.17.0"
+    },
+    "poetry_lock_sha256": "6c2acc5c4ab2d93503348e70301e467ccae4e147e59fb770e25204e1624fe201",
+    "preflight_status": "Pydantic-enabled runtime and all model loads pass; corrected MLX-LM greedy sampler is pinned; revised exact run approval is pending after two failed attempts with zero judge calls.",
+    "python": "3.14.7",
+    "qwen_weights_cached": true,
+    "run_preflight_receipt": "evaluation/preflight-dms13-run-2026-09-28.json",
+    "runtime_directory": "evaluation/dms13-runtime",
+    "runtime_setup_preflight_receipt": "evaluation/preflight-dms13-2026-09-27.json",
+    "scorer_model_bytes": 4517489037,
+    "scorer_model_license": "Llama 3.1 Community License",
+    "scorer_model_repository": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+    "scorer_model_revision": "90215b22ec18e72f623dde2ea7af4097025160e2",
+    "scorer_model_snapshot_path": "/private/tmp/dms13-local-llama-judge-90215b22",
+    "scorer_model_snapshot_verified": true,
+    "scorer_weights_sha256": "192065799d1621df78b68274137974d3258c5dadce9ca71305ed014d997d67c4"
+  },
+  "status": "pinned for review; inference not approved"
+}

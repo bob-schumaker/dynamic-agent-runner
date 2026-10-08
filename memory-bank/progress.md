@@ -3,6 +3,14 @@
 
 ## Working
 
+- `external-model-adapter-protocol` is approved and implementation-ready in
+  commit `916d8324`. Commit `4a412e7a` now records the approved
+  `native-model-adapter-migration` spec/plan/tasks for caller-constructed AFM,
+  direct llama.cpp, and MLX text wrappers. The migration preserves native
+  loading and lifecycle, uses the v1 façade for health/admission/cancellation,
+  and remains unimplemented. Separate proposed specs define future embedding
+  and multimodal runner protocols; Ollama-compatible endpoints remain covered
+  by the existing OpenAI-compatible adapter.
 - The reviewed vector-index host-extension slice is complete. Its generic DAR
   runner composes only an installed reviewed host extension; the vector-index
   implementation and authority remain host-owned. The package-facing call is

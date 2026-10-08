@@ -5,9 +5,9 @@
 - Feature slug: `litellm-provider-adapter`
 - Mode: `light`
 - Artifact type: authoritative feature specification
-- Status: Slices L1-L3.2 implemented and validated; upstream dependency adopted
-  and shim retired
-- Version: `0.7`
+- Status: Slices L1-L3.2 implemented and validated; ChatGPT subscription OAuth
+  support specified as follow-up
+- Version: `0.8`
 - Owner: repository maintainers and future implementers of model-provider
   runtime integrations
 - Date: 2026-08-22
@@ -56,6 +56,9 @@ than the full future surface described below:
 - ChatGPT/Codex-on-LiteLLM is a follow-up slice because current LiteLLM docs
   recommend the Responses endpoint for Codex models while the first direct SDK
   slice is intentionally Chat Completions-shaped.
+- LiteLLM-managed ChatGPT subscription OAuth is specified as a separate
+  follow-up route for the OpenAI-with-ChatGPT-auth requirement; it does not
+  replace DAR's existing Codex credential discovery or backend route.
 
 ## Problem Statement
 
@@ -182,6 +185,9 @@ Slice L1 explicitly defers:
   unsupported-auth-mode policy into LiteLLM.
 - Do not let LiteLLM's ChatGPT OAuth/device-flow state replace existing Codex
   auth discovery for the default package path.
+- Do not treat the separately specified LiteLLM ChatGPT subscription provider
+  as Codex `auth.json` auth; the caller must select that provider route
+  explicitly, and LiteLLM owns its OAuth credential lifecycle.
 - Do not require a LiteLLM gateway server for unit tests or default package
   import.
 - Do not require LiteLLM Responses API support for the first direct-SDK slice
@@ -512,6 +518,36 @@ Acceptance criteria:
   `ModelExecutionError` does not include the secret.
 - Given full repository tests run, when LiteLLM is installed, then core tests use
   fake LiteLLM dispatchers and do not require live credentials or providers.
+
+### FR-12: Support LiteLLM ChatGPT subscription auth as a separate route
+
+LiteLLM's `chatgpt/` provider and ChatGPT subscription OAuth flow are a
+follow-up implementation route for DAR's OpenAI-with-ChatGPT-auth requirement.
+This route is separate from FR-7's mapping of DAR-discovered Codex credentials
+to the ChatGPT/Codex backend.
+
+Acceptance criteria:
+
+- Given a caller explicitly selects LiteLLM's ChatGPT subscription provider,
+  when DAR dispatches a request, then it routes the model through LiteLLM's
+  `chatgpt/` provider without using public OpenAI API-key or Codex backend auth.
+- Given LiteLLM ChatGPT OAuth has not been completed, when the route is first
+  used, then authentication follows LiteLLM's documented login flow and makes
+  any required interaction clear to the caller.
+- Given DAR has discovered Codex credentials, when the LiteLLM subscription
+  route is selected, then DAR does not transfer those credentials into
+  LiteLLM's OAuth store or use them as fallback credentials.
+- Given route behavior is tested, when tests run, then they use fake or injected
+  LiteLLM calls and auth state; they do not invoke live OAuth, providers, or
+  model endpoints.
+- Given the provider only supports a subset of DAR request semantics, when an
+  unsupported request is submitted, then DAR fails explicitly rather than
+  silently changing request behavior.
+
+The route must use the `chatgpt/` provider documented at
+`https://docs.litellm.ai/docs/providers/chatgpt`; availability, eligible plans,
+and provider behavior must be checked against the supported LiteLLM version
+when implementation is scheduled.
 
 ## Candidate API Shape
 

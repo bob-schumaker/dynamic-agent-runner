@@ -65,6 +65,7 @@ class _ReviewedCapabilityCompletion:
                 template_digest=self.template.template_digest,
                 outputs=self.template.outputs,
                 candidates=result.candidates,
+                canonical_manifest_schema=self.template.canonical_manifest_schema,
                 contribution=result.contribution,
                 count_ceiling=self.template.count_ceiling,
                 receiver_id=request.principal,

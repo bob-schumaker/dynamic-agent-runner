@@ -6,6 +6,7 @@ import asyncio
 import inspect
 import json
 import re
+import time
 from copy import deepcopy
 from pathlib import Path
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -19,20 +20,42 @@ from openai_model_registry.errors import ModelNotSupportedError
 from dynamic_agent_runner.behavior import effective_node_behavior
 from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.context_compaction import (
+    DecisionContextScoringError,
+    DecisionRetentionSelection,
     ProviderContextCompactionRequest,
     ProviderContextCompactionResult,
     ProviderContextCompactor,
+    _score_retention_turns,
 )
 from dynamic_agent_runner.context_selection import (
     ContextSelection,
     ContextSelectionCandidate,
     ContextSelector,
 )
+from dynamic_agent_runner.decision_models import (
+    DecisionExecutionLimits,
+    DecisionModelBinding,
+    DecisionModelContractError,
+    DecisionModelProfile,
+    DecisionModelRequest,
+    DecisionModelResult,
+    DecisionModelResultItem,
+    DecisionMode,
+    DecisionModelUse,
+    DecisionOption,
+    DecisionQuestion,
+    validate_decision_request,
+    validate_decision_result,
+)
 from dynamic_agent_runner.errors import (
     GuardrailExecutionError,
     ModelExecutionError,
     ToolRegistryError,
     WorkflowExecutionError,
+)
+from dynamic_agent_runner.external_adapter import (
+    ExternalModelAdapterFacade,
+    is_external_adapter,
 )
 from dynamic_agent_runner.guardrails import (
     GuardrailDecision,
@@ -299,6 +322,7 @@ async def execute_workflow_async(
     session_messages: Sequence[OpenAIMessage] = (),
     initial_node_outputs: Mapping[str, Any] | None = None,
     embedding_inputs: Mapping[str, tuple[EmbeddingInputItem, ...]] | None = None,
+    decision_model_bindings: Mapping[str, DecisionModelBinding] | None = None,
     _sync_execution: bool = False,
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt asynchronously."""
@@ -323,6 +347,7 @@ async def execute_workflow_async(
         model_adapter_coverage=model_adapter_coverage,
         context_selector=context_selector,
         provider_context_compactor=provider_context_compactor,
+        decision_model_bindings=decision_model_bindings,
     )
     plan = prepare_execution_plan(context.workflow)
     nodes = plan.nodes_by_id
@@ -402,6 +427,7 @@ async def execute_workflow_async(
                     context.embedding_producer,
                     context.embedding_producer_mode,
                     embedding_inputs,
+                    context.decision_model_bindings,
                     _sync_execution,
                 )
             except Exception as exc:
@@ -479,6 +505,7 @@ def execute_workflow(
     session_messages: Sequence[OpenAIMessage] = (),
     initial_node_outputs: Mapping[str, Any] | None = None,
     embedding_inputs: Mapping[str, tuple[EmbeddingInputItem, ...]] | None = None,
+    decision_model_bindings: Mapping[str, DecisionModelBinding] | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt."""
 
@@ -502,6 +529,7 @@ def execute_workflow(
             session_messages=session_messages,
             initial_node_outputs=initial_node_outputs,
             embedding_inputs=embedding_inputs,
+            decision_model_bindings=decision_model_bindings,
             _sync_execution=True,
         )
     )
@@ -520,6 +548,7 @@ def prepare_model_input(
     provider_context_compactor: ProviderContextCompactor | None = None,
     context_summarizer: ContextSummarizer | None = None,
     context_selector: ContextSelector | None = None,
+    decision_model_bindings: Mapping[str, DecisionModelBinding] | None = None,
 ) -> PreparedModelInput:
     """Prepare rendered model input for an ``llm_step`` node."""
 
@@ -551,6 +580,7 @@ def prepare_model_input(
         provider_context_compactor=provider_context_compactor,
         context_summarizer=context_summarizer,
         context_selector=context_selector,
+        decision_model_bindings=decision_model_bindings,
     )
     preparation = _merge_prepared_input_metadata(preparation, mutation_preparation)
     preparation = _merge_skill_source_preparation(
@@ -658,6 +688,7 @@ def _normalize_execution_context(
     model_adapter_coverage: str | None,
     context_selector: ContextSelector | None,
     provider_context_compactor: ProviderContextCompactor | None,
+    decision_model_bindings: Mapping[str, DecisionModelBinding] | None,
 ) -> WorkflowExecutionContext:
     if isinstance(workflow, WorkflowExecutionContext):
         if any(
@@ -673,6 +704,7 @@ def _normalize_execution_context(
                 model_adapter_coverage,
                 context_selector,
                 provider_context_compactor,
+                decision_model_bindings,
             )
         ):
             raise WorkflowExecutionError(
@@ -693,6 +725,7 @@ def _normalize_execution_context(
         model_adapter_coverage=normalized_coverage,
         context_selector=context_selector,
         provider_context_compactor=provider_context_compactor,
+        decision_model_bindings=decision_model_bindings,
     )
 
 
@@ -715,6 +748,7 @@ async def _execute_node_async(
     embedding_producer: object | None,
     embedding_producer_mode: str | None,
     embedding_inputs: Mapping[str, tuple[EmbeddingInputItem, ...]] | None,
+    decision_model_bindings: Mapping[str, DecisionModelBinding] | None,
     sync_execution: bool,
 ) -> Any:
     if node.kind == "llm_step":
@@ -733,13 +767,20 @@ async def _execute_node_async(
             context_summarizer,
             context_selector,
             provider_context_compactor,
+            decision_model_bindings,
         )
     if node.kind == "tool_use_step":
         return await _execute_tool_step_async(
             node, plan, state, registry, guardrail_registry, tracer, lifecycle_hooks
         )
     if node.kind == "decision_step":
-        return _execute_decision_step(node, state, tracer)
+        return await _execute_decision_step_async(
+            node,
+            state,
+            tracer,
+            decision_model_bindings,
+            sync_execution=sync_execution,
+        )
     if node.kind == "embedding_step":
         return await _execute_embedding_step_async(
             node,
@@ -1040,6 +1081,7 @@ async def _execute_llm_step_async(
     context_summarizer: ContextSummarizer | None,
     context_selector: ContextSelector | None,
     provider_context_compactor: ProviderContextCompactor | None,
+    decision_model_bindings: Mapping[str, DecisionModelBinding] | None,
 ) -> ModelResponse | WorkflowInterruptedResult:
     prepared_input = prepare_model_input(
         node,
@@ -1053,6 +1095,7 @@ async def _execute_llm_step_async(
         provider_context_compactor=provider_context_compactor,
         context_summarizer=context_summarizer,
         context_selector=context_selector,
+        decision_model_bindings=decision_model_bindings,
     )
     tools, exposed_tools, tool_descriptor_budget_payload = _llm_step_tools(
         node,
@@ -2025,6 +2068,8 @@ async def _create_model_response_async(
     adapter: ModelAdapter,
     request: Any,
 ) -> ModelResponse:
+    if isinstance(adapter, ExternalModelAdapterFacade):
+        return await adapter.create_response_async(request)
     if inspect.iscoroutinefunction(adapter.create_response):
         return await adapter.create_response(request)
     response = await asyncio.to_thread(adapter.create_response, request)
@@ -2206,6 +2251,230 @@ async def _invoke_tool_with_retry_async(
         tracer=tracer,
     )
     return last_result
+
+
+async def _execute_decision_step_async(
+    node: PreparedNode,
+    state: WorkflowExecutionState,
+    tracer: WorkflowTracer,
+    bindings: Mapping[str, DecisionModelBinding] | None,
+    *,
+    sync_execution: bool,
+) -> str:
+    if node.decision_subtype != "decision_model":
+        return _execute_decision_step(node, state, tracer)
+    profile_id = node.raw.get("decision_profile")
+    binding = (
+        bindings.get(profile_id) if bindings and isinstance(profile_id, str) else None
+    )
+    if binding is None or binding.profile.identity.profile_id != profile_id:
+        raise WorkflowExecutionError(
+            f"decision_model node {node.id!r} has no exact runtime profile binding"
+        )
+    if DecisionModelUse.WORKFLOW_DECISION not in binding.permitted_uses:
+        raise WorkflowExecutionError(
+            f"decision_model node {node.id!r} binding lacks workflow decision use"
+        )
+    output_mode = node.raw.get("decision_output_mode", "choice")
+    request_mode = (
+        DecisionMode.SCORES if output_mode in {"scores", "noul"} else DecisionMode.CHOICE
+    )
+    if request_mode not in binding.profile.supported_modes:
+        raise WorkflowExecutionError(
+            f"decision_model node {node.id!r} profile does not support {request_mode.value} output"
+        )
+    request = _build_decision_model_request(node, state, binding)
+    outcome = await _invoke_decision_model_adapter(
+        node, binding, request, sync_execution=sync_execution
+    )
+    if not isinstance(outcome, DecisionModelResult):
+        raise WorkflowExecutionError(
+            f"decision_model node {node.id!r} returned an invalid adapter result"
+        )
+    try:
+        validate_decision_result(outcome, request, binding.profile)
+    except DecisionModelContractError as exc:
+        raise WorkflowExecutionError(
+            f"decision_model node {node.id!r} returned an invalid adapter result"
+        ) from exc
+    item: DecisionModelResultItem = outcome.results[0]
+    route = _decision_model_route(node, item)
+    tracer.emit(
+        "decision",
+        node_id=node.id,
+        payload={
+            "route": route,
+            "profile_id": binding.profile.identity.profile_id,
+            "adapter_id": binding.profile.identity.adapter_id,
+        },
+    )
+    return route
+
+
+def _decision_model_route(
+    node: PreparedNode, item: DecisionModelResultItem
+) -> str:
+    """Convert one validated decision result into the declared branch route."""
+
+    output_mode = node.raw.get("decision_output_mode", "choice")
+    if output_mode == "choice":
+        if item.status == "abstained" or item.choice is None:
+            raise WorkflowExecutionError(
+                f"decision_model node {node.id!r} adapter abstained"
+            )
+        return item.choice
+    if item.status == "abstained":
+        return "abstained"
+    policy = node.raw.get("decision_route_policy")
+    if not isinstance(policy, Mapping):
+        raise WorkflowExecutionError(
+            f"decision_model node {node.id!r} has an invalid route policy"
+        )
+    scores = {score.option_id: score.value for score in item.scores}
+    if policy.get("kind") == "argmax":
+        return max((score.option_id for score in item.scores), key=lambda option: scores[option])
+    option = policy.get("option")
+    threshold = policy.get("threshold")
+    if not isinstance(option, str) or not isinstance(threshold, (int, float)):
+        raise WorkflowExecutionError(
+            f"decision_model node {node.id!r} has an invalid threshold policy"
+        )
+    expected_semantics = policy.get("score_semantics", "probability")
+    if item.score_semantics.value != expected_semantics:
+        raise WorkflowExecutionError(
+            f"decision_model node {node.id!r} returned incompatible score semantics"
+        )
+    if output_mode == "noul":
+        return "yes" if scores[option] >= threshold else "no"
+    return option if scores[option] >= threshold else "abstained"
+
+
+def _build_decision_model_request(
+    node: PreparedNode,
+    state: WorkflowExecutionState,
+    binding: DecisionModelBinding,
+) -> DecisionModelRequest:
+    try:
+        context = _resolve_decision_context(node.raw.get("context_from"), state)
+        execution_limits = _decision_request_limits(
+            binding.profile, binding.execution_limits
+        )
+        question_raw = node.raw["question"]
+        question = DecisionQuestion(
+            id=question_raw["id"],
+            text=question_raw["text"],
+            options=tuple(
+                DecisionOption(option["id"], option["label"])
+                for option in question_raw["options"]
+            ),
+        )
+        request = DecisionModelRequest(
+            decision_id=node.id,
+            context=context,
+            questions=(question,),
+            mode=(
+                DecisionMode.SCORES
+                if node.raw.get("decision_output_mode") in {"scores", "noul"}
+                else DecisionMode.CHOICE
+            ),
+            execution_limits=execution_limits,
+        )
+        validate_decision_request(request, binding.profile)
+    except (KeyError, TypeError, DecisionModelContractError) as exc:
+        raise WorkflowExecutionError(
+            f"decision_model node {node.id!r} has an invalid bounded request"
+        ) from exc
+    return request
+
+
+def _decision_request_limits(
+    profile: DecisionModelProfile,
+    host_limits: DecisionExecutionLimits,
+) -> DecisionExecutionLimits:
+    def bounded(profile_limit: int, host_limit: int | None) -> int:
+        return (
+            min(profile_limit, host_limit) if host_limit is not None else profile_limit
+        )
+
+    return DecisionExecutionLimits(
+        max_input_bytes=bounded(profile.max_input_bytes, host_limits.max_input_bytes),
+        max_input_tokens=bounded(
+            profile.max_input_tokens, host_limits.max_input_tokens
+        ),
+        max_questions=bounded(profile.max_questions, host_limits.max_questions),
+        max_options_per_question=bounded(
+            profile.max_options_per_question, host_limits.max_options_per_question
+        ),
+        max_result_bytes=bounded(
+            profile.max_result_bytes, host_limits.max_result_bytes
+        ),
+        deadline_monotonic=host_limits.deadline_monotonic,
+        cancellation=host_limits.cancellation,
+    )
+
+
+async def _invoke_decision_model_adapter(
+    node: PreparedNode,
+    binding: DecisionModelBinding,
+    request: DecisionModelRequest,
+    *,
+    sync_execution: bool,
+) -> Any:
+    _check_decision_lifecycle(binding.execution_limits, node.id)
+    try:
+        outcome = binding.adapter.decide(request)
+        if inspect.isawaitable(outcome):
+            if sync_execution:
+                close = getattr(outcome, "close", None)
+                if callable(close):
+                    close()
+                raise WorkflowExecutionError(
+                    f"decision_model node {node.id!r} requires an async workflow call"
+                )
+            outcome = await outcome
+    except WorkflowExecutionError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - adapter exceptions may contain private input.
+        raise WorkflowExecutionError(
+            f"decision_model node {node.id!r} adapter failed"
+        ) from exc
+    _check_decision_lifecycle(binding.execution_limits, node.id)
+    return outcome
+
+
+def _resolve_decision_context(reference: object, state: WorkflowExecutionState) -> Any:
+    if reference == "prompt":
+        return state.prompt
+    if isinstance(reference, str) and reference.startswith("node_outputs."):
+        key = reference.removeprefix("node_outputs.")
+        if not key or "." in key or key not in state.node_outputs:
+            raise WorkflowExecutionError("decision context reference is unavailable")
+        return _unwrap_output(state.node_outputs[key])
+    raise WorkflowExecutionError("decision context reference is unsupported")
+
+
+def _check_decision_lifecycle(limits: DecisionExecutionLimits, node_id: str) -> None:
+    cancellation = limits.cancellation
+    if cancellation is not None:
+        raise_if_cancelled = getattr(cancellation, "raise_if_cancelled", None)
+        if callable(raise_if_cancelled):
+            try:
+                raise_if_cancelled()
+            except Exception as exc:  # noqa: BLE001 - redact collaborator error details.
+                raise WorkflowExecutionError(
+                    f"decision_model node {node_id!r} was cancelled"
+                ) from exc
+        if getattr(cancellation, "cancelled", False):
+            raise WorkflowExecutionError(
+                f"decision_model node {node_id!r} was cancelled"
+            )
+    if (
+        limits.deadline_monotonic is not None
+        and time.monotonic() >= limits.deadline_monotonic
+    ):
+        raise WorkflowExecutionError(
+            f"decision_model node {node_id!r} deadline expired"
+        )
 
 
 def _execute_decision_step(
@@ -2615,6 +2884,7 @@ def _apply_prepare_model_input_stage(
     provider_context_compactor: ProviderContextCompactor | None,
     context_summarizer: ContextSummarizer | None,
     context_selector: ContextSelector | None,
+    decision_model_bindings: Mapping[str, DecisionModelBinding] | None,
 ) -> tuple[tuple[tuple[str, OpenAIMessage], ...], PreparedInputMetadata]:
     """Apply optional prepare-stage hierarchy and session shaping."""
 
@@ -2654,8 +2924,35 @@ def _apply_prepare_model_input_stage(
     )
     result_parts.extend(file_context_messages)
 
-    kept_session, pruned_session = _pruned_session_messages(
-        state.session_messages, policy
+    decision_scoring = _decision_scoring_policy(policy)
+    decision_scoring_selects = (
+        decision_scoring.get("enabled") is True
+        and decision_scoring.get("selection") is not None
+    )
+    if decision_scoring.get("enabled") is True:
+        (
+            kept_session,
+            pinned_session,
+            pruned_session,
+            decision_selected_parts,
+            scoring_metadata,
+        ) = _decision_scored_session_messages(
+            state.session_messages,
+            policy,
+            state.prompt,
+            decision_scoring,
+            decision_model_bindings,
+        )
+    else:
+        kept_session, pruned_session = _pruned_session_messages(
+            state.session_messages, policy
+        )
+        pinned_session = ()
+        decision_selected_parts = ()
+        scoring_metadata = None
+    result_parts.extend(
+        (f"decision_pinned_session_{index}", message)
+        for index, message in enumerate(pinned_session, start=1)
     )
     compression_profile = _compression_profile(policy)
     lane_budgets = _lane_budgets(policy)
@@ -2690,16 +2987,18 @@ def _apply_prepare_model_input_stage(
         omitted_turns,
         rejected_turns,
     ) = _selected_older_turn_parts(
-        pruned_session,
+        () if decision_scoring_selects else pruned_session,
         state.prompt,
         selection_policy,
         context_selector=context_selector,
         model=model,
     )
     context_compaction_applied = False
-    compaction_metadata: Mapping[str, Any] = {}
+    compaction_metadata: Mapping[str, Any] = (
+        {"decision_scoring": scoring_metadata} if scoring_metadata is not None else {}
+    )
     context_reset = _context_reset_metadata(pruned_session, policy)
-    if pruned_session:
+    if pruned_session and not decision_scoring_selects:
         summary_message = _compacted_session_message(
             pruned_session,
             policy,
@@ -2709,13 +3008,17 @@ def _apply_prepare_model_input_stage(
         if summary_message is not None:
             result_parts.append(("session_summary", summary_message))
             context_compaction_applied = True
-            compaction_metadata = _compaction_metadata(
-                pruned_session,
-                summary_message,
-                policy,
-                model=model,
-            )
+            compaction_metadata = {
+                **compaction_metadata,
+                **_compaction_metadata(
+                    pruned_session,
+                    summary_message,
+                    policy,
+                    model=model,
+                ),
+            }
 
+    result_parts.extend(decision_selected_parts)
     result_parts.extend(selected_turn_parts)
 
     for index, message in enumerate(kept_session, start=1):
@@ -2742,7 +3045,9 @@ def _apply_prepare_model_input_stage(
 
     return tuple(result_parts), PreparedInputMetadata(
         hierarchy_applied=hierarchy_applied,
-        session_messages_included=len(kept_session),
+        session_messages_included=(
+            len(kept_session) + len(pinned_session) + len(decision_selected_parts)
+        ),
         session_messages_pruned=len(pruned_session),
         context_compaction_applied=context_compaction_applied,
         compaction=compaction_metadata,
@@ -4076,6 +4381,163 @@ def _pruned_session_messages(
     )
 
 
+def _decision_scoring_policy(policy: Mapping[str, Any]) -> Mapping[str, Any]:
+    compaction = policy.get("context_compaction")
+    if not isinstance(compaction, Mapping):
+        return {}
+    value = compaction.get("decision_scoring")
+    return value if isinstance(value, Mapping) else {}
+
+
+def _decision_scored_session_messages(
+    session_messages: Sequence[OpenAIMessage],
+    policy: Mapping[str, Any],
+    task_context: str,
+    scoring_policy: Mapping[str, Any],
+    bindings: Mapping[str, DecisionModelBinding] | None,
+) -> tuple[
+    tuple[OpenAIMessage, ...],
+    tuple[OpenAIMessage, ...],
+    tuple[OpenAIMessage, ...],
+    tuple[tuple[str, OpenAIMessage], ...],
+    Mapping[str, int | str],
+]:
+    turns = _session_turns(session_messages)
+    recent_turns = _recent_session_turns(turns, policy)
+    recent_indexes = {index for index, _turn in recent_turns}
+    pinned_indexes = {
+        index
+        for index, turn in enumerate(turns)
+        if index not in recent_indexes
+        and any(message.role in {"system", "developer"} for message in turn)
+    }
+    eligible = [
+        (index, turn)
+        for index, turn in enumerate(turns)
+        if index not in recent_indexes and index not in pinned_indexes
+    ]
+    candidates = _identified_retention_turns(eligible, turns)
+    selected: DecisionRetentionSelection | None = None
+    binding = bindings.get(scoring_policy.get("profile_id")) if bindings else None
+    try:
+        if binding is None:
+            raise DecisionContextScoringError("decision scoring profile unavailable")
+        selected = _score_retention_turns(
+            task_context=task_context,
+            candidates=candidates,
+            binding=binding,
+            policy=scoring_policy,
+        )
+        selected_ids = {turn_id for turn_id, _turn in selected.turns}
+        metadata: Mapping[str, int | str] = selected.diagnostics
+    except Exception:  # noqa: BLE001 - invalid or failed scores use the declared recency fallback.
+        selected_ids = set()
+        metadata = {
+            "status": "fallback_recency",
+            "scored_turns": 0,
+            "selected_turns": 0,
+        }
+    return _assemble_decision_scored_session(
+        turns,
+        recent_indexes,
+        pinned_indexes,
+        candidates,
+        selected_ids,
+        metadata,
+    )
+
+
+def _recent_session_turns(
+    turns: tuple[tuple[OpenAIMessage, ...], ...],
+    policy: Mapping[str, Any],
+) -> tuple[tuple[int, tuple[OpenAIMessage, ...]], ...]:
+    pruning = policy.get("session_pruning")
+    if not isinstance(pruning, Mapping):
+        return tuple(enumerate(turns))
+    try:
+        limit = int(pruning.get("max_messages"))
+    except (TypeError, ValueError):
+        return tuple(enumerate(turns))
+    if limit < 0 or sum(map(len, turns)) <= limit:
+        return tuple(enumerate(turns))
+    if limit == 0:
+        return ()
+    kept: list[tuple[int, tuple[OpenAIMessage, ...]]] = []
+    kept_count = 0
+    for index in range(len(turns) - 1, -1, -1):
+        turn = turns[index]
+        if kept and kept_count + len(turn) > limit:
+            break
+        kept.append((index, turn))
+        kept_count += len(turn)
+        if kept_count >= limit:
+            break
+    return tuple(reversed(kept))
+
+
+def _identified_retention_turns(
+    turns: Sequence[tuple[int, tuple[OpenAIMessage, ...]]],
+    all_turns: tuple[tuple[OpenAIMessage, ...], ...],
+) -> tuple[tuple[str, tuple[tuple[str, OpenAIMessage], ...]], ...]:
+    identified: list[tuple[str, tuple[tuple[str, OpenAIMessage], ...]]] = []
+    for index, turn in turns:
+        message_index = sum(len(previous) for previous in all_turns[:index])
+        identified.append(
+            (
+                f"turn_{index + 1}",
+                tuple(
+                    (f"message-{message_index + offset:06d}", message)
+                    for offset, message in enumerate(turn)
+                ),
+            )
+        )
+    return tuple(identified)
+
+
+def _assemble_decision_scored_session(
+    turns: tuple[tuple[OpenAIMessage, ...], ...],
+    recent_indexes: set[int],
+    pinned_indexes: set[int],
+    candidates: Sequence[tuple[str, tuple[tuple[str, OpenAIMessage], ...]]],
+    selected_ids: set[str],
+    diagnostics: Mapping[str, int | str],
+) -> tuple[
+    tuple[OpenAIMessage, ...],
+    tuple[OpenAIMessage, ...],
+    tuple[OpenAIMessage, ...],
+    tuple[tuple[str, OpenAIMessage], ...],
+    Mapping[str, int | str],
+]:
+    selected_turns = {
+        int(turn_id.removeprefix("turn_")) - 1: messages
+        for turn_id, messages in candidates
+        if turn_id in selected_ids
+    }
+    candidate_indexes = {
+        int(turn_id.removeprefix("turn_")) - 1 for turn_id, _messages in candidates
+    }
+    kept_turns = [turns[index] for index in sorted(recent_indexes)]
+    pinned_turns = [turns[index] for index in sorted(pinned_indexes)]
+    pruned_messages = tuple(
+        message
+        for index in sorted(candidate_indexes - set(selected_turns))
+        for message in turns[index]
+    )
+    selected_parts = tuple(
+        (f"selected_turn_decision_{turn_id}_{message_index}", message)
+        for turn_id, messages in candidates
+        if turn_id in selected_ids
+        for message_index, (_message_id, message) in enumerate(messages, start=1)
+    )
+    return (
+        tuple(message for turn in kept_turns for message in turn),
+        tuple(message for turn in pinned_turns for message in turn),
+        pruned_messages,
+        selected_parts,
+        diagnostics,
+    )
+
+
 def _compacted_session_message(
     pruned_session: Sequence[OpenAIMessage],
     policy: Mapping[str, Any],
@@ -4505,8 +4967,43 @@ def _normalize_model_adapters(
     if value is None:
         return ()
     if callable(getattr(value, "create_response", None)):
-        return (value,)
-    return tuple(value)
+        candidates = (value,)
+    else:
+        try:
+            candidates = tuple(value)
+        except TypeError as error:
+            raise WorkflowExecutionError(
+                "model_adapter must be an adapter or sequence"
+            ) from error
+    normalized: list[ModelAdapter] = []
+    external_ids: set[str] = set()
+    external_models: set[str] = set()
+    for candidate in candidates:
+        if is_external_adapter(candidate):
+            try:
+                facade = ExternalModelAdapterFacade(candidate)
+            except Exception as error:  # noqa: BLE001 - public boundary is redacted.
+                raise WorkflowExecutionError(
+                    "external model adapter is invalid"
+                ) from error
+            descriptor = facade.descriptor
+            if (
+                descriptor.adapter_id in external_ids
+                or descriptor.model_alias in external_models
+            ):
+                raise WorkflowExecutionError(
+                    "duplicate external model adapter identity"
+                )
+            external_ids.add(descriptor.adapter_id)
+            external_models.add(descriptor.model_alias)
+            normalized.append(facade)
+            continue
+        if not callable(getattr(candidate, "create_response", None)):
+            raise WorkflowExecutionError(
+                "model_adapter sequence contains an invalid adapter"
+            )
+        normalized.append(candidate)
+    return tuple(normalized)
 
 
 def _normalize_model_adapter_coverage(value: str | None) -> str:
@@ -4526,7 +5023,7 @@ def _execution_policy_model_map(
     return value if isinstance(value, Mapping) else {}
 
 
-def _select_model_and_adapter(
+def _select_model_and_adapter(  # noqa: C901 - selection has explicit fallback gates.
     node: PreparedNode,
     adapters: Sequence[ModelAdapter],
     model_map: Mapping[str, Any],
@@ -4537,6 +5034,33 @@ def _select_model_and_adapter(
     normalized_adapters = tuple(adapters)
     required_features = _required_model_features(node)
     coverage = _normalize_model_adapter_coverage(model_adapter_coverage)
+    external_adapters = tuple(
+        adapter
+        for adapter in normalized_adapters
+        if isinstance(adapter, ExternalModelAdapterFacade)
+    )
+    if external_adapters:
+        if len(external_adapters) != 1:
+            raise WorkflowExecutionError(
+                "external adapter selection is ambiguous for this workflow"
+            )
+        external = external_adapters[0]
+        descriptor = external.descriptor
+        if not required_features.issubset(descriptor.capabilities):
+            raise _raise_missing_capability_adapter_error(
+                node,
+                model_label="external adapter model",
+                model_name=descriptor.model_alias,
+                required_features=required_features,
+            )
+        if requested_model is None:
+            return descriptor.model_alias, external
+        if requested_model != descriptor.model_alias:
+            raise WorkflowExecutionError(
+                f"external adapter selected model {descriptor.model_alias!r}; "
+                f"workflow node {node.id!r} requested {requested_model!r}"
+            )
+        return descriptor.model_alias, external
 
     if requested_model is None:
         return _select_default_model_and_adapter_for_missing_model(

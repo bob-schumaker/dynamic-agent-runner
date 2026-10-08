@@ -1,8 +1,9 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models A2 Task List
 
-Status: B0--B5.1 implementation, documentation, and validation complete; B5.2
-tool-choice capability spike open
+Status: B0--B5.1 implementation, documentation, and B5.2 bounded validation
+complete; native required-first binding remains blocked by the current host and
+bridge; future F1--F2 follow-up tasks recorded
 
 This is the canonical task list for A2. `tasks.md` remains the completed A1
 record and must not duplicate A2 implementation work. This list implements the
@@ -196,7 +197,7 @@ fixed decisions in `a2-plan.md`.
     focused fake bridge suite passed. The earlier matrix rerun remains B5.2
     evidence only.
 
-- [ ] B5.2 [spike/tests] Establish whether Apple tool-choice control is both
+- [x] B5.2 [spike/tests] Establish whether Apple tool-choice control is both
       available through the current Python/Swift bridge and causally relevant
       to DAR's required-first scenarios before authorizing a production binding.
   - Evidence to explain: the earlier post-wrapper-fix receipt
@@ -243,3 +244,56 @@ fixed decisions in `a2-plan.md`.
     package release, or claim that tool choice explains S5. The spike must not
     change callback authority, admitted schemas, or existing default `allowed`
     behavior.
+
+## Future follow-up tasks (not authorized by A2)
+
+These tasks capture applicable upstream design evidence without expanding the
+approved A2 implementation. Each requires its own scoped plan or an explicit
+amendment before implementation.
+
+- [ ] F1 [future][tests/spec] Normalize Apple Foundation Models availability
+      into stable DAR-owned reason codes and remediation metadata.
+  - RED: add focused fake-SDK tests for available, Apple Intelligence disabled,
+    device ineligible, model not ready, SDK unavailable, and unknown/new native
+    reasons. Prove the normalized machine code is deterministic while the
+    provider's diagnostic detail remains non-authoritative and redacted at
+    public boundaries.
+  - GREEN: add a package-owned availability result used by
+    `preflight_apple_foundation_models(...)` and the external-adapter health
+    path. Preserve the current boolean preflight behavior and
+    `ModelExecutionError` boundary; do not turn availability into a guarantee
+    that generation will succeed.
+  - Acceptance: every known native reason maps to one stable code and
+    actionable remediation category; unknown reasons map to an explicit
+    forward-compatible fallback; unit tests cover the mapping and existing
+    Apple adapter/executor tests remain unchanged. Update the AFM spec and
+    validation log only after the mapping is implemented and verified.
+  - Owner: `src/dynamic_agent_runner/apple_foundation_models.py`, focused Apple
+    adapter tests, and the AFM spec/validation artifacts. This task is informed
+    by Apfel `Sources/Core/ModelAvailability.swift:18-120`; no upstream code or
+    prose should be copied.
+
+- [ ] F2 [future][tests/implementation/live] Enable provider-native Apple text
+      streaming behind DAR's approved model-event-streaming protocol.
+  - Prerequisite: the streaming protocol and event semantics in
+    `specs/model-event-streaming/spec.md` must have an approved provider-native
+    expansion slice, and the Apple SDK/bridge must expose a stable streaming
+    API. Do not infer support from CLI/server behavior or prompt deltas.
+  - RED: add fake-session tests for ordered text deltas, terminal final
+    response, cancellation, provider failure, backpressure/serialization, and
+    structured-output final validation. Prove non-streaming requests and the
+    current `streaming: False` capability metadata remain unchanged until the
+    binding is complete.
+  - GREEN: translate native Apple deltas into DAR events, retain the final
+    `ModelResponse` as authoritative, propagate cancellation and provider
+    errors through package-owned boundaries, and advertise streaming only when
+    the runtime binding is actually available. Keep HTTP/SSE, sync wrappers,
+    image streaming, and streaming tool-progress out of this task.
+  - Live acceptance: on an eligible Mac, record a redacted native receipt for
+    text-delta ordering, terminal completion, cancellation, and one structured
+    output control. If the bridge lacks the native API, record that bounded
+    outcome and leave the capability disabled.
+  - Owner: `src/dynamic_agent_runner/apple_foundation_models.py`, streaming
+    adapter/event tests, and the AFM plus model-event-streaming artifacts. This
+    task is informed by Apfel `Sources/Core/StreamingToolCallGate.swift:10-44`;
+    it does not authorize importing Apfel's streaming implementation.

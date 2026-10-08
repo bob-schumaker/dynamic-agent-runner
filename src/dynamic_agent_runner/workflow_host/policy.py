@@ -75,6 +75,14 @@ DESCRIPTOR_FILENAME = "workflow-descriptor.yaml"
 MODEL_MATERIALS_FILENAME = "model-materials.json"
 MODEL_MATERIAL_SETS_FILENAME = "model-material-sets.json"
 EXECUTION_DESCRIPTOR_FILENAME = "execution-descriptor.json"
+REVIEWED_CAPABILITY_RECEIPT_TERMINAL_RESULT_KIND = "reviewed_capability_receipt.v1"
+REVIEWED_CAPABILITY_RECEIPT_REQUIRED_FIELDS = (
+    "status",
+    "generation_id",
+    "published_at",
+    "artifacts",
+    "counts",
+)
 
 
 class PolicyCompilationError(ValueError):
@@ -216,6 +224,10 @@ def compile_workflow_policy(  # noqa: C901
         raise PolicyCompilationError("DAR package_id does not match catalog")
     if descriptor.output_schema_ref not in workflow.runtime_manifest.output_contracts:
         raise PolicyCompilationError("registered terminal output contract is missing")
+    _validate_reviewed_capability_terminal_contract(
+        descriptor,
+        workflow.runtime_manifest.output_contracts[descriptor.output_schema_ref],
+    )
     descriptor_digest = hashlib.sha256(descriptor_bytes).hexdigest()
     tool_capabilities = _tool_capabilities(descriptor.declared_tools)
     local_tool_capabilities = _local_tool_capabilities(descriptor.declared_local_tools)
@@ -431,6 +443,28 @@ def compile_workflow_policy(  # noqa: C901
         ),
         locked_inference_bindings=locked_inference_bindings,
     )
+
+
+def _validate_reviewed_capability_terminal_contract(
+    descriptor: WorkflowDescriptor, contract: object
+) -> None:
+    """Allow the sole structured terminal form only for one reviewed capability."""
+
+    if not isinstance(contract, dict):
+        raise PolicyCompilationError("registered terminal output contract is invalid")
+    if (
+        contract.get("terminal_result_kind")
+        != REVIEWED_CAPABILITY_RECEIPT_TERMINAL_RESULT_KIND
+    ):
+        return
+    if (
+        len(descriptor.declared_reviewed_capability_tools) != 1
+        or descriptor.terminal_output_validator is not None
+        or descriptor.terminal_output_processors
+        or tuple(contract.get("required_fields", ()))
+        != REVIEWED_CAPABILITY_RECEIPT_REQUIRED_FIELDS
+    ):
+        raise PolicyCompilationError("reviewed capability terminal contract is invalid")
 
 
 def _execution_bindings(

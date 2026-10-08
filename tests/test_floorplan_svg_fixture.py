@@ -7,6 +7,7 @@ import hashlib
 import json
 import shutil
 import stat
+import subprocess
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -62,6 +63,20 @@ FIXTURE = (
     / "natural-language-workflow-authoring"
     / "floorplan-svg"
 )
+
+
+def _require_macos_sandbox_exec() -> None:
+    try:
+        result = subprocess.run(
+            ["sandbox-exec", "-p", "(version 1) (allow default)", "/usr/bin/true"],
+            check=False,
+            capture_output=True,
+            timeout=3,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pytest.skip("host cannot execute sandbox-exec")
+    if result.returncode != 0:
+        pytest.skip("host rejects the sandbox-exec profile")
 
 
 def _floorplan_matrix_profile(*, live: bool) -> WorkflowSupportProfile:
@@ -192,6 +207,7 @@ def test_floorplan_matrix_profiles_bind_synthetic_and_mps_facts() -> None:
 def test_floorplan_fixture_stages_a_workflow_owned_svg_validator(
     tmp_path: Path,
 ) -> None:
+    _require_macos_sandbox_exec()
     source = tmp_path / "packages" / "floorplan-from-image"
     shutil.copytree(FIXTURE, source)
     store = PrivateStateStore(tmp_path / "state")

@@ -1,7 +1,9 @@
 """Scenario-local Qwen image converter used only by the floorplan harness."""
 
 from collections.abc import Callable, Mapping, Sequence
+import base64
 from io import BytesIO
+import json
 
 from dynamic_agent_runner.errors import ModelExecutionError
 
@@ -35,6 +37,24 @@ class Qwen25Vl3bGrpoInputConverter:
             )
             return context.pack(inputs)  # type: ignore[attr-defined]
         except Exception as error:  # noqa: BLE001 - processor errors vary.
+            raise ModelExecutionError("sealed image input is unavailable") from error
+
+    def decode_canonical_payload(
+        self, content: bytes
+    ) -> tuple[tuple[Mapping[str, object], ...], bytes]:
+        """Decode this converter's private messages-plus-image payload."""
+
+        try:
+            value = json.loads(content.decode("utf-8"))
+            messages = value["messages"]
+            image = base64.b64decode(value["image_base64"], validate=True)
+            if not isinstance(messages, list) or not isinstance(image, bytes):
+                raise ValueError("canonical payload is invalid")
+            normalized = tuple(messages)
+            if any(not isinstance(message, Mapping) for message in normalized):
+                raise ValueError("canonical payload is invalid")
+            return normalized, image
+        except Exception as error:  # noqa: BLE001 - canonical payload is private.
             raise ModelExecutionError("sealed image input is unavailable") from error
 
     def _decode_payload(self, payload: bytes) -> object:

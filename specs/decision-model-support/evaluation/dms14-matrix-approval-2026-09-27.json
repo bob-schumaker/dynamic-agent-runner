@@ -1,0 +1,8 @@
+{
+  "approval_date": "2026-09-27",
+  "approval_scope": "one approval for the complete matrix",
+  "approval_source": "User approved the corrected exact DMS-14 matrix request in conversation.",
+  "approved": true,
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "matrix_sha256": "6dd0764bdcd122227ace407820fcb8d5a8cdf3aa73f19562b97e72e7046b24b9"
+}

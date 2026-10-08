@@ -3,7 +3,7 @@
   "format_version": "m4.4-direct-baseline-v1",
   "original_scenario_ids_digest": "42ed483b6250054eba0d9b105b678ebb338c777ba367cf36e5399cd721941d74",
   "plugin_identity": "agent-engineering",
-  "plugin_tree_digest": "04bfa84136a67b30cbadf2ece3dbf38e8122d749d7e8c8ed4ea631672998ad2b",
+  "plugin_tree_digest": "73165d3371424737c0bb1738aa0fda98f2a4156320c2c930419d69f24515ac09",
   "scenario_plan_digest": "41289a4b42f84ef91f2da89b9eecd27c7343ea9b2f9cb03bc74b1335e0b80b15",
   "skill_identity": "agent-development@agent-engineering"
 }

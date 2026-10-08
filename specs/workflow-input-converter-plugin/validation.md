@@ -37,14 +37,35 @@ The 2026-09-08 readiness validation ran:
 - `poetry run ruff check src tests`: passed.
 - `git diff --check`: passed.
 
-T5.4.5 is complete. T5.6 may update feature status and prepare a release when
-its release requirements are satisfied. On 2026-09-14, `poetry build` produced
-the `0.1.18` sdist and wheel; archive and wheel integrity checks passed. This is
-local package evidence only. Publication remains blocked until an explicit
-unreleased version and publish target are selected: repository tags already
-reach `0.1.31`, so the current `0.1.18` must not be published. `pyproject.toml`
-declares `global-release-pypi` and `global-dev-pypi`, but no release policy
-selects either target. The Mac-only T5.7.1--T5.7.2 fake-only verification passed
+T5.4.5 is complete. T5.6 is complete. The local `0.1.19` sdist and
+wheel have passed the package-integrity checks used by the release-contract
+tests; this is local package evidence only. On 2026-09-18, the configured
+`global-release-pypi` Simple index independently listed these `0.1.19`
+artifacts:
+
+- wheel SHA-256:
+  `d8754c9c8ab8987750ae27a8373f156a1d80a8e5cec58148688826ef55b90fe7`
+- sdist SHA-256:
+  `9f7e01b4282c2570b67903a361b4cddd21f7bf686ae3b1ae42bfafc53046b735`
+
+The earlier index entry was not a release receipt for this feature. T5.6.2 is now
+complete: the same index was queried on 2026-09-18, `0.1.19` was the latest
+published version, and the next version was computed as `0.1.20`. The local
+`0.1.20` artifacts passed the focused release-contract tests with these
+SHA-256 values:
+
+- wheel: `cc96f92bef46f267854adcfbc500c76735a4a2208acd489fb7c751b33012a9d4`
+- sdist: `7d2edc1948e7a23b22a140ad0a8e6b18e06425b7022a4dc34b1028af0244a4cb`
+
+T5.6.3 completed through the repository-driven OCI workflow: commit
+`8e6e215b00a27f6d3ae64fe8e14cd332da644a02` was pushed to `develop`, PR
+`ocid1.devopspullrequest.oc1.phx.amaaaaaaw4vcxbyaz3tq3puzkmg3dlpcenqn2sklxrzojbn6maxtzemnhomq`
+merged to `main` as `e94e2da33c0fada31552ae169b3f776c02482377`, and main build
+`e0d67934-8fbb-4861-a618-3ae32fb14be9` succeeded. A cache-busted query of the
+configured package index then exposed `0.1.20` with the hashes above. Repository
+tags already reach `0.1.31`, so `0.1.19` was not reused as the next release.
+The Mac-only
+T5.7.1--T5.7.2 fake-only verification passed
 on 2026-09-08:
 `poetry run pytest tests/test_transformers_peft_model.py -q` reported
 `35 passed`. It covers unchanged non-MPS loading, adapter-before-MPS placement,

@@ -28,7 +28,7 @@
     },
     "skill_ids_source": "router_authority",
     "source_manifest": "plugins/agent-engineering/.codex-plugin/plugin.json",
-    "source_plugin_version": "0.1.4",
+    "source_plugin_version": "0.1.5",
     "source_root_source": "source_manifest",
     "state_scope": "output_root_local",
     "surface_id_source": "generated.surface_id",
@@ -73,6 +73,6 @@
   ],
   "source_root": "plugins/agent-engineering",
   "surface_id": "agent-engineering",
-  "version": "0.1.4",
-  "version_override": "0.1.4"
+  "version": "0.1.5",
+  "version_override": "0.1.5"
 }

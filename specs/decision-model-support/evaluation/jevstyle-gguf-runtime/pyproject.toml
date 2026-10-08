@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "dms-jevstyle-gguf-runtime"
+version = "0.1.0"
+description = "Isolated DMS-17 Jev-Style v3 GGUF F16 CPU runtime"
+authors = ["Dynamic Agent Runner"]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "3.14.7"
+dynamic-agent-runner = { path = "../../../..", python = ">=3.14.2,<3.15" }
+numpy = "2.5.3"
+tokenizers = "0.23.2"
+
+[[tool.poetry.source]]
+name = "global-release-pypi"
+url = "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple"
+priority = "primary"
+
+[[tool.poetry.source]]
+name = "global-dev-pypi"
+url = "https://artifactory.oci.oraclecorp.com/api/pypi/global-dev-pypi/simple"
+priority = "supplemental"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -19,6 +19,7 @@ from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
     ReviewedCapabilityTemplate,
     ReviewedCapabilityTemplateOutput,
+    reviewed_capability_manifest_schema_digest,
     reviewed_capability_template_digest,
 )
 from dynamic_agent_runner.workflow_host.reviewed_tool_packages import (  # noqa: E402
@@ -117,6 +118,14 @@ def _template() -> ReviewedCapabilityTemplate:
         "compensate",
         "query_current_outcome",
     )
+    canonical_manifest_schema = {
+        "additionalProperties": False,
+        "properties": {"index_digest": {"type": "string"}},
+        "type": "object",
+    }
+    canonical_manifest_schema_digest = reviewed_capability_manifest_schema_digest(
+        canonical_manifest_schema
+    )
     return ReviewedCapabilityTemplate(
         capability_id="vector_index.build.v1",
         contract_version="1",
@@ -131,6 +140,8 @@ def _template() -> ReviewedCapabilityTemplate:
             extension_binding="host-vector-index-v1",
             recovery_operations=recovery_operations,
             success_receipt_schema_digest="d" * 64,
+            canonical_manifest_schema=canonical_manifest_schema,
+            canonical_manifest_schema_digest=canonical_manifest_schema_digest,
             generation_id_max_bytes=128,
             artifact_handle_max_bytes=128,
             count_ceiling=1024,
@@ -145,6 +156,8 @@ def _template() -> ReviewedCapabilityTemplate:
         extension_binding="host-vector-index-v1",
         recovery_operations=recovery_operations,
         success_receipt_schema_digest="d" * 64,
+        canonical_manifest_schema=canonical_manifest_schema,
+        canonical_manifest_schema_digest=canonical_manifest_schema_digest,
         generation_id_max_bytes=128,
         artifact_handle_max_bytes=128,
         count_ceiling=1024,

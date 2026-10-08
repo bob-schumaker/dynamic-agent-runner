@@ -29,6 +29,12 @@ _FASTMAIL_FIXTURE_PATH = (
     / "workflow-model-support-matrix"
     / "fastmail-triage-synthetic-v1.json"
 )
+_NATIVE_ADAPTER_FIXTURE_PATH = (
+    Path(__file__).parent
+    / "fixtures"
+    / "workflow-model-support-matrix"
+    / "native-model-adapter-migration.json"
+)
 
 
 def _material_identity(*, package_id: str = "embedding-package") -> MaterialIdentity:
@@ -99,6 +105,47 @@ def _fastmail_fixture() -> dict[str, object]:
     assert isinstance(artifact_digests, dict)
     assert artifact_digests["reviewed_search_email_surface"] == surface_digest
     return fixture
+
+
+def test_native_model_adapter_rows_bind_non_transferable_identity_and_capabilities() -> (
+    None
+):
+    fixture = json.loads(_NATIVE_ADAPTER_FIXTURE_PATH.read_text(encoding="utf-8"))
+    rows = fixture["rows"]
+    assert fixture["format_version"] == 1
+    assert {row["provider"] for row in rows} == {
+        "apple-foundation-models",
+        "llama.cpp",
+        "mlx",
+    }
+    for row in rows:
+        profile = WorkflowSupportProfile(
+            profile_id=f"native-adapter:{row['provider']}",
+            workflow_family="native-text-generation",
+            required_adapter_capabilities=tuple(sorted(row["capabilities"])),
+            required_abi_capabilities=(),
+            required_provider_capabilities=(),
+            required_host_capabilities=(),
+            material_identity=None,
+            execution_mode="synthetic",
+            authorization_required=False,
+            implemented=True,
+        )
+        candidate = WorkflowSupportCandidate(
+            adapter_id=row["adapter_id"],
+            adapter_capabilities=frozenset(row["capabilities"]),
+            available_abi_capabilities=frozenset(),
+            provider_capabilities=frozenset(),
+            host_capabilities=frozenset(),
+            material_identity=None,
+            authorization_granted=False,
+        )
+        cell = classify_workflow_support(profile, candidate)
+        assert cell.status is WorkflowSupportStatus.SUPPORTED
+        assert row["canonical_identity"].startswith(
+            f"{row['provider'].split('-')[0] if row['provider'] != 'llama.cpp' else 'llama.cpp'}/"
+        )
+        assert row["ownership"] == "caller-resolved-native-binding"
 
 
 def _fastmail_material_identity(fixture: dict[str, object]) -> MaterialIdentity:

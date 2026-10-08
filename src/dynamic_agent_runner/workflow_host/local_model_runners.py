@@ -7,6 +7,12 @@ from typing import Protocol
 
 from dynamic_agent_runner.errors import ModelExecutionError
 from dynamic_agent_runner.local_model_preparation import PreparedArtifactSet
+from dynamic_agent_runner.multimodal_model_runner import (
+    DARMultimodalModelRunnerProtocol,
+    MultimodalRunnerBinding,
+    MultimodalRunnerDescriptor,
+    admit_multimodal_runner,
+)
 from dynamic_agent_runner.workflow_host.generation_resource_budgets import (
     GenerationRunnerCapability,
 )
@@ -51,6 +57,74 @@ class LocalModelRunnerCatalog:
                 raise ModelExecutionError("local model runner is unavailable")
             resolved[runner.runner_id] = runner
         self._runners = resolved
+        self._multimodal_runners: dict[str, MultimodalRunnerBinding] = {}
+
+    def register_multimodal_runner(
+        self,
+        runner: DARMultimodalModelRunnerProtocol,
+        *,
+        expected_descriptor: MultimodalRunnerDescriptor,
+    ) -> MultimodalRunnerBinding:
+        """Admit one exact receiver-installed multimodal runner."""
+
+        runner_id = getattr(runner, "runner_id", None)
+        if (
+            not isinstance(runner_id, str)
+            or runner_id in _DAR_OWNED_RUNNER_IDS
+            or runner_id in self._runners
+            or runner_id in self._multimodal_runners
+        ):
+            raise ModelExecutionError("local model runner is unavailable")
+        try:
+            binding = admit_multimodal_runner(
+                runner, expected_descriptor=expected_descriptor
+            )
+        except Exception as error:  # noqa: BLE001 - catalog boundary is redacted.
+            raise ModelExecutionError("local model runner is unavailable") from error
+        if binding.descriptor.runner_id != runner_id:
+            raise ModelExecutionError("local model runner is unavailable")
+        self._multimodal_runners[runner_id] = binding
+        return binding
+
+    def reload_multimodal_runner(
+        self,
+        runner: DARMultimodalModelRunnerProtocol,
+        *,
+        expected_descriptor: MultimodalRunnerDescriptor,
+    ) -> MultimodalRunnerBinding:
+        """Replace one installed runner only after exact re-admission."""
+
+        runner_id = getattr(runner, "runner_id", None)
+        if runner_id not in self._multimodal_runners:
+            raise ModelExecutionError("local model runner is unavailable")
+        try:
+            binding = admit_multimodal_runner(
+                runner, expected_descriptor=expected_descriptor
+            )
+        except Exception as error:  # noqa: BLE001 - catalog boundary is redacted.
+            raise ModelExecutionError("local model runner is unavailable") from error
+        if binding.descriptor.runner_id != runner_id:
+            raise ModelExecutionError("local model runner is unavailable")
+        self._multimodal_runners[runner_id] = binding
+        return binding
+
+    def resolve_multimodal_runner(
+        self,
+        runner_id: str,
+        *,
+        expected_descriptor: MultimodalRunnerDescriptor,
+    ) -> MultimodalRunnerBinding:
+        """Resolve one installed runner against its unchanged descriptor."""
+
+        try:
+            binding = self._multimodal_runners[runner_id]
+        except KeyError as error:
+            raise ModelExecutionError("local model runner is unavailable") from error
+        if binding.descriptor != expected_descriptor:
+            raise ModelExecutionError("local model runner is unavailable")
+        if binding.health().status == "unavailable":
+            raise ModelExecutionError("local model runner is unavailable")
+        return binding
 
     def create_adapter(
         self,

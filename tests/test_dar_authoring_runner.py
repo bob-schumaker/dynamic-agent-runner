@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Barrier
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -37,9 +38,13 @@ from dynamic_agent_runner.workflow_host.capabilities import (  # noqa: E402
     ProviderAvailability,
     ReviewedCapabilityTemplate,
     ReviewedCapabilityTemplateOutput,
+    reviewed_capability_manifest_schema_digest,
     reviewed_capability_template_digest,
 )
-from dynamic_agent_runner.workflow_host.action_ledger import WorkflowActionLedger  # noqa: E402
+from dynamic_agent_runner.workflow_host.action_ledger import (  # noqa: E402
+    ExternalAction,
+    WorkflowActionLedger,
+)
 from dynamic_agent_runner.workflow_host.approvals import WorkflowApprovalStore  # noqa: E402
 from dynamic_agent_runner.workflow_host.authorized_tools import (  # noqa: E402
     LocalActionApprovalBroker,
@@ -1814,8 +1819,18 @@ def test_runner_binds_reviewed_tool_to_an_opaque_binary_artifact(
     assert len(executor.references) == 1
 
 
+@pytest.mark.parametrize(
+    "outcome",
+    (
+        LocalApprovalDecision.APPROVED,
+        LocalApprovalDecision.DENIED,
+        LocalApprovalDecision.CANCELLED,
+        None,
+        RuntimeError("terminal unavailable"),
+    ),
+)
 def test_runner_exposes_one_declared_reviewed_capability_tool(  # noqa: C901 - full binding path.
-    tmp_path: Path,
+    tmp_path: Path, outcome: LocalApprovalDecision | None | RuntimeError
 ) -> None:
     class Host:
         def resolve(self, **_kwargs: object) -> object:
@@ -1899,12 +1914,20 @@ def test_runner_exposes_one_declared_reviewed_capability_tool(  # noqa: C901 - f
             "query_current_outcome",
         ),
         "success_receipt_schema_digest": "d" * 64,
+        "canonical_manifest_schema": {
+            "additionalProperties": False,
+            "properties": {"index_digest": {"type": "string"}},
+            "type": "object",
+        },
         "generation_id_max_bytes": 128,
         "artifact_handle_max_bytes": 128,
         "count_ceiling": 1024,
         "failure_classifications": ("host_failure",),
         "enabled": True,
     }
+    values["canonical_manifest_schema_digest"] = (
+        reviewed_capability_manifest_schema_digest(values["canonical_manifest_schema"])
+    )
     template = ReviewedCapabilityTemplate(
         template_digest=reviewed_capability_template_digest(**values), **values
     )
@@ -1965,17 +1988,27 @@ def test_runner_exposes_one_declared_reviewed_capability_tool(  # noqa: C901 - f
         prepared.prepared_input_id, registration=registration, now=NOW
     )
 
+    class Broker:
+        def __init__(self) -> None:
+            self.actions: list[object] = []
+            self.approvals: list[object] = []
+
+        def decide(self, *, action: object, approval: object) -> LocalApprovalDecision:
+            self.actions.append(action)
+            self.approvals.append(approval)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome  # type: ignore[return-value]
+
+    broker = Broker()
+
     registry = runner._tool_registry(  # type: ignore[attr-defined]
         policy,
         registration,
         package_root=revision.package_root,
         sealed=sealed,
         run_id="test-run",
-        approval_broker=type(
-            "Broker",
-            (),
-            {"decide": lambda *_args, **_kwargs: LocalApprovalDecision.APPROVED},
-        )(),
+        approval_broker=broker,
         now=NOW,
     )
 
@@ -1991,11 +2024,138 @@ def test_runner_exposes_one_declared_reviewed_capability_tool(  # noqa: C901 - f
     )
     result = registry.invoke_tool("build_vector_index", {"job_handle": job.job_handle})
 
-    assert result.success is True
-    assert result.output["status"] == "published"
+    assert len(broker.actions) == len(broker.approvals) == 1
+    action = broker.actions[0]
+    assert isinstance(action, ExternalAction)
+    assert action.remote_tool_name == "vector_index.build.v1"
+    assert action.side_effect == "write"
+    assert action.normalized_arguments == {}
+    if outcome is LocalApprovalDecision.APPROVED:
+        assert result.success is True
+        assert result.output["status"] == "published"
+        assert host.calls == 1
+    else:
+        assert result.success is False
+        assert host.calls == 0
     assert "index_digest" not in json.dumps(result.output)
     assert job.member_binding_digest not in json.dumps(result.output)
-    assert host.calls == 1
+
+
+def test_reviewed_capability_terminal_receipt_preserves_one_bounded_receipt() -> None:
+    receipt = {
+        "status": "published",
+        "generation_id": "generation-1",
+        "published_at": "2026-09-17T12:00:00Z",
+        "artifacts": {
+            "index_generation": "opaque:index-generation:1",
+            "index_manifest": "opaque:index-manifest:1",
+            "coverage_report": "opaque:coverage-report:1",
+        },
+        "counts": {
+            "source_records": 1,
+            "embedding_units": 2,
+            "indexed": 2,
+            "skipped": 0,
+            "deleted": 0,
+            "errored": 0,
+        },
+    }
+    template = SimpleNamespace(
+        outputs=(
+            SimpleNamespace(role="index_generation"),
+            SimpleNamespace(role="index_manifest"),
+            SimpleNamespace(role="coverage_report"),
+        ),
+        generation_id_max_bytes=128,
+        artifact_handle_max_bytes=128,
+        count_ceiling=1024,
+        max_receipt_bytes=1024,
+        failure_classifications=("host_failure",),
+    )
+
+    assert (
+        workflow_runner_module._reviewed_capability_terminal_receipt(  # type: ignore[attr-defined]
+            receipt, template=template
+        )
+        == receipt
+    )
+
+
+def test_reviewed_capability_terminal_receipt_rejects_a_substituted_field() -> None:
+    receipt = {
+        "status": "published",
+        "generation_id": "generation-1",
+        "published_at": "2026-09-17T12:00:00Z",
+        "artifacts": {
+            "index_generation": "opaque:index-generation:1",
+            "index_manifest": "opaque:index-manifest:1",
+            "coverage_report": "opaque:coverage-report:1",
+        },
+        "counts": {
+            "source_records": 1,
+            "embedding_units": 2,
+            "indexed": 2,
+            "skipped": 0,
+            "deleted": 0,
+            "errored": 0,
+        },
+        "message": "fabricated",
+    }
+    template = SimpleNamespace(
+        outputs=(
+            SimpleNamespace(role="index_generation"),
+            SimpleNamespace(role="index_manifest"),
+            SimpleNamespace(role="coverage_report"),
+        ),
+        generation_id_max_bytes=128,
+        artifact_handle_max_bytes=128,
+        count_ceiling=1024,
+        max_receipt_bytes=1024,
+        failure_classifications=("host_failure",),
+    )
+
+    with pytest.raises(
+        workflow_runner_module.RunDarWorkflowError,
+        match="reviewed capability receipt",
+    ):
+        workflow_runner_module._reviewed_capability_terminal_receipt(  # type: ignore[attr-defined]
+            receipt, template=template
+        )
+
+
+def test_runner_uses_the_registered_template_for_a_reviewed_terminal_receipt() -> None:
+    receipt = {
+        "status": "failed",
+        "classification": "host_failure",
+        "receipt_id": "receipt-1",
+    }
+    template = SimpleNamespace(
+        contract_version="1",
+        template_digest="a" * 64,
+        generation_id_max_bytes=128,
+        max_receipt_bytes=1024,
+        failure_classifications=("host_failure",),
+    )
+    runner = object.__new__(WorkflowRunner)
+    runner._reviewed_capability_extensions = {  # type: ignore[attr-defined]
+        "vector_index.build.v1": SimpleNamespace(template=template)
+    }
+    policy = SimpleNamespace(
+        declared_reviewed_capability_tools=(
+            SimpleNamespace(
+                capability_id="vector_index.build.v1",
+                contract_version="1",
+                template_digest="a" * 64,
+            ),
+        )
+    )
+
+    assert (
+        runner._reviewed_capability_terminal_output(  # type: ignore[attr-defined]
+            policy=policy, value=receipt
+        )
+        == receipt
+    )
 
 
 def _approval_runner(

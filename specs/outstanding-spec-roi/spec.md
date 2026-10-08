@@ -6,108 +6,123 @@
 - Mode: `light`
 - Artifact type: spec portfolio evaluation / roadmap note
 - Status: advisory; not implementation authorization
-- Date: 2026-08-22
+- Date: 2026-09-24
 - Source context:
-  - `specs/README.md`
-  - outstanding and partially implemented feature specs under `specs/`
+  - `specs/README.md` status index, reconciled 2026-09-13
+  - current feature `spec.md`, `plan.md`, and `tasks.md` artifacts
   - `memory-bank/activeContext.md`
   - `memory-bank/progress.md`
 
 ## Objective
 
-Evaluate the likely return on investment of outstanding spec work in the
-`dynamic-agent-runner` spec corpus so future implementation choices can start
-from a current priority map instead of treating all deferred work as equal.
+Keep a current priority map of the repository's unimplemented, partially
+implemented, and explicitly deferred spec surface. This note prevents
+completed work from being ranked as outstanding and prevents deferred ideas
+from being treated as implementation commitments.
 
-This artifact is roadmap memory only. Each item still requires a scoped plan,
-task list, and validation strategy before code changes begin.
+Every candidate still requires its own scoped plan, task list, and validation
+strategy before code changes begin. This artifact does not authorize source
+edits, live-provider activity, model downloads, or external integrations.
 
-## Evaluation Criteria
+## Current implementation-ready surface
 
-ROI is judged by:
+These are the items with the clearest path to action today:
 
-- user or downstream-client value
-- leverage across multiple workflows or host applications
-- fit with existing package boundaries
-- implementation risk and dependency surface
-- whether the work is already fake-testable
-- whether a concrete caller pressure exists in the current corpus
-
-## Highest ROI
-
-| Rank | Spec Work | ROI | Rationale |
+| Rank | Spec work | Current state | Why it is actionable |
 | --- | --- | --- | --- |
-| 1 | `apple-foundation-model-adapter` A1/A2 | Very high, implementation complete | Concrete on-machine caller need, successful local SDK and model probes, strong fit with the existing async provider facade and strict coverage, and bounded text, JSON Schema, and coordinator-routed tool callback support. A standalone direct release gate and fake/eligible-Mac callback evidence passed; pytest-native SDK checks remain diagnostic. |
-| 2 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
-| 3 | `provider-backed-context-compaction` | Medium | Valuable for long sessions, but depends on provider capability clarity and likely benefits from the completed LiteLLM provider work first. |
+| 1 | `memory-aware-context-pipeline` exit gate | First passive-context slice implemented; reassessment pending | Decide whether memory semantics remain distinct from RAG using the existing metadata, capability, provenance, and no-implicit-save evidence before authorizing any richer slice. |
+| 2 | `sandbox-workspace-runtime` first write/edit slice | Metadata and host-only ingress primitive exist; model-facing write/shell runtime is deferred | If a coding-agent caller is blocked, add the smallest path-granted write/edit and allowlisted verification slice. Keep arbitrary shell, workspace grants, commit/rollback, and mutation audits behind separate gates. |
+| 3 | `live-guardrail-execution` output/tool-output phases | Input and tool-input V2 are implemented; later phases remain deferred | Add only when a concrete caller defines output and tool-output policy semantics; reuse the existing coordinator and keep handler dispatch out of guardrails. |
 
-## Conditional ROI
+The first item is the next implementation-ready scope decision. These items
+should not be silently converted into general adapter changes.
 
-| Spec Work | ROI | Recommendation |
+## Highest-value future candidates
+
+| Spec work | Current state | Recommendation |
 | --- | --- | --- |
-| `rag-orchestration-contract` future work | Medium | Declarative v1 is done. Next ROI is answer citation/provenance rendering or live retrieval orchestration only if a caller needs it. Do not build retrieval infrastructure. |
-| `model-event-streaming` deferred work | Medium | Provider-native token deltas are useful UX, but the current terminal-result/filter surface solved the known downstream blocker. Wait for another concrete streaming need. |
-| `workspace-data-tool-pack` deferred work | Medium | Capability/status and host dirty-state are useful. Durable storage and indexing should stay caller-owned unless a host proves the need. |
-| `subagent-tool-pack` deferred work | Medium | First consider the specified bounded `ask_llm` slice when a caller needs one-shot specialist-model work; otherwise parallelism, timeouts, and capability status could pay off after sustained subagent usage. Keep durable child lifecycle deferred. |
+| `memory-aware-context-pipeline` | No implementation; future first slice | Start only when a caller needs memory semantics distinct from RAG. The first slice should validate memory identity, ownership, provenance, capability/status reporting, fake retrieval tiers, retrieved-context handoff, and no-implicit-save behavior. |
+| `sandbox-workspace-runtime` | Metadata and host-only ingress primitive exist; model-facing write/shell runtime is deferred | If a coding-agent caller is blocked, add the smallest path-granted write/edit and allowlisted verification slice. Keep arbitrary shell, workspace grants, commit/rollback, and mutation audits behind separate gates. |
+| `live-guardrail-execution` | Input and tool-input V2 are implemented; output/tool-output phases remain | Add output and tool-output enforcement only when policy semantics and a concrete caller are defined. Reuse the coordinator; do not dispatch handlers from guardrails. |
+| `provider-backed-context-compaction` | Pre-turn and one-shot overflow retry are implemented; mid-turn/tool-loop and transport binding remain deferred | Extend only after a caller proves the current compaction seams are insufficient and the provider capability contract is explicit. |
+| `rag-orchestration-contract` | Declarative validation and capability/status reporting exist; execution infrastructure is deferred | Consider answer citation/provenance rendering or live retrieval orchestration only for a concrete caller. DAR should not acquire ingestion, embedding, index, reranking, or graph-store ownership. |
 
-## Low ROI Unless a Caller Is Blocked
+## Deferred or caller-triggered work
 
-| Spec Work | ROI | Recommendation |
-| --- | --- | --- |
-| `llmfit-model-fit-filter` | Low-medium | Useful local-model ergonomics, but narrow. Do only when local-model selection becomes active work. |
-| `sandbox-workspace-runtime` write/shell slices | Low-medium now, high if a coding-agent caller is blocked | Important but risky. Approval-before-side-effect exists; the next useful slice should be minimal path-granted write/edit tools and allowlisted verification commands, not arbitrary shell. |
-| `approval-interruption-resume` durable resume | Low-medium | Useful for long-running or mutating workflows, but the current direct approval pause is enough until a real resume workflow appears. |
-| `hash-chained-governance-audit` | Low-medium | Tamper-evident decision history is valuable for regulated or high-risk tool workflows, but no current caller requires a governance ledger. Keep the caller-supplied sink and first-release boundary prepared until that need exists. |
-| `mcp-runtime-integration` live transports | Low-medium | Current explicit registry injection is the right baseline. Live discovery and process lifecycle add operational risk; defer until a host needs them. |
-| `live-guardrail-execution` output/tool phases | Low-medium | Important eventually, but input guardrails cover the first safety boundary. Output/tool phases need clearer policy semantics. |
-| `collaborative-agent-sessions` deferred work | Low-medium | Wait/resume and capability/status are reasonable, but durable and cross-process work should wait. |
-| `skill-source-resolution` external roots | Low | Package-local loading is done. External roots, network loading, and support-file reads increase trust and path complexity; defer. |
-| `web-tool-pack` deferred work | Low | V1 exists. Redirects, readability, provider adapters, and richer network policy are only worth it for a concrete caller. |
-| `llm-step-interpreter-middleware` | Low for now | Potentially powerful but high-risk. Keep behind sandbox, approval, guardrail maturity, and benchmark evidence. |
+These remain valid spec surfaces but have no current implementation priority:
 
-## Recommended Order
+- `model-execution-plugin-interface`: future host-registered plugins for
+  nonstandard models; requires a concrete nonstandard runtime first.
+- `llm-step-interpreter-middleware`: future investigation only; backend choice,
+  prototypes, benchmarks, and safety boundaries are unresolved.
+- `hash-chained-governance-audit`: future caller-sink-backed audit records;
+  defer until a regulated or high-risk caller needs tamper evidence.
+- `mcp-runtime-integration` live transports: explicit registry injection is the
+  baseline; discovery, process lifecycle, reconnect, and schema caching remain
+  operationally expensive.
+- `litellm-only-codex-transport`: postponed pending conforming upstream
+  LiteLLM support; do not begin source work while the re-entry gate is blocked.
+- `llmfit-model-fit-filter`: optional advisory pre-download filtering only when
+  local-model selection becomes an active bottleneck.
+- Apple Foundation Models A2 B5.2 native required-first tool-choice binding:
+  bounded investigation is complete, but the native API is unavailable on the
+  current macOS 26 host and absent from the installed Python bridge. Revisit
+  only on macOS 27+ with a bridge exposing
+  `GenerationOptions.ToolCallingMode`; then repeat the controlled selection and
+  post-callback completion evidence. Do not add a fallback or production
+  binding while this gate is blocked.
+- `model-event-streaming` provider-native deltas and lower-level streaming,
+  `subagent-tool-pack` bounded `ask_llm`, `workspace-data-tool-pack` durable
+  storage/indexing, `web-tool-pack` richer network policy, and
+  `skill-source-resolution` external roots: caller-triggered follow-ups only.
+- `iterative-agent-loop-runtime` durable resume, parallel tool calls, and
+  multidimensional budget accounting: defer until a caller requires them.
 
-1. Approve and implement the prepared `apple-foundation-model-adapter` A1
-   slices without pulling A2 tool callbacks into the initial release.
-2. Run the `memory-aware-context-pipeline` first-slice validation to decide
-   whether it remains separate from RAG.
-3. Add `provider-backed-context-compaction` after provider capability boundaries
-   are clearer.
+## Completed work excluded from this portfolio
 
-## Recently Completed Since This Evaluation
+The following are not outstanding feature work and should not be ranked as
+next candidates: the OpenAI-compatible provider wrapper, default OpenAI/Codex
+auth discovery, LiteLLM provider-adapter baseline, llama.cpp and MLX adapter
+baselines, local-model availability, sealed-artifact runtime and output-handler
+interfaces, workflow materials/capabilities/index artifacts, session/runtime
+baselines, context preparation baseline, tool invocation coordination,
+approval interruption v1, model-generation budgets, tool packs v1, and the
+multimodal model-runner protocol.
 
-| Spec Work | Completed Slice | Evidence |
-| --- | --- | --- |
-| `local-model-availability-api` | Slices A1-A4 | Explicit-reference preflight, backend-aware validation, injected no-download metadata checks, narrow DAR/default-cache inventory, caller-root inventory, docs, and fake tests |
-| `openai-responses-tool-loop-compat` | Slice R1 | Streamed Responses function-call preservation, structured transcript rendering, ChatGPT/Codex `function_call_output` follow-ups, `tool_choice_policy`, model-facing `tool_results`, docs, and fake tests |
-| `tool-descriptor-budgeting` | Slice T1 | `fd1b54c` implemented opt-in descriptor budgeting; `f7ab5d5` recorded completion evidence and runtime policy docs |
-| `host-workflow-integration` | Slice H2 | Inline/generated and loaded-workflow capability preflight, host id capability details, lifecycle docs, and fake tests |
-| `semantic-context-profiles` | Slice S1 | Caller-injected semantic older-turn selector, missing-selector fallback diagnostics, exact identifier protection, RAG lane separation, public selector contracts, docs, and fake tests |
-| `litellm-provider-adapter` | Slice L1 and shim retirement | Upstream LiteLLM 1.97.0 runtime dependency, direct sync/async Chat Completions transport, public factories, package-owned missing-transport errors, fake tests, documentation, and removal of `dynamic_agent_runner.litellm`; OCI wheel cleanup and Codex global migration remain deferred |
+Some of those specs retain explicitly deferred follow-ups. Those follow-ups
+remain under their owning spec and are listed above only when they represent a
+real unimplemented boundary.
 
-## Deferral Guidance
+## Recommended order
 
-Do not start these next without a concrete blocking caller:
+1. Reassess the first-slice boundary of `memory-aware-context-pipeline` before
+   authorizing richer memory behavior.
+2. If a caller supplies concrete pressure, evaluate the first slice of
+   `sandbox-workspace-runtime` or `live-guardrail-execution` as separate scoped
+   work.
+3. Reopen Apple A2 B5.2 only after the macOS 27+/bridge prerequisite is met.
 
-- interpreter middleware
-- live MCP transports
-- full sandbox write/shell runtime
-- a separate `coding-workspace-tool-pack` spec, unless the first sandbox-owned
-  write/edit slice proves the standard tool-pack API needs its own owner
-- durable approval resume
-- hash-chained governance audit implementation
-- durable memory or storage work
-- runner-owned retrieval infrastructure
+## Deferral guidance
 
-These surfaces are high-complexity and should remain behind explicit caller
-pressure, scoped plans, and fake-testable acceptance criteria.
+Do not start future or deferred work without a concrete blocking caller and a
+new approved task boundary. In particular, do not begin interpreter
+middleware, live MCP transports, full sandbox write/shell runtime, durable
+approval resume, governance-audit persistence, durable memory, runner-owned
+retrieval infrastructure, or LiteLLM-only Codex migration merely because a
+spec exists.
 
-## Validation Checklist
+## Validation checklist
 
-- The evaluation is linked from `specs/README.md`.
-- The artifact does not mark any future work as implementation-approved.
-- The highest-ROI items preserve existing ownership boundaries.
-- The Apple A1 ranking remains advisory, and A2 tool callbacks stay behind a
-  separate approval and planning gate.
-- The memory-aware recommendation preserves the RAG separation and
-  no-implicit-save constraint.
+- The status and completion claims agree with `specs/README.md` and the owning
+  task artifacts as of 2026-09-24.
+- Completed Apple A1--A4 work is not ranked as outstanding; B5.2 is recorded as
+  bounded and blocked pending macOS 27+/bridge support rather than actionable
+  work on the current host.
+- The implemented external adapter is excluded from outstanding work.
+- Live acceptance T5.2 is recorded complete and excluded from outstanding work.
+- Apple B5 remains a bounded evidence gate rather than implicit authorization
+  for source changes; its native required-first sub-gate is blocked until the
+  recorded platform and bridge prerequisites are met.
+- Deferred work preserves DAR's generic runtime boundary and caller ownership.
+- The document remains advisory and does not replace a feature's
+  `plan.md`, `tasks.md`, or `validation.md`.

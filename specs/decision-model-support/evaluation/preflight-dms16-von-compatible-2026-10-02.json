@@ -1,0 +1,386 @@
+{
+  "approval_required_before_download_or_inference": true,
+  "blockers": [],
+  "download_performed": false,
+  "host": {
+    "architecture": "arm64",
+    "free_storage_bytes": 62114570240,
+    "material_root": "/private/tmp/dms16-materials",
+    "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+    "storage_checked_at": "/private/tmp/dms16-materials",
+    "total_memory_bytes": 38654705664
+  },
+  "inference_performed": false,
+  "julia_source_review": {
+    "all_hashes_match": true,
+    "files": [
+      {
+        "actual_sha256": "02485eb4dd7dadd13907380d1a9c3398709bd8af54b3e0e12b3061a3ebb5c1da",
+        "expected_sha256": "02485eb4dd7dadd13907380d1a9c3398709bd8af54b3e0e12b3061a3ebb5c1da",
+        "match": true,
+        "path": "/private/tmp/dms16-julia-source/julia/__init__.py"
+      },
+      {
+        "actual_sha256": "138ab63182f25473ce3886296c47ac44e94fc50ae5270927ae4c373f7bb49137",
+        "expected_sha256": "138ab63182f25473ce3886296c47ac44e94fc50ae5270927ae4c373f7bb49137",
+        "match": true,
+        "path": "/private/tmp/dms16-julia-source/julia/cuda.py"
+      },
+      {
+        "actual_sha256": "e3510fa4152ec11fa193046715991f44d7c2f85fd2488a98ef11c9d3db23da4e",
+        "expected_sha256": "e3510fa4152ec11fa193046715991f44d7c2f85fd2488a98ef11c9d3db23da4e",
+        "match": true,
+        "path": "/private/tmp/dms16-julia-source/julia/data.py"
+      },
+      {
+        "actual_sha256": "79b4e716365a6e07da4580ead725d5b76d06ef3a824a3ec23738feba64704b36",
+        "expected_sha256": "79b4e716365a6e07da4580ead725d5b76d06ef3a824a3ec23738feba64704b36",
+        "match": true,
+        "path": "/private/tmp/dms16-julia-source/julia/inference.py"
+      },
+      {
+        "actual_sha256": "ef2ba82fe20cdf0db7bb887e9ef075476ed08b985ce9a95be0de3e26246ecc81",
+        "expected_sha256": "ef2ba82fe20cdf0db7bb887e9ef075476ed08b985ce9a95be0de3e26246ecc81",
+        "match": true,
+        "path": "/private/tmp/dms16-julia-source/julia/model.py"
+      },
+      {
+        "actual_sha256": "2a0197d2e0fa5a3c4b06b93599a85706724df7b0d2cc821a13ed293aef59f206",
+        "expected_sha256": "2a0197d2e0fa5a3c4b06b93599a85706724df7b0d2cc821a13ed293aef59f206",
+        "match": true,
+        "path": "/private/tmp/dms16-julia-source/julia/probabilities.py"
+      },
+      {
+        "actual_sha256": "ed89e66a70fcedac1339347bd8fcca69fd2cd1a31535ad0148dae42c610b544d",
+        "expected_sha256": "ed89e66a70fcedac1339347bd8fcca69fd2cd1a31535ad0148dae42c610b544d",
+        "match": true,
+        "path": "/private/tmp/dms16-julia-source/julia/typed.py"
+      },
+      {
+        "actual_sha256": "832cf0a44569941efba66dfa7099b645fdb1084082e40c6115bb0ac5edd78a96",
+        "expected_sha256": "832cf0a44569941efba66dfa7099b645fdb1084082e40c6115bb0ac5edd78a96",
+        "match": true,
+        "path": "/private/tmp/dms16-julia-source/julia/router/__init__.py"
+      },
+      {
+        "actual_sha256": "df25efee2ed916d52af9c4e9c0d98e80854ca70bbfc8140f1de871f290fd3238",
+        "expected_sha256": "df25efee2ed916d52af9c4e9c0d98e80854ca70bbfc8140f1de871f290fd3238",
+        "match": true,
+        "path": "/private/tmp/dms16-julia-source/julia/router/encoder.py"
+      },
+      {
+        "actual_sha256": "91bb30987ff8626ed1610955c6fd796939a5d271e2405b73f8674ccb947eb931",
+        "expected_sha256": "91bb30987ff8626ed1610955c6fd796939a5d271e2405b73f8674ccb947eb931",
+        "match": true,
+        "path": "/private/tmp/dms16-julia-source/julia/router/engine.py"
+      },
+      {
+        "actual_sha256": "42bdba5ea7d874e1f53b2f17e99e731789611b5bd6734f687eaa2b0262c5d7ae",
+        "expected_sha256": "42bdba5ea7d874e1f53b2f17e99e731789611b5bd6734f687eaa2b0262c5d7ae",
+        "match": true,
+        "path": "/private/tmp/dms16-julia-source/julia/router/native.py"
+      },
+      {
+        "actual_sha256": "624b0b82fd34e4c6874a37595fa91a1d79553d0ca9d8111ef8330ed805f6be7c",
+        "expected_sha256": "624b0b82fd34e4c6874a37595fa91a1d79553d0ca9d8111ef8330ed805f6be7c",
+        "match": true,
+        "path": "/private/tmp/dms16-julia-source/julia/router/router.py"
+      }
+    ],
+    "model_runtime_invoked": false,
+    "source_revision": "a85b127321d580d65176c89ced8273f305745d85",
+    "source_root": "/private/tmp/dms16-julia-source"
+  },
+  "profiles": {
+    "julia1": {
+      "blockers": [],
+      "expected_runtime_lock_sha256": "6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a",
+      "files": [
+        {
+          "actual": "df853bf7fe424420011f3d0c47a05d7341aa9eefa7fb9f203ea4aada4ad95b72",
+          "algorithm": "sha256",
+          "expected": "df853bf7fe424420011f3d0c47a05d7341aa9eefa7fb9f203ea4aada4ad95b72",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/model.safetensors"
+        },
+        {
+          "actual": "c79cda42d42ddf777218254845ce92fb25a10dc35874be40d06abd707894523d",
+          "algorithm": "sha256",
+          "expected": "c79cda42d42ddf777218254845ce92fb25a10dc35874be40d06abd707894523d",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/encoder/config.json"
+        },
+        {
+          "actual": "b9b881646beeac5414eaa78b39d3fe89ff8a2c062731ad718432620f9aee6bf7",
+          "algorithm": "sha256",
+          "expected": "b9b881646beeac5414eaa78b39d3fe89ff8a2c062731ad718432620f9aee6bf7",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/julia_config.json"
+        },
+        {
+          "actual": "609d8f4c067cd3950f88594c5a802616cea245823836ef5848ee4fc40aab5b6f",
+          "algorithm": "sha256",
+          "expected": "609d8f4c067cd3950f88594c5a802616cea245823836ef5848ee4fc40aab5b6f",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/tokenizer/tokenizer.json"
+        },
+        {
+          "actual": "6b069e57db0ce0794c22547725275f22618809c4ef4249307337e651a0dfef8c",
+          "algorithm": "sha256",
+          "expected": "6b069e57db0ce0794c22547725275f22618809c4ef4249307337e651a0dfef8c",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/tokenizer/tokenizer_config.json"
+        },
+        {
+          "actual": "02485eb4dd7dadd13907380d1a9c3398709bd8af54b3e0e12b3061a3ebb5c1da",
+          "algorithm": "sha256",
+          "expected": "02485eb4dd7dadd13907380d1a9c3398709bd8af54b3e0e12b3061a3ebb5c1da",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/julia/__init__.py"
+        },
+        {
+          "actual": "138ab63182f25473ce3886296c47ac44e94fc50ae5270927ae4c373f7bb49137",
+          "algorithm": "sha256",
+          "expected": "138ab63182f25473ce3886296c47ac44e94fc50ae5270927ae4c373f7bb49137",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/julia/cuda.py"
+        },
+        {
+          "actual": "e3510fa4152ec11fa193046715991f44d7c2f85fd2488a98ef11c9d3db23da4e",
+          "algorithm": "sha256",
+          "expected": "e3510fa4152ec11fa193046715991f44d7c2f85fd2488a98ef11c9d3db23da4e",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/julia/data.py"
+        },
+        {
+          "actual": "79b4e716365a6e07da4580ead725d5b76d06ef3a824a3ec23738feba64704b36",
+          "algorithm": "sha256",
+          "expected": "79b4e716365a6e07da4580ead725d5b76d06ef3a824a3ec23738feba64704b36",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/julia/inference.py"
+        },
+        {
+          "actual": "ef2ba82fe20cdf0db7bb887e9ef075476ed08b985ce9a95be0de3e26246ecc81",
+          "algorithm": "sha256",
+          "expected": "ef2ba82fe20cdf0db7bb887e9ef075476ed08b985ce9a95be0de3e26246ecc81",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/julia/model.py"
+        },
+        {
+          "actual": "2a0197d2e0fa5a3c4b06b93599a85706724df7b0d2cc821a13ed293aef59f206",
+          "algorithm": "sha256",
+          "expected": "2a0197d2e0fa5a3c4b06b93599a85706724df7b0d2cc821a13ed293aef59f206",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/julia/probabilities.py"
+        },
+        {
+          "actual": "ed89e66a70fcedac1339347bd8fcca69fd2cd1a31535ad0148dae42c610b544d",
+          "algorithm": "sha256",
+          "expected": "ed89e66a70fcedac1339347bd8fcca69fd2cd1a31535ad0148dae42c610b544d",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/julia/typed.py"
+        },
+        {
+          "actual": "832cf0a44569941efba66dfa7099b645fdb1084082e40c6115bb0ac5edd78a96",
+          "algorithm": "sha256",
+          "expected": "832cf0a44569941efba66dfa7099b645fdb1084082e40c6115bb0ac5edd78a96",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/julia/router/__init__.py"
+        },
+        {
+          "actual": "df25efee2ed916d52af9c4e9c0d98e80854ca70bbfc8140f1de871f290fd3238",
+          "algorithm": "sha256",
+          "expected": "df25efee2ed916d52af9c4e9c0d98e80854ca70bbfc8140f1de871f290fd3238",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/julia/router/encoder.py"
+        },
+        {
+          "actual": "91bb30987ff8626ed1610955c6fd796939a5d271e2405b73f8674ccb947eb931",
+          "algorithm": "sha256",
+          "expected": "91bb30987ff8626ed1610955c6fd796939a5d271e2405b73f8674ccb947eb931",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/julia/router/engine.py"
+        },
+        {
+          "actual": "42bdba5ea7d874e1f53b2f17e99e731789611b5bd6734f687eaa2b0262c5d7ae",
+          "algorithm": "sha256",
+          "expected": "42bdba5ea7d874e1f53b2f17e99e731789611b5bd6734f687eaa2b0262c5d7ae",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/julia/router/native.py"
+        },
+        {
+          "actual": "624b0b82fd34e4c6874a37595fa91a1d79553d0ca9d8111ef8330ed805f6be7c",
+          "algorithm": "sha256",
+          "expected": "624b0b82fd34e4c6874a37595fa91a1d79553d0ca9d8111ef8330ed805f6be7c",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/julia1/julia/router/router.py"
+        }
+      ],
+      "model_id": "SupersonicLabs/Julia-1",
+      "model_revision": "a85b127321d580d65176c89ced8273f305745d85",
+      "profile_runtime_lock_path": "/Users/roschuma/Personal/dynamic-agent-runner/poetry.lock",
+      "python_3_13_runtime_executable": "/private/tmp/dms16-poetry-py313/dynamic-agent-runner-liR8DTmq-py3.13/bin/python",
+      "python_3_13_runtime_matches": true,
+      "python_3_13_runtime_packages": {
+        "numpy": "2.5.3",
+        "safetensors": "0.8.0",
+        "tokenizers": "0.22.2",
+        "torch": "2.14.0",
+        "transformers": "5.0.0"
+      },
+      "runtime_executable": "/private/tmp/dms16-poetry-envs/dynamic-agent-runner-liR8DTmq-py3.14/bin/python",
+      "runtime_lock_matches": true,
+      "runtime_lock_sha256": "6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a",
+      "runtime_packages": {
+        "numpy": "2.5.3",
+        "safetensors": "0.8.0",
+        "tokenizers": "0.22.2",
+        "torch": "2.14.0",
+        "transformers": "5.0.0"
+      },
+      "source_revision": "a85b127321d580d65176c89ced8273f305745d85"
+    },
+    "laya-mlx": {
+      "blockers": [],
+      "expected_runtime_lock_sha256": "6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a",
+      "files": [
+        {
+          "actual": "804ef8802b4cac7a67913b0cfb8448659e934a50284aaa867b98d7d9a6e7d1e0",
+          "algorithm": "sha256",
+          "expected": "804ef8802b4cac7a67913b0cfb8448659e934a50284aaa867b98d7d9a6e7d1e0",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/laya-mlx/model.safetensors"
+        },
+        {
+          "actual": "d4be4829750fb04c0aa8b9897c3ea827f76c0109",
+          "algorithm": "git-blob-sha1",
+          "expected": "d4be4829750fb04c0aa8b9897c3ea827f76c0109",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/laya-mlx/encoder/config.json"
+        },
+        {
+          "actual": "47516cb633704ddc43a121566e00b925133c2669",
+          "algorithm": "git-blob-sha1",
+          "expected": "47516cb633704ddc43a121566e00b925133c2669",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/laya-mlx/mlx_config.json"
+        },
+        {
+          "actual": "d0293fddc8b337c9bc651f2a7b95c0848fbbb488",
+          "algorithm": "git-blob-sha1",
+          "expected": "d0293fddc8b337c9bc651f2a7b95c0848fbbb488",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/laya-mlx/rl_agent_config.json"
+        },
+        {
+          "actual": "2f4d8583e507b7466d2490e2d6c045647a822698",
+          "algorithm": "git-blob-sha1",
+          "expected": "2f4d8583e507b7466d2490e2d6c045647a822698",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/laya-mlx/tokenizer/tokenizer.json"
+        },
+        {
+          "actual": "ed1ffabc2ce11120754705709569e365e46da71a",
+          "algorithm": "git-blob-sha1",
+          "expected": "ed1ffabc2ce11120754705709569e365e46da71a",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/laya-mlx/tokenizer/tokenizer_config.json"
+        }
+      ],
+      "model_id": "aac6fef/laya-typed-decisions-mlx",
+      "model_revision": "28416e78cb26a239a4eabaa2e084904ec5e6cacb",
+      "profile_runtime_lock_path": "/Users/roschuma/Personal/dynamic-agent-runner/poetry.lock",
+      "python_3_13_runtime_executable": "/private/tmp/dms16-laya-py313/dynamic-agent-runner-liR8DTmq-py3.13/bin/python",
+      "python_3_13_runtime_matches": true,
+      "python_3_13_runtime_packages": {
+        "huggingface-hub": "1.33.0",
+        "laya-mlx": "0.2.0",
+        "mlx": "0.32.2",
+        "numpy": "2.5.3"
+      },
+      "runtime_executable": "/private/tmp/dms16-poetry-laya/dynamic-agent-runner-liR8DTmq-py3.14/bin/python",
+      "runtime_lock_matches": true,
+      "runtime_lock_sha256": "6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a",
+      "runtime_packages": {
+        "huggingface-hub": "1.33.0",
+        "laya-mlx": "0.2.0",
+        "mlx": "0.32.2",
+        "numpy": "2.5.3"
+      },
+      "source_revision": "0a859518634112655cb97c745dbf04f5191aaf13"
+    },
+    "von": {
+      "blockers": [],
+      "expected_runtime_lock_sha256": "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41",
+      "files": [
+        {
+          "actual": "af57d5d2ab15715a753a1eb4add4271d1aecce7e76f3365f629c082df329297a",
+          "algorithm": "sha256",
+          "expected": "af57d5d2ab15715a753a1eb4add4271d1aecce7e76f3365f629c082df329297a",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/von/model.safetensors"
+        },
+        {
+          "actual": "3faf27f88d30aaf9aa37860d4cdef99f1d05450cf40364f6236ac892d4d139ed",
+          "algorithm": "sha256",
+          "expected": "3faf27f88d30aaf9aa37860d4cdef99f1d05450cf40364f6236ac892d4d139ed",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/von/option_marker.pt"
+        },
+        {
+          "actual": "9b32949dcd0cfd122db509c9bd5be67f0cfe35696153aa93d667caf0aae147c9",
+          "algorithm": "sha256",
+          "expected": "9b32949dcd0cfd122db509c9bd5be67f0cfe35696153aa93d667caf0aae147c9",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/von/marker_calibration.json"
+        },
+        {
+          "actual": "2bf6db3d7991d07aee0fa2743959a3c8f4ff5e4e",
+          "algorithm": "git-blob-sha1",
+          "expected": "2bf6db3d7991d07aee0fa2743959a3c8f4ff5e4e",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/von/config.json"
+        },
+        {
+          "actual": "31e99eddb04ca32c7c1f66cde30dc3e54099402f",
+          "algorithm": "git-blob-sha1",
+          "expected": "31e99eddb04ca32c7c1f66cde30dc3e54099402f",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/von/tokenizer.json"
+        },
+        {
+          "actual": "185556e53fe0b9c6f0decd322897041e91d8ace4",
+          "algorithm": "git-blob-sha1",
+          "expected": "185556e53fe0b9c6f0decd322897041e91d8ace4",
+          "match": true,
+          "path": "/private/tmp/dms16-materials/von/tokenizer_config.json"
+        }
+      ],
+      "model_id": "wfzyx/von",
+      "model_revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
+      "profile_runtime_lock_path": "/private/tmp/dms16-poetry-von/dynamic-agent-runner-liR8DTmq-py3.14/src/von/uv.lock",
+      "python_3_13_runtime_executable": "/private/tmp/dms16-von-compatible-py313/bin/python",
+      "python_3_13_runtime_matches": true,
+      "python_3_13_runtime_packages": {
+        "accelerate": "1.15.0",
+        "huggingface-hub": "1.32.0",
+        "torch": "2.14.0",
+        "transformers": "5.17.0",
+        "von-sdk": "1.2.3"
+      },
+      "runtime_executable": "/private/tmp/dms16-von-compatible-py314/bin/python",
+      "runtime_lock_matches": true,
+      "runtime_lock_sha256": "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41",
+      "runtime_packages": {
+        "accelerate": "1.15.0",
+        "huggingface-hub": "1.32.0",
+        "torch": "2.14.0",
+        "transformers": "5.17.0",
+        "von-sdk": "1.2.3"
+      },
+      "source_revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54"
+    }
+  },
+  "root_poetry_lock_sha256": "6b723941863f3c9fd72db50dc359d3e4ffa78092e1402e6e48328374766b924a",
+  "technical_preflight_pass": true
+}

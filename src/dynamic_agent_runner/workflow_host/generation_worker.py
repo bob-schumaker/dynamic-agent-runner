@@ -592,6 +592,29 @@ class GenerationWorkerLauncher:
                 "generation worker protocol invalid"
             ) from error
 
+    def cleanup(
+        self,
+        *,
+        child: object,
+        controller: object,
+        deadline: GenerationDeadline,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> bool:
+        """Terminate or kill one child and require a confirmed reap."""
+
+        if not isinstance(deadline, GenerationDeadline):
+            raise GenerationWorkerProtocolError("generation worker protocol invalid")
+        try:
+            return self._close_with_controller(
+                child=child, controller=controller, deadline=deadline, clock=clock
+            )
+        except GenerationWorkerProtocolError:
+            raise
+        except Exception as error:
+            raise GenerationWorkerProtocolError(
+                "generation worker protocol invalid"
+            ) from error
+
     def pack_receipt(
         self,
         *,

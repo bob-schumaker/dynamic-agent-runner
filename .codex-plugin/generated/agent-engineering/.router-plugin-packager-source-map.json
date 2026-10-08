@@ -636,14 +636,14 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "2b5e584d830ed408b82a9e9d9d645b4d38125b588fe1588114e98418985db438",
+      "content_hash": "017425108177be5dba370aa9e931ce96b25fc86a46aedb6383821c5ad79d2e36",
       "file_mode": "0o644",
       "kind": "payload-asset",
       "ownership_class": null,
       "ownership_role": "private_module_support",
       "path": "references/modules/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/workflow-descriptor.yaml",
       "provenance_reference": null,
-      "source_hash": "2b5e584d830ed408b82a9e9d9d645b4d38125b588fe1588114e98418985db438",
+      "source_hash": "017425108177be5dba370aa9e931ce96b25fc86a46aedb6383821c5ad79d2e36",
       "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-read-only-mcp-template/workflow-descriptor.yaml",
       "transform_kind": "payload-asset"
     },
@@ -701,14 +701,14 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "b32645af23bc9d18b6ce3fa2a9bc98bf0c695628133fcea1a1a7bf553c95fcc7",
+      "content_hash": "d8e386558fb590cd5e530ce73fe37e7ed6142863c6e72a1113d1616cf7a780e0",
       "file_mode": "0o644",
       "kind": "payload-asset",
       "ownership_class": null,
       "ownership_role": "private_module_support",
       "path": "references/modules/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/workflow-descriptor.yaml",
       "provenance_reference": null,
-      "source_hash": "b32645af23bc9d18b6ce3fa2a9bc98bf0c695628133fcea1a1a7bf553c95fcc7",
+      "source_hash": "d8e386558fb590cd5e530ce73fe37e7ed6142863c6e72a1113d1616cf7a780e0",
       "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-skill-bundle-template/workflow-descriptor.yaml",
       "transform_kind": "payload-asset"
     },
@@ -753,14 +753,14 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "7bfdd9a60dfedb5a281aeb04cb0cdc9b2b6320a3037fcd85c0ed8c89ae210753",
+      "content_hash": "d7f8c3c063ddef948993ff06afcc9297679381f87c2bc1e220cc08b51c9162f4",
       "file_mode": "0o644",
       "kind": "payload-asset",
       "ownership_class": null,
       "ownership_role": "private_module_support",
       "path": "references/modules/dar-workflow-authoring/references/dar-authoring-templates/workflow-descriptor.yaml",
       "provenance_reference": null,
-      "source_hash": "7bfdd9a60dfedb5a281aeb04cb0cdc9b2b6320a3037fcd85c0ed8c89ae210753",
+      "source_hash": "d7f8c3c063ddef948993ff06afcc9297679381f87c2bc1e220cc08b51c9162f4",
       "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-templates/workflow-descriptor.yaml",
       "transform_kind": "payload-asset"
     },
@@ -818,53 +818,53 @@
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "711e3bb745359ac475ea769938bbca8ca07d63696d03d55198b5b88e761a3802",
+      "content_hash": "fe83aaf1bf370f9ec2c8dffcc573366d78c130fe57c8e0f3ccc00539a3b75fea",
       "file_mode": "0o644",
       "kind": "payload-asset",
       "ownership_class": null,
       "ownership_role": "private_module_support",
       "path": "references/modules/dar-workflow-authoring/references/dar-authoring-write-mcp-template/workflow-descriptor.yaml",
       "provenance_reference": null,
-      "source_hash": "711e3bb745359ac475ea769938bbca8ca07d63696d03d55198b5b88e761a3802",
+      "source_hash": "fe83aaf1bf370f9ec2c8dffcc573366d78c130fe57c8e0f3ccc00539a3b75fea",
       "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-authoring-write-mcp-template/workflow-descriptor.yaml",
       "transform_kind": "payload-asset"
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "1a8e653d0f956ca280c186607794835a5a347d5d474b2a078c261d294c798b97",
+      "content_hash": "08256ff94e6e01eeea5e8c2630ebe69554db4bbf481ceea42de801454b74ee07",
       "file_mode": "0o644",
       "kind": "payload-asset",
       "ownership_class": null,
       "ownership_role": "private_module_support",
       "path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-development.md",
       "provenance_reference": null,
-      "source_hash": "1a8e653d0f956ca280c186607794835a5a347d5d474b2a078c261d294c798b97",
+      "source_hash": "08256ff94e6e01eeea5e8c2630ebe69554db4bbf481ceea42de801454b74ee07",
       "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-runtime-profile/agent-development.md",
       "transform_kind": "payload-asset"
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "c8444dc27f5fc8566679f2aef394aa8e994e998fc4f4718a7ef982ad082c17d8",
+      "content_hash": "b31743311bc5957b397a991e7c21f8a015574e29c3b119eafd5847d807242a2c",
       "file_mode": "0o644",
       "kind": "payload-asset",
       "ownership_class": null,
       "ownership_role": "private_module_support",
       "path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-evaluation.md",
       "provenance_reference": null,
-      "source_hash": "c8444dc27f5fc8566679f2aef394aa8e994e998fc4f4718a7ef982ad082c17d8",
+      "source_hash": "b31743311bc5957b397a991e7c21f8a015574e29c3b119eafd5847d807242a2c",
       "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-runtime-profile/agent-evaluation.md",
       "transform_kind": "payload-asset"
     },
     {
       "acquisition_mode": "copied",
-      "content_hash": "857b5ce238e1f53ceb3025a15f9ddf245bf87eed62c0d94ae24fd9faf64b6765",
+      "content_hash": "4541403a4d113be50026ce4ecbdf349b4a8693fb35641aed4130c39458e925d1",
       "file_mode": "0o644",
       "kind": "payload-asset",
       "ownership_class": null,
       "ownership_role": "private_module_support",
       "path": "references/modules/dar-workflow-authoring/references/dar-runtime-profile/agent-tool-contract-design.md",
       "provenance_reference": null,
-      "source_hash": "857b5ce238e1f53ceb3025a15f9ddf245bf87eed62c0d94ae24fd9faf64b6765",
+      "source_hash": "4541403a4d113be50026ce4ecbdf349b4a8693fb35641aed4130c39458e925d1",
       "source_reference": "plugins/agent-engineering/payload/dar-workflow-authoring/references/dar-runtime-profile/agent-tool-contract-design.md",
       "transform_kind": "payload-asset"
     },
@@ -909,7 +909,7 @@
     },
     {
       "acquisition_mode": "generated",
-      "content_hash": "457a8a5f29a65eacf4b656ed58aad70a70ee5ddbe1415867dbb3f9178c0fbff1",
+      "content_hash": "1757387e7abdf81a0fca760d46b9b0b85e411797aa7f06ed374187561dfb7b41",
       "file_mode": "0o644",
       "kind": "plugin-manifest",
       "ownership_class": null,
@@ -919,7 +919,7 @@
       "source_hash": null,
       "source_reference": "generated:plugin-manifest",
       "transform_kind": "plugin-manifest",
-      "version": "0.1.4"
+      "version": "0.1.5"
     },
     {
       "acquisition_mode": "generated",
@@ -936,13 +936,13 @@
     },
     {
       "acquisition_mode": "generated",
-      "content_hash": "c17ac9bcd16f442a0d01842c42d12a21bee53852471c8cfaed5122df79492e97",
+      "content_hash": "a892fa1981bea7bc943b0857a3ad2bd1301acdfdab719998118334b600972aeb",
       "file_mode": "0o644",
       "kind": "payload-manifest",
       "ownership_class": null,
       "ownership_role": "payload-manifest",
       "path": ".codex-plugin/payload-manifest.json",
-      "payload_fingerprint": "4837fa180d9fefb6ee95301ff28ec6abd0625556cad5a62f25b8c7b056a111cd",
+      "payload_fingerprint": "8f8517c1331aeac546e8a69aa9b2e4559cd85af389468f6e377fcf32cb8c0959",
       "provenance_reference": null,
       "source_hash": null,
       "source_reference": "generated:payload-manifest",
@@ -950,13 +950,13 @@
     },
     {
       "acquisition_mode": "generated",
-      "content_hash": "11ef764341ae8f76bc2ba8d8e756415de075bf2657f1de1d46d451500151a16d",
+      "content_hash": "509640cc3d0c3a25b1e256550c4a347fdc2be2738c0be344e3c063a6f1e63736",
       "file_mode": "0o644",
       "kind": "release-metadata",
       "ownership_class": null,
       "ownership_role": "release-metadata",
       "path": ".codex-plugin/release-metadata.json",
-      "payload_fingerprint": "4837fa180d9fefb6ee95301ff28ec6abd0625556cad5a62f25b8c7b056a111cd",
+      "payload_fingerprint": "8f8517c1331aeac546e8a69aa9b2e4559cd85af389468f6e377fcf32cb8c0959",
       "provenance_reference": null,
       "source_hash": null,
       "source_reference": "generated:release-metadata",
@@ -1042,7 +1042,7 @@
   ],
   "native_routed": {
     "format": "router-plugin-packager-native-routed-receipt-v1",
-    "generated_tree_digest": "ca9057aa110efe40095e508d82424aba91df39ac31843470436fdc217f4fc53c",
+    "generated_tree_digest": "3098c98030b0fb1040c028872285bd413b53b62bf2ae523df0d7a29fcd423cb1",
     "router_authority": {
       "routers": [
         {
@@ -1062,7 +1062,7 @@
       "plugins/agent-engineering/skills/dar-workflow-authoring"
     ],
     "source_manifest": "plugins/agent-engineering/.codex-plugin/plugin.json",
-    "source_plugin_version": "0.1.4",
+    "source_plugin_version": "0.1.5",
     "state_scope": "output_root_local"
   },
   "normalized_request": {
@@ -1095,7 +1095,7 @@
       },
       "skill_ids_source": "router_authority",
       "source_manifest": "plugins/agent-engineering/.codex-plugin/plugin.json",
-      "source_plugin_version": "0.1.4",
+      "source_plugin_version": "0.1.5",
       "source_root_source": "source_manifest",
       "state_scope": "output_root_local",
       "surface_id_source": "generated.surface_id",
@@ -1136,11 +1136,11 @@
       "dar-workflow-authoring"
     ],
     "surface_id": "agent-engineering",
-    "version_override": "0.1.4"
+    "version_override": "0.1.5"
   },
   "packaging_mode": "router-surface",
-  "payload_fingerprint": "4837fa180d9fefb6ee95301ff28ec6abd0625556cad5a62f25b8c7b056a111cd",
+  "payload_fingerprint": "8f8517c1331aeac546e8a69aa9b2e4559cd85af389468f6e377fcf32cb8c0959",
   "plugin_id": "bob-schumaker/agent-engineering/agent-engineering",
   "surface_id": "agent-engineering",
-  "version": "0.1.4"
+  "version": "0.1.5"
 }
