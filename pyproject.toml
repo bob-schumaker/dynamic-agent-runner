@@ -35,7 +35,7 @@ transformers-peft = [
 ]
 julia1 = [
     "torch>=2.9.0,<3.0.0",
-    "transformers>=5.0.0,<5.1.0",
+    "transformers>=5.0.0,<6.0.0",
     "safetensors>=0.5.0",
     "numpy>=1.26.0",
     "tokenizers>=0.22.0,<=0.23.0",
