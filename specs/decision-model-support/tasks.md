@@ -1,5 +1,7 @@
 # Decision Model Support Tasks
 
+<!-- rumdl-disable MD013 -->
+
 Source of truth: `spec.md`. Implementation approach: `plan.md`.
 
 The 2026-10-02 client-support decision separates adapter availability from
@@ -11,10 +13,26 @@ as adapter prerequisites. DMS-17 plans an opt-in Jev-Style v3 selector across
 the exact MLX/Metal, PyTorch, and GGUF profiles evaluated in DMS-01.
 DMS-18 extends workflow nodes to general scores and constrained noul routing;
 DMS-19 expands caller-owned llama.cpp capability coverage without adding a DAR
-server or endpoint.
+server or endpoint. DMS-20 completed the approved four-candidate local transfer
+evaluation; results remain comparative and do not imply backend admission.
+The requested DMS-20 additions—Tev1-4B-experimental, Tev1-0.8B-experimental,
+Bespoke-Nimble-9B, `mlx-community/Qwen3.5-0.8B-decision`, and
+`mlx-community/d1a-e2b-8bit`—completed as two separately approved cohorts on
+the shared corpus. Qwen3.5-27B was excluded per user instruction. A Nimble-9B
+optimized-kernel variant was separately approved and evaluated; both required
+Metal kernels ran, but it produced 1,368 invalid outputs. The eight runtime
+optimization variants and separate Von row are summarized in
+`evaluation/dms20-full-results-2026-10-24.md`. The original four-row matrix
+and completed results remain unchanged.
 
 ## Readiness Review
 
+- [x] Review DMS-20 against `spec.md` and `plan.md` with the Council
+  architecture triad and Ponytail. This plan is ready to execute under its
+  stated gates for lead dispositions, matrix freeze, and fake-tested runner
+  work. This disposition authorizes no installation, candidate-material
+  download, or inference. Findings, repairs, and validation are in
+  `validation.md`.
 - [x] Review DMS-17 against `spec.md` and `plan.md` with the Council
   architecture triad and Ponytail. The task is ready to begin profile freeze
   under its stated runtime/material, host resource-budget, and authorization
@@ -100,7 +118,6 @@ passes. Do not use real model weights in unit tests.
   preflight. The row is recorded as blocked before download because the
   artifact is not cached and the installed llama.cpp build has no decision
   surface; no HTTP or text-generation substitute is permitted.
-
 - [x] Review primary repositories and cards, and record immutable revisions,
   license, task/output contract, inference format, runtime, input length, and
   available memory evidence for Kev 0.5B, 0.6B, 4B, and 8B, and Bespoke Nimble
@@ -325,6 +342,7 @@ added.
   PYTHONPATH=src:/private/tmp/dms06-von-source/.venv/lib/python3.14/site-packages \
     poetry run pytest -q
   ```
+
   `poetry run ruff check src tests` and `git diff --check` passed.
 - [x] Update `model-evaluation.md` with candidate decisions and exact manual
   evidence. This records validation for the initial DMS-01 through DMS-06
@@ -412,6 +430,7 @@ added.
   poetry run pytest -q
   poetry run ruff check src tests
   ```
+
 - [x] Reconcile `spec.md`, `plan.md`, `tasks.md`, and `model-evaluation.md` with
   the final Laya-MLX disposition. Keep the profile rejected/deferred because
   its frozen quality gates failed; do not promote the feature.
@@ -609,6 +628,119 @@ added.
   DMS-13 context-preservation quality, or admit a DAR production profile. The
   full suite completed with 2,932 passed, 4 skipped, and 7 deselected; Ruff
   and diff checks passed. No candidate met both DMS-14 thresholds.
+
+## DMS-20 Local Candidate Transfer Evaluation
+
+- Depends on: completed DMS-14 corpus and evaluator; this follow-up is a new
+  candidate cohort and does not reopen the approved DMS-14 matrix or results.
+- [x] For Julia-1, Kev-4B, lev, and Strands Decider 2B, verify exact source,
+  model, tokenizer, license/use terms, runtime/device, input limits, and
+  provenance. Record each lead as selected, deferred, or unsupported with
+  evidence. Preserve all four as the requested runnable cohort; do not silently
+  reduce the cohort. Name and disclose any execution-base variant whose
+  training provenance is not publisher-pinned, and bind it in the matrix
+  approval. Do not install, download candidate materials, or infer during
+  discovery.
+- [x] Implement the DMS20-specific `tests/manual/run_dms20_transfer.py` and
+  fake-backed `tests/test_dms20_transfer_runner.py`; do not reuse
+  `tests/manual/run_dms14_transfer.py` unchanged because its matrix, corpus,
+  harness digest, and candidate loaders are DMS14-specific. Reuse
+  `scripts/evaluate_decision_transfer.py` and its tests unchanged when the
+  frozen protocol is compatible. For any code change, follow TDD: add the
+  focused fake test, observe RED, implement, then run GREEN. Keep unit tests
+  free of model weights and external inference.
+- [x] Preflight selected exact rows and their common task/category mapping.
+  Freeze four selected dispositions and the complete runnable cohort, corpus manifest and
+  normalized-input/gold digests, protocol and acceptance criteria, resource
+  preflight, and completed harness paths/digests in
+  `evaluation/dms20-matrix.json` before inspecting candidate outputs. Reuse
+  DMS-14's corpus and protocol only when every selected row can represent the
+  same frozen items; otherwise freeze a new common corpus and criteria. Keep
+  DMS-14 artifacts immutable.
+- [x] Obtain one approval receipt binding the frozen matrix, corpus, harness,
+  dispositions, and exact runnable cohort before runtime installation,
+  candidate-material downloads, or inference. Run only approved rows; record
+  redacted outputs, failures, latency, memory, and comparative results under
+  `evaluation/dms20-run-2026-10-22/`. All four rows completed 684 inputs in
+  canonical and reversed option order. The shared evaluation ranks Kev-4B,
+  lev, Strands Decider 2B, and Julia-1 in that order; Kev-4B and lev pass both
+  frozen quality thresholds, Strands misses the macro threshold, and Julia-1
+  misses the macro and per-category thresholds. See `run-receipt.json` and
+  `evaluation.json`. Preserve DMS-14 artifacts and do not imply production or
+  context-management admission.
+
+### DMS-20 requested candidate extension
+
+- [x] Assess Together Tev1-4B-experimental, Tev1-0.8B-experimental, and
+  Bespoke-Nimble-9B as additions to the DMS-20 comparison. Treat both Tev1
+  sizes as separate candidate rows; record exact immutable model/source/
+  tokenizer revisions, license and use terms, runtime, task mapping, and device
+  support before deciding whether each row is runnable. The published
+  references identify Tev1 as Qwen3.5 fine-tunes and Nimble as a Qwen3.5-9B
+  LoRA decision model, but do not establish DAR runtime profiles or local
+  resource feasibility.
+- [x] Preserve `evaluation/dms20-matrix.json`, its approval, and the completed
+  four-row results unchanged. Freeze a separate extension matrix and obtain
+  approval binding the complete revised runnable cohort, protocol, and
+  harness before installing runtimes, downloading candidate weights, or
+  running inference. If either candidate cannot represent the shared items or
+  pass the resource gate, record it as deferred rather than silently dropping
+  it from the requested scope.
+
+### DMS-20 requested MLX candidate follow-up
+
+- [x] Assess `mlx-community/Qwen3.5-0.8B-decision` and
+  `mlx-community/d1a-e2b-8bit` as two separate candidates.
+  Record immutable model and source revisions, license, tokenizer/material
+  requirements, runtime and model-specific inference interface, task mapping,
+  device support, and shared-item compatibility. The model cards describe
+  distinct decision heads/interfaces; do not assume that generic MLX text
+  generation or the existing Qwen-MPS runner can score them correctly.
+- [x] Preserve the original DMS-20 matrix and results, and the separately
+  approved Tev1/Nimble extension artifacts. Freeze a new matrix and obtain
+  approval for its exact runnable cohort before installing runtimes,
+  downloading candidate weights, or running inference. Apply the existing
+  corpus, protocol, output, and resource gates; defer any candidate that
+  cannot satisfy them and document why. The approved MLX-v6 cohort completed
+1,368 predictions per model. Qwen3.5-0.8B-decision scored 0.5246 macro
+(minimum category 0.3362); D1A E2B 8-bit scored 0.5973 (0.4625) with 18
+invalid outputs. Both fail the macro gate. Qwen3.5-27B was excluded as
+requested. Results and the D1A output-validity caveat are recorded in the
+same follow-up evaluation and run receipt.
+
+### DMS-20 Nimble optimized-kernel variant
+
+- [x] Add `nimble-9b-mps-linear-attn` as a distinct execution variant using
+  the exact pinned Nimble adapter/base and the pinned
+  `mpsops/mps-linear-attention` commit in
+  `evaluation/dms20-nimble-mps-linear-attn-proposal.json`. Preserve the
+  extension-v3 baseline row. Verify PyTorch 2.8.0 / Transformers 5.17.0 / PEFT
+  compatibility, instrument proof that the Metal path executes, and compare
+  output parity on representative items. Freeze a new harness/runtime-bound
+  matrix and obtain approval before the full 1,368-prediction run. The approved
+  run invoked both required Metal kernels but produced non-finite logits and
+  1,368 invalid outputs. It failed numerical compatibility and the DMS-20
+  quality gates; see `evaluation/dms20-nimble-mps-evaluation-2026-10-24.json`
+  and the run receipt. The baseline Nimble row is unchanged.
+
+### DMS-20 runtime optimization follow-ups
+
+- [x] Add eight explicit optimization variants to
+  `evaluation/dms20-optimization-proposals-2026-10-24.json`: Kev-4B, lev, and
+  Strands on PyTorch MPS BF16; batch-size-4 MPS rows for Tev1-0.8B, Tev1-4B,
+  and Nimble-9B; and 4-bit MLX rows for Qwen3.5-0.8B-decision and D1A E2B.
+  Only Kev-4B MPS BF16 was selected for the pilot. Julia-1 was excluded because
+  its baseline latency is already low.
+- [x] Freeze and approve the Kev-4B MPS BF16 matrix, pass the 14-item parity
+  smoke, and run all 1,368 canonical/reversed predictions. All outputs were
+  valid; the row scored 0.7974 macro accuracy (0.5517 minimum category),
+  passing both quality thresholds. Mean synchronized latency was 685.5 ms vs
+  7,867.5 ms for the FP32 CPU baseline. See the run receipt and evaluation
+  artifacts.
+- [x] Evaluate the seven remaining optimization variants under their own
+  approved runtime-bound matrices. All seven runs completed; outcomes, quality
+  gates, timing, and invalid-output counts are consolidated in
+  `evaluation/dms20-full-results-2026-10-24.md`.
 
 ## DMS-15 Reusable Decision-Model Adapter Helpers
 

@@ -1,0 +1,14 @@
+accelerate==1.15.0
+fastapi==0.115.14
+huggingface-hub==1.32.0
+numpy==2.5.3
+peft==0.21.0
+pydantic==2.12.5
+pyyaml==6.0.3
+rich==14.2.0
+safetensors==0.8.0
+scikit-learn==1.9.1
+torch==2.8.0
+transformers==5.17.0
+typer==0.20.0
+uvicorn==0.40.0

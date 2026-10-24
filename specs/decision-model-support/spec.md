@@ -1,12 +1,17 @@
 # Decision Model Support
 
+<!-- rumdl-disable MD013 -->
+
 ## Canonical evaluation matrix
 
 The DMS corpus uses one merged DMS-01/DMS-12 matrix. The canonical manifest is
 [`evaluation/dms01-dms12-merged-matrix.json`](evaluation/dms01-dms12-merged-matrix.json).
-It names all twelve historical DMS-01 rows, marks the Jev-Style MLX row as the
-completed DMS-12 result, and is the only place to append new candidate rows.
+It names all twelve historical DMS-01 rows and marks the Jev-Style MLX row as
+the completed DMS-12 result. New rows in that evaluation track belong there.
 The dated full-matrix JSON and DMS-12 receipt remain immutable source snapshots.
+DMS-14's approved transfer cohort is also immutable. New general-transfer
+candidates require a separately frozen follow-up matrix and approval; they do
+not amend either completed matrix or its results.
 
 ## Metadata
 
@@ -433,6 +438,32 @@ before any model download or inference. This is comparative evidence only: it
 cannot reverse prior DMS-01/DMS-08 reject/defer decisions, establish DMS-13
 compression quality, or establish context-management suitability. Client-
 backend support follows the separate technical and host-safety gates.
+
+### FR-15: Evaluate newly identified local decision models
+
+The original DMS-20 cohort assessed Julia-1, Kev-4B, lev, and Strands Decider
+2B. Its completed matrix and results remain immutable. The requested DMS-20
+extension adds Together Tev1-4B-experimental, Tev1-0.8B-experimental, and
+Bespoke-Nimble-9B as proposed leads. Treat both Tev1 sizes as separate
+candidates. Record a selected, deferred, or unsupported disposition for each
+new lead with evidence. Candidate names do not identify approved
+model/runtime profiles.
+Before installation, model-material download, or inference, pin each selected
+row's exact source, model, tokenizer, runtime, license, and supported device;
+establish common task/category mapping and resource preflight, then complete
+the fake-tested runner before freezing the candidate dispositions, runnable
+cohort, scoring protocol, and harness digests in a new evaluation matrix. One
+approval must identify the complete matrix and exact
+runnable cohort. No lead may be silently replaced; any change to the cohort
+requires an updated matrix and approval. Reuse the DMS-14 corpus and
+protocol only if every selected row can represent the same frozen items;
+otherwise freeze the revised common corpus and protocol before inspecting
+candidate outputs. Do not alter DMS-14 artifacts or infer production or
+context-management suitability from comparative transfer results. Runtime
+optimization variants are separate rows with immutable baseline comparisons;
+each requires its own exact matrix and approval. The Kev-4B MPS BF16 pilot was
+followed by seven separately approved variants; all eight optimization rows
+are evaluated and summarized in `evaluation/dms20-full-results-2026-10-24.md`.
 
 ### FR-10: Support an optional local Von profile
 
