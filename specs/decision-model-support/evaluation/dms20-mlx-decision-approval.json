@@ -1,0 +1,41 @@
+{
+  "approval_note": "Laya input limits are frozen as listed; the runner uses strict no-truncation behavior and records over-limit cases as incorrect. Each selected row has candidate-specific token preflight and resource checks.",
+  "approval_scope": "One approval for all 14 added DMS-20 MLX decision candidate rows, bound to shared corpus and protocol, exact model and tokenizer revisions, runner/runtime locks, input policy, and resource floors.",
+  "approved": true,
+  "approved_by": "Explicit active user goal: complete the added DMS-20 evaluations.",
+  "approved_on": "2026-10-24",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "dispositions": {
+    "clef-flash-mlx-8bit": "selected",
+    "d1a-e4b-mlx-8bit": "selected",
+    "d1a-e4b-v0-5-mlx-8bit": "selected",
+    "d3-edge": "selected",
+    "d3-flash-mlx-8bit": "selected",
+    "d3-lite": "selected",
+    "d3-mini": "selected",
+    "d3-nano": "selected",
+    "h2o-lightning-4b-mlx-8bit": "selected",
+    "laya": "selected",
+    "laya-multilingual": "selected",
+    "laya-typed-decisions": "selected",
+    "liquidai-d1-3b": "selected",
+    "pplx-decider-flash-v1-2": "selected"
+  },
+  "matrix_sha256": "b238ba8b95937478d5ee19a1456a1924d486cc52f771bafca5f80b124b46396f",
+  "runnable_cohort": [
+    "clef-flash-mlx-8bit",
+    "pplx-decider-flash-v1-2",
+    "d3-flash-mlx-8bit",
+    "d3-mini",
+    "d3-nano",
+    "d3-lite",
+    "d3-edge",
+    "h2o-lightning-4b-mlx-8bit",
+    "liquidai-d1-3b",
+    "laya",
+    "laya-typed-decisions",
+    "laya-multilingual",
+    "d1a-e4b-v0-5-mlx-8bit",
+    "d1a-e4b-mlx-8bit"
+  ]
+}

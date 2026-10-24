@@ -1,0 +1,1533 @@
+{
+  "approval_scope": "One approval for all 14 added DMS-20 MLX decision candidate rows, bound to shared corpus and protocol, exact model and tokenizer revisions, runner/runtime locks, input policy, and resource floors.",
+  "approval_source": "Explicit active user goal: complete the added DMS-20 evaluations.",
+  "artifact_download_policy": "Only the exact revision-pinned artifact files listed per row; do not retain model weights after each row is evaluated.",
+  "corpus_manifest": "dms14-corpus-manifest.json",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "dispositions": {
+    "clef-flash-mlx-8bit": "selected",
+    "d1a-e4b-mlx-8bit": "selected",
+    "d1a-e4b-v0-5-mlx-8bit": "selected",
+    "d3-edge": "selected",
+    "d3-flash-mlx-8bit": "selected",
+    "d3-lite": "selected",
+    "d3-mini": "selected",
+    "d3-nano": "selected",
+    "h2o-lightning-4b-mlx-8bit": "selected",
+    "laya": "selected",
+    "laya-multilingual": "selected",
+    "laya-typed-decisions": "selected",
+    "liquidai-d1-3b": "selected",
+    "pplx-decider-flash-v1-2": "selected"
+  },
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "harness_files": [
+    {
+      "path": "tests/manual/run_dms20_mlx_decision.py",
+      "sha256": "4ecf2fea14e20414f7062fe3b7f11b40d595ff2dd7251b9dc9055543b8ff9365"
+    },
+    {
+      "path": "tests/manual/run_dms20_mlx_extension.py",
+      "sha256": "4096582838ccffdbaf5f3a2787c1e4617aad49852ec228a342b2f259c521e21c"
+    },
+    {
+      "path": "tests/manual/run_dms20_transfer.py",
+      "sha256": "118eec7bc5f50b86b75f5ee8023f9174302e0b8e9a84f018d6adf46edcabb195"
+    },
+    {
+      "path": "scripts/evaluate_decision_transfer.py",
+      "sha256": "c92540a599754aeffc0b761852c49f0d01daa0e4953e9f012973deb46b94e3cd"
+    }
+  ],
+  "host_preflight": {
+    "estimated_free_memory_bytes": 33243046871,
+    "free_disk_bytes": 38095486976,
+    "host_platform": "Darwin arm64",
+    "memory_free_percent": 86,
+    "observed_at": "2026-10-24T19:32:57+00:00",
+    "physical_memory_bytes": 38654705664,
+    "resource_gate": "Repeat immediately before each stage/load; abort if row floors are no longer met."
+  },
+  "input_files": {
+    "gold_labels": {
+      "path": "/private/tmp/dms20-corpus/gold-labels.jsonl",
+      "sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec"
+    },
+    "normalized_inputs": {
+      "path": "/private/tmp/dms20-corpus/normalized-inputs.jsonl",
+      "sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148"
+    }
+  },
+  "item_count": 684,
+  "matrix_id": "DMS-20 mlx-decision under-12-GB candidate evaluation",
+  "matrix_version": 1,
+  "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "original_matrix_path": "dms20-matrix.json",
+  "original_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "proposal_path": "dms20-mlx-decision-under-12gb-proposals-2026-10-24.json",
+  "proposal_sha256": "81fa15dbc2a6a9f08091c8c8e2e80608fe48f80ce5feeb667e4504cdaec20bd0",
+  "protocol": {
+    "categories": "seven shared, licensed DMS-20 transfer categories",
+    "input_order": "canonical and all-options-reversed; identical option IDs and gold labels",
+    "input_policy": "Use the frozen 3,584-token normalized-content limit with 512 tokens reserved for model formatting. Count with each candidate tokenizer before inference; mark over-limit predictions incorrect and do not send truncated text.",
+    "invalid_missing_abstaining": "incorrect",
+    "model_prompt_token_limit": 4096,
+    "normalized_content_token_limit": 3584,
+    "paired_bootstrap_resamples": 10000,
+    "paired_bootstrap_seed": 14,
+    "paired_bootstrap_strata": "source category; identical item IDs across candidates",
+    "primary_metric": "equal macro average of accuracy across the seven included source categories",
+    "primary_order": "canonical",
+    "probability_metrics": "raw Brier and top-label ECE; no calibration fitting",
+    "prompt_format_reserve_tokens": 512,
+    "sensitivity_order": "reverse all options while preserving option IDs and gold labels",
+    "thresholds": {
+      "macro_accuracy_min": 0.75,
+      "per_category_accuracy_min": 0.4
+    }
+  },
+  "result_policy": "Local noncommercial comparative research only. Preserve existing DMS-20 matrices and results. No production admission or context-management claim.",
+  "rows": [
+    {
+      "artifact_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+          "size_bytes": 11544
+        },
+        {
+          "path": "README.md",
+          "sha256": "53a3dc4ac96a1b2f17e6c03d9cf19a50b25ddad8d270fbe655902f6ce68bb4b5",
+          "size_bytes": 11132
+        },
+        {
+          "path": "config.json",
+          "sha256": "66f87f6fb2616b46604daf2a9c67ddc87938296d07156efa34d59b5be49e3238",
+          "size_bytes": 2832
+        },
+        {
+          "path": "generation_config.json",
+          "sha256": "45707f8467bf4e54e112c6095a1b2d1f2d63651cf86816344cfff21f02dda0d4",
+          "size_bytes": 116
+        },
+        {
+          "path": "joint_head.safetensors",
+          "sha256": "19cdcec8c81dc9212be320fff47462ab342fbc1278be4368fb3da71241cf5ba0",
+          "size_bytes": 243538016
+        },
+        {
+          "path": "joint_head_config.json",
+          "sha256": "77efe959a38b5b17b241543e129e695f3c77465ece55a25985279bd8176279a0",
+          "size_bytes": 119
+        },
+        {
+          "path": "model-00001-of-00004.safetensors",
+          "sha256": "8b45a8e968141cdcc58fb71c9adfc258e2c77b5f062bc636c1fd5bc5d916b565",
+          "size_bytes": 4942706120
+        },
+        {
+          "path": "model-00002-of-00004.safetensors",
+          "sha256": "7590856c713eed844a2dcf48e6c43c4de165b788bc3f80e328311183cdbc7db8",
+          "size_bytes": 4987757928
+        },
+        {
+          "path": "model-00003-of-00004.safetensors",
+          "sha256": "e6eac2467952c33361ed7dcb3c7959d1086bbe57201cd3749c3d769fdc17fe63",
+          "size_bytes": 4954810240
+        },
+        {
+          "path": "model-00004-of-00004.safetensors",
+          "sha256": "9fcecc6556b39171238373a465f409794b7f821fb4cd1e6459e3a9c0fe317af7",
+          "size_bytes": 3934446832
+        },
+        {
+          "path": "model.safetensors.index.json",
+          "sha256": "941305ff9f77551e145a6cea976ef456cd5cb208cbece99f168376c752fcf96c",
+          "size_bytes": 69253
+        },
+        {
+          "path": "processor_config.json",
+          "sha256": "d89ef49ce9cd37fbf510158e13c1ef063d9286411c1ec9049932dbe0487143b1",
+          "size_bytes": 1191
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "size_bytes": 19989325
+        },
+        {
+          "path": "tokenizer_config.json",
+          "sha256": "91a08f825d370d085d692e04cf117cdd7faad7bf18e996f1e6031b6dab03db72",
+          "size_bytes": 1075
+        }
+      ],
+      "artifact_patterns": [
+        "LICENSE",
+        "README.md",
+        "config.json",
+        "generation_config.json",
+        "joint_head.safetensors",
+        "joint_head_config.json",
+        "model-00001-of-00004.safetensors",
+        "model-00002-of-00004.safetensors",
+        "model-00003-of-00004.safetensors",
+        "model-00004-of-00004.safetensors",
+        "model.safetensors.index.json",
+        "processor_config.json",
+        "tokenizer.json",
+        "tokenizer_config.json"
+      ],
+      "bits": 8,
+      "comparison_group": "mlx-decision-under-12gb",
+      "conversion": "mlx-decision native converter using the pinned source model revision; one-shard-at-a-time quantization",
+      "device": "mlx-metal",
+      "display_name": "Clef-Flash 9B MLX 8-bit",
+      "disposition": "selected",
+      "id": "clef-flash-mlx-8bit",
+      "license": "Apache-2.0",
+      "max_input_tokens": null,
+      "memory_metric": "peak at longest documented input",
+      "model": {
+        "id": "Cloudflare/clef-flash",
+        "revision": "f0b7d3cd65296abfe459e6c228b618f5d8b26d2f"
+      },
+      "precision": "8bit",
+      "reported_memory_gb": 11.2,
+      "resource_floor": {
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 26843545600,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "kind": "mlx-decision",
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+        "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+        "packages": {
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.4",
+          "mlx-decision": "1.0.0",
+          "numpy": "2.5.4",
+          "pydantic": "2.14.1",
+          "tokenizers": "0.23.3"
+        },
+        "python_version": "3.13.15"
+      },
+      "screening_note": "",
+      "tokenizer": {
+        "id": "Cloudflare/clef-flash",
+        "revision": "f0b7d3cd65296abfe459e6c228b618f5d8b26d2f"
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+          "size_bytes": 11544
+        },
+        {
+          "path": "NOTICE",
+          "sha256": "381fb81e814716a5ef8e5eae26a08607d052cf12f019dba9da9e81298ef5cb75",
+          "size_bytes": 132
+        },
+        {
+          "path": "README.md",
+          "sha256": "7428a155aa3484065fa97a43322a485e851f31e1eb6ea973dfec05ff224a71ad",
+          "size_bytes": 12521
+        },
+        {
+          "path": "config.json",
+          "sha256": "1bdb718faa99e32673f1622ea2f536affe20867bcb4703888aac9a030ec59e22",
+          "size_bytes": 2898
+        },
+        {
+          "path": "decision_config.json",
+          "sha256": "6d59a4e66f459596cad6f3ff932c635e379f1dc1c49819357869de8abe01722f",
+          "size_bytes": 5435
+        },
+        {
+          "path": "joint_config.json",
+          "sha256": "ecc88efc2a8ebd81ddf93f7d722e35b2829fd7526b5ce754db53395aa49fb510",
+          "size_bytes": 248
+        },
+        {
+          "path": "model-00001-of-00002.safetensors",
+          "sha256": "1c1a0c1ab331c7aec1b4b7932eabf80593b56c694fe2b779209c0e0413df1cef",
+          "size_bytes": 4972946624
+        },
+        {
+          "path": "model-00002-of-00002.safetensors",
+          "sha256": "21ba8301660e066f5849b60b1a36a242fc54ca18dd9bd526fdcbc50889171b70",
+          "size_bytes": 4105669472
+        },
+        {
+          "path": "model.safetensors.index.json",
+          "sha256": "0597ef32377f77ec490bbce02e5e3fd1d0b8e3b00b2ef500cd9306d445ab0f5c",
+          "size_bytes": 61898
+        },
+        {
+          "path": "processor_config.json",
+          "sha256": "b4b905eee2d1cf96dcbdac1c68b35113c8151958a4c1f76667242b01168572cd",
+          "size_bytes": 1219
+        },
+        {
+          "path": "readout.safetensors",
+          "sha256": "6751578171026190d4db8078e97162b404fd984646e0e9aec13844e4dd5b1711",
+          "size_bytes": 1305712
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "6f32ce20dc35f57a7f9ad1eac03525bd7d30f9df8cea6507e958279cc3657706",
+          "size_bytes": 19989492
+        },
+        {
+          "path": "tokenizer_config.json",
+          "sha256": "188cf0b9db5cfd6e92f1b63c646f5975be6f8383c6c9a2fa5dc2b48a8b229402",
+          "size_bytes": 1268
+        }
+      ],
+      "artifact_patterns": [
+        "LICENSE",
+        "NOTICE",
+        "README.md",
+        "config.json",
+        "decision_config.json",
+        "joint_config.json",
+        "model-00001-of-00002.safetensors",
+        "model-00002-of-00002.safetensors",
+        "model.safetensors.index.json",
+        "processor_config.json",
+        "readout.safetensors",
+        "tokenizer.json",
+        "tokenizer_config.json"
+      ],
+      "comparison_group": "mlx-decision-under-12gb",
+      "device": "mlx-metal",
+      "display_name": "Perplexity Decider Flash v1.2 4B",
+      "disposition": "selected",
+      "id": "pplx-decider-flash-v1-2",
+      "license": "Apache-2.0",
+      "max_input_tokens": null,
+      "memory_metric": "fit-check estimate",
+      "model": {
+        "id": "perplexity-ai/pplx-decider-flash-v1.2",
+        "revision": "9ff7cf9838e59df461c276b7699d56b244d2af58"
+      },
+      "precision": "bf16",
+      "reported_memory_gb": 10.0,
+      "resource_floor": {
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 15032385536,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "kind": "mlx-decision",
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+        "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+        "packages": {
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.4",
+          "mlx-decision": "1.0.0",
+          "numpy": "2.5.4",
+          "pydantic": "2.14.1",
+          "tokenizers": "0.23.3"
+        },
+        "python_version": "3.13.15"
+      },
+      "screening_note": "",
+      "tokenizer": {
+        "id": "perplexity-ai/pplx-decider-flash-v1.2",
+        "revision": "9ff7cf9838e59df461c276b7699d56b244d2af58"
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "size_bytes": 11357
+        },
+        {
+          "path": "NOTICE",
+          "sha256": "ae7ffb4d788c076d655394f0f116ad4b7de54e3bca9b655df5c669ea5bae74f6",
+          "size_bytes": 105
+        },
+        {
+          "path": "README.md",
+          "sha256": "9297d4c74e21bbebf1d87aa0264dcd696cc874bd2d915f3b977bbcb36ca8ed0e",
+          "size_bytes": 17430
+        },
+        {
+          "path": "config.json",
+          "sha256": "9c3e6eea217964096c7b032285bab6757720a847fbb9d0a04e551d2b1606c0eb",
+          "size_bytes": 3093
+        },
+        {
+          "path": "decision_config.json",
+          "sha256": "0269c72ac055d8149a7a778c477780af361f4c1cde3fd0e5ba9af791453ece18",
+          "size_bytes": 5502
+        },
+        {
+          "path": "model-00001-of-00004.safetensors",
+          "sha256": "2c322016b91b1232c0d7628560164560d06d477a3edc3362714635f0e2f5949c",
+          "size_bytes": 4911663824
+        },
+        {
+          "path": "model-00002-of-00004.safetensors",
+          "sha256": "f769650fb747d85132fb321335af7c71fcf3ba95fd1b1e806447e891cb4b0546",
+          "size_bytes": 4987839568
+        },
+        {
+          "path": "model-00003-of-00004.safetensors",
+          "sha256": "c85a0f2f8df221b7864c74e778d802dc22fe1237fe2fa6ea8b81d7b612800a33",
+          "size_bytes": 4954726768
+        },
+        {
+          "path": "model-00004-of-00004.safetensors",
+          "sha256": "d686ef3f6cdeeaad5eedde9d516c29ed1c90a1a322dd002765732869c11fa269",
+          "size_bytes": 1931248816
+        },
+        {
+          "path": "model.safetensors.index.json",
+          "sha256": "9ddd9f9ce431ff771d9b37b354ba11aa1b74c18d87c5a48c964da794bd1029ee",
+          "size_bytes": 64641
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+          "size_bytes": 390
+        },
+        {
+          "path": "readout.safetensors",
+          "sha256": "8bbc9a9df4e1b7df85a80a1091977092b938d8d2d2869dfaeb8fd36063cf322f",
+          "size_bytes": 4178000
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+          "size_bytes": 12807982
+        }
+      ],
+      "artifact_patterns": [
+        "LICENSE",
+        "NOTICE",
+        "README.md",
+        "config.json",
+        "decision_config.json",
+        "model-00001-of-00004.safetensors",
+        "model-00002-of-00004.safetensors",
+        "model-00003-of-00004.safetensors",
+        "model-00004-of-00004.safetensors",
+        "model.safetensors.index.json",
+        "preprocessor_config.json",
+        "readout.safetensors",
+        "tokenizer.json"
+      ],
+      "bits": 8,
+      "comparison_group": "mlx-decision-under-12gb",
+      "conversion": "mlx-decision native converter using the pinned source model revision; one-shard-at-a-time quantization",
+      "device": "mlx-metal",
+      "display_name": "D3-Flash 9B MLX 8-bit",
+      "disposition": "selected",
+      "id": "d3-flash-mlx-8bit",
+      "license": "Apache-2.0",
+      "max_input_tokens": null,
+      "memory_metric": "peak at documented default benchmark length",
+      "model": {
+        "id": "vllm-sr/d3-flash",
+        "revision": "13dc1cc8ef23caefa765907e1d764751e5629f7d"
+      },
+      "precision": "8bit",
+      "reported_memory_gb": 11.7,
+      "resource_floor": {
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 26843545600,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "kind": "mlx-decision",
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+        "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+        "packages": {
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.4",
+          "mlx-decision": "1.0.0",
+          "numpy": "2.5.4",
+          "pydantic": "2.14.1",
+          "tokenizers": "0.23.3"
+        },
+        "python_version": "3.13.15"
+      },
+      "screening_note": "Overview rounds this value to 12 GB. Detailed peak is below the strict threshold at the documented default benchmark length; longer inputs can exceed 12 GB.",
+      "tokenizer": {
+        "id": "vllm-sr/d3-flash",
+        "revision": "13dc1cc8ef23caefa765907e1d764751e5629f7d"
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "size_bytes": 11357
+        },
+        {
+          "path": "NOTICE",
+          "sha256": "1b1c0d9508ca9703a5f7eabfc70800676e167ad1de1e72ac69f4b9cab1b9272b",
+          "size_bytes": 104
+        },
+        {
+          "path": "README.md",
+          "sha256": "57e4fcc4c67283573ee1bd201bb87b0ea9b123d0a6938116fcb3dc7294686b43",
+          "size_bytes": 17368
+        },
+        {
+          "path": "config.json",
+          "sha256": "8f5f404a71ecc53c4ff26fc42cb4c778ffacfb4c9623f5e2d51245166d6b5057",
+          "size_bytes": 3090
+        },
+        {
+          "path": "decision_config.json",
+          "sha256": "588bc0ac7644479b9adde0498d80b6fb7c576388992564ac67599c05d29add07",
+          "size_bytes": 5502
+        },
+        {
+          "path": "model-00001-of-00002.safetensors",
+          "sha256": "60621cb8c3f90e634b98f0ffaf609159ee2c450630386f09dd5f7fd7938d7598",
+          "size_bytes": 4973332144
+        },
+        {
+          "path": "model-00002-of-00002.safetensors",
+          "sha256": "6189569fbe9245030d7ffb0b60a52268b7386e7a85a57aee1274a5178c1cc53d",
+          "size_bytes": 4105283936
+        },
+        {
+          "path": "model.safetensors.index.json",
+          "sha256": "613cc71f6441a964b0a87470536f8fb0c639bdd86b0362027c1c2b1a6e0a4a8c",
+          "size_bytes": 61898
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+          "size_bytes": 390
+        },
+        {
+          "path": "readout.safetensors",
+          "sha256": "d570665c1da72cb9fca7ad7b23a25720eb691362694dd69d4c80c17d7656ed55",
+          "size_bytes": 2611280
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+          "size_bytes": 12807982
+        }
+      ],
+      "artifact_patterns": [
+        "LICENSE",
+        "NOTICE",
+        "README.md",
+        "config.json",
+        "decision_config.json",
+        "model-00001-of-00002.safetensors",
+        "model-00002-of-00002.safetensors",
+        "model.safetensors.index.json",
+        "preprocessor_config.json",
+        "readout.safetensors",
+        "tokenizer.json"
+      ],
+      "comparison_group": "mlx-decision-under-12gb",
+      "device": "mlx-metal",
+      "display_name": "D3-Mini 4B",
+      "disposition": "selected",
+      "id": "d3-mini",
+      "license": "Apache-2.0",
+      "max_input_tokens": null,
+      "memory_metric": "fit-check estimate",
+      "model": {
+        "id": "vllm-sr/d3-mini",
+        "revision": "bd0090dd758d32ba59ef5c749910a8e87fc4391f"
+      },
+      "precision": "bf16",
+      "reported_memory_gb": 10.0,
+      "resource_floor": {
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 15032385536,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "kind": "mlx-decision",
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+        "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+        "packages": {
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.4",
+          "mlx-decision": "1.0.0",
+          "numpy": "2.5.4",
+          "pydantic": "2.14.1",
+          "tokenizers": "0.23.3"
+        },
+        "python_version": "3.13.15"
+      },
+      "screening_note": "",
+      "tokenizer": {
+        "id": "vllm-sr/d3-mini",
+        "revision": "bd0090dd758d32ba59ef5c749910a8e87fc4391f"
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "size_bytes": 11357
+        },
+        {
+          "path": "NOTICE",
+          "sha256": "300b6105c41a1843653e40be644c3d54e06288b25199373e04143530cc3db366",
+          "size_bytes": 104
+        },
+        {
+          "path": "README.md",
+          "sha256": "e741b12755a91c7a002cefe2c29355869c47c5dd9b7891cbef3e711d3f006e1c",
+          "size_bytes": 17450
+        },
+        {
+          "path": "config.json",
+          "sha256": "9caa6ab8956c859c3852328dda6322893a18b30826d3916db91d938d6c74ac4f",
+          "size_bytes": 2885
+        },
+        {
+          "path": "decision_config.json",
+          "sha256": "9175a0f42d5886def9c8429fdf8b0be58a3c97d106b94520e2ac38fe326302bf",
+          "size_bytes": 5502
+        },
+        {
+          "path": "model.safetensors",
+          "sha256": "7269b3260f1106f3443bfdb028a76143be2e679db3f29a31f4dfd1d595f03155",
+          "size_bytes": 4426555160
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+          "size_bytes": 390
+        },
+        {
+          "path": "readout.safetensors",
+          "sha256": "662e8a26d8016b2d479f1ca66bf64944603316c2b5e074ab7ac3304b8ae045e9",
+          "size_bytes": 2089040
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+          "size_bytes": 12807982
+        }
+      ],
+      "artifact_patterns": [
+        "LICENSE",
+        "NOTICE",
+        "README.md",
+        "config.json",
+        "decision_config.json",
+        "model.safetensors",
+        "preprocessor_config.json",
+        "readout.safetensors",
+        "tokenizer.json"
+      ],
+      "comparison_group": "mlx-decision-under-12gb",
+      "device": "mlx-metal",
+      "display_name": "D3-Nano 2B",
+      "disposition": "selected",
+      "id": "d3-nano",
+      "license": "Apache-2.0",
+      "max_input_tokens": null,
+      "memory_metric": "fit-check estimate",
+      "model": {
+        "id": "vllm-sr/d3-nano",
+        "revision": "462efc366229ea268cf4eed3738b3fc4415e4817"
+      },
+      "precision": "bf16",
+      "reported_memory_gb": 4.9,
+      "resource_floor": {
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 15032385536,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "kind": "mlx-decision",
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+        "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+        "packages": {
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.4",
+          "mlx-decision": "1.0.0",
+          "numpy": "2.5.4",
+          "pydantic": "2.14.1",
+          "tokenizers": "0.23.3"
+        },
+        "python_version": "3.13.15"
+      },
+      "screening_note": "",
+      "tokenizer": {
+        "id": "vllm-sr/d3-nano",
+        "revision": "462efc366229ea268cf4eed3738b3fc4415e4817"
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "size_bytes": 11357
+        },
+        {
+          "path": "NOTICE",
+          "sha256": "e7fecd68cfb3c894924d48c642230cd2b96d3cf03ecc13907f5bcc55d52f3a9f",
+          "size_bytes": 106
+        },
+        {
+          "path": "README.md",
+          "sha256": "6cc8a41274e59946159e0d4ec92cb4ef8fee7fac3d7fdfbbc8b8d84ec933137a",
+          "size_bytes": 17331
+        },
+        {
+          "path": "config.json",
+          "sha256": "a9071195384e1fc2c68f9fe0fae007a22182ab77eb14fe8228a1a24b37d3cee9",
+          "size_bytes": 2884
+        },
+        {
+          "path": "decision_config.json",
+          "sha256": "30b6095b945d5a93697868afdf9be9123ea892085fbaff3078112c48da20dc6b",
+          "size_bytes": 5504
+        },
+        {
+          "path": "model-00001-of-00001.safetensors",
+          "sha256": "ca6222dbf2b72899ae45580ed84d26d1f0e69a8de212edda295072000e34a4c2",
+          "size_bytes": 1706027688
+        },
+        {
+          "path": "model.safetensors.index.json",
+          "sha256": "d2ff81f32fc8ad51c20e3b76abf1689da6246280dad39be981567c7b4367f668",
+          "size_bytes": 41066
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+          "size_bytes": 390
+        },
+        {
+          "path": "readout.safetensors",
+          "sha256": "fe11cfac5c79b6a83e35b707581b1260214279bb22b003c215c62719186ef629",
+          "size_bytes": 1044560
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+          "size_bytes": 12807982
+        }
+      ],
+      "artifact_patterns": [
+        "LICENSE",
+        "NOTICE",
+        "README.md",
+        "config.json",
+        "decision_config.json",
+        "model-00001-of-00001.safetensors",
+        "model.safetensors.index.json",
+        "preprocessor_config.json",
+        "readout.safetensors",
+        "tokenizer.json"
+      ],
+      "comparison_group": "mlx-decision-under-12gb",
+      "device": "mlx-metal",
+      "display_name": "D3-Lite 0.8B",
+      "disposition": "selected",
+      "id": "d3-lite",
+      "license": "Apache-2.0",
+      "max_input_tokens": null,
+      "memory_metric": "fit-check estimate",
+      "model": {
+        "id": "vllm-sr/d3-lite",
+        "revision": "03560c26f5199c3c04129a2ccb38960c913635e0"
+      },
+      "precision": "bf16",
+      "reported_memory_gb": 1.9,
+      "resource_floor": {
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 15032385536,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "kind": "mlx-decision",
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+        "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+        "packages": {
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.4",
+          "mlx-decision": "1.0.0",
+          "numpy": "2.5.4",
+          "pydantic": "2.14.1",
+          "tokenizers": "0.23.3"
+        },
+        "python_version": "3.13.15"
+      },
+      "screening_note": "",
+      "tokenizer": {
+        "id": "vllm-sr/d3-lite",
+        "revision": "03560c26f5199c3c04129a2ccb38960c913635e0"
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "size_bytes": 11357
+        },
+        {
+          "path": "NOTICE",
+          "sha256": "0e7694dee1927d83b3637be7a8f989b941ebd884dd40767b995c7adee484789b",
+          "size_bytes": 106
+        },
+        {
+          "path": "README.md",
+          "sha256": "e7df42704840545e87480543c96c4dfb329a1122de9cc8067f144da1ba882e8d",
+          "size_bytes": 17549
+        },
+        {
+          "path": "config.json",
+          "sha256": "5e529d9aea2f8d387750acf5b02cc32a47d7e87dc65d6d008fba98e5d15acc4d",
+          "size_bytes": 2572
+        },
+        {
+          "path": "decision_config.json",
+          "sha256": "30b6095b945d5a93697868afdf9be9123ea892085fbaff3078112c48da20dc6b",
+          "size_bytes": 5504
+        },
+        {
+          "path": "model-00001-of-00001.safetensors",
+          "sha256": "91bb8618450a7f628f1432bbced76bc19ee7346c93d191a228fdd33c25a57a9d",
+          "size_bytes": 1188677968
+        },
+        {
+          "path": "model.safetensors.index.json",
+          "sha256": "7d3951baba643a2c4fe2263d8602ef37b1c1f804b58949a5469449da6a588b03",
+          "size_bytes": 25448
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+          "size_bytes": 390
+        },
+        {
+          "path": "readout.safetensors",
+          "sha256": "de33d5dc795bbd77168e40bfadc340cca9b9f163b88744c10e1a788f4e166d3d",
+          "size_bytes": 1044560
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+          "size_bytes": 12807982
+        }
+      ],
+      "artifact_patterns": [
+        "LICENSE",
+        "NOTICE",
+        "README.md",
+        "config.json",
+        "decision_config.json",
+        "model-00001-of-00001.safetensors",
+        "model.safetensors.index.json",
+        "preprocessor_config.json",
+        "readout.safetensors",
+        "tokenizer.json"
+      ],
+      "comparison_group": "mlx-decision-under-12gb",
+      "device": "mlx-metal",
+      "display_name": "D3-Edge 0.6B",
+      "disposition": "selected",
+      "id": "d3-edge",
+      "license": "Apache-2.0",
+      "max_input_tokens": null,
+      "memory_metric": "fit-check estimate",
+      "model": {
+        "id": "vllm-sr/d3-edge",
+        "revision": "c454ee39b862248d70abd7f84195d2f54ffe6d43"
+      },
+      "precision": "bf16",
+      "reported_memory_gb": 1.3,
+      "resource_floor": {
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 15032385536,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "kind": "mlx-decision",
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+        "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+        "packages": {
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.4",
+          "mlx-decision": "1.0.0",
+          "numpy": "2.5.4",
+          "pydantic": "2.14.1",
+          "tokenizers": "0.23.3"
+        },
+        "python_version": "3.13.15"
+      },
+      "screening_note": "",
+      "tokenizer": {
+        "id": "vllm-sr/d3-edge",
+        "revision": "c454ee39b862248d70abd7f84195d2f54ffe6d43"
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+          "size_bytes": 11544
+        },
+        {
+          "path": "README.md",
+          "sha256": "9ae6af4cc141e60974b8005ce3a066a1cd7e975a1965188be2df7ddc2253c079",
+          "size_bytes": 78016
+        },
+        {
+          "path": "config.json",
+          "sha256": "9217764b18e7182502c371c4309ec1757e1ba8d9ef2b9b1efbaf94de2d331bba",
+          "size_bytes": 2872
+        },
+        {
+          "path": "model.safetensors",
+          "sha256": "0779980b4335a9decb00db32bd7101e7e2776f061b971d8e42b63920b68d9645",
+          "size_bytes": 9319828352
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+          "size_bytes": 390
+        },
+        {
+          "path": "serve_config.json",
+          "sha256": "1157d869d84ec5560cb3760c6697bc2e31d503a699d4c24cf45d932f7a9e8a8c",
+          "size_bytes": 3830
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+          "size_bytes": 12807982
+        }
+      ],
+      "artifact_patterns": [
+        "LICENSE",
+        "README.md",
+        "config.json",
+        "model.safetensors",
+        "preprocessor_config.json",
+        "serve_config.json",
+        "tokenizer.json"
+      ],
+      "bits": 8,
+      "comparison_group": "mlx-decision-under-12gb",
+      "conversion": "mlx-decision native converter using the pinned source model revision; one-shard-at-a-time quantization",
+      "device": "mlx-metal",
+      "display_name": "H2O Lightning 4B MLX 8-bit",
+      "disposition": "selected",
+      "id": "h2o-lightning-4b-mlx-8bit",
+      "license": "Apache-2.0",
+      "max_input_tokens": null,
+      "memory_metric": "peak",
+      "model": {
+        "id": "h2oai/h2o-lightning-4b",
+        "revision": "e7b32490c9d2a994bd75a4d1ea7e45716080175e"
+      },
+      "precision": "8bit",
+      "reported_memory_gb": 8.9,
+      "resource_floor": {
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 26843545600,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "kind": "mlx-decision",
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+        "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+        "packages": {
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.4",
+          "mlx-decision": "1.0.0",
+          "numpy": "2.5.4",
+          "pydantic": "2.14.1",
+          "tokenizers": "0.23.3"
+        },
+        "python_version": "3.13.15"
+      },
+      "screening_note": "The full-precision configuration is 12.6 GB peak and is excluded.",
+      "tokenizer": {
+        "id": "h2oai/h2o-lightning-4b",
+        "revision": "e7b32490c9d2a994bd75a4d1ea7e45716080175e"
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "4d28ca14dedc0b3d0fcc2b3339f0e79931faa33874f3d24f522183a8fc70068c",
+          "size_bytes": 10574
+        },
+        {
+          "path": "README.md",
+          "sha256": "175b0bd5f0b4272a67723e16d5e1994e7a8c2d162e7797c9f1c24c01fed83f1d",
+          "size_bytes": 10448
+        },
+        {
+          "path": "config.json",
+          "sha256": "0cbac0f580bd8036ef94ac83aa632a57a170e66d20f381ef47c3f6486c9a3e8c",
+          "size_bytes": 2773
+        },
+        {
+          "path": "model.safetensors",
+          "sha256": "50e03317847caf6df9a9aee27ed40f20554a86a21e60d1d47ba41a422b546c0c",
+          "size_bytes": 6247065504
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "8096ecb9f54599d756c8de728a598a340bc1e43c0deb77ddd62456c38349fcee",
+          "size_bytes": 17905750
+        },
+        {
+          "path": "tokenizer_config.json",
+          "sha256": "ef6770d12dd9ac58d334e979bf160c5cdfd41f13d205fd5d5516857645feb0ea",
+          "size_bytes": 507
+        }
+      ],
+      "artifact_patterns": [
+        "LICENSE",
+        "README.md",
+        "config.json",
+        "model.safetensors",
+        "tokenizer.json",
+        "tokenizer_config.json"
+      ],
+      "comparison_group": "mlx-decision-under-12gb",
+      "device": "mlx-metal",
+      "display_name": "LiquidAI d1-3B",
+      "disposition": "selected",
+      "id": "liquidai-d1-3b",
+      "license": "LFM Open License v1.0; local noncommercial research only",
+      "max_input_tokens": null,
+      "memory_metric": "peak at documented benchmark length",
+      "model": {
+        "id": "LiquidAI/d1-3B",
+        "revision": "051bcc464b01b9f92942b364d9586b0ef5912432"
+      },
+      "precision": "bf16",
+      "reported_memory_gb": 11.6,
+      "resource_floor": {
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 15032385536,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "kind": "mlx-decision",
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+        "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+        "packages": {
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.4",
+          "mlx-decision": "1.0.0",
+          "numpy": "2.5.4",
+          "pydantic": "2.14.1",
+          "tokenizers": "0.23.3"
+        },
+        "python_version": "3.13.15"
+      },
+      "screening_note": "Overview rounds this value to 12 GB; detailed peak is below the strict threshold. LFM Open License v1.0 has a revenue threshold condition for commercial use.",
+      "tokenizer": {
+        "id": "LiquidAI/d1-3B",
+        "revision": "051bcc464b01b9f92942b364d9586b0ef5912432"
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "README.md",
+          "sha256": "00355613796b3f5860b0d5b20392381d26580ec242e04a1fd150c7f116858602",
+          "size_bytes": 23187
+        },
+        {
+          "path": "encoder/config.json",
+          "sha256": "bf3ab80598fdccf414855a2ce80f22859e4492d06ca8a62ddd1cfb63972f8979",
+          "size_bytes": 2083
+        },
+        {
+          "path": "model.safetensors",
+          "sha256": "891102d372688fc2a094dac56a384bc537b87c63f21f9f3dac0be2b7cbc8d86c",
+          "size_bytes": 842609210
+        },
+        {
+          "path": "rl_agent_config.json",
+          "sha256": "ae287b56bbcf5f8c4f4541ae9dfd00c914c4c48b940b8398c3058af37ba92bbd",
+          "size_bytes": 745
+        },
+        {
+          "path": "tokenizer/tokenizer.json",
+          "sha256": "6c8aaa9a542084f2457eab775d4eeb51f92a70c0fd9de28d5edb0ddec3c08d30",
+          "size_bytes": 3583228
+        },
+        {
+          "path": "tokenizer/tokenizer_config.json",
+          "sha256": "50044de60daaa73df97d262e15a40d4faf0160e7d742df64b377877a1320dd12",
+          "size_bytes": 308
+        }
+      ],
+      "artifact_patterns": [
+        "README.md",
+        "encoder/config.json",
+        "model.safetensors",
+        "rl_agent_config.json",
+        "tokenizer/tokenizer.json",
+        "tokenizer/tokenizer_config.json"
+      ],
+      "comparison_group": "mlx-decision-under-12gb",
+      "device": "mlx-metal",
+      "display_name": "Laya",
+      "disposition": "selected",
+      "id": "laya",
+      "license": "Apache-2.0",
+      "max_input_tokens": 512,
+      "memory_metric": "upstream reported model memory",
+      "model": {
+        "id": "convaiinnovations/laya",
+        "revision": "7b928d828b7b0e022f929d9bd2e44165aa270148"
+      },
+      "precision": "fp16",
+      "reported_memory_gb": 1.8,
+      "resource_floor": {
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 15032385536,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "kind": "mlx-decision",
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+        "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+        "packages": {
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.4",
+          "mlx-decision": "1.0.0",
+          "numpy": "2.5.4",
+          "pydantic": "2.14.1",
+          "tokenizers": "0.23.3"
+        },
+        "python_version": "3.13.15"
+      },
+      "screening_note": "Input limit is below the DMS-20 content limit of 3,584 tokens.",
+      "tokenizer": {
+        "id": "convaiinnovations/laya",
+        "revision": "7b928d828b7b0e022f929d9bd2e44165aa270148"
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "README.md",
+          "sha256": "83e67a995a70a9a9ef6cc1f8c68da654f11eee081c9bb14de07c37b08fcc3113",
+          "size_bytes": 6343
+        },
+        {
+          "path": "encoder/config.json",
+          "sha256": "5268d24ad3b77c8151de5dcb0762ba4391619aad9ab0bda33e36fb083cfeae6d",
+          "size_bytes": 2084
+        },
+        {
+          "path": "model.safetensors",
+          "sha256": "4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e",
+          "size_bytes": 842609220
+        },
+        {
+          "path": "rl_agent_config.json",
+          "sha256": "ebf0cd524d92342a6be5e48e9fca3d7c2babfb5a56ccd79d2171ef5d8c7f7be8",
+          "size_bytes": 847
+        },
+        {
+          "path": "tokenizer/tokenizer.json",
+          "sha256": "6c8aaa9a542084f2457eab775d4eeb51f92a70c0fd9de28d5edb0ddec3c08d30",
+          "size_bytes": 3583228
+        },
+        {
+          "path": "tokenizer/tokenizer_config.json",
+          "sha256": "08d4cf3ac4dca381759441b85b91a6d40e688471dcd33d15d6649eb0a9a854d1",
+          "size_bytes": 337
+        }
+      ],
+      "artifact_patterns": [
+        "README.md",
+        "encoder/config.json",
+        "model.safetensors",
+        "rl_agent_config.json",
+        "tokenizer/tokenizer.json",
+        "tokenizer/tokenizer_config.json"
+      ],
+      "comparison_group": "mlx-decision-under-12gb",
+      "device": "mlx-metal",
+      "display_name": "Laya Typed Decisions",
+      "disposition": "selected",
+      "id": "laya-typed-decisions",
+      "license": "Apache-2.0",
+      "max_input_tokens": 1024,
+      "memory_metric": "upstream reported model memory",
+      "model": {
+        "id": "convaiinnovations/laya-typed-decisions",
+        "revision": "e929ae5cf69bc34259cd2f95c9e91145b818b1f0"
+      },
+      "precision": "fp16",
+      "reported_memory_gb": 1.7,
+      "resource_floor": {
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 15032385536,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "kind": "mlx-decision",
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+        "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+        "packages": {
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.4",
+          "mlx-decision": "1.0.0",
+          "numpy": "2.5.4",
+          "pydantic": "2.14.1",
+          "tokenizers": "0.23.3"
+        },
+        "python_version": "3.13.15"
+      },
+      "screening_note": "Input limit is below the DMS-20 content limit of 3,584 tokens.",
+      "tokenizer": {
+        "id": "convaiinnovations/laya-typed-decisions",
+        "revision": "e929ae5cf69bc34259cd2f95c9e91145b818b1f0"
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "README.md",
+          "sha256": "e85d16c3fe35fe7094ef51a7cfa81144a5cc07558e5faddcff753a8153e38a0b",
+          "size_bytes": 9346
+        },
+        {
+          "path": "encoder/config.json",
+          "sha256": "83f6916d13ef0f556ac461f28308dc2bffa7ebeadee8ec9e2db5812020ea5bb4",
+          "size_bytes": 1938
+        },
+        {
+          "path": "model.safetensors",
+          "sha256": "9d628fd971b700382ac6f65920a86f149777b2e748e0c955fb3b19695aa8f204",
+          "size_bytes": 643835514
+        },
+        {
+          "path": "rl_agent_config.json",
+          "sha256": "25061739243b617ad88d1219ba6f8a9c86c5881ca28df024fa2d9b3b2fcc30c6",
+          "size_bytes": 472
+        },
+        {
+          "path": "tokenizer/tokenizer.json",
+          "sha256": "609d8f4c067cd3950f88594c5a802616cea245823836ef5848ee4fc40aab5b6f",
+          "size_bytes": 34363188
+        },
+        {
+          "path": "tokenizer/tokenizer_config.json",
+          "sha256": "424b69444bf7b5809dc2cd2e36d0bd71b8055124dd24274d6db3c655d38205e7",
+          "size_bytes": 502
+        }
+      ],
+      "artifact_patterns": [
+        "README.md",
+        "encoder/config.json",
+        "model.safetensors",
+        "rl_agent_config.json",
+        "tokenizer/tokenizer.json",
+        "tokenizer/tokenizer_config.json"
+      ],
+      "comparison_group": "mlx-decision-under-12gb",
+      "device": "mlx-metal",
+      "display_name": "Laya Multilingual",
+      "disposition": "selected",
+      "id": "laya-multilingual",
+      "license": "Apache-2.0",
+      "max_input_tokens": 1024,
+      "memory_metric": "upstream reported model memory",
+      "model": {
+        "id": "convaiinnovations/laya-multilingual",
+        "revision": "1720e3e3357cfe1e281542e223f8273b0890ca34"
+      },
+      "precision": "fp16",
+      "reported_memory_gb": 1.6,
+      "resource_floor": {
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 15032385536,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "kind": "mlx-decision",
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+        "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+        "packages": {
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.4",
+          "mlx-decision": "1.0.0",
+          "numpy": "2.5.4",
+          "pydantic": "2.14.1",
+          "tokenizers": "0.23.3"
+        },
+        "python_version": "3.13.15"
+      },
+      "screening_note": "Input limit is below the DMS-20 content limit of 3,584 tokens.",
+      "tokenizer": {
+        "id": "convaiinnovations/laya-multilingual",
+        "revision": "1720e3e3357cfe1e281542e223f8273b0890ca34"
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "README.md",
+          "sha256": "8b6bd21436b7d208bb004197c31e9c9b83004adaa9ae016139eea759182e19c4",
+          "size_bytes": 17587
+        },
+        {
+          "path": "config.json",
+          "sha256": "0bdb3e6a8ad2835ec07acee6011dc2d909fb7aff5cca0fbe8deecc799bab3895",
+          "size_bytes": 5188
+        },
+        {
+          "path": "d1a-avatar.png",
+          "sha256": "c96db5268ea88d3e86196d7aa324cf22ece844147f9202ca6c9c4bdead31f982",
+          "size_bytes": 423022
+        },
+        {
+          "path": "d1a_config.json",
+          "sha256": "e5e02157e91087a42c2f28a3edde19fec44a458558c2a657959787c6089a69d4",
+          "size_bytes": 3103
+        },
+        {
+          "path": "head.safetensors",
+          "sha256": "05b9d0c49f5df117ea43cf6c55159ffd2e7aab876e67cd69bd13911ff7fb627a",
+          "size_bytes": 5245232
+        },
+        {
+          "path": "model-00001-of-00002.safetensors",
+          "sha256": "997f4bada8201806d8488c1d9410efebb70b559203737c9ffc60008855b62618",
+          "size_bytes": 4906172928
+        },
+        {
+          "path": "model-00002-of-00002.safetensors",
+          "sha256": "c3b6d0aa087acfae5892f118988937bd99dd6c61971f6c2c4547a5ebe590a4d1",
+          "size_bytes": 1614693776
+        },
+        {
+          "path": "model.safetensors.index.json",
+          "sha256": "b848c89eddb3d741bf844463d4fa85550eddf8f1466358022770a453704ac672",
+          "size_bytes": 138539
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "12bac982b793c44b03d52a250a9f0d0b666813da566b910c24a6da0695fd11e6",
+          "size_bytes": 32170070
+        },
+        {
+          "path": "tokenizer_config.json",
+          "sha256": "8864c956f60cff565a413632d7728db8deab1253052a29b9064bf68128dd450b",
+          "size_bytes": 1528
+        }
+      ],
+      "artifact_patterns": [
+        "README.md",
+        "config.json",
+        "d1a-avatar.png",
+        "d1a_config.json",
+        "head.safetensors",
+        "model-00001-of-00002.safetensors",
+        "model-00002-of-00002.safetensors",
+        "model.safetensors.index.json",
+        "tokenizer.json",
+        "tokenizer_config.json"
+      ],
+      "bits": 8,
+      "comparison_group": "d1a-e4b-version-comparison",
+      "conversion": "mlx-decision native converter using the pinned source model revision; one-shard-at-a-time quantization",
+      "device": "mlx-metal",
+      "display_name": "D1A-E4B v0.5 MLX 8-bit",
+      "disposition": "selected",
+      "id": "d1a-e4b-v0-5-mlx-8bit",
+      "license": "Apache-2.0",
+      "max_input_tokens": null,
+      "memory_metric": "same 8-bit E4B MLX model family; upstream v0.6.1 card reports 7.48 GB for the current build",
+      "model": {
+        "id": "JohnP1/d1a-e4b-mlx-q8",
+        "revision": "8d77f101ac49c9ad604e383123de5568f5dd117e"
+      },
+      "precision": "8bit",
+      "reported_memory_gb": 7.48,
+      "resource_floor": {
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 26843545600,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "kind": "d1a",
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/d1a-mlx.lock",
+        "lock_sha256": "5ded5b0d1ab407f9871a5a486a191b685e3773864cfdfa28d7bde5c1b6049eca",
+        "packages": {
+          "d1a": "0.5.0",
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.2",
+          "mlx-lm": "0.31.3",
+          "numpy": "2.5.4",
+          "safetensors": "0.8.0",
+          "transformers": "5.20.2"
+        },
+        "python_version": "3.13.15",
+        "source_repository": "https://github.com/jonpol01/d1a",
+        "source_revision": "95d251729bdf916ec768ea985c6f9a9fe7b3c641"
+      },
+      "screening_note": "Pin the v0.5 checkpoint for a matched DMS-20 quality and latency comparison against D1A-E4B v0.6.1. The upstream card recommends v0.5 for hard-decision-style tasks; measure speed rather than assuming a version-to-version speed difference.",
+      "tokenizer": {
+        "id": "JohnP1/d1a-e4b-mlx-q8",
+        "revision": "8d77f101ac49c9ad604e383123de5568f5dd117e"
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "README.md",
+          "sha256": "7ca715950028ff030bbc8cca5e762d3bf538331e55996f8691a974aae4c0b30b",
+          "size_bytes": 17870
+        },
+        {
+          "path": "config.json",
+          "sha256": "0bdb3e6a8ad2835ec07acee6011dc2d909fb7aff5cca0fbe8deecc799bab3895",
+          "size_bytes": 5188
+        },
+        {
+          "path": "d1a_config.json",
+          "sha256": "e5e02157e91087a42c2f28a3edde19fec44a458558c2a657959787c6089a69d4",
+          "size_bytes": 3103
+        },
+        {
+          "path": "head.safetensors",
+          "sha256": "05b9d0c49f5df117ea43cf6c55159ffd2e7aab876e67cd69bd13911ff7fb627a",
+          "size_bytes": 5245232
+        },
+        {
+          "path": "model-00001-of-00002.safetensors",
+          "sha256": "997f4bada8201806d8488c1d9410efebb70b559203737c9ffc60008855b62618",
+          "size_bytes": 4906172928
+        },
+        {
+          "path": "model-00002-of-00002.safetensors",
+          "sha256": "c3b6d0aa087acfae5892f118988937bd99dd6c61971f6c2c4547a5ebe590a4d1",
+          "size_bytes": 1614693776
+        },
+        {
+          "path": "model.safetensors.index.json",
+          "sha256": "b848c89eddb3d741bf844463d4fa85550eddf8f1466358022770a453704ac672",
+          "size_bytes": 138539
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "12bac982b793c44b03d52a250a9f0d0b666813da566b910c24a6da0695fd11e6",
+          "size_bytes": 32170070
+        },
+        {
+          "path": "tokenizer_config.json",
+          "sha256": "8864c956f60cff565a413632d7728db8deab1253052a29b9064bf68128dd450b",
+          "size_bytes": 1528
+        }
+      ],
+      "artifact_patterns": [
+        "README.md",
+        "config.json",
+        "d1a_config.json",
+        "head.safetensors",
+        "model-00001-of-00002.safetensors",
+        "model-00002-of-00002.safetensors",
+        "model.safetensors.index.json",
+        "tokenizer.json",
+        "tokenizer_config.json"
+      ],
+      "bits": 8,
+      "comparison_group": "mlx-decision-under-12gb",
+      "conversion": "mlx-decision native converter using the pinned source model revision; one-shard-at-a-time quantization",
+      "device": "mlx-metal",
+      "display_name": "D1A-E4B v0.6.1 MLX 8-bit",
+      "disposition": "selected",
+      "id": "d1a-e4b-mlx-8bit",
+      "license": "Apache-2.0",
+      "max_input_tokens": null,
+      "memory_metric": "MLX model size on Hub; upstream model card reports about 6 GB weights plus up to 1 GB of media encoders",
+      "model": {
+        "id": "mlx-community/d1a-e4b-8bit",
+        "revision": "d2149d2397948a535654741fd46e0024656bdbf8"
+      },
+      "precision": "8bit",
+      "reported_memory_gb": 7.48,
+      "resource_floor": {
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 26843545600,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "kind": "d1a",
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/d1a-mlx.lock",
+        "lock_sha256": "5ded5b0d1ab407f9871a5a486a191b685e3773864cfdfa28d7bde5c1b6049eca",
+        "packages": {
+          "d1a": "0.5.0",
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.2",
+          "mlx-lm": "0.31.3",
+          "numpy": "2.5.4",
+          "safetensors": "0.8.0",
+          "transformers": "5.20.2"
+        },
+        "python_version": "3.13.15",
+        "source_repository": "https://github.com/jonpol01/d1a",
+        "source_revision": "95d251729bdf916ec768ea985c6f9a9fe7b3c641"
+      },
+      "screening_note": "Uses the D1A decision head, not ordinary text generation. DMS-20 is text-only; media encoders are not needed. Pin v0.6.1; upstream notes lower hard-decision quality than v0.5.",
+      "tokenizer": {
+        "id": "mlx-community/d1a-e4b-8bit",
+        "revision": "d2149d2397948a535654741fd46e0024656bdbf8"
+      }
+    }
+  ],
+  "runnable_cohort": [
+    "clef-flash-mlx-8bit",
+    "pplx-decider-flash-v1-2",
+    "d3-flash-mlx-8bit",
+    "d3-mini",
+    "d3-nano",
+    "d3-lite",
+    "d3-edge",
+    "h2o-lightning-4b-mlx-8bit",
+    "liquidai-d1-3b",
+    "laya",
+    "laya-typed-decisions",
+    "laya-multilingual",
+    "d1a-e4b-v0-5-mlx-8bit",
+    "d1a-e4b-mlx-8bit"
+  ],
+  "runtimes": {
+    "d1a": {
+      "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/d1a-mlx.lock",
+      "lock_sha256": "5ded5b0d1ab407f9871a5a486a191b685e3773864cfdfa28d7bde5c1b6049eca",
+      "source_revision": "95d251729bdf916ec768ea985c6f9a9fe7b3c641"
+    },
+    "mlx-decision": {
+      "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+      "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+      "source_revision": "d3e239a8c8c2afb362725f94c5076b90221168a5"
+    }
+  },
+  "status": "approved for execution under the active user goal"
+}
