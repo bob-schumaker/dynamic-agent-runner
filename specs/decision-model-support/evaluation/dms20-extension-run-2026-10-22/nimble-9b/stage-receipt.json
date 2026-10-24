@@ -1,0 +1,25 @@
+{
+  "candidate_id": "nimble-9b",
+  "matrix_sha256": "fb5594a36e54808121cf1d87c599a42e06cb0b2ddae61f9b92aedf7e0b934f6b",
+  "repositories": [
+    [
+      "Qwen/Qwen3.5-9B",
+      "c202236235762e1c871ad0ccb60c8ee5ba337b9a"
+    ],
+    [
+      "bespokelabs/Bespoke-Nimble-9B",
+      "bd792f44ec8e265be861bfcdf4e05967ffe0e858"
+    ]
+  ],
+  "resource_preflight": {
+    "after_stage": {
+      "free_disk_bytes": 12890628096,
+      "free_memory_bytes_estimate": 33243046871
+    },
+    "before_stage": {
+      "free_disk_bytes": 29877919744,
+      "free_memory_bytes_estimate": 33629593927
+    }
+  },
+  "verified": true
+}

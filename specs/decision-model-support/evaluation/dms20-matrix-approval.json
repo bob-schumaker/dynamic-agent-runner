@@ -1,0 +1,19 @@
+{
+  "approval_scope": "one approval for the complete four-row matrix, including the named Lev execution-base variant and both provenance limitations",
+  "approval_source": "User requested execution of DMS-20 for all four leads, including the pinned Lev execution variant; matrix v2 corrects the pinned Lev public Choice import and binds the updated harness digest.",
+  "approved": true,
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "dispositions": {
+    "julia-1": "selected",
+    "kev-4b": "selected",
+    "lev": "selected",
+    "strands-decider-2b": "selected"
+  },
+  "matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "runnable_cohort": [
+    "julia-1",
+    "kev-4b",
+    "lev",
+    "strands-decider-2b"
+  ]
+}

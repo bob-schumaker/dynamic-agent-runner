@@ -1,0 +1,269 @@
+{
+  "candidates": {
+    "julia-1": {
+      "calibration": {
+        "n": 0,
+        "status": "unavailable; no common comparable probability outputs"
+      },
+      "canonical": {
+        "accuracy": 0.5321637426900585,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.4270833333333333,
+            "correct": 41,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.8620689655172413,
+            "correct": 100,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.35,
+            "correct": 28,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.22413793103448276,
+            "correct": 26,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.55,
+            "correct": 44,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.55,
+            "correct": 44,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.6982758620689655,
+            "correct": 81,
+            "total": 116
+          }
+        },
+        "correct": 364,
+        "macro_accuracy": 0.5230808702791462,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.4881876026272578,
+          "upper": 0.5576983271756978
+        },
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 216,
+        "flip_rate": 0.3157894736842105,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.5365497076023392,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.46875,
+            "correct": 45,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.853448275862069,
+            "correct": 99,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.45,
+            "correct": 36,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.21551724137931033,
+            "correct": 25,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.525,
+            "correct": 42,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.5375,
+            "correct": 43,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.6637931034482759,
+            "correct": 77,
+            "total": 116
+          }
+        },
+        "correct": 367,
+        "macro_accuracy": 0.5305726600985221,
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      }
+    },
+    "lev": {
+      "calibration": {
+        "n": 0,
+        "status": "unavailable; no common comparable probability outputs"
+      },
+      "canonical": {
+        "accuracy": 0.7821637426900585,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.6666666666666666,
+            "correct": 64,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.6724137931034483,
+            "correct": 78,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.8375,
+            "correct": 67,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.6982758620689655,
+            "correct": 81,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.8,
+            "correct": 64,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.8875,
+            "correct": 71,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.9482758620689655,
+            "correct": 110,
+            "total": 116
+          }
+        },
+        "correct": 535,
+        "macro_accuracy": 0.7872331691297209,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.7573062910509031,
+          "upper": 0.8163077278325124
+        },
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 0,
+        "flip_rate": 0.0,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.7821637426900585,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.6666666666666666,
+            "correct": 64,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.6724137931034483,
+            "correct": 78,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.8375,
+            "correct": 67,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.6982758620689655,
+            "correct": 81,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.8,
+            "correct": 64,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.8875,
+            "correct": 71,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.9482758620689655,
+            "correct": 110,
+            "total": 116
+          }
+        },
+        "correct": 535,
+        "macro_accuracy": 0.7872331691297209,
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      }
+    }
+  },
+  "paired_bootstrap": {
+    "julia-1_vs_lev": {
+      "bootstrap_95": {
+        "lower": -0.30649758825944173,
+        "upper": -0.22161253078817736
+      },
+      "macro_accuracy_difference": -0.2641522988505747
+    },
+    "lev_vs_julia-1": {
+      "bootstrap_95": {
+        "lower": 0.22161253078817736,
+        "upper": 0.30649758825944173
+      },
+      "macro_accuracy_difference": 0.2641522988505747
+    }
+  },
+  "protocol": {
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 14,
+    "bootstrap_stratification": "item IDs sampled with replacement within task; shared samples across candidates",
+    "common_probability_item_count": 0,
+    "invalid_missing_and_abstaining_are_incorrect": true,
+    "item_count": 684,
+    "option_orders": [
+      "canonical",
+      "reversed"
+    ],
+    "point_leader": "lev",
+    "primary_metric": "equally weighted macro accuracy on canonical option order",
+    "task_categories": [
+      "composition_holdout",
+      "emotion",
+      "legacy_holdout",
+      "mmlu",
+      "paws",
+      "qnli",
+      "sciq"
+    ]
+  },
+  "ranking": [
+    {
+      "candidate": "lev",
+      "macro_accuracy": 0.7872331691297209,
+      "rank": 1
+    },
+    {
+      "candidate": "julia-1",
+      "macro_accuracy": 0.5230808702791462,
+      "rank": 2
+    }
+  ]
+}

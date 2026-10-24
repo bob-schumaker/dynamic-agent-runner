@@ -1,0 +1,26 @@
+{
+  "approval_verified": true,
+  "candidate_stage_attempt": "tev1-0.8b",
+  "dedicated_cache": {
+    "path": "/private/tmp/dms20-extension-model-cache",
+    "size_bytes": 0
+  },
+  "matrix_sha256": "41ead8da2fcf8f5406e4371d4fcffb7dc13cb0a124c577d3f8dc11d4f3f27e2e",
+  "next_action": "Resume the approved stage command after outbound HTTPS to Hugging Face is available from the host, or after the exact pinned model snapshots are placed in the dedicated material cache. No shared model-cache cleanup is required; current free disk passed all three frozen row floors.",
+  "observed_at": "2026-10-23T02:37:22Z",
+  "resource_preflight": {
+    "free_disk_bytes": 39990988800,
+    "memory_bytes": 38654705664,
+    "mps_available": true,
+    "system_memory_free_percent": 80
+  },
+  "transfer": {
+    "evidence": [
+      "Direct HTTPS HEAD to huggingface.co from the host Herdr terminal timed out after 15 seconds.",
+      "The approved Hugging Face snapshot staging process remained at outbound TCP SYN_SENT with zero transferred bytes for 2 minutes 12 seconds; it was interrupted.",
+      "No pinned model files were written to the dedicated extension cache."
+    ],
+    "inference_started": false,
+    "status": "blocked"
+  }
+}

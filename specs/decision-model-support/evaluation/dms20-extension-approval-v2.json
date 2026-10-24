@@ -1,0 +1,19 @@
+{
+  "approval_scope": "one approval for all three requested DMS-20 extension rows, bound to the shared corpus, protocol, harness, exact model/tokenizer/source revisions, runtime, and host resource floors",
+  "approval_source": "User explicitly directed: run the remaining models in DMS-20. The earlier user confirmation of local research use for both Tev1 checkpoints remains in force.",
+  "approved": true,
+  "approved_at": "2026-10-23T20:55:32.691564Z",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "dispositions": {
+    "nimble-9b": "selected",
+    "tev1-0.8b": "selected",
+    "tev1-4b": "selected"
+  },
+  "matrix_sha256": "97eb577bbf01dc2cb6a4a489349495a0b16241a0bb95bbaaeee3f7dfb44dc2cc",
+  "original_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "runnable_cohort": [
+    "tev1-4b",
+    "tev1-0.8b",
+    "nimble-9b"
+  ]
+}

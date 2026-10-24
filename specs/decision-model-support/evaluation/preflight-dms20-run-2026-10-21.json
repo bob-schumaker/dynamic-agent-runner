@@ -1,0 +1,51 @@
+{
+  "approval_receipt_sha256": "241babd0e6e01b4e1cd731490d06db22c74be047d3b1d60beda6b345906dabb0",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "free_disk_bytes": 3264036864,
+  "free_memory_estimate_bytes": 20100446945,
+  "host_platform": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+  "matrix_run_allowed": false,
+  "matrix_sha256": "78d925084d7e4328b5e403c41d62eb6f98162ef55354e8fb8b221d4fc87363d0",
+  "observed_at": "2026-10-22T05:22:38+00:00",
+  "physical_memory_bytes": 38654705664,
+  "rows": {
+    "julia-1": {
+      "failures": 0,
+      "measurement_sha256": "9dd01dc56ad33a2f86728d57dc6567fa5540af0342d6e55ecad57d6605564770",
+      "prediction_count": 1368,
+      "predictions_sha256": "9631f83f0a1b8973514e1744c33664c1e793179217b128d42805a7559d21a970",
+      "status": "completed"
+    },
+    "kev-4b": {
+      "candidate_material_downloaded": false,
+      "current_free_disk_bytes": 3264036864,
+      "current_free_memory_estimate_bytes": 20100446945,
+      "inference_performed": false,
+      "reason": "current free disk is below the approved candidate floor",
+      "required_free_disk_before_stage_bytes": 16106127360,
+      "run_allowed": false,
+      "status": "not_started_resource_gate"
+    },
+    "lev": {
+      "candidate_material_downloaded": false,
+      "current_free_disk_bytes": 3264036864,
+      "current_free_memory_estimate_bytes": 20100446945,
+      "inference_performed": false,
+      "reason": "current free disk is below the approved candidate floor",
+      "required_free_disk_before_stage_bytes": 16106127360,
+      "run_allowed": false,
+      "status": "not_started_resource_gate"
+    },
+    "strands-decider-2b": {
+      "candidate_material_downloaded": false,
+      "current_free_disk_bytes": 3264036864,
+      "current_free_memory_estimate_bytes": 20100446945,
+      "inference_performed": false,
+      "reason": "current free disk is below the approved candidate floor",
+      "required_free_disk_before_stage_bytes": 10737418240,
+      "run_allowed": false,
+      "status": "not_started_resource_gate"
+    }
+  },
+  "system_memory_free_percent": 52
+}

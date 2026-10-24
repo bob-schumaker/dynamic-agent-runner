@@ -1,0 +1,52 @@
+{
+  "approval_receipt_sha256": "66667646c3980c4f11670f140f06c6adf4f67b6ea4a9fae3464e611ca303a906",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "matrix_sha256": "4e4d0c4fe22d413c5337b8676790a587719aec18a33d1172efce465f1d3cfee1",
+  "preflight_observed_at": "2026-10-22T05:22:38+00:00",
+  "preflight_path": "preflight-dms20-run-2026-10-21.json",
+  "preflight_sha256": "582a6195de44a99e8a55c726d181695ee6d141b52da3f41619c1537773f4418a",
+  "rows": [
+    {
+      "candidate_id": "julia-1",
+      "failures": 0,
+      "measurement_sha256": "9dd01dc56ad33a2f86728d57dc6567fa5540af0342d6e55ecad57d6605564770",
+      "prediction_count": 1368,
+      "predictions_sha256": "9631f83f0a1b8973514e1744c33664c1e793179217b128d42805a7559d21a970",
+      "status": "completed"
+    },
+    {
+      "candidate_id": "kev-4b",
+      "cold_load_ms": 32493.14862501342,
+      "failures": 0,
+      "max_normalized_content_tokens": 366,
+      "measurements_sha256": "259d541ee38071f0c390d9b04daa7fa51e377a8cd024ad3a29d4f28bd6f119c5",
+      "peak_rss_bytes": 18419433472,
+      "prediction_count": 1368,
+      "predictions_sha256": "d07dd9784ad398ca3429809cb52af80f82a4a63486dc636ec093fbe2bf161448",
+      "status": "completed"
+    },
+    {
+      "candidate_id": "lev",
+      "candidate_material_downloaded": false,
+      "current_free_disk_bytes": 3264036864,
+      "current_free_memory_estimate_bytes": 20100446945,
+      "inference_performed": false,
+      "reason": "current free disk is below the approved candidate floor",
+      "required_free_disk_before_stage_bytes": 16106127360,
+      "run_allowed": false,
+      "status": "not_started_resource_gate"
+    },
+    {
+      "candidate_id": "strands-decider-2b",
+      "candidate_material_downloaded": false,
+      "current_free_disk_bytes": 3264036864,
+      "current_free_memory_estimate_bytes": 20100446945,
+      "inference_performed": false,
+      "reason": "current free disk is below the approved candidate floor",
+      "required_free_disk_before_stage_bytes": 10737418240,
+      "run_allowed": false,
+      "status": "not_started_resource_gate"
+    }
+  ],
+  "status": "partial; Julia-1 and Kev-4B completed; Lev and Strands remain to run"
+}
