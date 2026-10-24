@@ -1,0 +1,309 @@
+{
+  "approval_scope": "One additional Nimble execution variant, bound to the exact existing Nimble adapter/base revisions, optimized-kernel Git commit and source hashes, runtime lock, runner/evaluator files, shared DMS-20 corpus, protocol, and resource floors. Preserve the approved Nimble baseline and all prior DMS-20 artifacts. Diagnostic smoke rerun with persisted logits diagnostics; prior full-run artifacts are preserved.",
+  "approval_source": "User explicitly requested: rerun the diagnostic Nimble MPS harness (2026-10-24).",
+  "artifact_download_allow_patterns": [
+    "*.json",
+    "*.safetensors",
+    "*.py",
+    "*.jinja",
+    "*.model",
+    "*.txt"
+  ],
+  "artifact_download_ignore_patterns": [
+    "README.md",
+    "*.jsonl",
+    "*.png",
+    "*.svg"
+  ],
+  "baseline_comparison": {
+    "candidate_id": "nimble-9b",
+    "mean_inference_latency_ms": 1863.194064709987,
+    "measurements_path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/nimble-9b/measurements.json",
+    "measurements_sha256": "52d4ece2ed9c12b4f8b1929e5187cfb480e4b78ed4f0779f3a088a430a61d1ab",
+    "mps_device_peak_bytes": 20559757312,
+    "peak_rss_bytes": 5760253952,
+    "prediction_count": 1368,
+    "predictions_path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/nimble-9b/predictions.jsonl",
+    "predictions_sha256": "2ec0696fc7f6d4ee5f7473f5977593dc1547676cb909a2fcda841bb23d08757b"
+  },
+  "baseline_extension_matrix_path": "specs/decision-model-support/evaluation/dms20-extension-matrix-v3.json",
+  "baseline_extension_matrix_sha256": "fb5594a36e54808121cf1d87c599a42e06cb0b2ddae61f9b92aedf7e0b934f6b",
+  "baseline_followup_receipt_path": "specs/decision-model-support/evaluation/dms20-followup-run-receipt-2026-10-23.json",
+  "baseline_followup_receipt_sha256": "feb863cb86cdff3dfcc038162ddac46894d01f0dca4c6b7f54763c2bf3dccdbc",
+  "corpus_manifest": "dms14-corpus-manifest.json",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "harness_files": [
+    {
+      "path": "tests/manual/run_dms20_nimble_mps.py",
+      "sha256": "01e2f5cf4bc92d3fdaf5f9dd2968668474a3f4bf510e4c51a9836805e9a15143"
+    },
+    {
+      "path": "tests/manual/run_dms20_extension.py",
+      "sha256": "341814b869d3174dccaedb13e825f11484ed3fed0ab6e040b6862e34d55276cf"
+    },
+    {
+      "path": "tests/manual/run_dms20_transfer.py",
+      "sha256": "118eec7bc5f50b86b75f5ee8023f9174302e0b8e9a84f018d6adf46edcabb195"
+    },
+    {
+      "path": "scripts/evaluate_decision_transfer.py",
+      "sha256": "c92540a599754aeffc0b761852c49f0d01daa0e4953e9f012973deb46b94e3cd"
+    },
+    {
+      "path": "specs/decision-model-support/evaluation/dms20-runtimes/qwen-mps-linear-attn.lock",
+      "sha256": "461f99b6fff9db15a73c73ec65ef32dc3b81018b616d2b05777ac5b2cfdc1cd0"
+    }
+  ],
+  "host_preflight": {
+    "device": "MPS",
+    "free_disk_bytes": 37745324032,
+    "free_memory_bytes_estimate": 32083405701,
+    "memory_bytes": 38654705664,
+    "observed_at": "2026-10-24T00:55:05.002943+00:00",
+    "platform": "macOS-26.7.1-arm64",
+    "resource_gate": "repeat before model staging/loading; abort below Nimble row floors",
+    "system_memory_free_percent": 83
+  },
+  "input_files": {
+    "gold_labels": {
+      "path": "/private/tmp/dms20-nimble-mps-data/gold-labels.jsonl",
+      "sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec"
+    },
+    "normalized_inputs": {
+      "path": "/private/tmp/dms20-nimble-mps-data/normalized-inputs.jsonl",
+      "sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148"
+    }
+  },
+  "item_count": 684,
+  "matrix_id": "DMS-20 Nimble-9B optimized MPS kernel comparison",
+  "matrix_version": 1,
+  "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "original_matrix_path": "specs/decision-model-support/evaluation/dms20-matrix.json",
+  "original_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "protocol": {
+    "input_policy": "Use the original approved DMS-20 content limit of 3584 tokenizer tokens and reserve 512 tokens for model-specific formatting. Count with each candidate tokenizer; fail closed without truncation.",
+    "invalid_missing_abstaining": "incorrect",
+    "model_prompt_token_limit": 4096,
+    "normalized_content_token_limit": 3584,
+    "option_orders": [
+      "canonical",
+      "reversed"
+    ],
+    "paired_bootstrap_resamples": 10000,
+    "paired_bootstrap_seed": 14,
+    "paired_bootstrap_strata": "source category; identical item IDs across candidates",
+    "primary_metric": "equally weighted macro accuracy on canonical option order",
+    "primary_order": "canonical",
+    "probability_metrics": "raw Brier and top-label ECE; no calibration fitting",
+    "prompt_format_reserve_tokens": 512,
+    "sensitivity_order": "reverse all options while preserving option IDs and gold labels",
+    "thresholds": {
+      "macro_accuracy_min": 0.75,
+      "per_category_accuracy_min": 0.4
+    }
+  },
+  "result_policy": "local comparative research only; the baseline row and prior DMS-20 results remain unchanged; no production or context-management admission",
+  "rows": [
+    {
+      "artifact_files": [
+        {
+          "path": "adapter_config.json",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "5792ef631d28de863803804c320c25b219405d5f09b1980f147096cbaa48e17e"
+        },
+        {
+          "path": "adapter_model.safetensors",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "29ef39b072dee97287947455337879c1e916705c2f727287922a2d81f5e2f20a",
+          "size_bytes": 173188512
+        },
+        {
+          "path": "inference.py",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "0110b1cca75466c8e5a7fb1c59eac475d239e8e5e43b4cb4b9e465f53a54a357"
+        },
+        {
+          "path": "parallel_schema.py",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "a0a0f94d0f65e972bc20d088678ad3d595ff1c42b9c0d78f96034526303f63fc"
+        },
+        {
+          "path": "schema_config.json",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "8270da0e2ed5fdaad186377876d3ebc702b8bd551a13732a379523791d064da5"
+        },
+        {
+          "path": "serving_config.json",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "bdbc9471b3e62e3b57ef48274f354aac9c18bc4432fd2497b7cd329b17617676"
+        },
+        {
+          "path": "serving_schema.py",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "17b81d6cc3e26ec501e24f1609615f2386f974b618119b7a7102319c330c31ac"
+        },
+        {
+          "path": "chat_template.jinja",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715"
+        },
+        {
+          "path": "tokenizer.json",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523"
+        },
+        {
+          "path": "tokenizer_config.json",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "9cf04fffe3d8c3b85e439fb35c7acad0761ab51c422a8c4256d9f887c3a0be7d"
+        },
+        {
+          "path": "temperature_config.json",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "9fce83f9c8b88e7ef7f9dbc27adb1a9bd927755dbb93ad67a687df14e44e2113"
+        },
+        {
+          "path": "model.safetensors-00001-of-00004.safetensors",
+          "repository": "Qwen/Qwen3.5-9B",
+          "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+          "sha256": "db6f444b43d318c92f360a13a25561a6a65b10c0631b8ed305a426dbaa6c380e"
+        },
+        {
+          "path": "model.safetensors-00002-of-00004.safetensors",
+          "repository": "Qwen/Qwen3.5-9B",
+          "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+          "sha256": "31c7d7e2dd5d207840b31cc59083c8f4c4718959149e0358c0364052bb9a0330"
+        },
+        {
+          "path": "model.safetensors-00003-of-00004.safetensors",
+          "repository": "Qwen/Qwen3.5-9B",
+          "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+          "sha256": "7ec36ba3a4176a44c3c0876ad80c56a2f70c84bf008d82e9501df642f17dadec"
+        },
+        {
+          "path": "model.safetensors-00004-of-00004.safetensors",
+          "repository": "Qwen/Qwen3.5-9B",
+          "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+          "sha256": "b62b0c4cd7e44edee103ee8f4fe225f246d5e768e07bfd5f25b63a8aa1fdd0c6"
+        }
+      ],
+      "base_model": {
+        "id": "Qwen/Qwen3.5-9B",
+        "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+        "size_bytes": 19306310880
+      },
+      "device": "mps",
+      "disposition": "selected",
+      "execution_variant": "Same pinned Nimble adapter and Qwen3.5-9B base, loaded unmerged with PEFT on MPS BF16. Import the pinned mps-linear-attn package before Transformers; route full-prompt chunk_gated_delta_rule calls to its fused_recurrent_gated_delta_rule implementation so the compiled Metal delta-rule kernel is used. Count the Metal delta_rule_fused and causal_conv1d entry points and fail if either is not invoked.",
+      "id": "nimble-9b-mps-linear-attn",
+      "license_note": "Bespoke Nimble adapter and Qwen3.5 base declare Apache-2.0.",
+      "max_options": 24,
+      "max_state_tokens": 4096,
+      "model": {
+        "id": "bespokelabs/Bespoke-Nimble-9B",
+        "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858"
+      },
+      "optimizer": {
+        "compatibility_note": "Native build and exact runtime compatibility must pass smoke before full DMS inference.",
+        "kernel_calls_required": [
+          "delta_rule_fused",
+          "causal_conv1d"
+        ],
+        "license": "MIT (declared in pyproject.toml)",
+        "package": "mps-linear-attn",
+        "repository": "https://github.com/mpsops/mps-linear-attention",
+        "revision": "f0889940cf168dcc9e2541b061875835e63a095e",
+        "source_files": [
+          {
+            "path": "README.md",
+            "sha256": "02a5d4688db3ee89395d386882305efc0834c2d9d29b1680d9f536b70389bd6d"
+          },
+          {
+            "path": "pyproject.toml",
+            "sha256": "719f4ba26dc9936f4dfb4086ae353585e57aa5b49586e1d76fded67e35f0e2d6"
+          },
+          {
+            "path": "setup.py",
+            "sha256": "79a03c908229efc5860733f81f42801809e4e475e79cee61ff06d51d4b79d77c"
+          },
+          {
+            "path": "mps_linear_attn/__init__.py",
+            "sha256": "274549d83a863dcb7a37cfea98a592084a17962f286807899238dba294fd77e0"
+          },
+          {
+            "path": "mps_linear_attn/causal_conv1d.py",
+            "sha256": "26ac245f598d7ffe2e065997f9546dc4a8c0a8e1253b86c2a883824404b546d3"
+          },
+          {
+            "path": "mps_linear_attn/delta_rule.py",
+            "sha256": "4e7fa4ee7bb54742873f03f628d11b219a56851c2e254e3e32948368960a055d"
+          },
+          {
+            "path": "mps_linear_attn/csrc/mla.mm",
+            "sha256": "3d101763a07f6aa0ba4dc182b052ba805da0716db3ca4d6aa9520cef6bab2b89"
+          },
+          {
+            "path": "mps_linear_attn/csrc/kernels.metal",
+            "sha256": "084e27fcf19489e9f55089e42bbd2a9178233a7f39cdf20ba8b357b3893a7d1d"
+          },
+          {
+            "path": "mps_linear_attn/utils.py",
+            "sha256": "7a11409e6bf9c9fd781bd7871d74c5999750c99247ef1fde2cae9deaa1ee2088"
+          }
+        ],
+        "version": "0.1.0"
+      },
+      "precision": "bfloat16",
+      "resource_floor": {
+        "measured_peak_rss_required": true,
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 25769803776,
+        "minimum_free_memory_bytes": 25769803776
+      },
+      "runtime": {
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/qwen-mps-linear-attn.lock",
+        "lock_sha256": "461f99b6fff9db15a73c73ec65ef32dc3b81018b616d2b05777ac5b2cfdc1cd0",
+        "optimizer_repository": "https://github.com/mpsops/mps-linear-attention",
+        "optimizer_revision": "f0889940cf168dcc9e2541b061875835e63a095e",
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "mps-linear-attn": "0.1.0",
+          "numpy": "2.5.3",
+          "peft": "0.21.0",
+          "safetensors": "0.8.0",
+          "torch": "2.8.0",
+          "transformers": "5.17.0"
+        },
+        "python_version": "3.13.15"
+      },
+      "source": {
+        "id": "bespokelabs/Bespoke-Nimble-9B pinned source bundle",
+        "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858"
+      },
+      "task_mapping": "Map each request to one enum field named decision, use the source question as the field description, preserve option IDs as enum values and option labels as descriptions, and use the pinned Nimble serving_schema.py prompt builder. Read candidate token logits, then softmax at the published unfitted temperature 1.0.",
+      "tokenizer": {
+        "id": "bespokelabs/Bespoke-Nimble-9B",
+        "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+        "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523"
+      },
+      "training_provenance": "Nimble provenance pins Qwen/Qwen3.5-9B@c202236235762e1c871ad0ccb60c8ee5ba337b9a; the execution uses that same base revision."
+    }
+  ],
+  "runnable_cohort": [
+    "nimble-9b-mps-linear-attn"
+  ],
+  "status": "approved_for_execution"
+}
