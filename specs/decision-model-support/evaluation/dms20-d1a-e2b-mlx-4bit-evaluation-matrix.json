@@ -1,0 +1,133 @@
+{
+  "approval_scope": "One 4-bit MLX optimization row d1a-e2b-mlx-4bit; generated artifact hashes are bound to this evaluation matrix and compared against the original DMS-20 8-bit candidate output.",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "harness_files": [
+    {
+      "path": "tests/manual/run_dms20_mlx_4bit.py",
+      "sha256": "f652ef5af809845f6436d37b8feb0475fb5eb165621f025ce0eb63ccd9430894"
+    },
+    {
+      "path": "tests/manual/run_dms20_mlx_extension.py",
+      "sha256": "9b62b354b39b9f5503082c700be29190fab41882484060b3aa595d680fc4ca64"
+    },
+    {
+      "path": "tests/manual/run_dms20_transfer.py",
+      "sha256": "118eec7bc5f50b86b75f5ee8023f9174302e0b8e9a84f018d6adf46edcabb195"
+    },
+    {
+      "path": "scripts/evaluate_decision_transfer.py",
+      "sha256": "c92540a599754aeffc0b761852c49f0d01daa0e4953e9f012973deb46b94e3cd"
+    }
+  ],
+  "item_count": 684,
+  "matrix_id": "DMS-20 d1a-e2b-mlx-4bit evaluation",
+  "matrix_version": 1,
+  "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "original_matrix_path": "dms20-matrix.json",
+  "original_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "protocol": {
+    "input_policy": "Use the original approved DMS-20 content limit of 3584 tokenizer tokens and reserve 512 tokens for model-specific formatting. Count with each candidate tokenizer; fail closed without truncation.",
+    "invalid_missing_abstaining": "incorrect",
+    "model_prompt_token_limit": 4096,
+    "normalized_content_token_limit": 3584,
+    "paired_bootstrap_resamples": 10000,
+    "paired_bootstrap_seed": 14,
+    "paired_bootstrap_strata": "source category; identical item IDs across candidates",
+    "primary_metric": "equal macro average of accuracy across the seven included source categories",
+    "primary_order": "canonical",
+    "probability_metrics": "raw Brier and top-label ECE; no calibration fitting",
+    "prompt_format_reserve_tokens": 512,
+    "sensitivity_order": "reverse all options while preserving option IDs and gold labels",
+    "thresholds": {
+      "macro_accuracy_min": 0.75,
+      "per_category_accuracy_min": 0.4
+    }
+  },
+  "result_policy": "Local comparative research only; retain the 8-bit baseline result unchanged. The conversion artifact is a temporary DMS-20-owned model and may be removed after evaluation.",
+  "rows": [
+    {
+      "artifact_files": [
+        {
+          "path": "README.md",
+          "sha256": "748c964f9b7e5f2c3770ce013bbc0153be7c54311d9692c343b6188eefe77ac6",
+          "size_bytes": 81
+        },
+        {
+          "path": "config.json",
+          "sha256": "75e69d8967ca6e50fabb61de0b9a8bf755bc9bcb17566820951bfd44df491613",
+          "size_bytes": 4655
+        },
+        {
+          "path": "d1a_config.json",
+          "sha256": "400b38f101de97f80867f10bb2aaf48c17bab6a1df4f8616a6c12f7d4c050aea",
+          "size_bytes": 7645
+        },
+        {
+          "path": "head.safetensors",
+          "sha256": "5b56c4f9da06b75a359da342e6002c6c73896033925b88e9e13c3757878e7447",
+          "size_bytes": 3148080
+        },
+        {
+          "path": "model.safetensors",
+          "sha256": "698d4f03a8fd75c4b9c76b67634a720dd6d54132a943d125284429ca4b545735",
+          "size_bytes": 2604122719
+        },
+        {
+          "path": "model.safetensors.index.json",
+          "sha256": "73914239147aea77ab9571f091ce48405493596b2ea61440f35fb78f2c993534",
+          "size_bytes": 95576
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "12bac982b793c44b03d52a250a9f0d0b666813da566b910c24a6da0695fd11e6",
+          "size_bytes": 32170070
+        },
+        {
+          "path": "tokenizer_config.json",
+          "sha256": "8864c956f60cff565a413632d7728db8deab1253052a29b9064bf68128dd450b",
+          "size_bytes": 1528
+        }
+      ],
+      "baseline_id": "d1a-e2b-8bit",
+      "baseline_predictions_sha256": "24fd9a663812a89aa7ee153348cf24bf9f1b7638836c379134a6de315674062d",
+      "candidate_id": "d1a-e2b-mlx-4bit",
+      "conversion_approval_path": "dms20-d1a-e2b-4bit-conversion-approval.json",
+      "conversion_approval_sha256": "49b31c36a74f40b20b8c575c46d63710d28e75ea442262243e9187dfed01c9ec",
+      "conversion_matrix_path": "dms20-d1a-e2b-4bit-conversion-matrix.json",
+      "conversion_matrix_sha256": "47bdecfbd09aea0dffdbb4235894f266b178066b22009a2fe865e14e0560c4a6",
+      "conversion_output_path": "/private/tmp/dms20-d1a-e2b-4bit-model",
+      "conversion_receipt_path": "d1a-e2b-mlx-4bit-conversion-2026-10-24/conversion-receipt.json",
+      "conversion_receipt_sha256": "2e3c284a630688ebdc9fa422651960fa37209348a45026b8f0800857ddeb9742",
+      "id": "d1a-e2b-8bit",
+      "model": {
+        "id": "mlx-community/d1a-e2b-8bit",
+        "revision": "25e3486031713d01cbdd90ea43b009b8a19dacf0"
+      },
+      "optimization_id": "d1a-e2b-mlx-4bit",
+      "precision": "affine 4-bit weights, group size 64",
+      "resource_floor": {
+        "minimum_free_disk_after_run_bytes": 2147483648,
+        "minimum_free_disk_before_run_bytes": 12884901888,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/d1a-mlx.lock",
+        "lock_sha256": "5ded5b0d1ab407f9871a5a486a191b685e3773864cfdfa28d7bde5c1b6049eca",
+        "packages": {
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.2",
+          "mlx-lm": "0.31.3",
+          "numpy": "2.5.4",
+          "safetensors": "0.8.0",
+          "transformers": "5.20.2"
+        },
+        "python_version": "3.13.15"
+      },
+      "source_matrix_sha256": "d9ca634d9ffea79c2fb78b7a4e863bd5db48c7de22877ba441c94f2993952b6a"
+    }
+  ],
+  "source_optimization_matrix_path": "dms20-mlx-matrix-v6.json",
+  "source_optimization_matrix_sha256": "d9ca634d9ffea79c2fb78b7a4e863bd5db48c7de22877ba441c94f2993952b6a",
+  "status": "approved for inference"
+}

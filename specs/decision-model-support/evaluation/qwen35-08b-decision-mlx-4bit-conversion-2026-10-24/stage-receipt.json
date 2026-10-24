@@ -1,0 +1,18 @@
+{
+  "matrix_sha256": "d4917db32c95f557c352328a22d6662539b46b533ccb473cfcf6a9556f8debc9",
+  "optimization_id": "qwen35-08b-decision-mlx-4bit",
+  "resource_preflight": {
+    "after_stage": {
+      "free_disk_bytes": 37673500672,
+      "free_memory_bytes_estimate": 32469952757,
+      "system_memory_free_percent": 84
+    },
+    "before_stage": {
+      "free_disk_bytes": 37673529344,
+      "free_memory_bytes_estimate": 32469952757,
+      "system_memory_free_percent": 84
+    }
+  },
+  "source_artifacts_verified": true,
+  "source_model": "/private/tmp/dms20-qwen35-08b-4bit-source/models--mlx-community--Qwen3.5-0.8B-decision/snapshots/67086958f49ccc3385404ba835924e897ee57c8a"
+}

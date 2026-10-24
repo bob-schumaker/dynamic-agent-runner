@@ -1,0 +1,10 @@
+{
+  "approval_scope": "Stage the exact d1a-e2b-8bit model snapshot and generate a local uniform affine 4-bit artifact with pinned mlx-lm 0.31.3.",
+  "approval_source": "User asked to run the remaining DMS-20 optimization variants; active goal is to complete the DMS-20 evaluation. This approval covers staging and conversion only; evaluation requires a separate approval bound to generated artifact hashes.",
+  "approved": true,
+  "matrix_sha256": "47bdecfbd09aea0dffdbb4235894f266b178066b22009a2fe865e14e0560c4a6",
+  "runnable_cohort": [
+    "d1a-e2b-mlx-4bit"
+  ],
+  "source_matrix_sha256": "d9ca634d9ffea79c2fb78b7a4e863bd5db48c7de22877ba441c94f2993952b6a"
+}

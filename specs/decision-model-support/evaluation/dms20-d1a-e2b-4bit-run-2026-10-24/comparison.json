@@ -1,0 +1,29 @@
+{
+  "baseline_id": "d1a-e2b-8bit",
+  "baseline_mean_latency_ms": 75.71398190679491,
+  "baseline_predictions_sha256": "24fd9a663812a89aa7ee153348cf24bf9f1b7638836c379134a6de315674062d",
+  "candidate_id": "d1a-e2b-mlx-4bit",
+  "canonical_macro_accuracy": 0.5958641215106733,
+  "category_accuracies": {
+    "composition_holdout": 0.5520833333333334,
+    "emotion": 0.5431034482758621,
+    "legacy_holdout": 0.6,
+    "mmlu": 0.4224137931034483,
+    "paws": 0.4625,
+    "qnli": 0.7375,
+    "sciq": 0.853448275862069
+  },
+  "choice_flips": 204,
+  "choice_match_count": 1133,
+  "invalid_predictions": 7,
+  "max_abs_score_delta": 0.48640000000000005,
+  "paired_valid_count": 1337,
+  "quality_gate": {
+    "macro_min": 0.75,
+    "passed": false,
+    "per_category_min": 0.4
+  },
+  "speedup": 1.0257189920674825,
+  "variant_mean_latency_ms": 73.81552110503738,
+  "variant_predictions_sha256": "7c7967f9bd4de93eed9ec126f1b69059324ed3f68741f0fcf259a9f73b4d1f0a"
+}

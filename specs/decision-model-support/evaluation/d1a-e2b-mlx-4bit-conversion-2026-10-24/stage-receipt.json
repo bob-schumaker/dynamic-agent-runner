@@ -1,0 +1,18 @@
+{
+  "matrix_sha256": "47bdecfbd09aea0dffdbb4235894f266b178066b22009a2fe865e14e0560c4a6",
+  "optimization_id": "d1a-e2b-mlx-4bit",
+  "resource_preflight": {
+    "after_stage": {
+      "free_disk_bytes": 30811463680,
+      "free_memory_bytes_estimate": 34016140984,
+      "system_memory_free_percent": 88
+    },
+    "before_stage": {
+      "free_disk_bytes": 34591350784,
+      "free_memory_bytes_estimate": 34016140984,
+      "system_memory_free_percent": 88
+    }
+  },
+  "source_artifacts_verified": true,
+  "source_model": "/private/tmp/dms20-d1a-e2b-4bit-source/models--mlx-community--d1a-e2b-8bit/snapshots/25e3486031713d01cbdd90ea43b009b8a19dacf0"
+}

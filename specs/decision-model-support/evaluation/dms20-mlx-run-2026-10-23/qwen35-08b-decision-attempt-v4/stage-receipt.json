@@ -1,0 +1,15 @@
+{
+  "candidate_id": "qwen35-08b-decision",
+  "matrix_sha256": "7a38826e7dc2c92bc338419861206b6bd550992c5b4b36d9cfdd6879ce6cd9bf",
+  "resource_preflight": {
+    "after_stage": {
+      "free_disk_bytes": 15251939328,
+      "free_memory_bytes_estimate": 28217935134
+    },
+    "before_stage": {
+      "free_disk_bytes": 15251828736,
+      "free_memory_bytes_estimate": 28217935134
+    }
+  },
+  "verified": true
+}

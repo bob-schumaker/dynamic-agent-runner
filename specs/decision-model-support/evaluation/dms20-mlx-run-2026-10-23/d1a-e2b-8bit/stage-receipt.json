@@ -1,0 +1,15 @@
+{
+  "candidate_id": "d1a-e2b-8bit",
+  "matrix_sha256": "d9ca634d9ffea79c2fb78b7a4e863bd5db48c7de22877ba441c94f2993952b6a",
+  "resource_preflight": {
+    "after_stage": {
+      "free_disk_bytes": 13933367296,
+      "free_memory_bytes_estimate": 34402688040
+    },
+    "before_stage": {
+      "free_disk_bytes": 13933510656,
+      "free_memory_bytes_estimate": 34402688040
+    }
+  },
+  "verified": true
+}

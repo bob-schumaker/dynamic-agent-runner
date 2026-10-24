@@ -1,0 +1,21 @@
+{
+  "baseline_id": "qwen35-08b-decision",
+  "baseline_mean_per_decision_latency_ms": 367.9216053700742,
+  "baseline_median_per_decision_latency_ms": 187.3171040788293,
+  "baseline_predictions_sha256": "fc9fbbcce679199b4071874f057a0b636580f428d67b6e5608c81de830c8c8ea",
+  "choice_flips": 174,
+  "choice_matches": 1194,
+  "failures": 0,
+  "maximum_absolute_probability_delta": 0.24005016684532166,
+  "mean_latency_speedup": 1.4840616345578181,
+  "mean_per_decision_latency_ms": 247.91531349012863,
+  "median_per_decision_latency_ms": 177.90941696148366,
+  "paired_valid_predictions": 1368,
+  "prediction_count": 1368,
+  "quality_thresholds": {
+    "macro_accuracy_min": 0.75,
+    "per_category_accuracy_min": 0.4
+  },
+  "variant_id": "qwen35-08b-decision-mlx-4bit",
+  "variant_predictions_sha256": "11299cae06c21f62b65e8a01bc0b2528741b1f5ea7f363b16b0a5f46f7a11946"
+}
