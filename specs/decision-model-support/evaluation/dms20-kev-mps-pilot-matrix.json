@@ -1,0 +1,198 @@
+{
+  "approval_scope": "One approved Kev-4B MPS BF16 pilot only; all other optimization variants remain proposals and cannot be staged or run from this matrix.",
+  "artifact_download_allow_patterns": [
+    "*.json",
+    "*.safetensors",
+    "*.pt",
+    "*.py",
+    "*.jinja",
+    "*.model",
+    "*.txt",
+    "MANIFEST.sha256"
+  ],
+  "artifact_download_ignore_patterns": [
+    "eval/**",
+    "training/**",
+    "assets/**",
+    "README.md",
+    "*.jsonl",
+    "*.png",
+    "*.svg"
+  ],
+  "baseline": {
+    "candidate_id": "kev-4b",
+    "matrix_path": "specs/decision-model-support/evaluation/dms20-matrix.json",
+    "mean_latency_ms": 7868.0,
+    "measurements_path": "specs/decision-model-support/evaluation/dms20-run-2026-10-22/kev-4b/measurements.json",
+    "measurements_sha256": "1be79814511c5223d61bb4edaf25080eaac9d3c421b6e943080c9362366f4370",
+    "predictions_path": "specs/decision-model-support/evaluation/dms20-run-2026-10-22/kev-4b/predictions.jsonl",
+    "predictions_sha256": "d07dd9784ad398ca3429809cb52af80f82a4a63486dc636ec093fbe2bf161448"
+  },
+  "corpus_manifest": "dms14-corpus-manifest.json",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "created_at": "2026-10-24T03:13:08Z",
+  "dispositions": {
+    "kev-4b-mps-bf16": "selected"
+  },
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "harness_files": [
+    {
+      "path": "tests/manual/run_dms20_optimization.py",
+      "sha256": "d8e23325476943cf769f1b42afc9d766a23d09423985dac19422d21727f531f5"
+    },
+    {
+      "path": "tests/manual/run_dms20_transfer.py",
+      "sha256": "118eec7bc5f50b86b75f5ee8023f9174302e0b8e9a84f018d6adf46edcabb195"
+    },
+    {
+      "path": "scripts/evaluate_decision_transfer.py",
+      "sha256": "c92540a599754aeffc0b761852c49f0d01daa0e4953e9f012973deb46b94e3cd"
+    }
+  ],
+  "input_files": {
+    "gold_labels": {
+      "path": "/private/tmp/dms20-optimization-data/gold-labels.jsonl",
+      "sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec"
+    },
+    "normalized_inputs": {
+      "path": "/private/tmp/dms20-optimization-data/normalized-inputs.jsonl",
+      "sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148"
+    }
+  },
+  "item_count": 684,
+  "matrix_id": "DMS-20 Kev-4B MPS BF16 optimization pilot",
+  "matrix_version": 1,
+  "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "original_matrix_path": "specs/decision-model-support/evaluation/dms20-matrix.json",
+  "original_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "proposal_path": "specs/decision-model-support/evaluation/dms20-optimization-proposals-2026-10-24.json",
+  "proposal_sha256": "c5f05cf7935656a082ee78f7f2a1a06615a1a84710c629c06673510394640c9b",
+  "protocol": {
+    "normalized_content_token_limit": 3584,
+    "option_orders": [
+      "canonical",
+      "reversed"
+    ],
+    "paired_bootstrap_resamples": 10000,
+    "paired_bootstrap_seed": 14,
+    "primary_metric": "equal macro average of canonical accuracy across seven source categories",
+    "quality_thresholds": {
+      "macro_accuracy_min": 0.75,
+      "per_category_accuracy_min": 0.4
+    },
+    "smoke_categories": 7,
+    "smoke_gate": "All 14 choices must match the pinned FP32 CPU baseline; all scores must be finite, normalized probabilities over the exact option-ID set. Full run begins only after smoke passes.",
+    "smoke_items_per_category": 1,
+    "smoke_prediction_count": 14
+  },
+  "result_policy": "Comparative local research only; preserve original DMS-20 matrix and outputs unchanged.",
+  "rows": [
+    {
+      "artifact_files": [
+        {
+          "path": "adapter_model.safetensors",
+          "repository": "jaredpalmer/kev-4b",
+          "revision": "139fdd94f1b6a6ad80cc15e08fcb99cac885a101",
+          "sha256": "90e817356246e7f18bfa7ca3d31794cd4fbeb3332a66a84cb51d9ceae925f2b2",
+          "size_bytes": 129924032
+        },
+        {
+          "path": "head.pt",
+          "repository": "jaredpalmer/kev-4b",
+          "revision": "139fdd94f1b6a6ad80cc15e08fcb99cac885a101",
+          "sha256": "dd633435998ecc751ac538717a3742e32149500fabf7d7276287dbf0693f347c",
+          "size_bytes": 5249791
+        },
+        {
+          "path": "tokenizer.json",
+          "repository": "jaredpalmer/kev-4b",
+          "revision": "139fdd94f1b6a6ad80cc15e08fcb99cac885a101",
+          "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "size_bytes": 19989325
+        },
+        {
+          "path": "model.safetensors-00001-of-00002.safetensors",
+          "repository": "Qwen/Qwen3.5-4B-Base",
+          "revision": "1001bb4d826a52d1f399e183466143f4da7b741b",
+          "sha256": "df547074dce70532a0493e5433152bd17a65efb89088cfabc2e7e2371a93d712",
+          "size_bytes": 5329398712
+        },
+        {
+          "path": "model.safetensors-00002-of-00002.safetensors",
+          "repository": "Qwen/Qwen3.5-4B-Base",
+          "revision": "1001bb4d826a52d1f399e183466143f4da7b741b",
+          "sha256": "590fbaac095dd31db886c322d9d2f7df47777966391acf306ddddc3e4e3a15ef",
+          "size_bytes": 3990429344
+        }
+      ],
+      "base_model": {
+        "id": "Qwen/Qwen3.5-4B-Base",
+        "revision": "1001bb4d826a52d1f399e183466143f4da7b741b"
+      },
+      "comparison_limit": "Published development transfer-v4 scores overlap the evaluation source.",
+      "device": "mps",
+      "disposition": "selected",
+      "id": "kev-4b-mps-bf16",
+      "lead": "Kev-4B MPS BF16 pilot",
+      "max_state_tokens": 8192,
+      "model": {
+        "id": "jaredpalmer/kev-4b",
+        "revision": "139fdd94f1b6a6ad80cc15e08fcb99cac885a101"
+      },
+      "optimization": {
+        "attention": "sdpa",
+        "backend": "torch",
+        "baseline_precision": "fp32",
+        "load_options": {
+          "attention": "sdpa",
+          "backend": "torch",
+          "dtype": "bfloat16",
+          "merge": true
+        },
+        "smoke_gate": "Seven source categories, canonical and reversed ordering, exact choice parity with the DMS-20 Kev-4B baseline before full inference."
+      },
+      "precision": "bfloat16",
+      "resource_floor": {
+        "measured_peak_rss_required": true,
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 16106127360,
+        "minimum_free_memory_bytes": 19327352832
+      },
+      "runtime": {
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/qwen-mps.lock",
+        "lock_sha256": "461f99b6fff9db15a73c73ec65ef32dc3b81018b616d2b05777ac5b2cfdc1cd0",
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "numpy": "2.5.3",
+          "peft": "0.21.0",
+          "safetensors": "0.8.0",
+          "torch": "2.8.0",
+          "transformers": "5.17.0"
+        },
+        "python_version": "3.13.15"
+      },
+      "source": {
+        "id": "jaredpalmer/kev",
+        "lock_sha256": "a9922dbb89acdef78299fd2b4a8c3f7f0fa1b2bc08b55595b6926fa785a9c466",
+        "revision": "1f04cfa28e6a708485b28a9585010b9e436b776e"
+      },
+      "tokenizer": {
+        "id": "jaredpalmer/kev-4b",
+        "path": "tokenizer.json",
+        "revision": "139fdd94f1b6a6ad80cc15e08fcb99cac885a101",
+        "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+        "size_bytes": 19989325
+      }
+    }
+  ],
+  "runnable_cohort": [
+    "kev-4b-mps-bf16"
+  ],
+  "source_checkout": {
+    "lock_path": "uv.lock",
+    "lock_sha256": "a9922dbb89acdef78299fd2b4a8c3f7f0fa1b2bc08b55595b6926fa785a9c466",
+    "repository": "https://github.com/jaredpalmer/kev",
+    "revision": "1f04cfa28e6a708485b28a9585010b9e436b776e"
+  }
+}

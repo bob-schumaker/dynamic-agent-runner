@@ -1,0 +1,14 @@
+{
+  "approval_scope": "One lev-mps-bf16 execution variant on PyTorch MPS BF16, pinned to its model, source, DMS-20 corpus, runtime, runner, and resource floors.",
+  "approval_source": "User explicitly directed: run the remaining DMS-20 optimization variants.",
+  "approved": true,
+  "approved_at": "2026-10-24T06:30:00Z",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "dispositions": {
+    "lev-mps-bf16": "selected"
+  },
+  "matrix_sha256": "021c5bbb3de927b27ec33c25af3c0f73a82622fd8380addbe987ce9cfe059199",
+  "runnable_cohort": [
+    "lev-mps-bf16"
+  ]
+}

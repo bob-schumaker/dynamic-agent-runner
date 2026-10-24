@@ -1,0 +1,17 @@
+{
+  "approval_path": "specs/decision-model-support/evaluation/dms20-von-cpu-approval.json",
+  "approval_sha256": "dc57ae9a1906855238e245decef14a16721134c9100308029cb7019c66f866d9",
+  "candidate_id": "von-1.2.0-cpu",
+  "evaluation_path": "specs/decision-model-support/evaluation/dms20-von-cpu-run-2026-10-24/evaluation.json",
+  "evaluation_sha256": "5a903237cf8792473388ce6a1d2ff9468aa525545f436a986ef0fffc4cbc0e98",
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "inference_disposition": "Reused completed DMS-14 Von inference; exact DMS-14 and DMS-20 normalized input and label digests match. No model inference was repeated.",
+  "input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "matrix_path": "specs/decision-model-support/evaluation/dms20-von-cpu-matrix.json",
+  "matrix_sha256": "ba6f8ea40b5e12996a408c31369e8e4e13e07c03f697db8031fc52435d6a6dff",
+  "measurements_path": "specs/decision-model-support/evaluation/dms20-von-cpu-run-2026-10-24/measurements.json",
+  "measurements_sha256": "e53017d73492e0e76456e5c9e5b85e381b8fbefae2337e52cc199edf9b7e6067",
+  "predictions_path": "specs/decision-model-support/evaluation/dms20-von-cpu-run-2026-10-24/predictions.jsonl",
+  "predictions_sha256": "936f8151e4c719ed2f67903088fc689d9db3239a420d878ea6c82d38b1033569",
+  "source_run_receipt_sha256": "6d86d750240415707cf713a102169a51c9154ebd71b65cfeadbecccd295175be"
+}

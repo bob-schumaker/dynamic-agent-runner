@@ -1,0 +1,17 @@
+{
+  "matrix_sha256": "021c5bbb3de927b27ec33c25af3c0f73a82622fd8380addbe987ce9cfe059199",
+  "optimization_id": "lev-mps-bf16",
+  "resource_preflight": {
+    "after_stage": {
+      "free_disk_bytes": 29712678912,
+      "free_memory_bytes_estimate": 30923764531,
+      "system_memory_free_percent": 80
+    },
+    "before_stage": {
+      "free_disk_bytes": 29714096128,
+      "free_memory_bytes_estimate": 30923764531,
+      "system_memory_free_percent": 80
+    }
+  },
+  "verified": true
+}

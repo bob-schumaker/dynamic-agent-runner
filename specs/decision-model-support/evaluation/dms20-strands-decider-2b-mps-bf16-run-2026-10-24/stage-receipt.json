@@ -1,0 +1,17 @@
+{
+  "matrix_sha256": "c3cbab62bfbc1e782591205a4f34aff98eddf55aadbbc569510ebbaa04d634c3",
+  "optimization_id": "strands-decider-2b-mps-bf16",
+  "resource_preflight": {
+    "after_stage": {
+      "free_disk_bytes": 25852866560,
+      "free_memory_bytes_estimate": 32083405701,
+      "system_memory_free_percent": 83
+    },
+    "before_stage": {
+      "free_disk_bytes": 30661603328,
+      "free_memory_bytes_estimate": 32469952757,
+      "system_memory_free_percent": 84
+    }
+  },
+  "verified": true
+}

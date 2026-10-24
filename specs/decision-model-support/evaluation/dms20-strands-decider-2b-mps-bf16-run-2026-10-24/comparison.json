@@ -1,0 +1,24 @@
+{
+  "baseline_failures": 13,
+  "baseline_id": "strands-decider-2b",
+  "baseline_mean_per_decision_latency_ms": 627.1858756095668,
+  "baseline_median_per_decision_latency_ms": 597.2189584863372,
+  "baseline_predictions_sha256": "3ba1da300623ea61ab6332ddb5dcca03d33e34088ca35fd231f7a5d9566be384",
+  "choice_flips": 13,
+  "choice_matches": 1326,
+  "failures": 16,
+  "maximum_absolute_probability_delta": 0.029799999999999993,
+  "mean_latency_speedup": 2.6032200147391573,
+  "mean_per_decision_latency_ms": 240.92695663774342,
+  "median_per_decision_latency_ms": 221.40312544070184,
+  "paired_valid_predictions": 1339,
+  "prediction_count": 1368,
+  "quality_disposition": "See evaluation.json; optimization does not replace baseline eligibility.",
+  "quality_thresholds": {
+    "macro_accuracy_min": 0.75,
+    "per_category_accuracy_min": 0.4
+  },
+  "smoke_choice_parity_passed": true,
+  "variant_id": "strands-decider-2b-mps-bf16",
+  "variant_predictions_sha256": "a4feeb4f9b41999b9d7275bba94f6482926af118402a34e50309c64126954292"
+}

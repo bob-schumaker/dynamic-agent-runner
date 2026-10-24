@@ -1,0 +1,108 @@
+{
+  "approval_sha256": "ccf0ae8c46db270760f20c6b8c3ad5dd865e8002fcb0db79f95d07823c6e12b6",
+  "artifacts": {
+    "all_candidate_evaluation": {
+      "path": "specs/decision-model-support/evaluation/dms20-followup-evaluation-2026-10-24.json",
+      "sha256": "c70d91cfd5413dc4919581be0e5cfeb92d2fc6d8cd17799cab86e6051d96000e"
+    },
+    "approval": {
+      "path": "specs/decision-model-support/evaluation/dms20-nimble-mps-approval.json",
+      "sha256": "ccf0ae8c46db270760f20c6b8c3ad5dd865e8002fcb0db79f95d07823c6e12b6"
+    },
+    "baseline_measurements": {
+      "path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/nimble-9b/measurements.json",
+      "sha256": "52d4ece2ed9c12b4f8b1929e5187cfb480e4b78ed4f0779f3a088a430a61d1ab"
+    },
+    "baseline_predictions": {
+      "path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/nimble-9b/predictions.jsonl",
+      "sha256": "2ec0696fc7f6d4ee5f7473f5977593dc1547676cb909a2fcda841bb23d08757b"
+    },
+    "corpus_manifest": {
+      "path": "specs/decision-model-support/evaluation/dms14-corpus-manifest.json",
+      "sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e"
+    },
+    "matrix": {
+      "path": "specs/decision-model-support/evaluation/dms20-nimble-mps-matrix.json",
+      "sha256": "6161c06ca137482230711a18fd29a0ad27379d516136b9b8fc1c31d00be0e869"
+    },
+    "measurements": {
+      "path": "specs/decision-model-support/evaluation/dms20-nimble-mps-run-2026-10-23/nimble-9b-mps-linear-attn/measurements.json",
+      "sha256": "f8dff70382bf651a665ed2118ca15e5325b91eef543026dde519e63c3a9ffd14"
+    },
+    "paired_evaluation": {
+      "path": "specs/decision-model-support/evaluation/dms20-nimble-mps-evaluation-2026-10-24.json",
+      "sha256": "b3ecf3b61999afbef6588607bc3b38610fb9f5f62884b536387a13d397e99558"
+    },
+    "predictions": {
+      "path": "specs/decision-model-support/evaluation/dms20-nimble-mps-run-2026-10-23/nimble-9b-mps-linear-attn/predictions.jsonl",
+      "sha256": "287a9f0509fc23b1c40765553f4e82164e7c897bddd9dcea789ce26dac946ee7"
+    },
+    "proposal": {
+      "path": "specs/decision-model-support/evaluation/dms20-nimble-mps-linear-attn-proposal.json",
+      "sha256": "4025bc51fb68328c53cf393245d8130bddaa940375ff05a51ee1e6c498454d2c"
+    },
+    "runtime_lock": {
+      "path": "specs/decision-model-support/evaluation/dms20-runtimes/qwen-mps-linear-attn.lock",
+      "sha256": "461f99b6fff9db15a73c73ec65ef32dc3b81018b616d2b05777ac5b2cfdc1cd0"
+    },
+    "stage_receipt": {
+      "path": "specs/decision-model-support/evaluation/dms20-nimble-mps-run-2026-10-23/nimble-9b-mps-linear-attn/stage-receipt.json",
+      "sha256": "b93e097eb0765e4010f361052a2453281c2c7dd115fb656f96db555e2ff25395"
+    }
+  },
+  "baseline_comparison": {
+    "mean_inference_latency_ms": 1863.194064709987,
+    "mps_device_peak_bytes": 20559757312,
+    "peak_rss_bytes": 5760253952
+  },
+  "baseline_unchanged": true,
+  "candidate_id": "nimble-9b-mps-linear-attn",
+  "combined_evaluation": "Includes all original nine candidates and this run; prior evaluations preserved.",
+  "corpus": {
+    "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+    "items": 684,
+    "manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+    "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148"
+  },
+  "matrix_sha256": "6161c06ca137482230711a18fd29a0ad27379d516136b9b8fc1c31d00be0e869",
+  "receipt_id": "dms20-nimble-mps-run-2026-10-24",
+  "result": {
+    "canonical_macro_accuracy": 0.0,
+    "cold_load_ms": 39615.75145786628,
+    "kernel_calls": {
+      "causal_conv1d": 32832,
+      "delta_rule_fused": 32832
+    },
+    "mean_inference_latency_ms_not_valid_for_comparison": 1448.9272456765598,
+    "mps_driver_allocated_bytes": 20551155712,
+    "peak_rss_bytes": 5726044160,
+    "per_category_accuracy": {
+      "composition_holdout": 0.0,
+      "emotion": 0.0,
+      "legacy_holdout": 0.0,
+      "mmlu": 0.0,
+      "paws": 0.0,
+      "qnli": 0.0,
+      "sciq": 0.0
+    },
+    "predictions": 1368,
+    "quality_gate": "failed",
+    "reason": "Optimized fused delta-rule execution returned non-finite candidate logits; all outputs failed validation.",
+    "required_metal_kernels_used": true,
+    "smoke_comparison": {
+      "baseline_choice": "c",
+      "choice_match": false,
+      "item_id": "mmlu/test/13292",
+      "kernel_calls": {
+        "causal_conv1d": 24,
+        "delta_rule_fused": 24
+      },
+      "max_probability_delta_finite": false,
+      "optimized_choice": "a"
+    },
+    "status_counts": {
+      "invalid": 1368
+    }
+  },
+  "status": "failed_numerical_compatibility"
+}

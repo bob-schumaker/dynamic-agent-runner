@@ -1,0 +1,224 @@
+{
+  "approval_scope": "One Nimble-9B MPS BF16 batch-4 variant, bound to the existing DMS-20 corpus, exact adapter/base revisions, runtime, runner, and resource floors.",
+  "artifact_download_allow_patterns": [
+    "*.json",
+    "*.safetensors",
+    "*.py",
+    "*.jinja",
+    "*.model",
+    "*.txt"
+  ],
+  "artifact_download_ignore_patterns": [
+    "README.md",
+    "*.jsonl",
+    "*.png",
+    "*.svg"
+  ],
+  "corpus_manifest": "dms14-corpus-manifest.json",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "created_at": "2026-10-24T05:20:00Z",
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "harness_files": [
+    {
+      "path": "tests/manual/run_dms20_nimble_batch.py",
+      "sha256": "8860ceab6860caa8f3037e8ef9bd9244af89cde29ab3de7b7b8a3a9e80612dcb"
+    },
+    {
+      "path": "tests/manual/run_dms20_extension.py",
+      "sha256": "341814b869d3174dccaedb13e825f11484ed3fed0ab6e040b6862e34d55276cf"
+    },
+    {
+      "path": "tests/manual/run_dms20_transfer.py",
+      "sha256": "118eec7bc5f50b86b75f5ee8023f9174302e0b8e9a84f018d6adf46edcabb195"
+    },
+    {
+      "path": "scripts/evaluate_decision_transfer.py",
+      "sha256": "c92540a599754aeffc0b761852c49f0d01daa0e4953e9f012973deb46b94e3cd"
+    }
+  ],
+  "input_files": {
+    "gold_labels": {
+      "path": "/private/tmp/dms20-corpus/gold-labels.jsonl",
+      "sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec"
+    },
+    "normalized_inputs": {
+      "path": "/private/tmp/dms20-corpus/normalized-inputs.jsonl",
+      "sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148"
+    }
+  },
+  "item_count": 684,
+  "matrix_id": "DMS-20 Nimble-9B MPS batch-4 optimization",
+  "matrix_version": 1,
+  "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "original_matrix_path": "dms20-matrix.json",
+  "original_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "protocol": {
+    "input_policy": "Use the original approved DMS-20 content limit of 3584 tokenizer tokens and reserve 512 tokens for model-specific formatting. Count with each candidate tokenizer; fail closed without truncation.",
+    "invalid_missing_abstaining": "incorrect",
+    "model_prompt_token_limit": 4096,
+    "normalized_content_token_limit": 3584,
+    "paired_bootstrap_resamples": 10000,
+    "paired_bootstrap_seed": 14,
+    "paired_bootstrap_strata": "source category; identical item IDs across candidates",
+    "primary_metric": "equal macro average of accuracy across the seven included source categories",
+    "primary_order": "canonical",
+    "probability_metrics": "raw Brier and top-label ECE; no calibration fitting",
+    "prompt_format_reserve_tokens": 512,
+    "sensitivity_order": "reverse all options while preserving option IDs and gold labels",
+    "thresholds": {
+      "macro_accuracy_min": 0.75,
+      "per_category_accuracy_min": 0.4
+    }
+  },
+  "result_policy": "Comparative local research only; preserve the baseline and prior evaluations.",
+  "rows": [
+    {
+      "artifact_files": [
+        {
+          "path": "adapter_config.json",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "5792ef631d28de863803804c320c25b219405d5f09b1980f147096cbaa48e17e"
+        },
+        {
+          "path": "adapter_model.safetensors",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "29ef39b072dee97287947455337879c1e916705c2f727287922a2d81f5e2f20a",
+          "size_bytes": 173188512
+        },
+        {
+          "path": "inference.py",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "0110b1cca75466c8e5a7fb1c59eac475d239e8e5e43b4cb4b9e465f53a54a357"
+        },
+        {
+          "path": "parallel_schema.py",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "a0a0f94d0f65e972bc20d088678ad3d595ff1c42b9c0d78f96034526303f63fc"
+        },
+        {
+          "path": "schema_config.json",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "8270da0e2ed5fdaad186377876d3ebc702b8bd551a13732a379523791d064da5"
+        },
+        {
+          "path": "serving_config.json",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "bdbc9471b3e62e3b57ef48274f354aac9c18bc4432fd2497b7cd329b17617676"
+        },
+        {
+          "path": "serving_schema.py",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "17b81d6cc3e26ec501e24f1609615f2386f974b618119b7a7102319c330c31ac"
+        },
+        {
+          "path": "chat_template.jinja",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715"
+        },
+        {
+          "path": "tokenizer.json",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523"
+        },
+        {
+          "path": "tokenizer_config.json",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "9cf04fffe3d8c3b85e439fb35c7acad0761ab51c422a8c4256d9f887c3a0be7d"
+        },
+        {
+          "path": "temperature_config.json",
+          "repository": "bespokelabs/Bespoke-Nimble-9B",
+          "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+          "sha256": "9fce83f9c8b88e7ef7f9dbc27adb1a9bd927755dbb93ad67a687df14e44e2113"
+        },
+        {
+          "path": "model.safetensors-00001-of-00004.safetensors",
+          "repository": "Qwen/Qwen3.5-9B",
+          "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+          "sha256": "db6f444b43d318c92f360a13a25561a6a65b10c0631b8ed305a426dbaa6c380e"
+        },
+        {
+          "path": "model.safetensors-00002-of-00004.safetensors",
+          "repository": "Qwen/Qwen3.5-9B",
+          "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+          "sha256": "31c7d7e2dd5d207840b31cc59083c8f4c4718959149e0358c0364052bb9a0330"
+        },
+        {
+          "path": "model.safetensors-00003-of-00004.safetensors",
+          "repository": "Qwen/Qwen3.5-9B",
+          "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+          "sha256": "7ec36ba3a4176a44c3c0876ad80c56a2f70c84bf008d82e9501df642f17dadec"
+        },
+        {
+          "path": "model.safetensors-00004-of-00004.safetensors",
+          "repository": "Qwen/Qwen3.5-9B",
+          "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+          "sha256": "b62b0c4cd7e44edee103ee8f4fe225f246d5e768e07bfd5f25b63a8aa1fdd0c6"
+        }
+      ],
+      "base_model": {
+        "id": "Qwen/Qwen3.5-9B",
+        "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+        "size_bytes": 19306310880
+      },
+      "batch_size": 4,
+      "device": "mps",
+      "disposition": "selected",
+      "execution_variant": "Pinned Nimble adapter and Qwen3.5-9B base loaded unmerged with PEFT on MPS BF16; candidate scoring follows the pinned serving_schema.py contract. The publisher reference scorer requires CUDA; this is a local MPS execution variant.",
+      "id": "nimble-9b",
+      "license_note": "Bespoke Nimble adapter and Qwen3.5 base declare Apache-2.0.",
+      "max_options": 24,
+      "max_state_tokens": 4096,
+      "model": {
+        "id": "bespokelabs/Bespoke-Nimble-9B",
+        "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858"
+      },
+      "precision": "bfloat16",
+      "resource_floor": {
+        "measured_peak_rss_required": true,
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 25769803776,
+        "minimum_free_memory_bytes": 25769803776
+      },
+      "runtime": {
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/qwen-mps.lock",
+        "lock_sha256": "461f99b6fff9db15a73c73ec65ef32dc3b81018b616d2b05777ac5b2cfdc1cd0",
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "numpy": "2.5.3",
+          "peft": "0.21.0",
+          "safetensors": "0.8.0",
+          "torch": "2.8.0",
+          "transformers": "5.17.0"
+        },
+        "python_version": "3.13.15"
+      },
+      "source": {
+        "id": "bespokelabs/Bespoke-Nimble-9B pinned source bundle",
+        "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858"
+      },
+      "task_mapping": "Map each request to one enum field named decision, use the source question as the field description, preserve option IDs as enum values and option labels as descriptions, and use the pinned Nimble serving_schema.py prompt builder. Read candidate token logits, then softmax at the published unfitted temperature 1.0.",
+      "tokenizer": {
+        "id": "bespokelabs/Bespoke-Nimble-9B",
+        "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+        "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523"
+      },
+      "training_provenance": "Nimble provenance pins Qwen/Qwen3.5-9B@c202236235762e1c871ad0ccb60c8ee5ba337b9a; the execution uses that same base revision.",
+      "variant": "MPS BF16 microbatch of four independent decision prompts"
+    }
+  ],
+  "runnable_cohort": [
+    "nimble-9b"
+  ]
+}

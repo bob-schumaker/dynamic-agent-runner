@@ -1,0 +1,22 @@
+{
+  "baseline_id": "nimble-9b",
+  "baseline_mean_per_decision_latency_ms": 1863.194064709987,
+  "baseline_measurements_sha256": "52d4ece2ed9c12b4f8b1929e5187cfb480e4b78ed4f0779f3a088a430a61d1ab",
+  "baseline_median_per_decision_latency_ms": 1801.8908334197477,
+  "baseline_predictions_sha256": "2ec0696fc7f6d4ee5f7473f5977593dc1547676cb909a2fcda841bb23d08757b",
+  "full_choice_flips": 6,
+  "full_choice_matches": 1362,
+  "maximum_absolute_probability_delta": 0.08651591837406158,
+  "mean_latency_speedup": 0.9556437016996483,
+  "mean_per_decision_latency_ms": 1949.674404169908,
+  "median_per_decision_latency_ms": 1802.4294687493239,
+  "normalized_evaluation_predictions_sha256": "458335d859e94cce6a8d5b8315155a1c7d3be9098cf4cef1d354bc52987b4a41",
+  "prediction_count": 1368,
+  "quality_thresholds": {
+    "macro_accuracy_min": 0.75,
+    "per_category_accuracy_min": 0.4
+  },
+  "smoke_choice_parity_passed": true,
+  "variant_id": "nimble-9b-mps-batch4",
+  "variant_predictions_sha256": "2f629b18d53a0196504d12c5677a018a96a124740aeac562e68ef002db5311be"
+}

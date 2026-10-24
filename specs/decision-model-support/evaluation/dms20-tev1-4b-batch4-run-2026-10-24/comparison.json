@@ -1,0 +1,22 @@
+{
+  "baseline_id": "tev1-4b",
+  "baseline_mean_per_decision_latency_ms": 944.4987480865644,
+  "baseline_measurements_sha256": "16000bacfba76be8afc960e2eae191f725f838622e7dffe0c697cb5c5459021d",
+  "baseline_median_per_decision_latency_ms": 949.0519171813503,
+  "baseline_predictions_sha256": "5631be101ac7b92364ca11f22ff4ba522948914fffc15ad5d5bd18162c3418b6",
+  "full_choice_flips": 10,
+  "full_choice_matches": 1358,
+  "maximum_absolute_probability_delta": 0.055931270122528076,
+  "mean_latency_speedup": 0.8967892618252706,
+  "mean_per_decision_latency_ms": 1053.2003317749243,
+  "median_per_decision_latency_ms": 964.0896823839284,
+  "normalized_evaluation_predictions_sha256": "b65042422d332c9a377d4979b6b5a223231faed79cf33e03673423990f76d355",
+  "prediction_count": 1368,
+  "quality_thresholds": {
+    "macro_accuracy_min": 0.75,
+    "per_category_accuracy_min": 0.4
+  },
+  "smoke_choice_parity_passed": true,
+  "variant_id": "tev1-4b-mps-batch4",
+  "variant_predictions_sha256": "39dedef584084302bd736a269c7ad138b92238c66d0d17f993e0af6b09d381d2"
+}

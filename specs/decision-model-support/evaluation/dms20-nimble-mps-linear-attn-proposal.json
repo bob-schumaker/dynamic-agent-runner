@@ -1,0 +1,93 @@
+{
+  "candidate_id": "nimble-9b-mps-linear-attn",
+  "comparison_baseline": {
+    "candidate_id": "nimble-9b",
+    "matrix_path": "specs/decision-model-support/evaluation/dms20-extension-matrix-v3.json",
+    "matrix_sha256": "fb5594a36e54808121cf1d87c599a42e06cb0b2ddae61f9b92aedf7e0b934f6b",
+    "mean_inference_latency_ms": 1863.194064709987,
+    "measurements_path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/nimble-9b/measurements.json",
+    "mps_device_peak_bytes": 20559757312,
+    "peak_rss_bytes": 5760253952,
+    "prediction_count": 1368,
+    "predictions_path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/nimble-9b/predictions.jsonl"
+  },
+  "execution_result": {
+    "approval_path": "specs/decision-model-support/evaluation/dms20-nimble-mps-approval.json",
+    "failure": "The fused delta-rule Metal path produced non-finite candidate logits. All predictions were rejected as invalid.",
+    "kernel_calls": {
+      "causal_conv1d": 32832,
+      "delta_rule_fused": 32832
+    },
+    "matrix_path": "specs/decision-model-support/evaluation/dms20-nimble-mps-matrix.json",
+    "prediction_count": 1368,
+    "quality_gate": "failed",
+    "required_metal_kernels_used": true,
+    "status_counts": {
+      "invalid": 1368
+    }
+  },
+  "model": {
+    "base_model": {
+      "id": "Qwen/Qwen3.5-9B",
+      "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+      "size_bytes": 19306310880
+    },
+    "device": "mps",
+    "id": "bespokelabs/Bespoke-Nimble-9B",
+    "precision": "bfloat16",
+    "reuse_artifact_pins_from_candidate": "nimble-9b",
+    "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+    "task_mapping": "Map each request to one enum field named decision, use the source question as the field description, preserve option IDs as enum values and option labels as descriptions, and use the pinned Nimble serving_schema.py prompt builder. Read candidate token logits, then softmax at the published unfitted temperature 1.0.",
+    "tokenizer": {
+      "id": "bespokelabs/Bespoke-Nimble-9B",
+      "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858",
+      "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523"
+    }
+  },
+  "optimizer": {
+    "compatibility_status": "Unverified with the DMS-20 Nimble stack (PyTorch 2.8.0, Transformers 5.17.0, PEFT 0.21.0). Upstream README reports its benchmark on PyTorch 2.7.",
+    "fast_path_proof_required": "Demonstrate calls to the pinned Metal kernels during Nimble scoring; package import or patched availability flags alone are insufficient.",
+    "install_source": "git+https://github.com/mpsops/mps-linear-attention.git@f0889940cf168dcc9e2541b061875835e63a095e",
+    "license": "MIT (declared in upstream pyproject.toml)",
+    "package": "mps-linear-attn",
+    "repository": "https://github.com/mpsops/mps-linear-attention",
+    "required_import_order": "Import mps_linear_attn before importing Transformers or loading Qwen3.5.",
+    "revision": "f0889940cf168dcc9e2541b061875835e63a095e",
+    "upstream_claimed_coverage": "Metal implementations for causal_conv1d and gated delta-rule recurrent step/prefill, including a fused prefill path; upstream lists Qwen3.5 at all sizes.",
+    "version": "0.1.0"
+  },
+  "proposal_id": "dms20-nimble-9b-mps-linear-attn",
+  "protocol": {
+    "comparison": "Run baseline and optimized variants under matched conditions; report choice/score parity, canonical macro and per-category accuracy, option-order flips, latency distribution and speedup, cold load, peak RSS, and MPS allocated memory.",
+    "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+    "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+    "item_count": 684,
+    "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+    "option_orders": [
+      "canonical",
+      "reversed"
+    ],
+    "prediction_count": 1368,
+    "quality_thresholds": {
+      "macro_accuracy_min": 0.75,
+      "per_category_accuracy_min": 0.4
+    }
+  },
+  "required_before_execution": [
+    "Implement and fake-test the separate variant path and kernel-use instrumentation.",
+    "Verify numerical/choice parity on representative shared-corpus inputs.",
+    "Create an exact runtime lock for the kernel commit and confirm compatibility with the existing Nimble stack.",
+    "Repeat host resource preflight before staging/loading; the existing Nimble floors remain the minimum.",
+    "Freeze a new matrix and obtain explicit approval binding the optimized variant, harness, runtime, corpus, and resource floors."
+  ],
+  "resource_floor": {
+    "measured_peak_rss_required": true,
+    "minimum_free_disk_after_stage_bytes": 5368709120,
+    "minimum_free_disk_before_stage_bytes": 25769803776,
+    "minimum_free_memory_bytes": 25769803776
+  },
+  "run_receipt_path": "specs/decision-model-support/evaluation/dms20-nimble-mps-run-receipt-2026-10-24.json",
+  "scope": "Add a separate optimized-kernel execution variant for the existing Nimble-9B DMS-20 candidate. Preserve the approved baseline Nimble row and all existing DMS-20 results.",
+  "status": "executed_failed_numerical_compatibility",
+  "upstream_reference": "https://github.com/mpsops/mps-linear-attention"
+}

@@ -1,0 +1,37 @@
+{
+  "base_matrix": "dms20-matrix.json",
+  "base_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "proposal_id": "dms20-additional-candidates-2026-10-24",
+  "rows": [
+    {
+      "base_model": {
+        "id": "wfzyx/von",
+        "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae"
+      },
+      "device": "cpu",
+      "display_name": "Von 1.2.0",
+      "evaluation_matrix": "dms20-von-cpu-matrix.json",
+      "evaluation_output": "dms20-von-cpu-run-2026-10-24/evaluation.json",
+      "id": "von-1.2.0",
+      "model": {
+        "id": "wfzyx/von",
+        "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae"
+      },
+      "next_step": "Completed; see the separately approved DMS-20 Von CPU matrix, evaluation, and run receipt.",
+      "precision": "fp32",
+      "prior_evidence": "Von has separate DMS-14 results; those scores are not DMS-20 results and must not be carried into this evaluation.",
+      "runtime_source": "evaluation/dms14-matrix.json row von-cpu",
+      "source": {
+        "id": "wfzyx/von",
+        "revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54"
+      },
+      "status": "evaluated",
+      "tokenizer": {
+        "id": "wfzyx/von",
+        "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae"
+      }
+    }
+  ],
+  "scope": "Additional candidate leads for a separately frozen DMS-20 evaluation; preserve all approved DMS-20 matrices and results.",
+  "status": "evaluated in separate approved matrix"
+}

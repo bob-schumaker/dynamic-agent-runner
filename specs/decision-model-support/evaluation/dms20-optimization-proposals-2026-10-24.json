@@ -1,0 +1,198 @@
+{
+  "decision": "Kev-4B MPS BF16 is the only selected pilot. Other rows remain proposals until independently frozen and approved.",
+  "evaluation_contract": {
+    "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+    "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+    "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+    "quality_gates": {
+      "macro_accuracy_min": 0.75,
+      "per_category_accuracy_min": 0.4
+    },
+    "requirements": "Every variant keeps its original candidate interface and must produce finite, valid choice probabilities. Separate execution variants do not replace baseline results."
+  },
+  "excluded_optimization": {
+    "candidate_id": "julia-1",
+    "reason": "Already approximately 20 ms per decision; expected optimization payoff is low."
+  },
+  "proposal_id": "dms20-runtime-optimization-followups-2026-10-24",
+  "rows": [
+    {
+      "base_model": {
+        "id": "Qwen/Qwen3.5-4B-Base",
+        "revision": "1001bb4d826a52d1f399e183466143f4da7b741b"
+      },
+      "baseline_candidate": "kev-4b",
+      "baseline_matrix": "dms20-matrix.json",
+      "baseline_model": {
+        "id": "jaredpalmer/kev-4b",
+        "revision": "139fdd94f1b6a6ad80cc15e08fcb99cac885a101"
+      },
+      "candidate_id": "kev-4b",
+      "display_name": "Kev-4B on PyTorch MPS BF16",
+      "id": "kev-4b-mps-bf16",
+      "reason": "First pilot; exact model/source pins preserved.",
+      "status": "pilot_selected",
+      "variant": {
+        "attention": "sdpa",
+        "backend": "torch",
+        "device": "mps",
+        "precision": "bfloat16"
+      }
+    },
+    {
+      "base_model": {
+        "id": "Qwen/Qwen3.5-4B",
+        "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+      },
+      "baseline_candidate": "lev",
+      "baseline_matrix": "dms20-matrix.json",
+      "baseline_model": {
+        "id": "interfaze-ai/lev",
+        "revision": "8721908e50dffd5fe8726507c09498e3def5b2f6"
+      },
+      "candidate_id": "lev",
+      "display_name": "lev on PyTorch MPS BF16",
+      "id": "lev-mps-bf16",
+      "reason": "Same published adapter/base pins; requires separate runtime and memory preflight.",
+      "status": "proposed",
+      "variant": {
+        "attention": "sdpa",
+        "backend": "torch",
+        "device": "mps",
+        "precision": "bfloat16"
+      }
+    },
+    {
+      "base_model": {
+        "id": "Qwen/Qwen3.5-2B-Base",
+        "revision": "b1485b2fa6dfa1287294f269f5fb618e03d52d7c"
+      },
+      "baseline_candidate": "strands-decider-2b",
+      "baseline_matrix": "dms20-matrix.json",
+      "baseline_model": {
+        "id": "StrandsAgents/strands-decider-2B-qwen3.5-v1-2610",
+        "revision": "216d1ccb46a9e9b036eb9187b248db98480f77d4"
+      },
+      "candidate_id": "strands-decider-2b",
+      "display_name": "Strands Decider 2B on PyTorch MPS BF16",
+      "id": "strands-decider-2b-mps-bf16",
+      "reason": "Same published model pins; lower expected payoff than the slow 4B CPU rows.",
+      "status": "proposed",
+      "variant": {
+        "attention": "sdpa",
+        "backend": "torch",
+        "device": "mps",
+        "precision": "bfloat16"
+      }
+    },
+    {
+      "base_model": {
+        "id": "Qwen/Qwen3.5-0.8B",
+        "training_revision": null,
+        "training_revision_note": "Together does not publish the exact training base revision. The released Tev1 checkpoint is full merged BF16, so the execution does not load a separate base."
+      },
+      "baseline_candidate": "tev1-0.8b",
+      "baseline_matrix": "dms20-extension-matrix-v3.json",
+      "baseline_model": {
+        "id": "togethercomputer/Tev1-0.8B-experimental",
+        "revision": "6bb2dff14b38fea90ddb14d870166ccaf77374e9"
+      },
+      "candidate_id": "tev1-0.8b",
+      "display_name": "Tev1-0.8B MPS microbatch 4",
+      "id": "tev1-0.8b-mps-batch4",
+      "reason": "Measure throughput and per-item latency; compare all outputs with the unbatched baseline.",
+      "status": "proposed",
+      "variant": {
+        "backend": "torch",
+        "batch_size": 4,
+        "device": "mps",
+        "precision": "bfloat16"
+      }
+    },
+    {
+      "base_model": {
+        "id": "Qwen/Qwen3.5-4B",
+        "training_revision": null,
+        "training_revision_note": "Together does not publish the exact training base revision. The released Tev1 checkpoint is full merged BF16, so the execution does not load a separate base."
+      },
+      "baseline_candidate": "tev1-4b",
+      "baseline_matrix": "dms20-extension-matrix-v3.json",
+      "baseline_model": {
+        "id": "togethercomputer/Tev1-4B-experimental",
+        "revision": "0b7becf017daa0e5eb222f8ce7483c8c8259c52f"
+      },
+      "candidate_id": "tev1-4b",
+      "display_name": "Tev1-4B MPS microbatch 4",
+      "id": "tev1-4b-mps-batch4",
+      "reason": "Measure throughput and per-item latency; compare all outputs with the unbatched baseline.",
+      "status": "proposed",
+      "variant": {
+        "backend": "torch",
+        "batch_size": 4,
+        "device": "mps",
+        "precision": "bfloat16"
+      }
+    },
+    {
+      "base_model": {
+        "id": "Qwen/Qwen3.5-9B",
+        "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+        "size_bytes": 19306310880
+      },
+      "baseline_candidate": "nimble-9b",
+      "baseline_matrix": "dms20-extension-matrix-v3.json",
+      "baseline_model": {
+        "id": "bespokelabs/Bespoke-Nimble-9B",
+        "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858"
+      },
+      "candidate_id": "nimble-9b",
+      "display_name": "Nimble-9B MPS microbatch 4",
+      "id": "nimble-9b-mps-batch4",
+      "reason": "Batch independent scoring prompts; retain baseline path and require numerical-validity checks.",
+      "status": "proposed",
+      "variant": {
+        "backend": "torch",
+        "batch_size": 4,
+        "device": "mps",
+        "precision": "bfloat16"
+      }
+    },
+    {
+      "base_model": null,
+      "baseline_candidate": "qwen35-08b-decision",
+      "baseline_matrix": "dms20-mlx-matrix-v6.json",
+      "baseline_model": {
+        "id": "mlx-community/Qwen3.5-0.8B-decision",
+        "revision": "67086958f49ccc3385404ba835924e897ee57c8a"
+      },
+      "candidate_id": "qwen35-08b-decision",
+      "display_name": "Qwen3.5-0.8B-decision MLX 4-bit",
+      "id": "qwen35-08b-decision-mlx-4bit",
+      "reason": "Requires a newly generated, hash-pinned quantized artifact; evaluate quality before considering speed.",
+      "status": "deferred",
+      "variant": {
+        "device": "mlx",
+        "precision": "4-bit"
+      }
+    },
+    {
+      "base_model": null,
+      "baseline_candidate": "d1a-e2b-8bit",
+      "baseline_matrix": "dms20-mlx-matrix-v6.json",
+      "baseline_model": {
+        "id": "mlx-community/d1a-e2b-8bit",
+        "revision": "25e3486031713d01cbdd90ea43b009b8a19dacf0"
+      },
+      "candidate_id": "d1a-e2b-8bit",
+      "display_name": "D1A E2B MLX 4-bit",
+      "id": "d1a-e2b-mlx-4bit",
+      "reason": "Requires a newly generated, hash-pinned quantized artifact; current D1A output validity must be resolved first.",
+      "status": "deferred",
+      "variant": {
+        "device": "mlx",
+        "precision": "4-bit"
+      }
+    }
+  ],
+  "scope": "Add separately evaluated execution variants suggested after the DMS-20 results; keep all baseline rows and results immutable."
+}

@@ -1,0 +1,162 @@
+{
+  "approval_scope": "One lev-mps-bf16 execution variant on PyTorch MPS BF16, pinned to its model, source, DMS-20 corpus, runtime, runner, and resource floors.",
+  "artifact_download_allow_patterns": [
+    "*.jinja",
+    "*.json",
+    "*.model",
+    "*.pt",
+    "*.py",
+    "*.safetensors",
+    "*.txt"
+  ],
+  "artifact_download_ignore_patterns": [
+    "README.md",
+    "*.jsonl",
+    "*.png",
+    "*.svg"
+  ],
+  "corpus_manifest": "dms14-corpus-manifest.json",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "created_at": "2026-10-24T06:30:00Z",
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "harness_files": [
+    {
+      "path": "tests/manual/run_dms20_mps_optimization.py",
+      "sha256": "d10fcf172157909775ab1525af1e1c74ed09f971f93cfea67a32a2c6dda8b604"
+    },
+    {
+      "path": "tests/manual/run_dms20_transfer.py",
+      "sha256": "118eec7bc5f50b86b75f5ee8023f9174302e0b8e9a84f018d6adf46edcabb195"
+    },
+    {
+      "path": "scripts/evaluate_decision_transfer.py",
+      "sha256": "c92540a599754aeffc0b761852c49f0d01daa0e4953e9f012973deb46b94e3cd"
+    }
+  ],
+  "input_files": {
+    "gold_labels": {
+      "path": "/private/tmp/dms20-corpus/gold-labels.jsonl",
+      "sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec"
+    },
+    "normalized_inputs": {
+      "path": "/private/tmp/dms20-corpus/normalized-inputs.jsonl",
+      "sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148"
+    }
+  },
+  "item_count": 684,
+  "matrix_id": "DMS-20 lev-mps-bf16 optimization",
+  "matrix_version": 1,
+  "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "original_matrix_path": "dms20-matrix.json",
+  "original_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "protocol": {
+    "normalized_content_token_limit": 3584,
+    "option_orders": [
+      "canonical",
+      "reversed"
+    ],
+    "quality_thresholds": {
+      "macro_accuracy_min": 0.75,
+      "per_category_accuracy_min": 0.4
+    },
+    "smoke_gate": "All 14 choices must match the pinned FP32 CPU baseline before full inference.",
+    "smoke_items_per_category": 1,
+    "smoke_prediction_count": 14
+  },
+  "result_policy": "Comparative local research only; preserve the original DMS-20 matrix and outputs.",
+  "rows": [
+    {
+      "artifact_files": [
+        {
+          "path": "adapter_model.safetensors",
+          "repository": "interfaze-ai/lev",
+          "revision": "8721908e50dffd5fe8726507c09498e3def5b2f6",
+          "sha256": "64c718974d7ed0c9b22a0304060669fa3289ff89b57e572d08b9e9a0dc0623c1",
+          "size_bytes": 169903320
+        },
+        {
+          "path": "mode_b_head.pt",
+          "repository": "interfaze-ai/lev",
+          "revision": "8721908e50dffd5fe8726507c09498e3def5b2f6",
+          "sha256": "27eedf7bb9e20d66432882b91297ef6e1ce3d23d81e94ed105ffadba77c6d3ad",
+          "size_bytes": 14698565
+        },
+        {
+          "path": "tokenizer.json",
+          "repository": "interfaze-ai/lev",
+          "revision": "8721908e50dffd5fe8726507c09498e3def5b2f6",
+          "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "size_bytes": 19989325
+        },
+        {
+          "path": "model.safetensors-00001-of-00002.safetensors",
+          "repository": "Qwen/Qwen3.5-4B",
+          "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+          "sha256": "26a93f066e1916adb13453dae5a0c707c0fbc71299ed98779571a907b8e74c61",
+          "size_bytes": 5329398688
+        },
+        {
+          "path": "model.safetensors-00002-of-00002.safetensors",
+          "repository": "Qwen/Qwen3.5-4B",
+          "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+          "sha256": "cb544bd9bfae93dc59b0f22b292f5933573854a7f9b97835c67060d7d910e188",
+          "size_bytes": 3990429408
+        }
+      ],
+      "attention": "sdpa",
+      "base_model": {
+        "id": "Qwen/Qwen3.5-4B",
+        "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+      },
+      "device": "mps",
+      "disposition": "selected",
+      "execution_variant": "Lev adapter @ pinned revision with DMS-20 execution base Qwen/Qwen3.5-4B@851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+      "id": "lev",
+      "lead": "Lev (pinned execution-base variant)",
+      "max_state_tokens": 8192,
+      "model": {
+        "id": "interfaze-ai/lev",
+        "revision": "8721908e50dffd5fe8726507c09498e3def5b2f6"
+      },
+      "optimization_id": "lev-mps-bf16",
+      "precision": "bfloat16",
+      "resource_floor": {
+        "measured_peak_rss_required": true,
+        "minimum_free_disk_after_stage_bytes": 2147483648,
+        "minimum_free_disk_before_stage_bytes": 16106127360,
+        "minimum_free_memory_bytes": 19327352832
+      },
+      "runtime": {
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/qwen-mps.lock",
+        "lock_sha256": "461f99b6fff9db15a73c73ec65ef32dc3b81018b616d2b05777ac5b2cfdc1cd0",
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "numpy": "2.5.3",
+          "peft": "0.21.0",
+          "safetensors": "0.8.0",
+          "torch": "2.8.0",
+          "transformers": "5.17.0"
+        },
+        "python_version": "3.13.15"
+      },
+      "source": {
+        "id": "InterfazeAI/lev",
+        "lock_sha256": "30ee76aa0bcc5b1c242217971d0ab1c6810f7e74600f41a03321bac2899409de",
+        "repository": "https://github.com/InterfazeAI/lev.git",
+        "revision": "79e1661aeb42dadebc144753a4f37117510952ee"
+      },
+      "tokenizer": {
+        "id": "interfaze-ai/lev",
+        "path": "tokenizer.json",
+        "revision": "8721908e50dffd5fe8726507c09498e3def5b2f6",
+        "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+        "size_bytes": 19989325
+      },
+      "training_provenance": "Publisher does not pin the base revision used during training; this row is an explicit execution pairing, not a claim to reproduce the training pairing."
+    }
+  ],
+  "runnable_cohort": [
+    "lev-mps-bf16"
+  ]
+}

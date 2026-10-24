@@ -1,0 +1,14 @@
+{
+  "approval_scope": "One Tev1-4B MPS BF16 batch-4 variant, bound to the existing DMS-20 corpus, exact model revision, runtime, runner, and resource floors.",
+  "approval_source": "User explicitly directed: run the remaining DMS-20 optimization variants.",
+  "approved": true,
+  "approved_at": "2026-10-24T04:50:00Z",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "dispositions": {
+    "tev1-4b": "selected"
+  },
+  "matrix_sha256": "eab7af1301f74ff9dc32adb66f2d7a094d47e7ee217fdf9bc75a724116efc9ed",
+  "runnable_cohort": [
+    "tev1-4b"
+  ]
+}
