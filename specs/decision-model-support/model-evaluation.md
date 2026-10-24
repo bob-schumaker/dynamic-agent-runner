@@ -952,6 +952,74 @@ The user excluded Qwen3.5-27B. The original matrix and separate Tev1/Nimble
 extension remain unchanged. These MLX rows use their MLX path; separate MPS
 optimization results are recorded in the DMS-20 full results addendum.
 
+### MLX Decision models under 12 GB
+
+The `mlx-decision` model inventory documents 14 additional model candidates
+whose reported memory is below 12 GB, including D1A-E4B v0.6.1 8-bit at 7.48 GB and its separate v0.5 8-bit comparison row, plus Julia-1, which is already present
+in the DMS-20 baseline. The candidate list, pinned Hugging Face revisions,
+source memory figures, and eligible quantization alternatives are recorded in
+[`evaluation/dms20-mlx-decision-under-12gb-proposals-2026-10-24.json`](evaluation/dms20-mlx-decision-under-12gb-proposals-2026-10-24.json).
+The 13 new runnable rows were evaluated against the shared 684-item DMS-20
+corpus, with canonical and reversed option order (1,368 predictions per row).
+Julia-1 was already in the baseline and was not rerun. The exact cohort and
+approval are frozen in the [matrix](evaluation/dms20-mlx-decision-matrix.json)
+and [approval receipt](evaluation/dms20-mlx-decision-approval.json). Combined
+scores and paired bootstrap comparisons are in the
+[aggregate evaluation](evaluation/dms20-mlx-decision-run-2026-10-24/aggregate-evaluation.json);
+per-row predictions, measurements, reports, and hash-bound receipts are in
+[`evaluation/dms20-mlx-decision-run-2026-10-24/`](evaluation/dms20-mlx-decision-run-2026-10-24/).
+
+| Candidate | Macro accuracy | Lowest category | Mean latency / decision | Peak RSS | Invalid | DMS-20 gates |
+|---|---:|---|---:|---:|---:|---|
+| Clef-Flash 8-bit | 0.8473 | 0.6121 (emotion) | 973.0 ms | 13.16 GiB | 0 | Pass |
+| PPLX Decider Flash v1.2 | 0.8424 | 0.5862 (emotion) | 422.9 ms | 8.28 GiB | 0 | Pass |
+| D3-Flash 8-bit | 0.8453 | 0.6724 (emotion) | 806.5 ms | 12.89 GiB | 0 | Pass |
+| D3-Mini | **0.8648** | 0.6034 (emotion) | 435.9 ms | 10.70 GiB | 0 | Pass |
+| D3-Nano | 0.8207 | 0.6379 (emotion) | 169.3 ms | 6.84 GiB | 0 | Pass |
+| D3-Lite | 0.7663 | 0.6034 (emotion) | 73.6 ms | 2.97 GiB | 0 | Pass |
+| D3-Edge | 0.6369 | 0.3793 (MMLU) | 36.1 ms | 2.07 GiB | 0 | Fail |
+| H2O Lightning 4B 8-bit | 0.8119 | 0.5776 (emotion) | 403.8 ms | 8.70 GiB | 0 | Pass |
+| LiquidAI D1 3B | 0.7540 | 0.6121 (MMLU) | 204.0 ms | 5.36 GiB | 0 | Pass |
+| Laya | 0.5333 | 0.3103 (MMLU) | 37.7 ms | 1.64 GiB | 0 | Fail |
+| Laya Typed Decisions | 0.5221 | 0.2672 (MMLU) | 37.3 ms | 1.51 GiB | 0 | Fail |
+| Laya Multilingual | 0.4797 | 0.2672 (MMLU) | **16.3 ms** | 1.62 GiB | 0 | Fail |
+| D1A-E4B v0.5 8-bit | 0.6914 | 0.5259 (MMLU) | 237.1 ms | 6.20 GiB | 15 | Fail |
+| D1A-E4B v0.6.1 8-bit | 0.6914 | 0.5259 (MMLU) | 237.3 ms | 6.21 GiB | 15 | Fail |
+
+D3-Mini is the point leader, but its paired 95% bootstrap interval versus
+Clef-Flash includes zero; the evaluation does not establish a quality winner
+between them. D3-Mini's canonical macro accuracy is higher than PPLX Decider's
+by 0.0224 points (paired 95% interval 0.0024–0.0430). The fastest row,
+Laya-Multilingual, fails the quality gates. LiquidAI D1 3B passes both gates
+narrowly on macro accuracy (0.7540 against the 0.75 threshold).
+
+The D1A-E4B v0.5 and v0.6.1 rows tie on macro accuracy, lowest category,
+option-order flips (69), invalid outputs (15), and paired bootstrap result
+(zero difference; 95% interval 0–0). Their mean latency is effectively the
+same in this run (237.1 ms versus 237.3 ms). Thus this DMS-20 sample shows no
+quality or speed advantage for either version.
+
+All models completed without oversized inputs; the runner's per-row temporary
+model staging directories were removed after evaluation. Peak RSS is measured
+on this host and can exceed upstream weight or MLX allocation figures. The
+reported latency is per prediction, averaged over both option orders.
+
+The screening uses the source's detailed fit-check or peak-memory figures,
+not rounded overview values. In particular, d3-flash 8-bit is listed as
+11.7 GB peak at the documented default benchmark length, although the
+overview rounds it to 12 GB; longer inputs can exceed the limit. d1-3B is
+11.6 GB peak in the detailed table despite the same rounded overview value.
+The D1A-E4B rows pin both the MLX v0.6.1 and v0.5 decision-head builds for a
+matched comparison; the current model card reports a 7.48 GB on-disk model and
+about 6 GB of weights plus up to 1 GB for media encoders. Upstream reports a
+hard-decision quality regression in v0.6 versus v0.5, while this DMS-20 run
+found tied macro accuracy and effectively identical latency. The three Laya
+checkpoints accept at most 512 or 1,024 input tokens; all evaluated normalized
+inputs fit those limits, with a maximum of 366 tokens. Memory figures are
+upstream estimates or measurements, not measurements from this DMS host. The
+LiquidAI d1-3B model uses the LFM Open License v1.0, whose commercial terms
+include a revenue threshold condition.
+
 The pinned rows retain their evidence limits. Julia-1 is
 `SupersonicLabs/Julia-1@a85b127321d580d65176c89ced8273f305745d85` (Apache-2.0,
 CPU/PyTorch). Kev-4B is

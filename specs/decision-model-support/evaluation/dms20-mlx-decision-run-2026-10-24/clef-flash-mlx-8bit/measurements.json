@@ -1,0 +1,111 @@
+{
+  "candidate_id": "clef-flash-mlx-8bit",
+  "cold_load_ms": 2173.2674590311944,
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "elapsed_inference_ms": 1331049.3340000976,
+  "failed_outputs": 0,
+  "host_platform": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+  "item_count": 684,
+  "matrix_sha256": "b238ba8b95937478d5ee19a1456a1924d486cc52f771bafca5f80b124b46396f",
+  "max_normalized_input_tokens": 366,
+  "mean_prediction_latency_ms": 972.9622478934879,
+  "mlx_active_memory_bytes": 9758041432,
+  "mlx_peak_memory_bytes": 10393486552,
+  "model": {
+    "id": "Cloudflare/clef-flash",
+    "revision": "f0b7d3cd65296abfe459e6c228b618f5d8b26d2f"
+  },
+  "normalized_inputs_over_content_limit": 0,
+  "oversize_outputs": 0,
+  "peak_rss_bytes": 14126022656,
+  "prediction_count": 1368,
+  "runtime": {
+    "kind": "mlx-decision",
+    "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+    "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+    "packages": {
+      "huggingface-hub": "2.3.0",
+      "mlx": "0.32.4",
+      "mlx-decision": "1.0.0",
+      "numpy": "2.5.4",
+      "pydantic": "2.14.1",
+      "tokenizers": "0.23.3"
+    },
+    "python_version": "3.13.15"
+  },
+  "stage": {
+    "artifacts": [
+      {
+        "path": ".download.json",
+        "sha256": "6b587874e9bc653770f76900a7b74520764e604b5c0ab94de930f5f266fecedf",
+        "size_bytes": 90
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+        "size_bytes": 11544
+      },
+      {
+        "path": "config.json",
+        "sha256": "fa1ca1820d11f8da419741d99ac39b53d6ed4d5b02ebc28cc9a19eaa811f4ea6",
+        "size_bytes": 2915
+      },
+      {
+        "path": "joint_head.safetensors",
+        "sha256": "19cdcec8c81dc9212be320fff47462ab342fbc1278be4368fb3da71241cf5ba0",
+        "size_bytes": 243538016
+      },
+      {
+        "path": "joint_head_config.json",
+        "sha256": "77efe959a38b5b17b241543e129e695f3c77465ece55a25985279bd8176279a0",
+        "size_bytes": 119
+      },
+      {
+        "path": "mlx_decision.json",
+        "sha256": "55b459ec7c92a42f0ae1b2b10e7d99211b32f933bf9b429c9d1c2263681fed37",
+        "size_bytes": 273
+      },
+      {
+        "path": "model-00001-of-00002.safetensors",
+        "sha256": "21a923959fdbaa5986a17d761ebfd2bf93ed920f089739371afb1c3899903fa4",
+        "size_bytes": 5329883433
+      },
+      {
+        "path": "model-00002-of-00002.safetensors",
+        "sha256": "d2e6f30886631441be09ae8b64075d52da04cbbe0a0d73c306ed38e959376b60",
+        "size_bytes": 4184648802
+      },
+      {
+        "path": "model-vision.safetensors",
+        "sha256": "4caab3b9e2391eb1c529be866c3f5eadc390028cb1c256dfcf35e2cdcc482cd5",
+        "size_bytes": 912057988
+      },
+      {
+        "path": "model.safetensors.index.json",
+        "sha256": "3da746eeb6dfbc836b9a3de8618abea78d52c1db75bc941fa3a1f27c500b9e89",
+        "size_bytes": 115878
+      },
+      {
+        "path": "processor_config.json",
+        "sha256": "d89ef49ce9cd37fbf510158e13c1ef063d9286411c1ec9049932dbe0487143b1",
+        "size_bytes": 1191
+      },
+      {
+        "path": "tokenizer.json",
+        "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+        "size_bytes": 19989325
+      }
+    ],
+    "resource_preflight": {
+      "after_stage": {
+        "free_disk_bytes": 26998865920,
+        "free_memory_bytes_estimate": 15848429322
+      },
+      "before_stage": {
+        "free_disk_bytes": 37726523392,
+        "free_memory_bytes_estimate": 32856499814
+      }
+    },
+    "source_revision": "f0b7d3cd65296abfe459e6c228b618f5d8b26d2f"
+  }
+}

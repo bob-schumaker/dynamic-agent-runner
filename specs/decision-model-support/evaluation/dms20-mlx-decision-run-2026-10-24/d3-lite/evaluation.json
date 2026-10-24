@@ -1,0 +1,144 @@
+{
+  "candidates": {
+    "d3-lite": {
+      "calibration": {
+        "macro_multiclass_brier": 0.33603684939637635,
+        "n": 684,
+        "status": "available; raw outputs only, calibration not fitted",
+        "top_label_ece_10_bins": 0.09019586735824396
+      },
+      "canonical": {
+        "accuracy": 0.7573099415204678,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.6875,
+            "correct": 66,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.603448275862069,
+            "correct": 70,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.95,
+            "correct": 76,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.6379310344827587,
+            "correct": 74,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.6875,
+            "correct": 55,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.875,
+            "correct": 70,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.9224137931034483,
+            "correct": 107,
+            "total": 116
+          }
+        },
+        "correct": 518,
+        "macro_accuracy": 0.766256157635468,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.7360414100985223,
+          "upper": 0.795966748768473
+        },
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 60,
+        "flip_rate": 0.08771929824561403,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.7690058479532164,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.7291666666666666,
+            "correct": 70,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.5862068965517241,
+            "correct": 68,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.95,
+            "correct": 76,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.6637931034482759,
+            "correct": 77,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.675,
+            "correct": 54,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.8875,
+            "correct": 71,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.9482758620689655,
+            "correct": 110,
+            "total": 116
+          }
+        },
+        "correct": 526,
+        "macro_accuracy": 0.7771346469622332,
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      }
+    }
+  },
+  "paired_bootstrap": {},
+  "protocol": {
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 14,
+    "bootstrap_stratification": "item IDs sampled with replacement within task; shared samples across candidates",
+    "common_probability_item_count": 684,
+    "invalid_missing_and_abstaining_are_incorrect": true,
+    "item_count": 684,
+    "option_orders": [
+      "canonical",
+      "reversed"
+    ],
+    "point_leader": "d3-lite",
+    "primary_metric": "equally weighted macro accuracy on canonical option order",
+    "task_categories": [
+      "composition_holdout",
+      "emotion",
+      "legacy_holdout",
+      "mmlu",
+      "paws",
+      "qnli",
+      "sciq"
+    ]
+  },
+  "ranking": [
+    {
+      "candidate": "d3-lite",
+      "macro_accuracy": 0.766256157635468,
+      "rank": 1
+    }
+  ]
+}

@@ -1,0 +1,156 @@
+{
+  "candidate_id": "liquidai-d1-3b",
+  "cold_load_ms": 407.08116721361876,
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "elapsed_inference_ms": 279049.58033398725,
+  "failed_outputs": 0,
+  "host_platform": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+  "item_count": 684,
+  "matrix_sha256": "b238ba8b95937478d5ee19a1456a1924d486cc52f771bafca5f80b124b46396f",
+  "max_normalized_input_tokens": 361,
+  "mean_prediction_latency_ms": 203.95832680089518,
+  "mlx_active_memory_bytes": 5394397192,
+  "mlx_peak_memory_bytes": 5669273630,
+  "model": {
+    "id": "LiquidAI/d1-3B",
+    "revision": "051bcc464b01b9f92942b364d9586b0ef5912432"
+  },
+  "normalized_inputs_over_content_limit": 0,
+  "oversize_outputs": 0,
+  "peak_rss_bytes": 5754224640,
+  "prediction_count": 1368,
+  "runtime": {
+    "kind": "mlx-decision",
+    "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+    "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+    "packages": {
+      "huggingface-hub": "2.3.0",
+      "mlx": "0.32.4",
+      "mlx-decision": "1.0.0",
+      "numpy": "2.5.4",
+      "pydantic": "2.14.1",
+      "tokenizers": "0.23.3"
+    },
+    "python_version": "3.13.15"
+  },
+  "stage": {
+    "artifacts": [
+      {
+        "path": ".cache/huggingface/.gitignore",
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+        "size_bytes": 1
+      },
+      {
+        "path": ".cache/huggingface/CACHEDIR.TAG",
+        "sha256": "f6572428f6d5e1575e73a1502895a8731f10757dfbb634909c6e154b849af91d",
+        "size_bytes": 191
+      },
+      {
+        "path": ".cache/huggingface/download/LICENSE.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/LICENSE.metadata",
+        "sha256": "3db8b22e09f129324e78496618a54cf02a5b09b7f6ae4ab9ab82ee1e55bae50a",
+        "size_bytes": 99
+      },
+      {
+        "path": ".cache/huggingface/download/README.md.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/README.md.metadata",
+        "sha256": "e8b61a2f682c270cb878a67962a21a80cd88085ed3497222f24eec3489ea728a",
+        "size_bytes": 101
+      },
+      {
+        "path": ".cache/huggingface/download/config.json.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/config.json.metadata",
+        "sha256": "0e9bdbf4119566a2b3522fd8a6d9540453db584f141eccab37e3f482cdc1cd79",
+        "size_bytes": 100
+      },
+      {
+        "path": ".cache/huggingface/download/model.safetensors.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/model.safetensors.metadata",
+        "sha256": "37f70e323151cbea19edcedc621005d07378adafd5f64f58429ad92fb72e30f7",
+        "size_bytes": 124
+      },
+      {
+        "path": ".cache/huggingface/download/tokenizer.json.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/tokenizer.json.metadata",
+        "sha256": "e88ef0614e85299274ee7168e479ec9b5832390ae80d266fbd1036f7f21dd8de",
+        "size_bytes": 124
+      },
+      {
+        "path": ".cache/huggingface/download/tokenizer_config.json.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/tokenizer_config.json.metadata",
+        "sha256": "04c2848f4b89de62b659f5209b8db08fb5afab5ad09770197bd91389399349fb",
+        "size_bytes": 100
+      },
+      {
+        "path": ".cache/huggingface/trees/051bcc464b01b9f92942b364d9586b0ef5912432.json",
+        "sha256": "256bb23ddd35dd3255699bba87a6c677ed205ff74262facd210baad691dea761",
+        "size_bytes": 1935
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "4d28ca14dedc0b3d0fcc2b3339f0e79931faa33874f3d24f522183a8fc70068c",
+        "size_bytes": 10574
+      },
+      {
+        "path": "README.md",
+        "sha256": "175b0bd5f0b4272a67723e16d5e1994e7a8c2d162e7797c9f1c24c01fed83f1d",
+        "size_bytes": 10448
+      },
+      {
+        "path": "config.json",
+        "sha256": "0cbac0f580bd8036ef94ac83aa632a57a170e66d20f381ef47c3f6486c9a3e8c",
+        "size_bytes": 2773
+      },
+      {
+        "path": "model.safetensors",
+        "sha256": "50e03317847caf6df9a9aee27ed40f20554a86a21e60d1d47ba41a422b546c0c",
+        "size_bytes": 6247065504
+      },
+      {
+        "path": "tokenizer.json",
+        "sha256": "8096ecb9f54599d756c8de728a598a340bc1e43c0deb77ddd62456c38349fcee",
+        "size_bytes": 17905750
+      },
+      {
+        "path": "tokenizer_config.json",
+        "sha256": "ef6770d12dd9ac58d334e979bf160c5cdfd41f13d205fd5d5516857645feb0ea",
+        "size_bytes": 507
+      }
+    ],
+    "resource_preflight": {
+      "after_stage": {
+        "free_disk_bytes": 30505447424,
+        "free_memory_bytes_estimate": 30150670417
+      },
+      "before_stage": {
+        "free_disk_bytes": 36762636288,
+        "free_memory_bytes_estimate": 30150670417
+      }
+    },
+    "source_revision": "051bcc464b01b9f92942b364d9586b0ef5912432"
+  }
+}
