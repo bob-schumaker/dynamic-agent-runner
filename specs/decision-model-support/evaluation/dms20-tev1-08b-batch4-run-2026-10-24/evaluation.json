@@ -1,0 +1,146 @@
+{
+  "candidates": {
+    "tev1-0.8b-mps-batch4": {
+      "calibration": {
+        "macro_multiclass_brier": 0.4836553244392595,
+        "n": 678,
+        "status": "available; raw outputs only, calibration not fitted",
+        "top_label_ece_10_bins": 0.12827192541420637
+      },
+      "canonical": {
+        "accuracy": 0.6286549707602339,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.5416666666666666,
+            "correct": 52,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.5689655172413793,
+            "correct": 66,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.5125,
+            "correct": 41,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.5,
+            "correct": 58,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.5625,
+            "correct": 45,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.8375,
+            "correct": 67,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.8706896551724138,
+            "correct": 101,
+            "total": 116
+          }
+        },
+        "correct": 430,
+        "macro_accuracy": 0.6276888341543513,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.5916440886699508,
+          "upper": 0.6625723522167488
+        },
+        "status_counts": {
+          "invalid": 6,
+          "ok": 678
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 118,
+        "flip_rate": 0.17251461988304093,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.6257309941520468,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.5,
+            "correct": 48,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.49137931034482757,
+            "correct": 57,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.6375,
+            "correct": 51,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.49137931034482757,
+            "correct": 57,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.575,
+            "correct": 46,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.8125,
+            "correct": 65,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.896551724137931,
+            "correct": 104,
+            "total": 116
+          }
+        },
+        "correct": 428,
+        "macro_accuracy": 0.6291871921182265,
+        "status_counts": {
+          "invalid": 17,
+          "ok": 667
+        },
+        "total": 684
+      }
+    }
+  },
+  "paired_bootstrap": {},
+  "protocol": {
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 14,
+    "bootstrap_stratification": "item IDs sampled with replacement within task; shared samples across candidates",
+    "common_probability_item_count": 678,
+    "invalid_missing_and_abstaining_are_incorrect": true,
+    "item_count": 684,
+    "option_orders": [
+      "canonical",
+      "reversed"
+    ],
+    "point_leader": "tev1-0.8b-mps-batch4",
+    "primary_metric": "equally weighted macro accuracy on canonical option order",
+    "task_categories": [
+      "composition_holdout",
+      "emotion",
+      "legacy_holdout",
+      "mmlu",
+      "paws",
+      "qnli",
+      "sciq"
+    ]
+  },
+  "ranking": [
+    {
+      "candidate": "tev1-0.8b-mps-batch4",
+      "macro_accuracy": 0.6276888341543513,
+      "rank": 1
+    }
+  ]
+}

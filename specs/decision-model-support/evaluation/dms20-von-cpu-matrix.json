@@ -1,0 +1,129 @@
+{
+  "approval_scope": "One Von 1.2.0 CPU FP32 candidate row; reuse its completed output because DMS-14 and DMS-20 input and label digests are identical, then score with the frozen DMS-20 evaluator.",
+  "corpus_manifest": "dms14-corpus-manifest.json",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "harness_files": [
+    {
+      "path": "scripts/evaluate_decision_transfer.py",
+      "sha256": "c92540a599754aeffc0b761852c49f0d01daa0e4953e9f012973deb46b94e3cd"
+    }
+  ],
+  "item_count": 684,
+  "matrix_id": "DMS-20 additional Von 1.2.0 candidate evaluation",
+  "matrix_version": 1,
+  "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "original_matrix_path": "specs/decision-model-support/evaluation/dms20-matrix.json",
+  "original_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "protocol": {
+    "input_policy": "One shared 4096-token context limit: tokenize normalized state, question, and option labels with each candidate tokenizer and require at most 3584 content tokens, reserving 512 tokens for model-specific prompt formatting. Fail closed on excess; do not truncate.",
+    "invalid_missing_abstaining": "incorrect",
+    "normalized_content_token_limit": 3584,
+    "paired_bootstrap_resamples": 10000,
+    "paired_bootstrap_seed": 14,
+    "paired_bootstrap_strata": "source category; identical item IDs across candidates",
+    "primary_metric": "equal macro average of accuracy across the seven included source categories",
+    "primary_order": "canonical",
+    "probability_metrics": "raw Brier and top-label ECE only when outputs are comparable; no calibration fitting",
+    "prompt_format_reserve_tokens": 512,
+    "sensitivity_order": "reverse all options while preserving option IDs and gold labels",
+    "status": "proposed; inherited from DMS-14 and subject to this matrix approval",
+    "thresholds": {
+      "macro_accuracy_min": 0.75,
+      "per_category_accuracy_min": 0.4
+    }
+  },
+  "result_policy": "Local comparative research only. Historical DMS-14 artifacts remain unchanged. The original DMS-20 matrix remains unchanged. Reused latency measurements retain their original host/date provenance.",
+  "rows": [
+    {
+      "artifact_files": [
+        {
+          "path": "model.safetensors",
+          "repository": "wfzyx/von",
+          "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
+          "sha256": "af57d5d2ab15715a753a1eb4add4271d1aecce7e76f3365f629c082df329297a",
+          "size_bytes": 1579143688
+        },
+        {
+          "path": "option_marker.pt",
+          "repository": "wfzyx/von",
+          "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
+          "sha256": "3faf27f88d30aaf9aa37860d4cdef99f1d05450cf40364f6236ac892d4d139ed",
+          "size_bytes": 1581316459
+        },
+        {
+          "path": "marker_calibration.json",
+          "repository": "wfzyx/von",
+          "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae",
+          "sha256": "9b32949dcd0cfd122db509c9bd5be67f0cfe35696153aa93d667caf0aae147c9",
+          "size_bytes": 1456
+        }
+      ],
+      "base_model": {
+        "id": "wfzyx/von",
+        "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae"
+      },
+      "candidate_id": "von-cpu",
+      "device": "cpu",
+      "display_name": "Von 1.2.0 CPU FP32",
+      "disposition": "selected",
+      "id": "von-1.2.0-cpu",
+      "max_normalized_content_tokens": 356,
+      "model": {
+        "id": "wfzyx/von",
+        "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae"
+      },
+      "precision": "fp32",
+      "reused_predictions": {
+        "path": "specs/decision-model-support/evaluation/dms14-run-2026-09-27/von-cpu/predictions.jsonl",
+        "prediction_count": 1368,
+        "reason_reused": "DMS-14 and DMS-20 bind identical normalized-input, label, category, and option-order hashes; the pinned Von model/source/runtime are identical.",
+        "sha256": "936f8151e4c719ed2f67903088fc689d9db3239a420d878ea6c82d38b1033569",
+        "source_matrix_path": "specs/decision-model-support/evaluation/dms14-matrix.json",
+        "source_matrix_sha256": "6dd0764bdcd122227ace407820fcb8d5a8cdf3aa73f19562b97e72e7046b24b9",
+        "source_measurements_path": "specs/decision-model-support/evaluation/dms14-run-2026-09-27/von-cpu/measurements.json",
+        "source_measurements_sha256": "a09357fcd788d578ec38229ab87c7069fc8ae8a174b0cbc6f42a37ee2e07771b",
+        "source_run_receipt_path": "specs/decision-model-support/evaluation/dms14-run-2026-09-27/run-receipt.json",
+        "source_run_receipt_sha256": "6d86d750240415707cf713a102169a51c9154ebd71b65cfeadbecccd295175be"
+      },
+      "runtime": {
+        "lock_filename": "uv.lock",
+        "lock_sha256": "acaaa8abfcd3bc18eff1557fe2c73be73c00899eed5b1145de1b30518acf1f41",
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "torch": "2.14.0",
+          "transformers": "5.17.0"
+        },
+        "python_version": "3.14.7"
+      },
+      "source": {
+        "id": "wfzyx/von",
+        "revision": "fb6e7a937e4fc6b6e72b2ce5035edd56bc370e54"
+      },
+      "token_count_method": "Von AutoTokenizer at the exact pinned model revision, add_special_tokens=false, applied to the DMS-20 normalized state/question/options; all 684 inputs are within the 3584-token cap.",
+      "tokenizer": {
+        "id": "wfzyx/von",
+        "revision": "5df8185a4f2327ad0a7cd117cc4f701ac557b9ae"
+      },
+      "tokenizer_files": [
+        {
+          "path": "tokenizer.json",
+          "sha256": "bb637767e8dfb8044597df6c58243bff2e592ae9e3b310c0bbdb8591f6ac543d",
+          "size_bytes": 3583486
+        },
+        {
+          "path": "tokenizer_config.json",
+          "sha256": "4d2a485d5fd1ee514db180744fc00807c11da34012ac3666744c0377f6c23731",
+          "size_bytes": 571
+        },
+        {
+          "path": "config.json",
+          "sha256": "091b9a53c47e1cbc0b10b521a2d2f21dedf863851c07122cfa3d3e497e5e82ec",
+          "size_bytes": 6329
+        }
+      ]
+    }
+  ],
+  "status": "approved for scoring the pinned Von run on the DMS-20 corpus"
+}

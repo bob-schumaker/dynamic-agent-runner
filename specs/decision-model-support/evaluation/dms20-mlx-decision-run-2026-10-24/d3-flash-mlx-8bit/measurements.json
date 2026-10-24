@@ -1,0 +1,116 @@
+{
+  "candidate_id": "d3-flash-mlx-8bit",
+  "cold_load_ms": 1637.9466250073165,
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "elapsed_inference_ms": 1103333.9542089961,
+  "failed_outputs": 0,
+  "host_platform": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+  "item_count": 684,
+  "matrix_sha256": "b238ba8b95937478d5ee19a1456a1924d486cc52f771bafca5f80b124b46396f",
+  "max_normalized_input_tokens": 366,
+  "mean_prediction_latency_ms": 806.5030143757239,
+  "mlx_active_memory_bytes": 8437989706,
+  "mlx_peak_memory_bytes": 10674811492,
+  "model": {
+    "id": "vllm-sr/d3-flash",
+    "revision": "13dc1cc8ef23caefa765907e1d764751e5629f7d"
+  },
+  "normalized_inputs_over_content_limit": 0,
+  "oversize_outputs": 0,
+  "peak_rss_bytes": 13842284544,
+  "prediction_count": 1368,
+  "runtime": {
+    "kind": "mlx-decision",
+    "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+    "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+    "packages": {
+      "huggingface-hub": "2.3.0",
+      "mlx": "0.32.4",
+      "mlx-decision": "1.0.0",
+      "numpy": "2.5.4",
+      "pydantic": "2.14.1",
+      "tokenizers": "0.23.3"
+    },
+    "python_version": "3.13.15"
+  },
+  "stage": {
+    "artifacts": [
+      {
+        "path": ".download.json",
+        "sha256": "02f935d6aa32c63c38363e50cf5e936e7134312a3afb92d98b7633a6f2c7ef37",
+        "size_bytes": 85
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "size_bytes": 11357
+      },
+      {
+        "path": "NOTICE",
+        "sha256": "ae7ffb4d788c076d655394f0f116ad4b7de54e3bca9b655df5c669ea5bae74f6",
+        "size_bytes": 105
+      },
+      {
+        "path": "config.json",
+        "sha256": "6d364c93dd9bb75e70bd1a99bc0105e081f277e6725c9c060276cd07c85e8147",
+        "size_bytes": 3176
+      },
+      {
+        "path": "decision_config.json",
+        "sha256": "0269c72ac055d8149a7a778c477780af361f4c1cde3fd0e5ba9af791453ece18",
+        "size_bytes": 5502
+      },
+      {
+        "path": "mlx_decision.json",
+        "sha256": "761d0fe33c3f15dcf6cb47f12460b7d7af385a832da3260694de1b87ec2feb15",
+        "size_bytes": 227
+      },
+      {
+        "path": "model-00001-of-00002.safetensors",
+        "sha256": "b7c6237cc00009f0b087a1cdb03be170fba0e549cc0604a3f5cd9a75c9610687",
+        "size_bytes": 5346609214
+      },
+      {
+        "path": "model-00002-of-00002.safetensors",
+        "sha256": "9943f2f425d353f80e64e5bf8ad88f75318bc93e070210fc511711137e750dd9",
+        "size_bytes": 3087233772
+      },
+      {
+        "path": "model-vision.safetensors",
+        "sha256": "6ea0c46dadcd9698868470f21c740befe3d643709809e559656aa340640a0c3b",
+        "size_bytes": 912057990
+      },
+      {
+        "path": "model.safetensors.index.json",
+        "sha256": "8cf545244e00db984fbe6f1adb4a04f1bee7b137c3d52d80ab452d35c6e72999",
+        "size_bytes": 115658
+      },
+      {
+        "path": "preprocessor_config.json",
+        "sha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+        "size_bytes": 390
+      },
+      {
+        "path": "readout.safetensors",
+        "sha256": "8bbc9a9df4e1b7df85a80a1091977092b938d8d2d2869dfaeb8fd36063cf322f",
+        "size_bytes": 4178000
+      },
+      {
+        "path": "tokenizer.json",
+        "sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+        "size_bytes": 12807982
+      }
+    ],
+    "resource_preflight": {
+      "after_stage": {
+        "free_disk_bytes": 28007256064,
+        "free_memory_bytes_estimate": 18167711662
+      },
+      "before_stage": {
+        "free_disk_bytes": 37443411968,
+        "free_memory_bytes_estimate": 31310311587
+      }
+    },
+    "source_revision": "13dc1cc8ef23caefa765907e1d764751e5629f7d"
+  }
+}

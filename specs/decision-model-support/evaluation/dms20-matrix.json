@@ -1,0 +1,411 @@
+{
+  "approval_scope": "one approval for the complete four-row matrix, including the named Lev execution-base variant and both provenance limitations",
+  "artifact_download_allow_patterns": [
+    "*.json",
+    "*.safetensors",
+    "*.pt",
+    "*.py",
+    "*.jinja",
+    "*.model",
+    "*.txt",
+    "MANIFEST.sha256"
+  ],
+  "artifact_download_ignore_patterns": [
+    "eval/**",
+    "training/**",
+    "assets/**",
+    "README.md",
+    "*.jsonl",
+    "*.png",
+    "*.svg"
+  ],
+  "corpus_manifest": "dms14-corpus-manifest.json",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "dispositions": {
+    "julia-1": "selected",
+    "kev-4b": "selected",
+    "lev": "selected",
+    "strands-decider-2b": "selected"
+  },
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "harness_files": [
+    {
+      "path": "tests/manual/run_dms20_transfer.py",
+      "sha256": "118eec7bc5f50b86b75f5ee8023f9174302e0b8e9a84f018d6adf46edcabb195"
+    },
+    {
+      "path": "scripts/evaluate_decision_transfer.py",
+      "sha256": "c92540a599754aeffc0b761852c49f0d01daa0e4953e9f012973deb46b94e3cd"
+    },
+    {
+      "path": "specs/decision-model-support/evaluation/dms20-runtimes/qwen-cpu.lock",
+      "sha256": "342f32ddfd0d21ee5a17efe8199ebc491d033976d3189fd5d2848845e8121bbf"
+    },
+    {
+      "path": "specs/decision-model-support/evaluation/dms20-runtimes/julia.lock",
+      "sha256": "f12f2ed3da656a5988d2a865bf60c5a6873c76dd079f5a76713b780458b67764"
+    }
+  ],
+  "host_preflight": {
+    "device": "CPU",
+    "free_disk_bytes": 21710044000,
+    "material_policy": "one model/base cache at a time; verify digests, retain aggregate outputs, then remove only the DMS-20-owned material cache",
+    "memory_bytes": 38654705664,
+    "observed_at": "2026-10-22T04:47:16Z",
+    "platform": "macOS 26.7.1 arm64",
+    "resource_gate": "repeat immediately before each row; abort a row if available memory or disk is below its frozen minimum",
+    "system_memory_free_percent": 59
+  },
+  "item_count": 684,
+  "matrix_id": "DMS-20 local decision-model transfer evaluation",
+  "matrix_version": 2,
+  "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "protocol": {
+    "input_policy": "One shared 4096-token context limit: tokenize normalized state, question, and option labels with each candidate tokenizer and require at most 3584 content tokens, reserving 512 tokens for model-specific prompt formatting. Fail closed on excess; do not truncate.",
+    "invalid_missing_abstaining": "incorrect",
+    "normalized_content_token_limit": 3584,
+    "paired_bootstrap_resamples": 10000,
+    "paired_bootstrap_seed": 14,
+    "paired_bootstrap_strata": "source category; identical item IDs across candidates",
+    "primary_metric": "equal macro average of accuracy across the seven included source categories",
+    "primary_order": "canonical",
+    "probability_metrics": "raw Brier and top-label ECE only when outputs are comparable; no calibration fitting",
+    "prompt_format_reserve_tokens": 512,
+    "sensitivity_order": "reverse all options while preserving option IDs and gold labels",
+    "status": "proposed; inherited from DMS-14 and subject to this matrix approval",
+    "thresholds": {
+      "macro_accuracy_min": 0.75,
+      "per_category_accuracy_min": 0.4
+    }
+  },
+  "result_policy": "comparative local research only; no production admission or context-management claim; preserve DMS-14 artifacts unchanged",
+  "rows": [
+    {
+      "artifact_files": [
+        {
+          "path": "model.safetensors",
+          "repository": "SupersonicLabs/Julia-1",
+          "revision": "a85b127321d580d65176c89ced8273f305745d85",
+          "sha256": "df853bf7fe424420011f3d0c47a05d7341aa9eefa7fb9f203ea4aada4ad95b72",
+          "size_bytes": 577189056
+        },
+        {
+          "path": "tokenizer/tokenizer.json",
+          "repository": "SupersonicLabs/Julia-1",
+          "revision": "a85b127321d580d65176c89ced8273f305745d85",
+          "sha256": "609d8f4c067cd3950f88594c5a802616cea245823836ef5848ee4fc40aab5b6f",
+          "size_bytes": 34363188
+        }
+      ],
+      "base_model": null,
+      "device": "cpu",
+      "disposition": "selected",
+      "id": "julia-1",
+      "lead": "Julia-1",
+      "max_options": 20,
+      "max_state_tokens": 8192,
+      "model": {
+        "id": "SupersonicLabs/Julia-1",
+        "revision": "a85b127321d580d65176c89ced8273f305745d85"
+      },
+      "precision": "fp32",
+      "resource_floor": {
+        "measured_peak_rss_required": true,
+        "minimum_free_disk_after_stage_bytes": 2147483648,
+        "minimum_free_disk_before_stage_bytes": 5368709120,
+        "minimum_free_memory_bytes": 4294967296
+      },
+      "runtime": {
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/julia.lock",
+        "lock_sha256": "f12f2ed3da656a5988d2a865bf60c5a6873c76dd079f5a76713b780458b67764",
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.33.0",
+          "numpy": "2.5.3",
+          "safetensors": "0.8.0",
+          "tokenizers": "0.22.2",
+          "torch": "2.14.0",
+          "transformers": "5.0.0"
+        },
+        "python_version": "3.14.6"
+      },
+      "source": {
+        "id": "SupersonicLabs/Julia-1",
+        "revision": "a85b127321d580d65176c89ced8273f305745d85"
+      },
+      "tokenizer": {
+        "hash_type": "LFS content SHA-256; Xet storage hash is distinct",
+        "id": "SupersonicLabs/Julia-1",
+        "path": "tokenizer/tokenizer.json",
+        "revision": "a85b127321d580d65176c89ced8273f305745d85",
+        "sha256": "609d8f4c067cd3950f88594c5a802616cea245823836ef5848ee4fc40aab5b6f",
+        "size_bytes": 34363188
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "adapter_model.safetensors",
+          "repository": "jaredpalmer/kev-4b",
+          "revision": "139fdd94f1b6a6ad80cc15e08fcb99cac885a101",
+          "sha256": "90e817356246e7f18bfa7ca3d31794cd4fbeb3332a66a84cb51d9ceae925f2b2",
+          "size_bytes": 129924032
+        },
+        {
+          "path": "head.pt",
+          "repository": "jaredpalmer/kev-4b",
+          "revision": "139fdd94f1b6a6ad80cc15e08fcb99cac885a101",
+          "sha256": "dd633435998ecc751ac538717a3742e32149500fabf7d7276287dbf0693f347c",
+          "size_bytes": 5249791
+        },
+        {
+          "path": "tokenizer.json",
+          "repository": "jaredpalmer/kev-4b",
+          "revision": "139fdd94f1b6a6ad80cc15e08fcb99cac885a101",
+          "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "size_bytes": 19989325
+        },
+        {
+          "path": "model.safetensors-00001-of-00002.safetensors",
+          "repository": "Qwen/Qwen3.5-4B-Base",
+          "revision": "1001bb4d826a52d1f399e183466143f4da7b741b",
+          "sha256": "df547074dce70532a0493e5433152bd17a65efb89088cfabc2e7e2371a93d712",
+          "size_bytes": 5329398712
+        },
+        {
+          "path": "model.safetensors-00002-of-00002.safetensors",
+          "repository": "Qwen/Qwen3.5-4B-Base",
+          "revision": "1001bb4d826a52d1f399e183466143f4da7b741b",
+          "sha256": "590fbaac095dd31db886c322d9d2f7df47777966391acf306ddddc3e4e3a15ef",
+          "size_bytes": 3990429344
+        }
+      ],
+      "base_model": {
+        "id": "Qwen/Qwen3.5-4B-Base",
+        "revision": "1001bb4d826a52d1f399e183466143f4da7b741b"
+      },
+      "comparison_limit": "Published development transfer-v4 scores overlap the evaluation source.",
+      "device": "cpu",
+      "disposition": "selected",
+      "id": "kev-4b",
+      "lead": "Kev-4B",
+      "max_state_tokens": 8192,
+      "model": {
+        "id": "jaredpalmer/kev-4b",
+        "revision": "139fdd94f1b6a6ad80cc15e08fcb99cac885a101"
+      },
+      "precision": "fp32",
+      "resource_floor": {
+        "measured_peak_rss_required": true,
+        "minimum_free_disk_after_stage_bytes": 2147483648,
+        "minimum_free_disk_before_stage_bytes": 16106127360,
+        "minimum_free_memory_bytes": 19327352832
+      },
+      "runtime": {
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/qwen-cpu.lock",
+        "lock_sha256": "342f32ddfd0d21ee5a17efe8199ebc491d033976d3189fd5d2848845e8121bbf",
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "numpy": "2.5.3",
+          "peft": "0.21.0",
+          "safetensors": "0.8.0",
+          "torch": "2.8.0",
+          "transformers": "5.17.0"
+        },
+        "python_version": "3.13.15"
+      },
+      "source": {
+        "id": "jaredpalmer/kev",
+        "lock_sha256": "a9922dbb89acdef78299fd2b4a8c3f7f0fa1b2bc08b55595b6926fa785a9c466",
+        "revision": "1f04cfa28e6a708485b28a9585010b9e436b776e"
+      },
+      "tokenizer": {
+        "id": "jaredpalmer/kev-4b",
+        "path": "tokenizer.json",
+        "revision": "139fdd94f1b6a6ad80cc15e08fcb99cac885a101",
+        "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+        "size_bytes": 19989325
+      }
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "adapter_model.safetensors",
+          "repository": "interfaze-ai/lev",
+          "revision": "8721908e50dffd5fe8726507c09498e3def5b2f6",
+          "sha256": "64c718974d7ed0c9b22a0304060669fa3289ff89b57e572d08b9e9a0dc0623c1",
+          "size_bytes": 169903320
+        },
+        {
+          "path": "mode_b_head.pt",
+          "repository": "interfaze-ai/lev",
+          "revision": "8721908e50dffd5fe8726507c09498e3def5b2f6",
+          "sha256": "27eedf7bb9e20d66432882b91297ef6e1ce3d23d81e94ed105ffadba77c6d3ad",
+          "size_bytes": 14698565
+        },
+        {
+          "path": "tokenizer.json",
+          "repository": "interfaze-ai/lev",
+          "revision": "8721908e50dffd5fe8726507c09498e3def5b2f6",
+          "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "size_bytes": 19989325
+        },
+        {
+          "path": "model.safetensors-00001-of-00002.safetensors",
+          "repository": "Qwen/Qwen3.5-4B",
+          "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+          "sha256": "26a93f066e1916adb13453dae5a0c707c0fbc71299ed98779571a907b8e74c61",
+          "size_bytes": 5329398688
+        },
+        {
+          "path": "model.safetensors-00002-of-00002.safetensors",
+          "repository": "Qwen/Qwen3.5-4B",
+          "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+          "sha256": "cb544bd9bfae93dc59b0f22b292f5933573854a7f9b97835c67060d7d910e188",
+          "size_bytes": 3990429408
+        }
+      ],
+      "base_model": {
+        "id": "Qwen/Qwen3.5-4B",
+        "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+      },
+      "device": "cpu",
+      "disposition": "selected",
+      "execution_variant": "Lev adapter @ pinned revision with DMS-20 execution base Qwen/Qwen3.5-4B@851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+      "id": "lev",
+      "lead": "Lev (pinned execution-base variant)",
+      "max_state_tokens": 8192,
+      "model": {
+        "id": "interfaze-ai/lev",
+        "revision": "8721908e50dffd5fe8726507c09498e3def5b2f6"
+      },
+      "precision": "fp32",
+      "resource_floor": {
+        "measured_peak_rss_required": true,
+        "minimum_free_disk_after_stage_bytes": 2147483648,
+        "minimum_free_disk_before_stage_bytes": 16106127360,
+        "minimum_free_memory_bytes": 19327352832
+      },
+      "runtime": {
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/qwen-cpu.lock",
+        "lock_sha256": "342f32ddfd0d21ee5a17efe8199ebc491d033976d3189fd5d2848845e8121bbf",
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "numpy": "2.5.3",
+          "peft": "0.21.0",
+          "safetensors": "0.8.0",
+          "torch": "2.8.0",
+          "transformers": "5.17.0"
+        },
+        "python_version": "3.13.15"
+      },
+      "source": {
+        "id": "InterfazeAI/lev",
+        "lock_sha256": "30ee76aa0bcc5b1c242217971d0ab1c6810f7e74600f41a03321bac2899409de",
+        "revision": "79e1661aeb42dadebc144753a4f37117510952ee"
+      },
+      "tokenizer": {
+        "id": "interfaze-ai/lev",
+        "path": "tokenizer.json",
+        "revision": "8721908e50dffd5fe8726507c09498e3def5b2f6",
+        "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+        "size_bytes": 19989325
+      },
+      "training_provenance": "Publisher does not pin the base revision used during training; this row is an explicit execution pairing, not a claim to reproduce the training pairing."
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "lora/adapter_model.safetensors",
+          "repository": "StrandsAgents/strands-decider-2B-qwen3.5-v1-2610",
+          "revision": "216d1ccb46a9e9b036eb9187b248db98480f77d4",
+          "sha256": "ae1d0cd1ac3edec6df0a519a3ad18f1c382099032d493f8f98c96a80cfebb4c7",
+          "size_bytes": 201878888
+        },
+        {
+          "path": "head.safetensors",
+          "repository": "StrandsAgents/strands-decider-2B-qwen3.5-v1-2610",
+          "revision": "216d1ccb46a9e9b036eb9187b248db98480f77d4",
+          "sha256": "ace56742545b505e6fae34ada85c8edbeedb23ba8974d8680aebe0380d6083a1",
+          "size_bytes": 12605928
+        },
+        {
+          "path": "tokenizer.json",
+          "repository": "StrandsAgents/strands-decider-2B-qwen3.5-v1-2610",
+          "revision": "216d1ccb46a9e9b036eb9187b248db98480f77d4",
+          "sha256": "a2cdd2e108566b09079afa8d266e9e65e7c280f27b771218237a06de5ba9cd86",
+          "size_bytes": 19989592
+        },
+        {
+          "path": "model.safetensors-00001-of-00001.safetensors",
+          "repository": "Qwen/Qwen3.5-2B-Base",
+          "revision": "b1485b2fa6dfa1287294f269f5fb618e03d52d7c",
+          "sha256": "928acbf11878c32185bbd863514d191769285065ab9ea14fbfe431303f5fdf2d",
+          "size_bytes": 4548221488
+        }
+      ],
+      "base_model": {
+        "id": "Qwen/Qwen3.5-2B-Base",
+        "revision": "b1485b2fa6dfa1287294f269f5fb618e03d52d7c"
+      },
+      "comparison_limit": "Publisher reports this model trained on diverse task data; no independent replication claim.",
+      "device": "cpu",
+      "disposition": "selected",
+      "id": "strands-decider-2b",
+      "lead": "Strands Decider 2B",
+      "max_options": 24,
+      "max_state_tokens": 4096,
+      "model": {
+        "id": "StrandsAgents/strands-decider-2B-qwen3.5-v1-2610",
+        "revision": "216d1ccb46a9e9b036eb9187b248db98480f77d4"
+      },
+      "precision": "fp32",
+      "resource_floor": {
+        "measured_peak_rss_required": true,
+        "minimum_free_disk_after_stage_bytes": 2147483648,
+        "minimum_free_disk_before_stage_bytes": 10737418240,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/qwen-cpu.lock",
+        "lock_sha256": "342f32ddfd0d21ee5a17efe8199ebc491d033976d3189fd5d2848845e8121bbf",
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "numpy": "2.5.3",
+          "peft": "0.21.0",
+          "safetensors": "0.8.0",
+          "torch": "2.8.0",
+          "transformers": "5.17.0"
+        },
+        "python_version": "3.13.15"
+      },
+      "source": {
+        "id": "strands-labs/strands-decider",
+        "revision": "d942e5515db750f80a51032629ec312455a87976"
+      },
+      "tokenizer": {
+        "id": "StrandsAgents/strands-decider-2B-qwen3.5-v1-2610",
+        "path": "tokenizer.json",
+        "revision": "216d1ccb46a9e9b036eb9187b248db98480f77d4",
+        "sha256": "a2cdd2e108566b09079afa8d266e9e65e7c280f27b771218237a06de5ba9cd86",
+        "size_bytes": 19989592
+      },
+      "training_provenance": "The shipped provenance records this base revision as inferred from Hub main at training time; execution uses this exact pinned revision, not a claim of reproducible training provenance."
+    }
+  ],
+  "runnable_cohort": [
+    "julia-1",
+    "kev-4b",
+    "lev",
+    "strands-decider-2b"
+  ],
+  "status": "approved for execution by the user request covering all four selected leads and the pinned Lev execution variant",
+  "upstream_suite": {
+    "repository": "jaredpalmer/kev",
+    "revision": "5920c5fe4ca8e0970ed4209ac2c9b8e18bea5109",
+    "split": "evals/v4/transfer-v4/development.jsonl"
+  }
+}

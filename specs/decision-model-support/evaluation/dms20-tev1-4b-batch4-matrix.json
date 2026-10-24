@@ -1,0 +1,144 @@
+{
+  "approval_scope": "One Tev1-4B MPS BF16 batch-4 variant, bound to the existing DMS-20 corpus, exact model revision, runtime, runner, and resource floors.",
+  "artifact_download_allow_patterns": [
+    "*.json",
+    "*.safetensors",
+    "*.py",
+    "*.jinja",
+    "*.model",
+    "*.txt"
+  ],
+  "artifact_download_ignore_patterns": [
+    "README.md",
+    "*.jsonl",
+    "*.png",
+    "*.svg"
+  ],
+  "corpus_manifest": "dms14-corpus-manifest.json",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "created_at": "2026-10-24T04:50:00Z",
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "harness_files": [
+    {
+      "path": "tests/manual/run_dms20_tev4b_batch.py",
+      "sha256": "62fa69791a60f92fd514fe4221d96a8f2143af58eb678ba25a08c3c9a5e4028c"
+    },
+    {
+      "path": "tests/manual/run_dms20_extension.py",
+      "sha256": "341814b869d3174dccaedb13e825f11484ed3fed0ab6e040b6862e34d55276cf"
+    },
+    {
+      "path": "tests/manual/run_dms20_transfer.py",
+      "sha256": "118eec7bc5f50b86b75f5ee8023f9174302e0b8e9a84f018d6adf46edcabb195"
+    },
+    {
+      "path": "scripts/evaluate_decision_transfer.py",
+      "sha256": "c92540a599754aeffc0b761852c49f0d01daa0e4953e9f012973deb46b94e3cd"
+    }
+  ],
+  "input_files": {
+    "gold_labels": {
+      "path": "/private/tmp/dms20-corpus/gold-labels.jsonl",
+      "sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec"
+    },
+    "normalized_inputs": {
+      "path": "/private/tmp/dms20-corpus/normalized-inputs.jsonl",
+      "sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148"
+    }
+  },
+  "item_count": 684,
+  "matrix_id": "DMS-20 Tev1-4B MPS batch-4 optimization",
+  "matrix_version": 1,
+  "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "original_matrix_path": "dms20-matrix.json",
+  "original_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "protocol": {
+    "input_policy": "Use the original approved DMS-20 content limit of 3584 tokenizer tokens and reserve 512 tokens for model-specific formatting. Count with each candidate tokenizer; fail closed without truncation.",
+    "invalid_missing_abstaining": "incorrect",
+    "model_prompt_token_limit": 4096,
+    "normalized_content_token_limit": 3584,
+    "paired_bootstrap_resamples": 10000,
+    "paired_bootstrap_seed": 14,
+    "paired_bootstrap_strata": "source category; identical item IDs across candidates",
+    "primary_metric": "equal macro average of accuracy across the seven included source categories",
+    "primary_order": "canonical",
+    "probability_metrics": "raw Brier and top-label ECE; no calibration fitting",
+    "prompt_format_reserve_tokens": 512,
+    "sensitivity_order": "reverse all options while preserving option IDs and gold labels",
+    "thresholds": {
+      "macro_accuracy_min": 0.75,
+      "per_category_accuracy_min": 0.4
+    }
+  },
+  "result_policy": "Comparative local research only; preserve the baseline and prior evaluations.",
+  "rows": [
+    {
+      "artifact_files": [
+        {
+          "path": "model.safetensors-00001-of-00002.safetensors",
+          "repository": "togethercomputer/Tev1-4B-experimental",
+          "revision": "0b7becf017daa0e5eb222f8ce7483c8c8259c52f",
+          "sha256": "f0d45353a3fb917769ac28755bdb17d4405a36b659aadeac0000ac13cebc2514"
+        },
+        {
+          "path": "model.safetensors-00002-of-00002.safetensors",
+          "repository": "togethercomputer/Tev1-4B-experimental",
+          "revision": "0b7becf017daa0e5eb222f8ce7483c8c8259c52f",
+          "sha256": "f7a11c876fc9a119b46e25f113d9a48ac223dfabd55b0cfc34824fa512b0941b"
+        }
+      ],
+      "artifact_hash_source": "SHA-256 file records for this exact immutable Hub revision published by localai-org/vllm.cpp/docs/models/tev1.md; reverify the downloaded bytes before inference",
+      "base_model": {
+        "id": "Qwen/Qwen3.5-4B",
+        "training_revision": null,
+        "training_revision_note": "Together does not publish the exact training base revision. The released Tev1 checkpoint is full merged BF16, so the execution does not load a separate base."
+      },
+      "batch_size": 4,
+      "device": "mps",
+      "disposition": "selected",
+      "id": "tev1-4b",
+      "license_note": "Publisher says the fine-tuned weight license is still being finalized. The user separately confirmed permission for local research use in this conversation; this approval does not grant redistribution, commercial, or production rights.",
+      "max_options": 24,
+      "max_state_tokens": 4096,
+      "model": {
+        "id": "togethercomputer/Tev1-4B-experimental",
+        "revision": "0b7becf017daa0e5eb222f8ce7483c8c8259c52f"
+      },
+      "precision": "bfloat16",
+      "resource_floor": {
+        "measured_peak_rss_required": true,
+        "minimum_free_disk_after_stage_bytes": 5368709120,
+        "minimum_free_disk_before_stage_bytes": 16106127360,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/qwen-mps.lock",
+        "lock_sha256": "461f99b6fff9db15a73c73ec65ef32dc3b81018b616d2b05777ac5b2cfdc1cd0",
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "numpy": "2.5.3",
+          "peft": "0.21.0",
+          "safetensors": "0.8.0",
+          "torch": "2.8.0",
+          "transformers": "5.17.0"
+        },
+        "python_version": "3.13.15"
+      },
+      "source": {
+        "id": "togethercomputer/tev1 model card and prompt contract",
+        "revision": "0b7becf017daa0e5eb222f8ce7483c8c8259c52f"
+      },
+      "task_mapping": "Map each request to the publisher's state/question/2-24 labeled options JSON contract. Assign A-X in current option order and map the selected letter back to the original option ID. Score candidate next-token letter logits with softmax restricted to current options; no calibration is fitted.",
+      "tokenizer": {
+        "id": "togethercomputer/Tev1-4B-experimental",
+        "revision": "0b7becf017daa0e5eb222f8ce7483c8c8259c52f"
+      },
+      "training_provenance": "Publisher describes a full fine-tune of Qwen3.5-4B but does not publish a pinned training-base revision; this run uses the released full checkpoint, not a claim to reproduce its training pairing.",
+      "variant": "MPS BF16 microbatch of four independent decision prompts"
+    }
+  ],
+  "runnable_cohort": [
+    "tev1-4b"
+  ]
+}

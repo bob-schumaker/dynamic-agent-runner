@@ -1,0 +1,36 @@
+{
+  "approval_path": "specs/decision-model-support/evaluation/dms20-mlx-decision-approval.json",
+  "approval_sha256": "e26e0372f454cd49ae8b5fe888b50a5e0dc25d86032e6ee5a00a6f2385315191",
+  "candidate_id": "d3-nano",
+  "completed_at": "2026-10-24T20:57:41+00:00",
+  "corpus_manifest_path": "specs/decision-model-support/evaluation/dms14-corpus-manifest.json",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "evaluation_path": "specs/decision-model-support/evaluation/dms20-mlx-decision-run-2026-10-24/d3-nano/evaluation.json",
+  "evaluation_sha256": "3f4e0654f40324eb02298db1d90e92944e0ab884d19d40da3eab3266c74749d0",
+  "item_count": 684,
+  "matrix_path": "specs/decision-model-support/evaluation/dms20-mlx-decision-matrix.json",
+  "matrix_sha256": "b238ba8b95937478d5ee19a1456a1924d486cc52f771bafca5f80b124b46396f",
+  "measurements_path": "specs/decision-model-support/evaluation/dms20-mlx-decision-run-2026-10-24/d3-nano/measurements.json",
+  "measurements_sha256": "8a2ec10e7ccc794df46ddd60854297bf512b4160b8e758b096e7ad60736745ae",
+  "model": {
+    "id": "vllm-sr/d3-nano",
+    "revision": "462efc366229ea268cf4eed3738b3fc4415e4817"
+  },
+  "prediction_count": 1368,
+  "predictions_sha256": "b699bc3427cbc52c2155fcb57426c52cd2b20a9e255e01602c79fa915a32b255",
+  "runtime": {
+    "kind": "mlx-decision",
+    "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+    "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+    "packages": {
+      "huggingface-hub": "2.3.0",
+      "mlx": "0.32.4",
+      "mlx-decision": "1.0.0",
+      "numpy": "2.5.4",
+      "pydantic": "2.14.1",
+      "tokenizers": "0.23.3"
+    },
+    "python_version": "3.13.15"
+  },
+  "status": "completed"
+}

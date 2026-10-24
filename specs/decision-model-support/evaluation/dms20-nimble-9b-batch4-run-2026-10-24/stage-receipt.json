@@ -1,0 +1,17 @@
+{
+  "candidate_id": "nimble-9b",
+  "matrix_sha256": "4f3272de6835aa38c2942c5074b5c5c3b9122e153e5ce4bd36b36c8cd8ebc54f",
+  "resource_preflight": {
+    "after_stage": {
+      "free_disk_bytes": 20451500032,
+      "free_memory_bytes_estimate": 31310311587,
+      "system_memory_free_percent": 81
+    },
+    "before_stage": {
+      "free_disk_bytes": 38827634688,
+      "free_memory_bytes_estimate": 31310311587,
+      "system_memory_free_percent": 81
+    }
+  },
+  "verified": true
+}

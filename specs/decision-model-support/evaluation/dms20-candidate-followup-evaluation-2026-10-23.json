@@ -1,0 +1,743 @@
+{
+  "candidates": {
+    "d1a-e2b-8bit": {
+      "calibration": {
+        "macro_multiclass_brier": 0.4808404327452018,
+        "n": 674,
+        "status": "available; raw outputs only, calibration not fitted",
+        "top_label_ece_10_bins": 0.08511884272997033
+      },
+      "canonical": {
+        "accuracy": 0.5994152046783626,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.4895833333333333,
+            "correct": 47,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.5258620689655172,
+            "correct": 61,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.5875,
+            "correct": 47,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.46551724137931033,
+            "correct": 54,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.4625,
+            "correct": 37,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.7625,
+            "correct": 61,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.8879310344827587,
+            "correct": 103,
+            "total": 116
+          }
+        },
+        "correct": 410,
+        "macro_accuracy": 0.5973419540229885,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.5613803366174055,
+          "upper": 0.6323796695402298
+        },
+        "status_counts": {
+          "invalid": 10,
+          "ok": 674
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 144,
+        "flip_rate": 0.2158920539730135,
+        "paired_valid_items": 667
+      },
+      "reversed": {
+        "accuracy": 0.6052631578947368,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.5416666666666666,
+            "correct": 52,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.5775862068965517,
+            "correct": 67,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.6875,
+            "correct": 55,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.3879310344827586,
+            "correct": 45,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.45,
+            "correct": 36,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.7625,
+            "correct": 61,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.8448275862068966,
+            "correct": 98,
+            "total": 116
+          }
+        },
+        "correct": 414,
+        "macro_accuracy": 0.6074302134646963,
+        "status_counts": {
+          "invalid": 8,
+          "ok": 676
+        },
+        "total": 684
+      }
+    },
+    "nimble-9b": {
+      "calibration": {
+        "macro_multiclass_brier": 0.3163297260596919,
+        "n": 674,
+        "status": "available; raw outputs only, calibration not fitted",
+        "top_label_ece_10_bins": 0.12541866373237587
+      },
+      "canonical": {
+        "accuracy": 0.783625730994152,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.6666666666666666,
+            "correct": 64,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.5689655172413793,
+            "correct": 66,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.9375,
+            "correct": 75,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.7068965517241379,
+            "correct": 82,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.7875,
+            "correct": 63,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.925,
+            "correct": 74,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.9655172413793104,
+            "correct": 112,
+            "total": 116
+          }
+        },
+        "correct": 536,
+        "macro_accuracy": 0.7940065681444991,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.7652291153530377,
+          "upper": 0.8211517344006568
+        },
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 38,
+        "flip_rate": 0.05555555555555555,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.7865497076023392,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.6666666666666666,
+            "correct": 64,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.6120689655172413,
+            "correct": 71,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.95,
+            "correct": 76,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.6810344827586207,
+            "correct": 79,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.7875,
+            "correct": 63,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.9125,
+            "correct": 73,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.9655172413793104,
+            "correct": 112,
+            "total": 116
+          }
+        },
+        "correct": 538,
+        "macro_accuracy": 0.7964696223316913,
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      }
+    },
+    "qwen35-08b-decision": {
+      "calibration": {
+        "macro_multiclass_brier": 0.5598450069663488,
+        "n": 674,
+        "status": "available; raw outputs only, calibration not fitted",
+        "top_label_ece_10_bins": 0.06380915066962425
+      },
+      "canonical": {
+        "accuracy": 0.5277777777777778,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.4583333333333333,
+            "correct": 44,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.49137931034482757,
+            "correct": 57,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.5,
+            "correct": 40,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.33620689655172414,
+            "correct": 39,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.45,
+            "correct": 36,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.6,
+            "correct": 48,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.8362068965517241,
+            "correct": 97,
+            "total": 116
+          }
+        },
+        "correct": 361,
+        "macro_accuracy": 0.5245894909688013,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.48839234400656817,
+          "upper": 0.5604990250410508
+        },
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 132,
+        "flip_rate": 0.19298245614035087,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.5423976608187134,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.4270833333333333,
+            "correct": 41,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.4482758620689655,
+            "correct": 52,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.5125,
+            "correct": 41,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.41379310344827586,
+            "correct": 48,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.5625,
+            "correct": 45,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.5875,
+            "correct": 47,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.8362068965517241,
+            "correct": 97,
+            "total": 116
+          }
+        },
+        "correct": 371,
+        "macro_accuracy": 0.5411227422003284,
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      }
+    },
+    "tev1-0.8b": {
+      "calibration": {
+        "macro_multiclass_brier": 0.4870828290731541,
+        "n": 674,
+        "status": "available; raw outputs only, calibration not fitted",
+        "top_label_ece_10_bins": 0.13330826066014323
+      },
+      "canonical": {
+        "accuracy": 0.6271929824561403,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.5416666666666666,
+            "correct": 52,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.5603448275862069,
+            "correct": 65,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.5125,
+            "correct": 41,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.5,
+            "correct": 58,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.5625,
+            "correct": 45,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.8375,
+            "correct": 67,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.8706896551724138,
+            "correct": 101,
+            "total": 116
+          }
+        },
+        "correct": 429,
+        "macro_accuracy": 0.6264573070607554,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.5904646449096881,
+          "upper": 0.6613926518883415
+        },
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 121,
+        "flip_rate": 0.17690058479532164,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.6286549707602339,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.5,
+            "correct": 48,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.5,
+            "correct": 58,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.65,
+            "correct": 52,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.5,
+            "correct": 58,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.575,
+            "correct": 46,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.8,
+            "correct": 64,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.896551724137931,
+            "correct": 104,
+            "total": 116
+          }
+        },
+        "correct": 430,
+        "macro_accuracy": 0.6316502463054187,
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      }
+    },
+    "tev1-4b": {
+      "calibration": {
+        "macro_multiclass_brier": 0.28270406776779156,
+        "n": 674,
+        "status": "available; raw outputs only, calibration not fitted",
+        "top_label_ece_10_bins": 0.08567556716744905
+      },
+      "canonical": {
+        "accuracy": 0.7763157894736842,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.7395833333333334,
+            "correct": 71,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.5603448275862069,
+            "correct": 65,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.8,
+            "correct": 64,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.7327586206896551,
+            "correct": 85,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.7625,
+            "correct": 61,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.9125,
+            "correct": 73,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.9655172413793104,
+            "correct": 112,
+            "total": 116
+          }
+        },
+        "correct": 531,
+        "macro_accuracy": 0.781886288998358,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.7513952175697866,
+          "upper": 0.8107863813628899
+        },
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 69,
+        "flip_rate": 0.10087719298245613,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.7777777777777778,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.7604166666666666,
+            "correct": 73,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.5086206896551724,
+            "correct": 59,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.8875,
+            "correct": 71,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.7068965517241379,
+            "correct": 82,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.7625,
+            "correct": 61,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.9125,
+            "correct": 73,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.9741379310344828,
+            "correct": 113,
+            "total": 116
+          }
+        },
+        "correct": 532,
+        "macro_accuracy": 0.78751026272578,
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      }
+    }
+  },
+  "paired_bootstrap": {
+    "d1a-e2b-8bit_vs_nimble-9b": {
+      "bootstrap_95": {
+        "lower": -0.23627950533661743,
+        "upper": -0.157653684318555
+      },
+      "macro_accuracy_difference": -0.1966646141215106
+    },
+    "d1a-e2b-8bit_vs_qwen35-08b-decision": {
+      "bootstrap_95": {
+        "lower": 0.03260442323481117,
+        "upper": 0.11206024220032844
+      },
+      "macro_accuracy_difference": 0.07275246305418726
+    },
+    "d1a-e2b-8bit_vs_tev1-0.8b": {
+      "bootstrap_95": {
+        "lower": -0.0632491789819376,
+        "upper": 0.005264778325123065
+      },
+      "macro_accuracy_difference": -0.02911535303776691
+    },
+    "d1a-e2b-8bit_vs_tev1-4b": {
+      "bootstrap_95": {
+        "lower": -0.22177776067323485,
+        "upper": -0.14711514778325113
+      },
+      "macro_accuracy_difference": -0.18454433497536948
+    },
+    "nimble-9b_vs_d1a-e2b-8bit": {
+      "bootstrap_95": {
+        "lower": 0.15765368431855495,
+        "upper": 0.23627950533661743
+      },
+      "macro_accuracy_difference": 0.1966646141215106
+    },
+    "nimble-9b_vs_qwen35-08b-decision": {
+      "bootstrap_95": {
+        "lower": 0.2273388752052546,
+        "upper": 0.31229551518883425
+      },
+      "macro_accuracy_difference": 0.26941707717569785
+    },
+    "nimble-9b_vs_tev1-0.8b": {
+      "bootstrap_95": {
+        "lower": 0.1295050800492611,
+        "upper": 0.20578869047619042
+      },
+      "macro_accuracy_difference": 0.16754926108374368
+    },
+    "nimble-9b_vs_tev1-4b": {
+      "bootstrap_95": {
+        "lower": -0.015212438423645398,
+        "upper": 0.03992200328407225
+      },
+      "macro_accuracy_difference": 0.01212027914614111
+    },
+    "qwen35-08b-decision_vs_d1a-e2b-8bit": {
+      "bootstrap_95": {
+        "lower": -0.11206024220032845,
+        "upper": -0.03260442323481118
+      },
+      "macro_accuracy_difference": -0.07275246305418726
+    },
+    "qwen35-08b-decision_vs_nimble-9b": {
+      "bootstrap_95": {
+        "lower": -0.31229551518883425,
+        "upper": -0.22733887520525456
+      },
+      "macro_accuracy_difference": -0.26941707717569785
+    },
+    "qwen35-08b-decision_vs_tev1-0.8b": {
+      "bootstrap_95": {
+        "lower": -0.14456126847290637,
+        "upper": -0.059400400246305454
+      },
+      "macro_accuracy_difference": -0.10186781609195417
+    },
+    "qwen35-08b-decision_vs_tev1-4b": {
+      "bootstrap_95": {
+        "lower": -0.29942605706075526,
+        "upper": -0.21533251231527095
+      },
+      "macro_accuracy_difference": -0.25729679802955674
+    },
+    "tev1-0.8b_vs_d1a-e2b-8bit": {
+      "bootstrap_95": {
+        "lower": -0.005264778325123065,
+        "upper": 0.0632491789819376
+      },
+      "macro_accuracy_difference": 0.02911535303776691
+    },
+    "tev1-0.8b_vs_nimble-9b": {
+      "bootstrap_95": {
+        "lower": -0.20578869047619042,
+        "upper": -0.12950508004926112
+      },
+      "macro_accuracy_difference": -0.16754926108374368
+    },
+    "tev1-0.8b_vs_qwen35-08b-decision": {
+      "bootstrap_95": {
+        "lower": 0.059400400246305454,
+        "upper": 0.14456126847290637
+      },
+      "macro_accuracy_difference": 0.10186781609195417
+    },
+    "tev1-0.8b_vs_tev1-4b": {
+      "bootstrap_95": {
+        "lower": -0.19377078201970444,
+        "upper": -0.11762110016420356
+      },
+      "macro_accuracy_difference": -0.15542898193760257
+    },
+    "tev1-4b_vs_d1a-e2b-8bit": {
+      "bootstrap_95": {
+        "lower": 0.14711514778325113,
+        "upper": 0.22177776067323482
+      },
+      "macro_accuracy_difference": 0.18454433497536948
+    },
+    "tev1-4b_vs_nimble-9b": {
+      "bootstrap_95": {
+        "lower": -0.03992200328407225,
+        "upper": 0.015212438423645355
+      },
+      "macro_accuracy_difference": -0.01212027914614111
+    },
+    "tev1-4b_vs_qwen35-08b-decision": {
+      "bootstrap_95": {
+        "lower": 0.21533251231527095,
+        "upper": 0.2994260570607553
+      },
+      "macro_accuracy_difference": 0.25729679802955674
+    },
+    "tev1-4b_vs_tev1-0.8b": {
+      "bootstrap_95": {
+        "lower": 0.11762110016420357,
+        "upper": 0.19377078201970444
+      },
+      "macro_accuracy_difference": 0.15542898193760257
+    }
+  },
+  "protocol": {
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 14,
+    "bootstrap_stratification": "item IDs sampled with replacement within task; shared samples across candidates",
+    "common_probability_item_count": 674,
+    "invalid_missing_and_abstaining_are_incorrect": true,
+    "item_count": 684,
+    "option_orders": [
+      "canonical",
+      "reversed"
+    ],
+    "point_leader": "nimble-9b",
+    "primary_metric": "equally weighted macro accuracy on canonical option order",
+    "task_categories": [
+      "composition_holdout",
+      "emotion",
+      "legacy_holdout",
+      "mmlu",
+      "paws",
+      "qnli",
+      "sciq"
+    ]
+  },
+  "ranking": [
+    {
+      "candidate": "nimble-9b",
+      "macro_accuracy": 0.7940065681444991,
+      "rank": 1
+    },
+    {
+      "candidate": "tev1-4b",
+      "macro_accuracy": 0.781886288998358,
+      "rank": 2
+    },
+    {
+      "candidate": "tev1-0.8b",
+      "macro_accuracy": 0.6264573070607554,
+      "rank": 3
+    },
+    {
+      "candidate": "d1a-e2b-8bit",
+      "macro_accuracy": 0.5973419540229885,
+      "rank": 4
+    },
+    {
+      "candidate": "qwen35-08b-decision",
+      "macro_accuracy": 0.5245894909688013,
+      "rank": 5
+    }
+  ]
+}

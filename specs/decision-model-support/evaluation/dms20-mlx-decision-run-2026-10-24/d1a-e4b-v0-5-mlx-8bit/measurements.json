@@ -1,0 +1,219 @@
+{
+  "candidate_id": "d1a-e4b-v0-5-mlx-8bit",
+  "cold_load_ms": 6694.798292126507,
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "elapsed_inference_ms": 324346.38520888984,
+  "failed_outputs": 15,
+  "host_platform": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+  "item_count": 684,
+  "matrix_sha256": "b238ba8b95937478d5ee19a1456a1924d486cc52f771bafca5f80b124b46396f",
+  "max_normalized_input_tokens": 347,
+  "mean_prediction_latency_ms": 237.05841669995252,
+  "mlx_active_memory_bytes": 4937987184,
+  "mlx_peak_memory_bytes": 5453755100,
+  "model": {
+    "id": "JohnP1/d1a-e4b-mlx-q8",
+    "revision": "8d77f101ac49c9ad604e383123de5568f5dd117e"
+  },
+  "normalized_inputs_over_content_limit": 0,
+  "oversize_outputs": 0,
+  "peak_rss_bytes": 6652657664,
+  "prediction_count": 1368,
+  "runtime": {
+    "kind": "d1a",
+    "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/d1a-mlx.lock",
+    "lock_sha256": "5ded5b0d1ab407f9871a5a486a191b685e3773864cfdfa28d7bde5c1b6049eca",
+    "packages": {
+      "d1a": "0.5.0",
+      "huggingface-hub": "2.3.0",
+      "mlx": "0.32.2",
+      "mlx-lm": "0.31.3",
+      "numpy": "2.5.4",
+      "safetensors": "0.8.0",
+      "transformers": "5.20.2"
+    },
+    "python_version": "3.13.15",
+    "source_repository": "https://github.com/jonpol01/d1a",
+    "source_revision": "95d251729bdf916ec768ea985c6f9a9fe7b3c641"
+  },
+  "stage": {
+    "artifacts": [
+      {
+        "path": ".cache/huggingface/.gitignore",
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+        "size_bytes": 1
+      },
+      {
+        "path": ".cache/huggingface/CACHEDIR.TAG",
+        "sha256": "f6572428f6d5e1575e73a1502895a8731f10757dfbb634909c6e154b849af91d",
+        "size_bytes": 191
+      },
+      {
+        "path": ".cache/huggingface/download/README.md.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/README.md.metadata",
+        "sha256": "02b00189079cf5aefde0773736eca9361b9c501bb0c8be2f4a4b2c0031fb9d12",
+        "size_bytes": 100
+      },
+      {
+        "path": ".cache/huggingface/download/config.json.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/config.json.metadata",
+        "sha256": "ed7f7569fe74e099599df19b21cd593fa0332839e25f1a1d526b13a6d4ad1832",
+        "size_bytes": 99
+      },
+      {
+        "path": ".cache/huggingface/download/d1a-avatar.png.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/d1a-avatar.png.metadata",
+        "sha256": "a99b882576de13e58095a6acaaa9c3748bf97765f3649c233821185de32ede66",
+        "size_bytes": 124
+      },
+      {
+        "path": ".cache/huggingface/download/d1a_config.json.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/d1a_config.json.metadata",
+        "sha256": "cd1865610b7859bb5211a5a1ae78d454edb5c05ecdf3ce54eba96fa6e9335eff",
+        "size_bytes": 101
+      },
+      {
+        "path": ".cache/huggingface/download/head.safetensors.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/head.safetensors.metadata",
+        "sha256": "232ba832c9799297056a11eb609a3d1d9403fad258c74cb10da71a456bb2a611",
+        "size_bytes": 125
+      },
+      {
+        "path": ".cache/huggingface/download/model-00001-of-00002.safetensors.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/model-00001-of-00002.safetensors.metadata",
+        "sha256": "ba2cd19fb261f743b249dd5e2e74b2b5064903c9e286938114568de7c74cbd73",
+        "size_bytes": 124
+      },
+      {
+        "path": ".cache/huggingface/download/model-00002-of-00002.safetensors.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/model-00002-of-00002.safetensors.metadata",
+        "sha256": "db7d4c4a15f2caec2c67d98c3978378b6563adaff0fc56a30dbe7c1487ab14e4",
+        "size_bytes": 123
+      },
+      {
+        "path": ".cache/huggingface/download/model.safetensors.index.json.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/model.safetensors.index.json.metadata",
+        "sha256": "86a7de801b8742217b7f373e261c8b9308895fbf66a2e103a72e398a3a291ca6",
+        "size_bytes": 100
+      },
+      {
+        "path": ".cache/huggingface/download/tokenizer.json.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/tokenizer.json.metadata",
+        "sha256": "67e9f7eb051edff6c580c941c1a29bc2441da09d3a4f9cec94913186d53f4f30",
+        "size_bytes": 124
+      },
+      {
+        "path": ".cache/huggingface/download/tokenizer_config.json.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/tokenizer_config.json.metadata",
+        "sha256": "aa7e60f1bf5f16369f10f02f174091c68af9d6a23665010715a64eb3e3a7c573",
+        "size_bytes": 101
+      },
+      {
+        "path": ".cache/huggingface/trees/8d77f101ac49c9ad604e383123de5568f5dd117e.json",
+        "sha256": "0e83552af0bed291e216ecfb6dc54fa8f48dfda02e64bd37d675cc71a2ee88ce",
+        "size_bytes": 3137
+      },
+      {
+        "path": "README.md",
+        "sha256": "8b6bd21436b7d208bb004197c31e9c9b83004adaa9ae016139eea759182e19c4",
+        "size_bytes": 17587
+      },
+      {
+        "path": "config.json",
+        "sha256": "0bdb3e6a8ad2835ec07acee6011dc2d909fb7aff5cca0fbe8deecc799bab3895",
+        "size_bytes": 5188
+      },
+      {
+        "path": "d1a-avatar.png",
+        "sha256": "c96db5268ea88d3e86196d7aa324cf22ece844147f9202ca6c9c4bdead31f982",
+        "size_bytes": 423022
+      },
+      {
+        "path": "d1a_config.json",
+        "sha256": "e5e02157e91087a42c2f28a3edde19fec44a458558c2a657959787c6089a69d4",
+        "size_bytes": 3103
+      },
+      {
+        "path": "head.safetensors",
+        "sha256": "05b9d0c49f5df117ea43cf6c55159ffd2e7aab876e67cd69bd13911ff7fb627a",
+        "size_bytes": 5245232
+      },
+      {
+        "path": "model-00001-of-00002.safetensors",
+        "sha256": "997f4bada8201806d8488c1d9410efebb70b559203737c9ffc60008855b62618",
+        "size_bytes": 4906172928
+      },
+      {
+        "path": "model-00002-of-00002.safetensors",
+        "sha256": "c3b6d0aa087acfae5892f118988937bd99dd6c61971f6c2c4547a5ebe590a4d1",
+        "size_bytes": 1614693776
+      },
+      {
+        "path": "model.safetensors.index.json",
+        "sha256": "b848c89eddb3d741bf844463d4fa85550eddf8f1466358022770a453704ac672",
+        "size_bytes": 138539
+      },
+      {
+        "path": "tokenizer.json",
+        "sha256": "12bac982b793c44b03d52a250a9f0d0b666813da566b910c24a6da0695fd11e6",
+        "size_bytes": 32170070
+      },
+      {
+        "path": "tokenizer_config.json",
+        "sha256": "8864c956f60cff565a413632d7728db8deab1253052a29b9064bf68128dd450b",
+        "size_bytes": 1528
+      }
+    ],
+    "resource_preflight": {
+      "after_stage": {
+        "free_disk_bytes": 30181933056,
+        "free_memory_bytes_estimate": 30537217474
+      },
+      "before_stage": {
+        "free_disk_bytes": 36747763712,
+        "free_memory_bytes_estimate": 30537217474
+      }
+    },
+    "source_revision": "8d77f101ac49c9ad604e383123de5568f5dd117e"
+  }
+}

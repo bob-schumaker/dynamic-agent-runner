@@ -1,0 +1,20 @@
+{
+  "approval_path": "specs/decision-model-support/evaluation/dms20-d1a-e2b-mlx-4bit-evaluation-approval.json",
+  "approval_sha256": "4d829fdac474365b563e9490cf3e340ac8d00493e6082a79ef0896498ff6b69d",
+  "candidate_id": "d1a-e2b-mlx-4bit",
+  "comparison_path": "specs/decision-model-support/evaluation/dms20-d1a-e2b-4bit-run-2026-10-24/comparison.json",
+  "comparison_sha256": "886f672c6f6338131fb8fd69c29957a10e0fe4514a4a9309dc1c59f6090e099f",
+  "conversion_receipt_path": "specs/decision-model-support/evaluation/d1a-e2b-mlx-4bit-conversion-2026-10-24/conversion-receipt.json",
+  "conversion_receipt_sha256": "2e3c284a630688ebdc9fa422651960fa37209348a45026b8f0800857ddeb9742",
+  "evaluation_path": "specs/decision-model-support/evaluation/dms20-d1a-e2b-4bit-run-2026-10-24/evaluation.json",
+  "evaluation_sha256": "02b466ed34d2c11d1a425e64790a465488543c0c66ee944d8f12a8dc8185858a",
+  "invalid_prediction_count": 13,
+  "matrix_path": "specs/decision-model-support/evaluation/dms20-d1a-e2b-mlx-4bit-evaluation-matrix.json",
+  "matrix_sha256": "15bafe7b3af09087ccdfa954d41d2213f223a4be33caa6d6accd41cd72cb80a7",
+  "measurement_path": "specs/decision-model-support/evaluation/dms20-d1a-e2b-4bit-run-2026-10-24/measurements.json",
+  "measurement_sha256": "0d2e5946d6363d7074962def19f87dfca659727071a1e0beffa2d97f0994948e",
+  "prediction_count": 1368,
+  "prediction_path": "specs/decision-model-support/evaluation/dms20-d1a-e2b-4bit-run-2026-10-24/predictions.jsonl",
+  "prediction_sha256": "7c7967f9bd4de93eed9ec126f1b69059324ed3f68741f0fcf259a9f73b4d1f0a",
+  "quality_gate_passed": false
+}

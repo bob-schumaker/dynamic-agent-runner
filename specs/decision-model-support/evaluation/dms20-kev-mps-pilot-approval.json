@@ -1,0 +1,19 @@
+{
+  "approval_id": "dms20-kev-mps-pilot-approval-2026-10-24",
+  "approval_scope": "One approved Kev-4B MPS BF16 pilot only; all other optimization variants remain proposals and cannot be staged or run from this matrix.",
+  "approval_time": "2026-10-24T03:13:08Z",
+  "approved": true,
+  "approved_by": "user_instruction",
+  "authorization": "User explicitly requested adding the optimization rows and starting with the Kev-4B MPS pilot.",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "dispositions": {
+    "kev-4b-mps-bf16": "selected"
+  },
+  "matrix_path": "specs/decision-model-support/evaluation/dms20-kev-mps-pilot-matrix.json",
+  "matrix_sha256": "dcba78594687b9f469ff44627db71c0bc8b17822fd684ccc62887c29fbe3e9fb",
+  "proposal_path": "specs/decision-model-support/evaluation/dms20-optimization-proposals-2026-10-24.json",
+  "proposal_sha256": "c5f05cf7935656a082ee78f7f2a1a06615a1a84710c629c06673510394640c9b",
+  "runnable_cohort": [
+    "kev-4b-mps-bf16"
+  ]
+}

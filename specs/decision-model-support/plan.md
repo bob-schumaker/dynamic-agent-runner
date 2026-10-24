@@ -1,10 +1,14 @@
 # Decision Model Support Plan
 
+<!-- rumdl-disable MD013 -->
+
 ## Status
 
 The evaluation corpus is governed by the merged
 `evaluation/dms01-dms12-merged-matrix.json` manifest. DMS-12 is a result row in
-that matrix, not a separate candidate cohort; new candidates append rows there.
+that matrix, not a separate candidate cohort; new rows in that evaluation
+track belong there. DMS-20 uses its own follow-up matrix and does not append to
+the DMS-01/DMS-12 or DMS-14 matrices.
 
 - Feature spec: `spec.md`
 - Mode: guided
@@ -17,6 +21,28 @@ that matrix, not a separate candidate cohort; new candidates append rows there.
   are used as external context, with no claim about DAR-specific performance.
   DMS-14 completed its approved published general-transfer and Mac-runtime
   matrix. No candidate met both thresholds; results remain comparative only.
+  DMS-20 completed its separately frozen and approved four-candidate transfer
+  evaluation for Julia-1, Kev-4B, lev, and Strands Decider 2B. Its results and
+  run receipt are under `evaluation/dms20-run-2026-10-22/`; the completed
+  DMS-14 matrix and results remain unchanged. The requested Tev1-4B,
+  Tev1-0.8B, Bespoke-Nimble-9B, and two MLX decision candidates completed in
+  separately frozen and approved follow-up cohorts. Qwen3.5-27B was excluded
+  per user instruction. See `evaluation/dms20-followup-evaluation-2026-10-23.json`
+  and its hash-bound run receipt; original DMS-20 artifacts remain unchanged.
+  A separately approved Nimble + MPS linear-attention variant ran and invoked
+  both Metal kernels, but all 1,368 outputs were invalid due to non-finite
+  logits; see its evaluation and run receipt. The baseline remains unchanged.
+  Eight optimization proposals are recorded in
+  `evaluation/dms20-optimization-proposals-2026-10-24.json`. The Kev-4B MPS
+  BF16 pilot passed its smoke and full quality gates and averaged 685.5 ms per
+  decision versus 7,867.5 ms for the CPU baseline. All eight listed optimization
+  variants have now run under separate approvals; results and failure counts
+  are consolidated in `evaluation/dms20-full-results-2026-10-24.md`. The Nimble
+  linear-attention variant returned 1,368 invalid outputs; Qwen and D1A 4-bit
+  MLX variants remain below the macro quality gate. Von 1.2.0 was evaluated in
+  a separate approved DMS-20 CPU matrix by reusing exact matching DMS-14 inputs;
+  its historical timing is labeled in the full results. All original DMS-20
+  matrices and baseline results remain unchanged.
   DMS-15 adds an audit-first review for runtime-neutral adapter helpers, with
   implementation conditional on proven reuse across backends. DMS-16 now has
   fake-backed adapter slices for Von, Julia 1, Laya-MLX, and Kev/Qwen, with
@@ -99,6 +125,7 @@ always performs truncation and message deletion.
 | Candidate evaluation | `scripts/evaluate_decision_models.py`, `tests/test_decision_model_evaluation.py`, `specs/decision-model-support/evaluation/` | Implemented for the frozen fixtures; keep quality findings separate from client-backend compatibility |
 | End-to-end compaction evaluation | DMS-13 task and `specs/decision-model-support/evaluation/` | Shelved. Use published LongMemEval findings as external context only; do not infer DAR-specific context-compression performance. Reopen only by explicit decision. |
 | Published decision-transfer comparison | `tests/manual/run_dms14_transfer.py`, `tests/test_dms14_transfer_runner.py`, `scripts/evaluate_decision_transfer.py`, `tests/test_decision_transfer_evaluation.py`, `specs/decision-model-support/evaluation/`, and `model-evaluation.md` | Score the fixed completed-candidate cohort in process on pinned `transfer-v4` development items; freeze corpus/task mapping and scoring before output inspection; report paired quality and option-order measures on the same corpus in the Mac runtime profile |
+| DMS-20 local transfer evaluation | `tests/manual/run_dms20_transfer.py`, `scripts/evaluate_decision_transfer.py`, and `evaluation/dms20-full-results-2026-10-24.md` | Completed 19 baseline, candidate, and optimization rows across separate approved cohorts on the same 684-item corpus; includes the failed Nimble + MPS linear-attention run and the separately evaluated Von row. Qwen3.5-27B excluded per request; results remain comparative only |
 | Pinned Kev competency run | `tests/manual/run_kev_dms01.py`, `tests/test_kev_dms01_runner.py` | Historical evaluation-only runner for the exact approved Kev-0.6B artifact; its quality outcome does not gate DMS-16 client support |
 | Von alternative evaluation | `tests/manual/run_von_dms06.py`, `tests/test_von_dms06_runner.py` | Completed evaluation-only runner for pinned Von 1.2.0; its quality outcome does not gate DMS-16 client support |
 | Jev-Style 0.8B v3 evaluation | `tests/manual/run_jevstyle_dms12.py`, `tests/test_jevstyle_dms12_runner.py`, `specs/decision-model-support/evaluation/jevstyle-mlx-runtime/` | Completed evaluation-only runner for the pinned 8-bit MLX checkpoint; it does not authorize client backend support or context-management use |

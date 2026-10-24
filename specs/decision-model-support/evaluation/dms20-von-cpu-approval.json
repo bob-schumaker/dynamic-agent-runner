@@ -1,0 +1,11 @@
+{
+  "approval_scope": "One Von 1.2.0 CPU FP32 candidate row; reuse its completed output because DMS-14 and DMS-20 input and label digests are identical, then score with the frozen DMS-20 evaluator.",
+  "approval_source": "User asked to add Von to the DMS-20 candidate list while the active goal is to complete the DMS-20 evaluation; this operation re-scores existing outputs over the identical frozen inputs and labels and does not rerun inference.",
+  "approved": true,
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "matrix_sha256": "ba6f8ea40b5e12996a408c31369e8e4e13e07c03f697db8031fc52435d6a6dff",
+  "original_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "runnable_cohort": [
+    "von-1.2.0-cpu"
+  ]
+}

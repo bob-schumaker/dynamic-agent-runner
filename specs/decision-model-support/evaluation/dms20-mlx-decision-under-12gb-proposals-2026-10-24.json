@@ -1,0 +1,249 @@
+{
+  "proposal_id": "dms20-mlx-decision-under-12gb-2026-10-24",
+  "status": "proposed; not approved for evaluation",
+  "scope": "Candidate proposals screened from armbues/mlx-decision for reported memory strictly below 12 GB. Do not change existing frozen DMS-20 matrices or approvals.",
+  "base_matrix": "dms20-matrix.json",
+  "base_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "source": {
+    "repository": "https://github.com/armbues/mlx-decision",
+    "repository_revision": "d3e239a8c8c2afb362725f94c5076b90221168a5",
+    "document": "docs/MODELS.md",
+    "document_sha256": "463d64f71b921455f1648cb28833e9eb24bf53fbc0ce51b2a134187993f1566a",
+    "retrieved": "2026-10-24",
+    "memory_basis": "Upstream detailed fit-check or peak-memory figures; these are not measurements from the DMS host. Strict threshold: <12 GB."
+  },
+  "rows": [
+    {
+      "id": "clef-flash-mlx-8bit",
+      "display_name": "Clef-Flash 9B MLX 8-bit",
+      "model": {
+        "id": "Cloudflare/clef-flash",
+        "revision": "f0b7d3cd65296abfe459e6c228b618f5d8b26d2f"
+      },
+      "precision": "8bit",
+      "reported_memory_gb": 11.2,
+      "memory_metric": "peak at longest documented input",
+      "eligible_alternates": [
+        {
+          "precision": "4bit",
+          "reported_memory_gb": 7.1,
+          "memory_metric": "peak at longest documented input"
+        }
+      ],
+      "status": "proposed"
+    },
+    {
+      "id": "pplx-decider-flash-v1-2",
+      "display_name": "Perplexity Decider Flash v1.2 4B",
+      "model": {
+        "id": "perplexity-ai/pplx-decider-flash-v1.2",
+        "revision": "9ff7cf9838e59df461c276b7699d56b244d2af58"
+      },
+      "precision": "bf16",
+      "reported_memory_gb": 10.0,
+      "memory_metric": "fit-check estimate",
+      "eligible_alternates": [
+        {
+          "precision": "8bit",
+          "reported_memory_gb": 5.7,
+          "memory_metric": "fit-check estimate"
+        },
+        {
+          "precision": "4bit",
+          "reported_memory_gb": 3.4,
+          "memory_metric": "fit-check estimate"
+        }
+      ],
+      "prior_evidence": "Not benchmarked in the upstream inventory.",
+      "status": "proposed"
+    },
+    {
+      "id": "d3-flash-mlx-8bit",
+      "display_name": "D3-Flash 9B MLX 8-bit",
+      "model": {
+        "id": "vllm-sr/d3-flash",
+        "revision": "13dc1cc8ef23caefa765907e1d764751e5629f7d"
+      },
+      "precision": "8bit",
+      "reported_memory_gb": 11.7,
+      "memory_metric": "peak at documented default benchmark length",
+      "eligible_alternates": [
+        {
+          "precision": "4bit",
+          "reported_memory_gb": 5.9,
+          "memory_metric": "fit-check estimate"
+        }
+      ],
+      "screening_note": "Overview rounds this value to 12 GB. Detailed peak is below the strict threshold at the documented default benchmark length; longer inputs can exceed 12 GB.",
+      "status": "proposed"
+    },
+    {
+      "id": "d3-mini",
+      "display_name": "D3-Mini 4B",
+      "model": {
+        "id": "vllm-sr/d3-mini",
+        "revision": "bd0090dd758d32ba59ef5c749910a8e87fc4391f"
+      },
+      "precision": "bf16",
+      "reported_memory_gb": 10.0,
+      "memory_metric": "fit-check estimate",
+      "prior_evidence": "Not benchmarked in the upstream inventory.",
+      "status": "proposed"
+    },
+    {
+      "id": "d3-nano",
+      "display_name": "D3-Nano 2B",
+      "model": {
+        "id": "vllm-sr/d3-nano",
+        "revision": "462efc366229ea268cf4eed3738b3fc4415e4817"
+      },
+      "precision": "bf16",
+      "reported_memory_gb": 4.9,
+      "memory_metric": "fit-check estimate",
+      "prior_evidence": "Not benchmarked in the upstream inventory.",
+      "status": "proposed"
+    },
+    {
+      "id": "d3-lite",
+      "display_name": "D3-Lite 0.8B",
+      "model": {
+        "id": "vllm-sr/d3-lite",
+        "revision": "03560c26f5199c3c04129a2ccb38960c913635e0"
+      },
+      "precision": "bf16",
+      "reported_memory_gb": 1.9,
+      "memory_metric": "fit-check estimate",
+      "prior_evidence": "Not benchmarked in the upstream inventory.",
+      "status": "proposed"
+    },
+    {
+      "id": "d3-edge",
+      "display_name": "D3-Edge 0.6B",
+      "model": {
+        "id": "vllm-sr/d3-edge",
+        "revision": "c454ee39b862248d70abd7f84195d2f54ffe6d43"
+      },
+      "precision": "bf16",
+      "reported_memory_gb": 1.3,
+      "memory_metric": "fit-check estimate",
+      "prior_evidence": "Not benchmarked in the upstream inventory.",
+      "status": "proposed"
+    },
+    {
+      "id": "h2o-lightning-4b-mlx-8bit",
+      "display_name": "H2O Lightning 4B MLX 8-bit",
+      "model": {
+        "id": "h2oai/h2o-lightning-4b",
+        "revision": "e7b32490c9d2a994bd75a4d1ea7e45716080175e"
+      },
+      "precision": "8bit",
+      "reported_memory_gb": 8.9,
+      "memory_metric": "peak",
+      "eligible_alternates": [
+        {
+          "precision": "4bit",
+          "reported_memory_gb": 7.0,
+          "memory_metric": "peak"
+        }
+      ],
+      "screening_note": "The full-precision configuration is 12.6 GB peak and is excluded.",
+      "status": "proposed"
+    },
+    {
+      "id": "liquidai-d1-3b",
+      "display_name": "LiquidAI d1-3B",
+      "model": {
+        "id": "LiquidAI/d1-3B",
+        "revision": "051bcc464b01b9f92942b364d9586b0ef5912432"
+      },
+      "precision": "bf16",
+      "reported_memory_gb": 11.6,
+      "memory_metric": "peak at documented benchmark length",
+      "screening_note": "Overview rounds this value to 12 GB; detailed peak is below the strict threshold. LFM Open License v1.0 has a revenue threshold condition for commercial use.",
+      "status": "proposed"
+    },
+    {
+      "id": "laya",
+      "display_name": "Laya",
+      "model": {
+        "id": "convaiinnovations/laya",
+        "revision": "7b928d828b7b0e022f929d9bd2e44165aa270148"
+      },
+      "precision": "fp16",
+      "reported_memory_gb": 1.8,
+      "memory_metric": "upstream reported model memory",
+      "max_input_tokens": 512,
+      "screening_note": "Input limit is below the DMS-20 content limit of 3,584 tokens.",
+      "status": "proposed"
+    },
+    {
+      "id": "laya-typed-decisions",
+      "display_name": "Laya Typed Decisions",
+      "model": {
+        "id": "convaiinnovations/laya-typed-decisions",
+        "revision": "e929ae5cf69bc34259cd2f95c9e91145b818b1f0"
+      },
+      "precision": "fp16",
+      "reported_memory_gb": 1.7,
+      "memory_metric": "upstream reported model memory",
+      "max_input_tokens": 1024,
+      "screening_note": "Input limit is below the DMS-20 content limit of 3,584 tokens.",
+      "status": "proposed"
+    },
+    {
+      "id": "laya-multilingual",
+      "display_name": "Laya Multilingual",
+      "model": {
+        "id": "convaiinnovations/laya-multilingual",
+        "revision": "1720e3e3357cfe1e281542e223f8273b0890ca34"
+      },
+      "precision": "fp16",
+      "reported_memory_gb": 1.6,
+      "memory_metric": "upstream reported model memory",
+      "max_input_tokens": 1024,
+      "screening_note": "Input limit is below the DMS-20 content limit of 3,584 tokens.",
+      "status": "proposed"
+    },
+    {
+      "id": "d1a-e4b-v0-5-mlx-8bit",
+      "display_name": "D1A-E4B v0.5 MLX 8-bit",
+      "model": {
+        "id": "JohnP1/d1a-e4b-mlx-q8",
+        "revision": "8d77f101ac49c9ad604e383123de5568f5dd117e"
+      },
+      "precision": "8bit",
+      "reported_memory_gb": 7.48,
+      "memory_metric": "same 8-bit E4B MLX model family; upstream v0.6.1 card reports 7.48 GB for the current build",
+      "status": "proposed",
+      "comparison_group": "d1a-e4b-version-comparison",
+      "screening_note": "Pin the v0.5 checkpoint for a matched DMS-20 quality and latency comparison against D1A-E4B v0.6.1. The upstream card recommends v0.5 for hard-decision-style tasks; measure speed rather than assuming a version-to-version speed difference."
+    },
+    {
+      "id": "d1a-e4b-mlx-8bit",
+      "display_name": "D1A-E4B v0.6.1 MLX 8-bit",
+      "model": {
+        "id": "mlx-community/d1a-e4b-8bit",
+        "revision": "d2149d2397948a535654741fd46e0024656bdbf8"
+      },
+      "precision": "8bit",
+      "reported_memory_gb": 7.48,
+      "memory_metric": "MLX model size on Hub; upstream model card reports about 6 GB weights plus up to 1 GB of media encoders",
+      "status": "proposed",
+      "screening_note": "Uses the D1A decision head, not ordinary text generation. DMS-20 is text-only; media encoders are not needed. Pin v0.6.1; upstream notes lower hard-decision quality than v0.5."
+    },
+    {
+      "id": "julia-1",
+      "display_name": "Julia-1 (already in DMS-20 baseline)",
+      "model": {
+        "id": "SupersonicLabs/Julia-1",
+        "revision": "a85b127321d580d65176c89ced8273f305745d85"
+      },
+      "reported_memory_gb": 1.4,
+      "memory_metric": "upstream reported model memory",
+      "status": "already_evaluated",
+      "evaluation_matrix": "dms20-matrix.json",
+      "note": "No duplicate candidate row added."
+    }
+  ],
+  "next_step": "Select candidates and quantizations, then create and approve a separately frozen DMS-20 matrix before running them."
+}

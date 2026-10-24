@@ -1,0 +1,314 @@
+{
+  "approval_scope": "One approval for the two requested MLX DMS-20 candidate rows, bound to corpus, protocol, exact model/tokenizer/source revisions, runtimes and resource floors.",
+  "artifact_download_allow_patterns": [
+    "*.json",
+    "*.safetensors",
+    "*.jinja",
+    "*.txt"
+  ],
+  "artifact_download_ignore_patterns": [
+    "README.md",
+    "media/*"
+  ],
+  "corpus_manifest": "dms14-corpus-manifest.json",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "dispositions": {
+    "d1a-e2b-8bit": "selected",
+    "qwen35-08b-decision": "selected"
+  },
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "harness_files": [
+    {
+      "path": "tests/manual/run_dms20_mlx_extension.py",
+      "sha256": "d471d15adb6bd42a0274704e17d6ba9d02976ee01699271a420ad3532e30ef6d"
+    },
+    {
+      "path": "tests/manual/run_dms20_transfer.py",
+      "sha256": "118eec7bc5f50b86b75f5ee8023f9174302e0b8e9a84f018d6adf46edcabb195"
+    },
+    {
+      "path": "scripts/evaluate_decision_transfer.py",
+      "sha256": "c92540a599754aeffc0b761852c49f0d01daa0e4953e9f012973deb46b94e3cd"
+    }
+  ],
+  "input_files": {
+    "gold_labels": {
+      "path": "/private/tmp/dms20-corpus/gold-labels.jsonl",
+      "sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec"
+    },
+    "normalized_inputs": {
+      "path": "/private/tmp/dms20-corpus/normalized-inputs.jsonl",
+      "sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148"
+    }
+  },
+  "item_count": 684,
+  "matrix_id": "dms20-mlx-extension-2026-10-23",
+  "matrix_version": 1,
+  "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "original_matrix_path": "dms20-matrix.json",
+  "original_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "protocol": {
+    "input_policy": "Use the original approved DMS-20 content limit of 3584 tokenizer tokens and reserve 512 tokens for model-specific formatting. Count with each candidate tokenizer; fail closed without truncation.",
+    "invalid_missing_abstaining": "incorrect",
+    "model_prompt_token_limit": 4096,
+    "normalized_content_token_limit": 3584,
+    "paired_bootstrap_resamples": 10000,
+    "paired_bootstrap_seed": 14,
+    "paired_bootstrap_strata": "source category; identical item IDs across candidates",
+    "primary_metric": "equal macro average of accuracy across the seven included source categories",
+    "primary_order": "canonical",
+    "probability_metrics": "raw Brier and top-label ECE; no calibration fitting",
+    "prompt_format_reserve_tokens": 512,
+    "sensitivity_order": "reverse all options while preserving option IDs and gold labels",
+    "thresholds": {
+      "macro_accuracy_min": 0.75,
+      "per_category_accuracy_min": 0.4
+    }
+  },
+  "result_policy": "Local comparative research only; preserve original approved four-row matrix and results; no production admission or context-management claim.",
+  "rows": [
+    {
+      "artifact_files": [
+        {
+          "path": "model.safetensors-00001-of-00001.safetensors",
+          "repository": "mlx-community/Qwen3.5-0.8B-decision",
+          "revision": "67086958f49ccc3385404ba835924e897ee57c8a",
+          "sha256": "04b1c301231dd422b8860db31311ab2721511346a32cb1e079c4c4e5f1fe4696",
+          "size_bytes": 1746942600
+        },
+        {
+          "path": "adapters.safetensors",
+          "repository": "mlx-community/Qwen3.5-0.8B-decision",
+          "revision": "67086958f49ccc3385404ba835924e897ee57c8a",
+          "sha256": "7ad3e00365ba2ecf6ebf560f2addd040c7c266c5a80224680dad186a9a3df0a0",
+          "size_bytes": 40932018
+        },
+        {
+          "path": "joint_head.safetensors",
+          "repository": "mlx-community/Qwen3.5-0.8B-decision",
+          "revision": "67086958f49ccc3385404ba835924e897ee57c8a",
+          "sha256": "2ab2666452878491c63daedef5eb5e11f098954099a80cf71e7ac0257e5fc08e",
+          "size_bytes": 54661849
+        },
+        {
+          "path": "tokenizer.json",
+          "repository": "mlx-community/Qwen3.5-0.8B-decision",
+          "revision": "67086958f49ccc3385404ba835924e897ee57c8a",
+          "sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+          "size_bytes": 12807982
+        },
+        {
+          "path": "config.json",
+          "repository": "mlx-community/Qwen3.5-0.8B-decision",
+          "revision": "67086958f49ccc3385404ba835924e897ee57c8a",
+          "sha256": "b90b86f35c8e6925ef74ee04d0e758f0a845c83a42089ad82bbaa948de9b4204",
+          "size_bytes": 2907
+        },
+        {
+          "path": "model.safetensors.index.json",
+          "repository": "mlx-community/Qwen3.5-0.8B-decision",
+          "revision": "67086958f49ccc3385404ba835924e897ee57c8a",
+          "sha256": "d8a08838a613b025eb7952ed9db11696213e57e76a375661ef5c12f9dd5dcf4e",
+          "size_bytes": 50900
+        },
+        {
+          "path": "tokenizer_config.json",
+          "repository": "mlx-community/Qwen3.5-0.8B-decision",
+          "revision": "67086958f49ccc3385404ba835924e897ee57c8a",
+          "sha256": "49e2b6e395f959f077f1e992b338919c0d4a9732fc6e613995e06557f843500c",
+          "size_bytes": 16709
+        },
+        {
+          "path": "decision_config.json",
+          "repository": "mlx-community/Qwen3.5-0.8B-decision",
+          "revision": "67086958f49ccc3385404ba835924e897ee57c8a",
+          "sha256": "1e231096b3befa254d7e0b37637be2d91f764034353909df1275f0f9fa6a90d8",
+          "size_bytes": 97
+        },
+        {
+          "path": "joint_head_config.json",
+          "repository": "mlx-community/Qwen3.5-0.8B-decision",
+          "revision": "67086958f49ccc3385404ba835924e897ee57c8a",
+          "sha256": "99f65ef462b1c92d9304ad1acecbbab93506efc0ba8227c46582b4264d27aa30",
+          "size_bytes": 116
+        },
+        {
+          "path": "adapter_config.json",
+          "repository": "mlx-community/Qwen3.5-0.8B-decision",
+          "revision": "67086958f49ccc3385404ba835924e897ee57c8a",
+          "sha256": "2dd00f948e4bb6105456c74355e531384ee121fa3b7f156e1a3b9a2b3ed7b36f",
+          "size_bytes": 479
+        },
+        {
+          "path": "vocab.json",
+          "repository": "mlx-community/Qwen3.5-0.8B-decision",
+          "revision": "67086958f49ccc3385404ba835924e897ee57c8a",
+          "sha256": "ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003",
+          "size_bytes": 6722759
+        },
+        {
+          "path": "merges.txt",
+          "repository": "mlx-community/Qwen3.5-0.8B-decision",
+          "revision": "67086958f49ccc3385404ba835924e897ee57c8a",
+          "sha256": "a9d356d7bdf1ef4949e3e748e95b8e10ad9d4e2e838eddc38a0a7b6b94d1db8d",
+          "size_bytes": 3353259
+        },
+        {
+          "path": "chat_template.jinja",
+          "repository": "mlx-community/Qwen3.5-0.8B-decision",
+          "revision": "67086958f49ccc3385404ba835924e897ee57c8a",
+          "sha256": "273d8e0e683b885071fb17e08d71e5f2a5ddfb5309756181681de4f5a1822d80",
+          "size_bytes": 7755
+        },
+        {
+          "path": "preprocessor_config.json",
+          "repository": "mlx-community/Qwen3.5-0.8B-decision",
+          "revision": "67086958f49ccc3385404ba835924e897ee57c8a",
+          "sha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+          "size_bytes": 390
+        }
+      ],
+      "artifact_hash_source": "LFS SHA-256 for weights/tokenizer; other files hashed from exact revision-pinned Hub resolve responses.",
+      "device": "mlx",
+      "disposition": "selected",
+      "id": "qwen35-08b-decision",
+      "license_note": "Apache-2.0. Local noncommercial comparative research only.",
+      "max_options": 24,
+      "max_state_tokens": 3584,
+      "model": {
+        "id": "mlx-community/Qwen3.5-0.8B-decision",
+        "revision": "67086958f49ccc3385404ba835924e897ee57c8a"
+      },
+      "precision": "8-bit MLX backbone plus released adapter and joint head",
+      "resource_floor": {
+        "measured_peak_rss_required": true,
+        "minimum_free_disk_after_stage_bytes": 2147483648,
+        "minimum_free_disk_before_stage_bytes": 8589934592,
+        "minimum_free_memory_bytes": 8589934592
+      },
+      "runtime": {
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-optiq.lock",
+        "lock_sha256": "d54f64dcfbd3f7fa08dcdc368f87ab9e552bbad637e84f7be9ed456178e89bac",
+        "packages": {
+          "huggingface-hub": "1.33.0",
+          "mlx": "0.32.2",
+          "mlx-lm": "0.31.3",
+          "mlx-optiq": "0.7.3",
+          "numpy": "2.5.4",
+          "safetensors": "0.8.0",
+          "transformers": "5.12.1"
+        },
+        "python_version": "3.13.15"
+      },
+      "source": {
+        "id": "MLX Qwen3.5 decision checkpoint and OptiQ DecisionModel loader",
+        "revision": "67086958f49ccc3385404ba835924e897ee57c8a"
+      },
+      "task_mapping": "Use optiq.decision.DecisionModel.predict with the normalized state and typed choice question; retain option IDs and raw choice probabilities.",
+      "tokenizer": {
+        "id": "mlx-community/Qwen3.5-0.8B-decision",
+        "revision": "67086958f49ccc3385404ba835924e897ee57c8a"
+      },
+      "training_provenance": "Published Qwen3.5-0.8B decision checkpoint."
+    },
+    {
+      "artifact_files": [
+        {
+          "path": "model.safetensors",
+          "repository": "mlx-community/d1a-e2b-8bit",
+          "revision": "25e3486031713d01cbdd90ea43b009b8a19dacf0",
+          "sha256": "39827152e85da092e0f64e69cfb138ef36fdd961b7102dab2352f9b53dc96a28",
+          "size_bytes": 3743859871
+        },
+        {
+          "path": "head.safetensors",
+          "repository": "mlx-community/d1a-e2b-8bit",
+          "revision": "25e3486031713d01cbdd90ea43b009b8a19dacf0",
+          "sha256": "5b56c4f9da06b75a359da342e6002c6c73896033925b88e9e13c3757878e7447",
+          "size_bytes": 3148080
+        },
+        {
+          "path": "tokenizer.json",
+          "repository": "mlx-community/d1a-e2b-8bit",
+          "revision": "25e3486031713d01cbdd90ea43b009b8a19dacf0",
+          "sha256": "12bac982b793c44b03d52a250a9f0d0b666813da566b910c24a6da0695fd11e6",
+          "size_bytes": 32170070
+        },
+        {
+          "path": "config.json",
+          "repository": "mlx-community/d1a-e2b-8bit",
+          "revision": "25e3486031713d01cbdd90ea43b009b8a19dacf0",
+          "sha256": "7a49bb847395108b8fadb9d0a7c09e1efe93efe8289e003125b9fa9b38b647dd",
+          "size_bytes": 4955
+        },
+        {
+          "path": "d1a_config.json",
+          "repository": "mlx-community/d1a-e2b-8bit",
+          "revision": "25e3486031713d01cbdd90ea43b009b8a19dacf0",
+          "sha256": "400b38f101de97f80867f10bb2aaf48c17bab6a1df4f8616a6c12f7d4c050aea",
+          "size_bytes": 7645
+        },
+        {
+          "path": "model.safetensors.index.json",
+          "repository": "mlx-community/d1a-e2b-8bit",
+          "revision": "25e3486031713d01cbdd90ea43b009b8a19dacf0",
+          "sha256": "a68ab5b92618bbc041fbb0e372575533ff1e071be0a915aeacf8c14f9ebd0647",
+          "size_bytes": 95576
+        },
+        {
+          "path": "tokenizer_config.json",
+          "repository": "mlx-community/d1a-e2b-8bit",
+          "revision": "25e3486031713d01cbdd90ea43b009b8a19dacf0",
+          "sha256": "8864c956f60cff565a413632d7728db8deab1253052a29b9064bf68128dd450b",
+          "size_bytes": 1528
+        }
+      ],
+      "artifact_hash_source": "LFS SHA-256 for weights/tokenizer; other files hashed from exact revision-pinned Hub resolve responses.",
+      "device": "mlx",
+      "disposition": "selected",
+      "id": "d1a-e2b-8bit",
+      "license_note": "Apache-2.0. Local noncommercial comparative research only.",
+      "max_options": 24,
+      "max_state_tokens": 3584,
+      "model": {
+        "id": "mlx-community/d1a-e2b-8bit",
+        "revision": "25e3486031713d01cbdd90ea43b009b8a19dacf0"
+      },
+      "precision": "8-bit MLX E2B model plus decision head",
+      "resource_floor": {
+        "measured_peak_rss_required": true,
+        "minimum_free_disk_after_stage_bytes": 3221225472,
+        "minimum_free_disk_before_stage_bytes": 12884901888,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/d1a-mlx.lock",
+        "lock_sha256": "5ded5b0d1ab407f9871a5a486a191b685e3773864cfdfa28d7bde5c1b6049eca",
+        "packages": {
+          "huggingface-hub": "2.3.0",
+          "mlx": "0.32.2",
+          "mlx-lm": "0.31.3",
+          "numpy": "2.5.4",
+          "safetensors": "0.8.0",
+          "transformers": "5.20.2"
+        },
+        "python_version": "3.13.15"
+      },
+      "source": {
+        "id": "D1A Python decision API",
+        "revision": "95d251729bdf916ec768ea985c6f9a9fe7b3c641"
+      },
+      "task_mapping": "Use D1A.decide with normalized state and typed choice question; retain option IDs and raw choice probabilities. The image encoder is excluded for this text-only evaluation.",
+      "tokenizer": {
+        "id": "mlx-community/d1a-e2b-8bit",
+        "revision": "25e3486031713d01cbdd90ea43b009b8a19dacf0"
+      },
+      "training_provenance": "Published D1A E2B decision model converted to MLX 8-bit weights."
+    }
+  ],
+  "runnable_cohort": [
+    "qwen35-08b-decision",
+    "d1a-e2b-8bit"
+  ],
+  "status": "approved for execution by user request; explicitly excludes Qwen3.5-27B"
+}

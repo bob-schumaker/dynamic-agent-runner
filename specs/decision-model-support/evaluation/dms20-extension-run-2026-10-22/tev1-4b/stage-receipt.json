@@ -1,0 +1,21 @@
+{
+  "candidate_id": "tev1-4b",
+  "matrix_sha256": "fb5594a36e54808121cf1d87c599a42e06cb0b2ddae61f9b92aedf7e0b934f6b",
+  "repositories": [
+    [
+      "togethercomputer/Tev1-4B-experimental",
+      "0b7becf017daa0e5eb222f8ce7483c8c8259c52f"
+    ]
+  ],
+  "resource_preflight": {
+    "after_stage": {
+      "free_disk_bytes": 24561905664,
+      "free_memory_bytes_estimate": 27444841021
+    },
+    "before_stage": {
+      "free_disk_bytes": 26079019008,
+      "free_memory_bytes_estimate": 25898652794
+    }
+  },
+  "verified": true
+}

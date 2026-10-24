@@ -1,0 +1,45 @@
+{
+  "candidate_id": "lev",
+  "cold_load_ms": 11086.462124949321,
+  "common_max_token_count": 366,
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "device": "cpu",
+  "execution_mode": "in_process",
+  "failures": 1368,
+  "host_platform": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+  "inference_latency_ms": [],
+  "matrix_sha256": "4e4d0c4fe22d413c5337b8676790a587719aec18a33d1172efce465f1d3cfee1",
+  "model": {
+    "id": "interfaze-ai/lev",
+    "revision": "8721908e50dffd5fe8726507c09498e3def5b2f6"
+  },
+  "model_server": false,
+  "peak_rss_bytes": 19853017088,
+  "precision": "fp32",
+  "prediction_count": 1368,
+  "provenance_limit": "Publisher does not pin the base revision used during training; this row is an explicit execution pairing, not a claim to reproduce the training pairing.",
+  "resource_preflight": {
+    "free_disk_bytes": 35972755456,
+    "free_memory_bytes_estimate": 32083405701
+  },
+  "rows": 684,
+  "runtime": {
+    "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/qwen-cpu.lock",
+    "lock_sha256": "342f32ddfd0d21ee5a17efe8199ebc491d033976d3189fd5d2848845e8121bbf",
+    "packages": {
+      "accelerate": "1.15.0",
+      "huggingface-hub": "1.32.0",
+      "numpy": "2.5.3",
+      "peft": "0.21.0",
+      "safetensors": "0.8.0",
+      "torch": "2.8.0",
+      "transformers": "5.17.0"
+    },
+    "python_version": "3.13.15"
+  },
+  "source": {
+    "id": "InterfazeAI/lev",
+    "lock_sha256": "30ee76aa0bcc5b1c242217971d0ab1c6810f7e74600f41a03321bac2899409de",
+    "revision": "79e1661aeb42dadebc144753a4f37117510952ee"
+  }
+}

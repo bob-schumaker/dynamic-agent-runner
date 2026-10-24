@@ -1,0 +1,14 @@
+{
+  "approval_scope": "One Nimble-9B MPS BF16 batch-4 variant, bound to the existing DMS-20 corpus, exact adapter/base revisions, runtime, runner, and resource floors.",
+  "approval_source": "User explicitly directed: run the remaining DMS-20 optimization variants.",
+  "approved": true,
+  "approved_at": "2026-10-24T05:20:00Z",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "dispositions": {
+    "nimble-9b": "selected"
+  },
+  "matrix_sha256": "4f3272de6835aa38c2942c5074b5c5c3b9122e153e5ce4bd36b36c8cd8ebc54f",
+  "runnable_cohort": [
+    "nimble-9b"
+  ]
+}

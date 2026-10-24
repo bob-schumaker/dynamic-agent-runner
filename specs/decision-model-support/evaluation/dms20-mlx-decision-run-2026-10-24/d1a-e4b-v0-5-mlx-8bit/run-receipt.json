@@ -1,0 +1,39 @@
+{
+  "approval_path": "specs/decision-model-support/evaluation/dms20-mlx-decision-approval.json",
+  "approval_sha256": "e26e0372f454cd49ae8b5fe888b50a5e0dc25d86032e6ee5a00a6f2385315191",
+  "candidate_id": "d1a-e4b-v0-5-mlx-8bit",
+  "completed_at": "2026-10-24T21:28:25+00:00",
+  "corpus_manifest_path": "specs/decision-model-support/evaluation/dms14-corpus-manifest.json",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "evaluation_path": "specs/decision-model-support/evaluation/dms20-mlx-decision-run-2026-10-24/d1a-e4b-v0-5-mlx-8bit/evaluation.json",
+  "evaluation_sha256": "091c842e5cab04f0d905d84ea1626bdc2f5b7e9706f2714b6c9942e73b4b64a3",
+  "item_count": 684,
+  "matrix_path": "specs/decision-model-support/evaluation/dms20-mlx-decision-matrix.json",
+  "matrix_sha256": "b238ba8b95937478d5ee19a1456a1924d486cc52f771bafca5f80b124b46396f",
+  "measurements_path": "specs/decision-model-support/evaluation/dms20-mlx-decision-run-2026-10-24/d1a-e4b-v0-5-mlx-8bit/measurements.json",
+  "measurements_sha256": "848b5a69d6837161bcaf0a62e699ce9891692695eef17ee928a10d2b1bd98709",
+  "model": {
+    "id": "JohnP1/d1a-e4b-mlx-q8",
+    "revision": "8d77f101ac49c9ad604e383123de5568f5dd117e"
+  },
+  "prediction_count": 1368,
+  "predictions_sha256": "a18891b95e262dabecfc4061eb0843e5dd0d54912d244427d7f5fc273a85e8aa",
+  "runtime": {
+    "kind": "d1a",
+    "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/d1a-mlx.lock",
+    "lock_sha256": "5ded5b0d1ab407f9871a5a486a191b685e3773864cfdfa28d7bde5c1b6049eca",
+    "packages": {
+      "d1a": "0.5.0",
+      "huggingface-hub": "2.3.0",
+      "mlx": "0.32.2",
+      "mlx-lm": "0.31.3",
+      "numpy": "2.5.4",
+      "safetensors": "0.8.0",
+      "transformers": "5.20.2"
+    },
+    "python_version": "3.13.15",
+    "source_repository": "https://github.com/jonpol01/d1a",
+    "source_revision": "95d251729bdf916ec768ea985c6f9a9fe7b3c641"
+  },
+  "status": "completed"
+}

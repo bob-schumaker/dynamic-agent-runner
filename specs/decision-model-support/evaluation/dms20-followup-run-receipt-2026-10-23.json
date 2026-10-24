@@ -1,0 +1,212 @@
+{
+  "aggregate_evaluations": [
+    {
+      "evaluator_path": "scripts/evaluate_decision_transfer.py",
+      "evaluator_sha256": "c92540a599754aeffc0b761852c49f0d01daa0e4953e9f012973deb46b94e3cd",
+      "path": "specs/decision-model-support/evaluation/dms20-candidate-followup-evaluation-2026-10-23.json",
+      "sha256": "4a75b47233802f2ac606367cebe51ce5af793f2dc3b251328200e8a1108139ff"
+    },
+    {
+      "evaluator_path": "scripts/evaluate_decision_transfer.py",
+      "evaluator_sha256": "c92540a599754aeffc0b761852c49f0d01daa0e4953e9f012973deb46b94e3cd",
+      "path": "specs/decision-model-support/evaluation/dms20-followup-evaluation-2026-10-23.json",
+      "sha256": "09afceca74753cc224ffa48dbf4cbc1d06cfd66ed4993946d5c77389c7d72ef2"
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "tev1-0.8b",
+      "cold_load_ms": 6867.6109169609845,
+      "device_peak_bytes": 2462973952,
+      "item_count": 684,
+      "matrix_sha256": "fb5594a36e54808121cf1d87c599a42e06cb0b2ddae61f9b92aedf7e0b934f6b",
+      "mean_inference_latency_ms": 354.0333482240768,
+      "measurements_path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/tev1-0.8b/measurements.json",
+      "measurements_sha256": "a97efcc4265ed8a8ea6365f5ac41b5a79ea310c9593ebbe9e220baa787de3640",
+      "model": {
+        "id": "togethercomputer/Tev1-0.8B-experimental",
+        "revision": "6bb2dff14b38fea90ddb14d870166ccaf77374e9"
+      },
+      "option_orders": {
+        "canonical": 684,
+        "reversed": 684
+      },
+      "peak_rss_bytes": 3354345472,
+      "prediction_count": 1368,
+      "prediction_path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/tev1-0.8b/predictions.jsonl",
+      "predictions_sha256": "007f697682dd5490ee6a6a8b8827c2344a02ca0fcbaecd5c717dce5d6e2016c0",
+      "stage_receipt_path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/tev1-0.8b/stage-receipt.json",
+      "stage_receipt_sha256": "740c9de87ea210f72c060d5674207520f779465e752f29a422bd6ed0a529294c",
+      "status_counts": {
+        "ok": 1368
+      }
+    },
+    {
+      "candidate_id": "tev1-4b",
+      "cold_load_ms": 13198.701791930944,
+      "device_peak_bytes": 9735897088,
+      "item_count": 684,
+      "matrix_sha256": "fb5594a36e54808121cf1d87c599a42e06cb0b2ddae61f9b92aedf7e0b934f6b",
+      "mean_inference_latency_ms": 944.4987480865644,
+      "measurements_path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/tev1-4b/measurements.json",
+      "measurements_sha256": "16000bacfba76be8afc960e2eae191f725f838622e7dffe0c697cb5c5459021d",
+      "model": {
+        "id": "togethercomputer/Tev1-4B-experimental",
+        "revision": "0b7becf017daa0e5eb222f8ce7483c8c8259c52f"
+      },
+      "option_orders": {
+        "canonical": 684,
+        "reversed": 684
+      },
+      "peak_rss_bytes": 5527420928,
+      "prediction_count": 1368,
+      "prediction_path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/tev1-4b/predictions.jsonl",
+      "predictions_sha256": "5631be101ac7b92364ca11f22ff4ba522948914fffc15ad5d5bd18162c3418b6",
+      "stage_receipt_path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/tev1-4b/stage-receipt.json",
+      "stage_receipt_sha256": "151a38ce5ad004a025fe04a371961b4e6349a7f1bcadb7fcd97f70d6cd15c39c",
+      "status_counts": {
+        "ok": 1368
+      }
+    },
+    {
+      "candidate_id": "nimble-9b",
+      "cold_load_ms": 22504.135417053476,
+      "device_peak_bytes": 20559757312,
+      "item_count": 684,
+      "matrix_sha256": "fb5594a36e54808121cf1d87c599a42e06cb0b2ddae61f9b92aedf7e0b934f6b",
+      "mean_inference_latency_ms": 1863.194064709987,
+      "measurements_path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/nimble-9b/measurements.json",
+      "measurements_sha256": "52d4ece2ed9c12b4f8b1929e5187cfb480e4b78ed4f0779f3a088a430a61d1ab",
+      "model": {
+        "id": "bespokelabs/Bespoke-Nimble-9B",
+        "revision": "bd792f44ec8e265be861bfcdf4e05967ffe0e858"
+      },
+      "option_orders": {
+        "canonical": 684,
+        "reversed": 684
+      },
+      "peak_rss_bytes": 5760253952,
+      "prediction_count": 1368,
+      "prediction_path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/nimble-9b/predictions.jsonl",
+      "predictions_sha256": "2ec0696fc7f6d4ee5f7473f5977593dc1547676cb909a2fcda841bb23d08757b",
+      "stage_receipt_path": "specs/decision-model-support/evaluation/dms20-extension-run-2026-10-22/nimble-9b/stage-receipt.json",
+      "stage_receipt_sha256": "3e3cdf753dee1cd150a5fee304eaf1840c60bbe8ccb11783e8a3d8bbc8d5bc57",
+      "status_counts": {
+        "ok": 1368
+      }
+    },
+    {
+      "candidate_id": "qwen35-08b-decision",
+      "cold_load_ms": 3483.0692501273006,
+      "device_peak_bytes": 2631819880,
+      "item_count": 684,
+      "matrix_sha256": "d9ca634d9ffea79c2fb78b7a4e863bd5db48c7de22877ba441c94f2993952b6a",
+      "mean_inference_latency_ms": 367.9216053700742,
+      "measurements_path": "specs/decision-model-support/evaluation/dms20-mlx-run-2026-10-23/qwen35-08b-decision/measurements.json",
+      "measurements_sha256": "7425145c2df44c044867c086e2c4cfd72f3aedf686af7e5ddbb567b9eaa6f371",
+      "model": {
+        "id": "mlx-community/Qwen3.5-0.8B-decision",
+        "revision": "67086958f49ccc3385404ba835924e897ee57c8a"
+      },
+      "option_orders": {
+        "canonical": 684,
+        "reversed": 684
+      },
+      "peak_rss_bytes": 2137653248,
+      "prediction_count": 1368,
+      "prediction_path": "specs/decision-model-support/evaluation/dms20-mlx-run-2026-10-23/qwen35-08b-decision/predictions.jsonl",
+      "predictions_sha256": "fc9fbbcce679199b4071874f057a0b636580f428d67b6e5608c81de830c8c8ea",
+      "stage_receipt_path": "specs/decision-model-support/evaluation/dms20-mlx-run-2026-10-23/qwen35-08b-decision/stage-receipt.json",
+      "stage_receipt_sha256": "52bd66d6b5a94aa6fce2793f5c82d054613b0bc3d6baec8ef41197d6dce5a3ff",
+      "status_counts": {
+        "ok": 1368
+      }
+    },
+    {
+      "candidate_id": "d1a-e2b-8bit",
+      "cold_load_ms": 42140.67079196684,
+      "device_peak_bytes": 2858857762,
+      "item_count": 684,
+      "matrix_sha256": "d9ca634d9ffea79c2fb78b7a4e863bd5db48c7de22877ba441c94f2993952b6a",
+      "mean_inference_latency_ms": 75.71398190679491,
+      "measurements_path": "specs/decision-model-support/evaluation/dms20-mlx-run-2026-10-23/d1a-e2b-8bit/measurements.json",
+      "measurements_sha256": "ccff6bdcc7864e2551c2255c885424f5aa3694e533abbbffb278066b20a3f0ef",
+      "model": {
+        "id": "mlx-community/d1a-e2b-8bit",
+        "revision": "25e3486031713d01cbdd90ea43b009b8a19dacf0"
+      },
+      "option_orders": {
+        "canonical": 684,
+        "reversed": 684
+      },
+      "peak_rss_bytes": 3475849216,
+      "prediction_count": 1368,
+      "prediction_path": "specs/decision-model-support/evaluation/dms20-mlx-run-2026-10-23/d1a-e2b-8bit/predictions.jsonl",
+      "predictions_sha256": "24fd9a663812a89aa7ee153348cf24bf9f1b7638836c379134a6de315674062d",
+      "stage_receipt_path": "specs/decision-model-support/evaluation/dms20-mlx-run-2026-10-23/d1a-e2b-8bit/stage-receipt.json",
+      "stage_receipt_sha256": "572089fedfb35483fc14e23435f6da04c5764d55a5fd7d5a61e9d0a770de0c37",
+      "status_counts": {
+        "invalid": 18,
+        "ok": 1350
+      }
+    }
+  ],
+  "cohorts": [
+    {
+      "approval_path": "specs/decision-model-support/evaluation/dms20-extension-approval-v3.json",
+      "approval_sha256": "57e542417d62846d6789bca7423e2e9376ff594cf6f41fc00574611d01cfad64",
+      "candidate_ids": [
+        "tev1-4b",
+        "tev1-0.8b",
+        "nimble-9b"
+      ],
+      "matrix_path": "specs/decision-model-support/evaluation/dms20-extension-matrix-v3.json",
+      "matrix_sha256": "fb5594a36e54808121cf1d87c599a42e06cb0b2ddae61f9b92aedf7e0b934f6b"
+    },
+    {
+      "approval_path": "specs/decision-model-support/evaluation/dms20-mlx-approval-v6.json",
+      "approval_sha256": "0b31a00dab8ce067c536ad78e51afcc616b7d01dfcbc44ae1d2f0fda4a36bb37",
+      "candidate_ids": [
+        "qwen35-08b-decision",
+        "d1a-e2b-8bit"
+      ],
+      "matrix_path": "specs/decision-model-support/evaluation/dms20-mlx-matrix-v6.json",
+      "matrix_sha256": "d9ca634d9ffea79c2fb78b7a4e863bd5db48c7de22877ba441c94f2993952b6a"
+    }
+  ],
+  "corpus": {
+    "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+    "item_count": 684,
+    "manifest_path": "specs/decision-model-support/evaluation/dms14-corpus-manifest.json",
+    "manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+    "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148"
+  },
+  "d1a_note": "D1A returned 18 invalid probability outputs (10 canonical, 8 reversed) under the evaluator sum tolerance. Its pinned library rounds returned probabilities to four decimal places, which is a likely cause; per-item exception details were suppressed, so this cause is not confirmed.",
+  "original_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "receipt_id": "dms20-followup-execution-2026-10-23",
+  "scope": "Five requested extension candidates evaluated on the shared 684-item corpus; the original four-candidate DMS-20 matrix and outputs remain unchanged. Qwen3.5-27B was excluded per user instruction.",
+  "serialization_notes": "Tev1 and Nimble prediction JSONL score-map keys were reserialized in the actual presented option order after inference. Choice IDs and probability values were unchanged; this preserves deterministic tie handling when the JSON evaluator reads maps.",
+  "status": "completed",
+  "superseded_attempts": [
+    {
+      "attempt": "v4",
+      "candidate_id": "qwen35-08b-decision",
+      "disposition": "superseded by final tie-aware v6 run",
+      "failures": 1368,
+      "matrix_sha256": "7a38826e7dc2c92bc338419861206b6bd550992c5b4b36d9cfdd6879ce6cd9bf",
+      "measurements_sha256": "c539008220a3dd46a3f82a70288ddea502c52592eaae2590053c14ef3f5c048d",
+      "prediction_path": "specs/decision-model-support/evaluation/dms20-mlx-run-2026-10-23/qwen35-08b-decision-attempt-v4/predictions.jsonl",
+      "predictions_sha256": "287a9f0509fc23b1c40765553f4e82164e7c897bddd9dcea789ce26dac946ee7"
+    },
+    {
+      "attempt": "v5",
+      "candidate_id": "qwen35-08b-decision",
+      "disposition": "superseded by final tie-aware v6 run",
+      "failures": 26,
+      "matrix_sha256": "ab3bd7a11f1438e475e40117d835e36b9477376f83889977aa380a22b890e0ef",
+      "measurements_sha256": "21060d05fb18cd22a28a8801971939dcc1b07030048237f7ab7794f9a909c518",
+      "prediction_path": "specs/decision-model-support/evaluation/dms20-mlx-run-2026-10-23/qwen35-08b-decision-attempt-v5/predictions.jsonl",
+      "predictions_sha256": "5996bfc7eb43479496973981f9561d985b233134995d6d1de2d23b0f09c2b092"
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "candidates": {
+    "laya-multilingual": {
+      "calibration": {
+        "macro_multiclass_brier": 0.7586886855025907,
+        "n": 684,
+        "status": "available; raw outputs only, calibration not fitted",
+        "top_label_ece_10_bins": 0.25929510963764807
+      },
+      "canonical": {
+        "accuracy": 0.4722222222222222,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.4895833333333333,
+            "correct": 47,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.4482758620689655,
+            "correct": 52,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.5,
+            "correct": 40,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.2672413793103448,
+            "correct": 31,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.45,
+            "correct": 36,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.625,
+            "correct": 50,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.5775862068965517,
+            "correct": 67,
+            "total": 116
+          }
+        },
+        "correct": 323,
+        "macro_accuracy": 0.47966954022988506,
+        "macro_accuracy_bootstrap_95": {
+          "lower": 0.44244509441707713,
+          "upper": 0.5169437602627258
+        },
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      },
+      "option_order": {
+        "choice_flips": 180,
+        "flip_rate": 0.2631578947368421,
+        "paired_valid_items": 684
+      },
+      "reversed": {
+        "accuracy": 0.45614035087719296,
+        "by_category": {
+          "composition_holdout": {
+            "accuracy": 0.4791666666666667,
+            "correct": 46,
+            "total": 96
+          },
+          "emotion": {
+            "accuracy": 0.4396551724137931,
+            "correct": 51,
+            "total": 116
+          },
+          "legacy_holdout": {
+            "accuracy": 0.5,
+            "correct": 40,
+            "total": 80
+          },
+          "mmlu": {
+            "accuracy": 0.2672413793103448,
+            "correct": 31,
+            "total": 116
+          },
+          "paws": {
+            "accuracy": 0.4625,
+            "correct": 37,
+            "total": 80
+          },
+          "qnli": {
+            "accuracy": 0.6125,
+            "correct": 49,
+            "total": 80
+          },
+          "sciq": {
+            "accuracy": 0.5,
+            "correct": 58,
+            "total": 116
+          }
+        },
+        "correct": 312,
+        "macro_accuracy": 0.46586617405582925,
+        "status_counts": {
+          "ok": 684
+        },
+        "total": 684
+      }
+    }
+  },
+  "paired_bootstrap": {},
+  "protocol": {
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 14,
+    "bootstrap_stratification": "item IDs sampled with replacement within task; shared samples across candidates",
+    "common_probability_item_count": 684,
+    "invalid_missing_and_abstaining_are_incorrect": true,
+    "item_count": 684,
+    "option_orders": [
+      "canonical",
+      "reversed"
+    ],
+    "point_leader": "laya-multilingual",
+    "primary_metric": "equally weighted macro accuracy on canonical option order",
+    "task_categories": [
+      "composition_holdout",
+      "emotion",
+      "legacy_holdout",
+      "mmlu",
+      "paws",
+      "qnli",
+      "sciq"
+    ]
+  },
+  "ranking": [
+    {
+      "candidate": "laya-multilingual",
+      "macro_accuracy": 0.47966954022988506,
+      "rank": 1
+    }
+  ]
+}

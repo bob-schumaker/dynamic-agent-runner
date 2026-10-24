@@ -1,5 +1,7 @@
 # Decision Model Candidate Evaluation
 
+<!-- rumdl-disable MD013 -->
+
 ## Canonical DMS-01/DMS-12 matrix
 
 The merged matrix is [`evaluation/dms01-dms12-merged-matrix.json`](evaluation/dms01-dms12-merged-matrix.json).
@@ -232,7 +234,7 @@ evaluated this distinct direct-local pairing:
 | Candidate | Current evidence and disposition |
 |---|---|
 | Laya-MLX: source [`mizorewww/laya-mlx`](https://github.com/mizorewww/laya-mlx/tree/0a859518634112655cb97c745dbf04f5191aaf13) at `0a859518634112655cb97c745dbf04f5191aaf13`; MLX checkpoint [`aac6fef/laya-typed-decisions-mlx`](https://huggingface.co/aac6fef/laya-typed-decisions-mlx/tree/28416e78cb26a239a4eabaa2e084904ec5e6cacb) at `28416e78cb26a239a4eabaa2e084904ec5e6cacb`; provenance base `convaiinnovations/laya-typed-decisions` at `f9ab0b228f0fc0f14d873dbc99038f135c2da1b2`. | Approved local MLX evaluation completed; rejected for the frozen context-management quality gates. Separately, Laya-MLX passed the DMS-16 compatibility smoke and is admitted for optional client-authored workflow decisions only. |
-| Julia 1: [`SupersonicLabs/Julia-1`](https://huggingface.co/SupersonicLabs/Julia-1/tree/a85b127321d580d65176c89ced8273f305745d85), full source/model snapshot revision `a85b127321d580d65176c89ced8273f305745d85`; published weight SHA-256 `df853bf7fe424420011f3d0c47a05d7341aa9eefa7fb9f203ea4aada4ad95b72`. | Apache-2.0. 144.3M parameter mmBERT-small encoder with an in-repository typed-decision runtime. | Native `choice`, ordered `score`, and `noul`; named questions accept 2–20 options. PyTorch CPU is documented; model code and weights are in the pinned local snapshot. | Published 8,192 combined-token cap. Snapshot `pyproject.toml` requires Torch >=2.6, Transformers >=5.0,<5.1, Safetensors >=0.5, NumPy >=1.26. DAR's `julia1` extra installed and imported under Python 3.13.16 and 3.14.7 using the shared Poetry lock. The caller-loaded-engine adapter passed the exact-material compatibility smoke and is admitted for optional client-authored workflow decisions only. |
+| Julia 1: [`SupersonicLabs/Julia-1`](https://huggingface.co/SupersonicLabs/Julia-1/tree/a85b127321d580d65176c89ced8273f305745d85), full source/model snapshot revision `a85b127321d580d65176c89ced8273f305745d85`; published weight SHA-256 `df853bf7fe424420011f3d0c47a05d7341aa9eefa7fb9f203ea4aada4ad95b72`. | Apache-2.0. 144.3M parameter mmBERT-small encoder with an in-repository typed-decision runtime. |
 
 ### Julia 1 optional workflow adapter status
 
@@ -848,6 +850,190 @@ macro accuracy and 0.250 MMLU result make it the latency-first option only.
 Since no candidate meets both thresholds, this is a comparative ranking, not
 a production recommendation or DAR profile admission. DMS-14 does not measure
 context-preservation quality and does not reverse DMS-01 or DMS-08 decisions.
+
+## DMS-20 Local Candidate Transfer Evaluation — 2026-10-22
+
+The separately frozen DMS-20 matrix v2 and its approval cover **Julia-1**,
+**Kev-4B**, **lev**, and **Strands Decider 2B** as one runnable cohort. Each
+candidate completed 684 shared inputs in canonical and reversed option order.
+The result is comparative research only; it does not admit any model as a DAR
+backend or establish context-management suitability. Full outputs,
+measurements, hashes, and gate results are in
+`evaluation/dms20-run-2026-10-22/run-receipt.json` and `evaluation.json`.
+
+| Candidate | Mean inference latency | Canonical macro accuracy | Lowest category accuracy | Option-order flips | Quality gates |
+|---|---:|---:|---|---:|---|
+| Julia-1 | 19.8 ms | 0.5231 | 0.2241 (MMLU) | 216 / 684 (31.6%) | Fail: macro and category gates |
+| Kev-4B | 7.87 s | 0.8004 | 0.5603 (emotion) | 43 / 684 (6.3%) | Pass |
+| lev | 9.33 s | 0.7872 | 0.6667 (composition holdout) | 0 / 684 (0%) | Pass |
+| Strands Decider 2B | 627 ms | 0.7371 | 0.5172 (emotion) | 61 / 671 paired-valid (9.1%) | Fail: macro gate; 13 invalid outputs |
+
+The thresholds were 0.75 equal-category macro accuracy and 0.40 minimum
+accuracy in every category. Kev-4B ranked first and lev second by point
+estimate, but their paired 95% bootstrap interval for the difference includes
+zero (Kev-4B minus lev: -0.0134 to 0.0396); this evaluation does not establish
+a reliable quality winner between them. Strands' 13 invalid outputs count as
+incorrect. No common comparable probability outputs were available, so Brier
+and ECE were not reported.
+
+### Requested DMS-20 extension candidates
+
+The requested follow-up adds [Together Tev1-4B-experimental](https://huggingface.co/togethercomputer/Tev1-4B-experimental),
+[Tev1-0.8B-experimental](https://huggingface.co/togethercomputer/Tev1-0.8B-experimental),
+and [Bespoke-Nimble-9B](https://huggingface.co/bespokelabs/Bespoke-Nimble-9B)
+as three distinct candidates. Their separately frozen extension-v3 matrix
+completed all 1,368 canonical/reversed predictions per candidate. Tev1-4B
+scored 0.7819 macro (minimum category 0.5603); Nimble-9B scored 0.7940
+(0.5690). Both pass the 0.75 macro and 0.40 per-category gates. Tev1-0.8B
+scored 0.6265 (minimum 0.5000) and fails the macro gate. Paired bootstrap
+intervals for Nimble versus Kev-4B and Tev1-4B overlap zero, so these point
+estimates do not establish a clear quality winner. Full results and resource
+measurements are in
+`evaluation/dms20-candidate-followup-evaluation-2026-10-23.json` and the
+hash-bound `evaluation/dms20-followup-run-receipt-2026-10-23.json`.
+
+### Nimble optimized-kernel row
+
+A separate `nimble-9b-mps-linear-attn` variant was run using the same
+pinned Nimble adapter and Qwen3.5-9B base as the baseline, plus
+[`mpsops/mps-linear-attention`](https://github.com/mpsops/mps-linear-attention)
+at commit `f0889940cf168dcc9e2541b061875835e63a095e` (package 0.1.0,
+MIT-declared). The proposal is recorded in
+`evaluation/dms20-nimble-mps-matrix.json` with a separate approval.
+Both required Metal kernels ran, but the fused delta-rule path produced
+non-finite logits for all 1,368 predictions. The row scored 0.000 macro
+accuracy and failed output validity and quality gates. Its recorded latency is
+not a valid performance comparison. See
+`evaluation/dms20-nimble-mps-evaluation-2026-10-24.json` and the run receipt.
+The existing Nimble baseline and results are unchanged.
+
+### Kev-4B MPS BF16 pilot
+
+The optimization proposal set contains eight variants; only the Kev-4B MPS
+BF16 variant was selected for this pilot. Its exact matrix and approval are
+`evaluation/dms20-kev-mps-pilot-matrix.json` and
+`evaluation/dms20-kev-mps-pilot-approval.json`. The 14-item smoke matched all
+CPU choices. The full 1,368-output run passed validity and both DMS-20 quality
+gates. Accuracy remained close to baseline, while inference was faster in this
+run:
+
+| Row | Macro accuracy | Minimum category | Mean / median / P95 latency | Invalid |
+|---|---:|---:|---:|---:|
+| Kev-4B CPU FP32 | 0.8004 | 0.5603 | 7,867.5 / 7,661.7 / 9,228.1 ms | 0 |
+| Kev-4B MPS BF16 | 0.7974 | 0.5517 | 685.5 / 572.1 / 1,058.0 ms | 0 |
+
+The MPS variant matched the CPU choice on 682/684 canonical and 682/684
+reversed items; maximum probability delta was 0.0413. The mean latency was
+11.48x lower in this run. The locked Transformers path used reference
+fallbacks for its linear-attention operators, so this does not measure custom
+kernel performance. See
+`evaluation/dms20-kev-mps-pilot-evaluation-2026-10-24.json`,
+`evaluation/dms20-followup-evaluation-2026-10-24-with-kev-mps.json`, and the
+hash-bound pilot run receipt. The seven remaining variants were subsequently
+evaluated under separate approved matrices. Their results are consolidated in
+[`evaluation/dms20-full-results-2026-10-24.md`](evaluation/dms20-full-results-2026-10-24.md).
+All eight optimization proposals are now evaluated; the original baseline
+rows remain unchanged. The Qwen and D1A 4-bit MLX rows remain below the macro
+threshold, and Nimble linear attention produced 1,368 invalid outputs.
+
+### Requested MLX DMS-20 follow-up candidates
+
+The user has requested a separate follow-up comparison for
+[`mlx-community/Qwen3.5-0.8B-decision`](https://huggingface.co/mlx-community/Qwen3.5-0.8B-decision),
+[`mlx-community/d1a-e2b-8bit`](https://huggingface.co/mlx-community/d1a-e2b-8bit).
+Their model cards describe compact MLX decision models with distinct
+decision-specific inference interfaces. Both were evaluated under separately
+approved MLX matrix-v6 on the same 684-item corpus. Qwen3.5-0.8B-decision
+scored 0.5246 macro (minimum category 0.3362); D1A E2B 8-bit scored 0.5973
+(minimum 0.4625) with 18 invalid outputs. Both fail the 0.75 macro gate.
+The D1A interface appears to round output probabilities enough to trigger the
+evaluator's sum-tolerance check; that cause is plausible but unconfirmed.
+The user excluded Qwen3.5-27B. The original matrix and separate Tev1/Nimble
+extension remain unchanged. These MLX rows use their MLX path; separate MPS
+optimization results are recorded in the DMS-20 full results addendum.
+
+### MLX Decision models under 12 GB
+
+The `mlx-decision` model inventory documents 14 additional model candidates
+whose reported memory is below 12 GB, including D1A-E4B v0.6.1 8-bit at 7.48 GB and its separate v0.5 8-bit comparison row, plus Julia-1, which is already present
+in the DMS-20 baseline. The candidate list, pinned Hugging Face revisions,
+source memory figures, and eligible quantization alternatives are recorded in
+[`evaluation/dms20-mlx-decision-under-12gb-proposals-2026-10-24.json`](evaluation/dms20-mlx-decision-under-12gb-proposals-2026-10-24.json).
+The 13 new runnable rows were evaluated against the shared 684-item DMS-20
+corpus, with canonical and reversed option order (1,368 predictions per row).
+Julia-1 was already in the baseline and was not rerun. The exact cohort and
+approval are frozen in the [matrix](evaluation/dms20-mlx-decision-matrix.json)
+and [approval receipt](evaluation/dms20-mlx-decision-approval.json). Combined
+scores and paired bootstrap comparisons are in the
+[aggregate evaluation](evaluation/dms20-mlx-decision-run-2026-10-24/aggregate-evaluation.json);
+per-row predictions, measurements, reports, and hash-bound receipts are in
+[`evaluation/dms20-mlx-decision-run-2026-10-24/`](evaluation/dms20-mlx-decision-run-2026-10-24/).
+
+| Candidate | Macro accuracy | Lowest category | Mean latency / decision | Peak RSS | Invalid | DMS-20 gates |
+|---|---:|---|---:|---:|---:|---|
+| Clef-Flash 8-bit | 0.8473 | 0.6121 (emotion) | 973.0 ms | 13.16 GiB | 0 | Pass |
+| PPLX Decider Flash v1.2 | 0.8424 | 0.5862 (emotion) | 422.9 ms | 8.28 GiB | 0 | Pass |
+| D3-Flash 8-bit | 0.8453 | 0.6724 (emotion) | 806.5 ms | 12.89 GiB | 0 | Pass |
+| D3-Mini | **0.8648** | 0.6034 (emotion) | 435.9 ms | 10.70 GiB | 0 | Pass |
+| D3-Nano | 0.8207 | 0.6379 (emotion) | 169.3 ms | 6.84 GiB | 0 | Pass |
+| D3-Lite | 0.7663 | 0.6034 (emotion) | 73.6 ms | 2.97 GiB | 0 | Pass |
+| D3-Edge | 0.6369 | 0.3793 (MMLU) | 36.1 ms | 2.07 GiB | 0 | Fail |
+| H2O Lightning 4B 8-bit | 0.8119 | 0.5776 (emotion) | 403.8 ms | 8.70 GiB | 0 | Pass |
+| LiquidAI D1 3B | 0.7540 | 0.6121 (MMLU) | 204.0 ms | 5.36 GiB | 0 | Pass |
+| Laya | 0.5333 | 0.3103 (MMLU) | 37.7 ms | 1.64 GiB | 0 | Fail |
+| Laya Typed Decisions | 0.5221 | 0.2672 (MMLU) | 37.3 ms | 1.51 GiB | 0 | Fail |
+| Laya Multilingual | 0.4797 | 0.2672 (MMLU) | **16.3 ms** | 1.62 GiB | 0 | Fail |
+| D1A-E4B v0.5 8-bit | 0.6914 | 0.5259 (MMLU) | 237.1 ms | 6.20 GiB | 15 | Fail |
+| D1A-E4B v0.6.1 8-bit | 0.6914 | 0.5259 (MMLU) | 237.3 ms | 6.21 GiB | 15 | Fail |
+
+D3-Mini is the point leader, but its paired 95% bootstrap interval versus
+Clef-Flash includes zero; the evaluation does not establish a quality winner
+between them. D3-Mini's canonical macro accuracy is higher than PPLX Decider's
+by 0.0224 points (paired 95% interval 0.0024–0.0430). The fastest row,
+Laya-Multilingual, fails the quality gates. LiquidAI D1 3B passes both gates
+narrowly on macro accuracy (0.7540 against the 0.75 threshold).
+
+The D1A-E4B v0.5 and v0.6.1 rows tie on macro accuracy, lowest category,
+option-order flips (69), invalid outputs (15), and paired bootstrap result
+(zero difference; 95% interval 0–0). Their mean latency is effectively the
+same in this run (237.1 ms versus 237.3 ms). Thus this DMS-20 sample shows no
+quality or speed advantage for either version.
+
+All models completed without oversized inputs; the runner's per-row temporary
+model staging directories were removed after evaluation. Peak RSS is measured
+on this host and can exceed upstream weight or MLX allocation figures. The
+reported latency is per prediction, averaged over both option orders.
+
+The screening uses the source's detailed fit-check or peak-memory figures,
+not rounded overview values. In particular, d3-flash 8-bit is listed as
+11.7 GB peak at the documented default benchmark length, although the
+overview rounds it to 12 GB; longer inputs can exceed the limit. d1-3B is
+11.6 GB peak in the detailed table despite the same rounded overview value.
+The D1A-E4B rows pin both the MLX v0.6.1 and v0.5 decision-head builds for a
+matched comparison; the current model card reports a 7.48 GB on-disk model and
+about 6 GB of weights plus up to 1 GB for media encoders. Upstream reports a
+hard-decision quality regression in v0.6 versus v0.5, while this DMS-20 run
+found tied macro accuracy and effectively identical latency. The three Laya
+checkpoints accept at most 512 or 1,024 input tokens; all evaluated normalized
+inputs fit those limits, with a maximum of 366 tokens. Memory figures are
+upstream estimates or measurements, not measurements from this DMS host. The
+LiquidAI d1-3B model uses the LFM Open License v1.0, whose commercial terms
+include a revenue threshold condition.
+
+The pinned rows retain their evidence limits. Julia-1 is
+`SupersonicLabs/Julia-1@a85b127321d580d65176c89ced8273f305745d85` (Apache-2.0,
+CPU/PyTorch). Kev-4B is
+`jaredpalmer/kev-4b@139fdd94f1b6a6ad80cc15e08fcb99cac885a101` on
+`Qwen/Qwen3.5-4B-Base@1001bb4d826a52d1f399e183466143f4da7b741b`; published
+transfer-v4 development results overlap this source corpus, so this is not an
+independent replication. The prior Kev-0.6B run is a different checkpoint.
+Lev is `interfaze-ai/lev@8721908e50dffd5fe8726507c09498e3def5b2f6`; the
+publisher does not bind its training base revision, so the approved execution
+pairing used `Qwen/Qwen3.5-4B@851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`
+without claiming training-pairing reproducibility. Strands uses
+`StrandsAgents/strands-decider-2B-qwen3.5-v1-2610@216d1ccb46a9e9b036eb9187b248db98480f77d4`
+with `Qwen/Qwen3.5-2B-Base@b1485b2fa6dfa1287294f269f5fb618e03d52d7c`; its shipped
+training provenance inferred the base from Hub `main` at training time.
 
 ## DMS-12 Jev-Style 0.8B v3 result
 

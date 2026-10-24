@@ -1,0 +1,16 @@
+{
+  "approval_scope": "One approval for the two requested MLX DMS-20 candidate rows, bound to corpus, protocol, exact model/tokenizer/source revisions, runtimes and resource floors.",
+  "approved": true,
+  "approved_by": "user instruction in this session: add the two MLX decision models to DMS-20; skip the 27B model",
+  "approved_on": "2026-10-23",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "dispositions": {
+    "d1a-e2b-8bit": "selected",
+    "qwen35-08b-decision": "selected"
+  },
+  "matrix_sha256": "d9ca634d9ffea79c2fb78b7a4e863bd5db48c7de22877ba441c94f2993952b6a",
+  "runnable_cohort": [
+    "qwen35-08b-decision",
+    "d1a-e2b-8bit"
+  ]
+}

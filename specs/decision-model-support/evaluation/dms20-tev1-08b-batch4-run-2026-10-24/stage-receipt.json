@@ -1,0 +1,17 @@
+{
+  "candidate_id": "tev1-0.8b",
+  "matrix_sha256": "23466eda9d4aa2f9b23436ca7c07108bd8e1436ebe02a9824aab68f36ea77e64",
+  "resource_preflight": {
+    "after_stage": {
+      "free_disk_bytes": 32355921920,
+      "free_memory_bytes_estimate": 30923764531,
+      "system_memory_free_percent": 80
+    },
+    "before_stage": {
+      "free_disk_bytes": 33377665024,
+      "free_memory_bytes_estimate": 30923764531,
+      "system_memory_free_percent": 80
+    }
+  },
+  "verified": true
+}

@@ -1,0 +1,204 @@
+{
+  "candidate_id": "d1a-e4b-mlx-8bit",
+  "cold_load_ms": 4643.018333008513,
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "elapsed_inference_ms": 324726.8565001432,
+  "failed_outputs": 15,
+  "host_platform": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+  "item_count": 684,
+  "matrix_sha256": "b238ba8b95937478d5ee19a1456a1924d486cc52f771bafca5f80b124b46396f",
+  "max_normalized_input_tokens": 347,
+  "mean_prediction_latency_ms": 237.33749974751163,
+  "mlx_active_memory_bytes": 4937987184,
+  "mlx_peak_memory_bytes": 5457179356,
+  "model": {
+    "id": "mlx-community/d1a-e4b-8bit",
+    "revision": "d2149d2397948a535654741fd46e0024656bdbf8"
+  },
+  "normalized_inputs_over_content_limit": 0,
+  "oversize_outputs": 0,
+  "peak_rss_bytes": 6670123008,
+  "prediction_count": 1368,
+  "runtime": {
+    "kind": "d1a",
+    "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/d1a-mlx.lock",
+    "lock_sha256": "5ded5b0d1ab407f9871a5a486a191b685e3773864cfdfa28d7bde5c1b6049eca",
+    "packages": {
+      "d1a": "0.5.0",
+      "huggingface-hub": "2.3.0",
+      "mlx": "0.32.2",
+      "mlx-lm": "0.31.3",
+      "numpy": "2.5.4",
+      "safetensors": "0.8.0",
+      "transformers": "5.20.2"
+    },
+    "python_version": "3.13.15",
+    "source_repository": "https://github.com/jonpol01/d1a",
+    "source_revision": "95d251729bdf916ec768ea985c6f9a9fe7b3c641"
+  },
+  "stage": {
+    "artifacts": [
+      {
+        "path": ".cache/huggingface/.gitignore",
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+        "size_bytes": 1
+      },
+      {
+        "path": ".cache/huggingface/CACHEDIR.TAG",
+        "sha256": "f6572428f6d5e1575e73a1502895a8731f10757dfbb634909c6e154b849af91d",
+        "size_bytes": 191
+      },
+      {
+        "path": ".cache/huggingface/download/README.md.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/README.md.metadata",
+        "sha256": "3ecc4f9312d478146b912403646650cd71331ff7d4742a7b3f89fbaa0b57d06c",
+        "size_bytes": 100
+      },
+      {
+        "path": ".cache/huggingface/download/config.json.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/config.json.metadata",
+        "sha256": "6d396f9d7ba350108fe24fa5bea6e91c9956779ca07d2abf59784e4a51edb341",
+        "size_bytes": 100
+      },
+      {
+        "path": ".cache/huggingface/download/d1a_config.json.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/d1a_config.json.metadata",
+        "sha256": "7171c4f3657c5b00f716a5b0ce9f4312808ed499400f214f4266d6a66a1bb339",
+        "size_bytes": 101
+      },
+      {
+        "path": ".cache/huggingface/download/head.safetensors.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/head.safetensors.metadata",
+        "sha256": "a76938ce19a895cd8bbab0808068de325a8587e7a4cf086657ab6687c9b6d6ec",
+        "size_bytes": 125
+      },
+      {
+        "path": ".cache/huggingface/download/model-00001-of-00002.safetensors.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/model-00001-of-00002.safetensors.metadata",
+        "sha256": "2a7c09baef61d1d3518fb814d7fbb9dea9d5a0bfe94cd85376a9c3ccae83b679",
+        "size_bytes": 125
+      },
+      {
+        "path": ".cache/huggingface/download/model-00002-of-00002.safetensors.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/model-00002-of-00002.safetensors.metadata",
+        "sha256": "d08667c138bc2566c58eae55c952cc5b83c913885b2a74c6c2a9a76d3eb79f2c",
+        "size_bytes": 124
+      },
+      {
+        "path": ".cache/huggingface/download/model.safetensors.index.json.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/model.safetensors.index.json.metadata",
+        "sha256": "8f35874ffd538eca3701f1b8a1bf2d6d31fbeb7d04286022a21edc6a59c4d449",
+        "size_bytes": 100
+      },
+      {
+        "path": ".cache/huggingface/download/tokenizer.json.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/tokenizer.json.metadata",
+        "sha256": "f13ee3eae86b648c75313cfad909f344d8367d0b72219a25a416befbb9f5a22b",
+        "size_bytes": 125
+      },
+      {
+        "path": ".cache/huggingface/download/tokenizer_config.json.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": ".cache/huggingface/download/tokenizer_config.json.metadata",
+        "sha256": "a1509470b11193b53e540e62481e7e06bbc5f0cd0f640ce95b44882509efe8a5",
+        "size_bytes": 101
+      },
+      {
+        "path": ".cache/huggingface/trees/d2149d2397948a535654741fd46e0024656bdbf8.json",
+        "sha256": "4aa24d6f55b9f1756fd69e5dbd26aedeb71354e61289b5f1c58381d15ef6941e",
+        "size_bytes": 2843
+      },
+      {
+        "path": "README.md",
+        "sha256": "7ca715950028ff030bbc8cca5e762d3bf538331e55996f8691a974aae4c0b30b",
+        "size_bytes": 17870
+      },
+      {
+        "path": "config.json",
+        "sha256": "0bdb3e6a8ad2835ec07acee6011dc2d909fb7aff5cca0fbe8deecc799bab3895",
+        "size_bytes": 5188
+      },
+      {
+        "path": "d1a_config.json",
+        "sha256": "e5e02157e91087a42c2f28a3edde19fec44a458558c2a657959787c6089a69d4",
+        "size_bytes": 3103
+      },
+      {
+        "path": "head.safetensors",
+        "sha256": "05b9d0c49f5df117ea43cf6c55159ffd2e7aab876e67cd69bd13911ff7fb627a",
+        "size_bytes": 5245232
+      },
+      {
+        "path": "model-00001-of-00002.safetensors",
+        "sha256": "997f4bada8201806d8488c1d9410efebb70b559203737c9ffc60008855b62618",
+        "size_bytes": 4906172928
+      },
+      {
+        "path": "model-00002-of-00002.safetensors",
+        "sha256": "c3b6d0aa087acfae5892f118988937bd99dd6c61971f6c2c4547a5ebe590a4d1",
+        "size_bytes": 1614693776
+      },
+      {
+        "path": "model.safetensors.index.json",
+        "sha256": "b848c89eddb3d741bf844463d4fa85550eddf8f1466358022770a453704ac672",
+        "size_bytes": 138539
+      },
+      {
+        "path": "tokenizer.json",
+        "sha256": "12bac982b793c44b03d52a250a9f0d0b666813da566b910c24a6da0695fd11e6",
+        "size_bytes": 32170070
+      },
+      {
+        "path": "tokenizer_config.json",
+        "sha256": "8864c956f60cff565a413632d7728db8deab1253052a29b9064bf68128dd450b",
+        "size_bytes": 1528
+      }
+    ],
+    "resource_preflight": {
+      "after_stage": {
+        "free_disk_bytes": 30166368256,
+        "free_memory_bytes_estimate": 30537217474
+      },
+      "before_stage": {
+        "free_disk_bytes": 36727279616,
+        "free_memory_bytes_estimate": 30537217474
+      }
+    },
+    "source_revision": "d2149d2397948a535654741fd46e0024656bdbf8"
+  }
+}

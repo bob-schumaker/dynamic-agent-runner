@@ -1,0 +1,25 @@
+{
+  "candidate_id": "nimble-9b-mps-linear-attn",
+  "matrix_sha256": "6161c06ca137482230711a18fd29a0ad27379d516136b9b8fc1c31d00be0e869",
+  "repositories": [
+    [
+      "Qwen/Qwen3.5-9B",
+      "c202236235762e1c871ad0ccb60c8ee5ba337b9a"
+    ],
+    [
+      "bespokelabs/Bespoke-Nimble-9B",
+      "bd792f44ec8e265be861bfcdf4e05967ffe0e858"
+    ]
+  ],
+  "resource_preflight": {
+    "after_stage": {
+      "free_disk_bytes": 17173516288,
+      "free_memory_bytes_estimate": 32469952757
+    },
+    "before_stage": {
+      "free_disk_bytes": 36769095680,
+      "free_memory_bytes_estimate": 32083405701
+    }
+  },
+  "verified": true
+}

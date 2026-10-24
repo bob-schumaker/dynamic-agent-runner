@@ -1,5 +1,212 @@
 # Decision Model Support Readiness Validation
 
+<!-- rumdl-disable MD013 -->
+
+## DMS-20 Requested Follow-up Execution — 2026-10-23
+
+Five requested additions completed on the same 684-item corpus as the original
+DMS-20 evaluation: Tev1-4B, Tev1-0.8B, and Nimble-9B under extension matrix-v3
+and approval-v3; Qwen3.5-0.8B-decision and D1A E2B 8-bit under MLX matrix-v6
+and approval-v6. Each candidate received 684 canonical and 684 reversed
+requests. Qwen3.5-27B was excluded per user instruction. The original
+four-candidate matrix, approval, outputs, and evaluation were not changed.
+
+| Candidate | Macro accuracy | Lowest category | Mean latency | Peak RSS | Invalid outputs | Gates |
+|---|---:|---|---:|---:|---:|---|
+| Nimble-9B | 0.7940 | 0.5690 (emotion) | 1,863.2 ms | 5.76 GB | 0 | Pass |
+| Tev1-4B | 0.7819 | 0.5603 (emotion) | 944.5 ms | 5.53 GB | 0 | Pass |
+| Tev1-0.8B | 0.6265 | 0.5000 (MMLU) | 354.0 ms | 3.35 GB | 0 | Fails macro |
+| D1A E2B 8-bit | 0.5973 | 0.4625 (PAWS) | 75.7 ms | 3.48 GB | 18 | Fails macro |
+| Qwen3.5-0.8B-decision | 0.5246 | 0.3362 (MMLU) | 367.9 ms | 2.14 GB | 0 | Fails macro and category |
+
+Gates remain macro accuracy at least 0.75 and per-category accuracy at least
+0.40. Nimble-minus-Tev1-4B and Nimble-minus-Kev-4B paired 95% bootstrap
+intervals include zero; the point ranking does not establish a decisive winner
+among the leading candidates. D1A had 18 invalid records; probability
+rounding is a plausible cause but was not confirmed. The MPS reference runs
+used the available fallback kernels. No optimized MPS kernel comparison was
+performed, so this evaluation does not measure the proposed linear-attention
+kernel's performance impact.
+
+The extension-only and all-nine comparison outputs are
+`evaluation/dms20-candidate-followup-evaluation-2026-10-23.json` and
+`evaluation/dms20-followup-evaluation-2026-10-23.json`. The receipt
+`evaluation/dms20-followup-run-receipt-2026-10-23.json` binds both cohort
+matrices and approvals, corpus, candidate predictions and measurements, and
+aggregate evaluations by SHA-256. Focused runner tests passed (13 tests).
+
+## DMS-20 Nimble optimized-kernel run — 2026-10-24
+
+Executed the separately approved `nimble-9b-mps-linear-attn` row with the
+baseline Nimble adapter/base pins and `mpsops/mps-linear-attention` commit
+`f0889940cf168dcc9e2541b061875835e63a095e`. Both required Metal kernels ran
+32,832 times, but the fused delta-rule path returned non-finite logits: all
+1,368 outputs were invalid, including the representative smoke item. The row
+therefore failed parity and the DMS-20 quality gates; its apparent latency is
+not a valid performance comparison. The baseline Nimble matrix and results are
+unchanged. Predictions, measurements, evaluation, and their digest-bound run
+receipt are under `evaluation/dms20-nimble-mps-run-2026-10-23/` and
+`evaluation/dms20-nimble-mps-run-receipt-2026-10-24.json`.
+
+## DMS-20 Kev-4B MPS BF16 pilot — 2026-10-24
+
+Added eight proposed runtime-optimization rows under
+`evaluation/dms20-optimization-proposals-2026-10-24.json`. The separately
+approved pilot selected only `kev-4b-mps-bf16`, preserving the FP32 CPU
+baseline. PyTorch 2.8.0 MPS BF16 and pinned Kev source commit
+`1f04cfa28e6a708485b28a9585010b9e436b776e` loaded successfully. The 14-item
+smoke matched all CPU choices; maximum probability delta was 0.0048. All 1,368
+full-run outputs were valid. Compared with baseline, choices matched on
+682/684 items in both option orders; maximum probability delta was 0.0413.
+
+| Row | Canonical macro | Minimum category | Mean latency | Median | P95 | Invalid |
+|---|---:|---:|---:|---:|---:|---:|
+| Kev-4B CPU FP32 baseline | 0.8004 | 0.5603 | 7,867.5 ms | 7,661.7 ms | 9,228.1 ms | 0 |
+| Kev-4B MPS BF16 | 0.7974 | 0.5517 | 685.5 ms | 572.1 ms | 1,058.0 ms | 0 |
+
+The MPS row passes the 0.75 macro and 0.40 per-category thresholds. Mean
+latency is 11.48x lower in this run. The locked PyTorch Transformers path
+reported reference fallbacks for `causal_conv1d` and `chunk_gated_delta_rule`;
+this is stock MPS BF16, not a custom-kernel comparison. The seven remaining
+proposal rows are unrun and require their own exact matrices and approvals.
+Focused tests: `poetry run pytest tests/test_dms20_optimization_runner.py -q`
+(2 passed); Ruff and `git diff --check` passed. The receipt binds the matrix,
+approval, corpus, stage receipt, predictions, measurements, and both
+evaluations at `evaluation/dms20-kev-mps-pilot-run-receipt-2026-10-24.json`.
+
+## DMS-20 Approved Execution — 2026-10-22
+
+All four selected candidates completed the matrix-v2 run. The approval binds
+matrix SHA-256 `4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf`;
+the manifest, normalized inputs, and labels matched their frozen digests. The
+corpus contained 684 items across seven included source categories; the 80
+`tweet_offensive` rows remained excluded before normalization. Each candidate
+produced 1,368 records covering every item in canonical and reversed option
+order. All result files and measurements are archived in
+`evaluation/dms20-run-2026-10-22/` and hash-bound by `run-receipt.json`.
+
+| Candidate | Mean inference latency | Peak RSS | Output failures | Canonical macro | Gate result |
+|---|---:|---:|---:|---:|---|
+| Julia-1 | 19.8 ms | 1.77 GB | 0 | 0.5231 | Fails macro and category thresholds |
+| Kev-4B | 7.87 s | 18.30 GB | 0 | 0.8004 | Passes both thresholds |
+| lev | 9.33 s | 24.01 GB | 0 | 0.7872 | Passes both thresholds |
+| Strands Decider 2B | 627 ms | 12.31 GB | 13 invalid | 0.7371 | Fails macro threshold; passes category floor |
+
+The frozen gates were macro accuracy at least 0.75 and per-category accuracy
+at least 0.40. The point ranking is Kev-4B, lev, Strands Decider 2B, Julia-1.
+The paired 95% bootstrap interval for Kev-4B minus lev is -0.0134 to 0.0396,
+so their point-score difference is not decisive. Julia-1's weakest categories
+were MMLU (0.2241) and legacy holdout (0.3500). Strands' invalid outputs count
+as incorrect. Probability calibration metrics were unavailable because there
+were no common comparable probability outputs. The findings remain
+comparative only and do not establish production admission or
+context-management suitability.
+
+## DMS-20 Discovery Drift and Challenged Review — 2026-10-21
+
+A read-only metadata check exposed an apparent Julia tokenizer digest conflict
+between `preflight_dms16.py` (`609d8f4c…`) and an HTTP ETag (`8fdbdb03…`).
+The immutable Hugging Face tree API resolves the discrepancy: `609d8f4c…` is
+the tokenizer file's LFS SHA-256 and `8fdbdb03…` is its Xet storage hash. The
+existing DMS-16 digest is correct and remains unchanged; Julia's material
+identity is not blocked by this discrepancy.
+
+Council challenge findings agree that the four-lead scope must not silently
+shrink and that the runner must reject any matrix without exactly all four
+leads selected. Ada and Feynman find that Lev may be evaluated as a separately
+named, DMS-20-pinned execution-base variant if its exact base, files, and
+provenance limitation are bound by the matrix. Aristotle considers that a new
+candidate requiring explicit scope change. Strands may remain an execution
+candidate when its exact loaded base and artifacts are pinned; its inferred
+training-time base must be disclosed and must not be described as reproducible
+training provenance.
+
+The user selected the separately pinned Lev execution variant for the all-four
+cohort. The draft DMS-20 matrix names that variant and preserves the limitation
+that its training-time base revision is unknown.
+
+Ponytail review found the needed runtime check small and local: validate the
+fixed four-ID set and require all four dispositions to be selected. It found
+no need for a new dependency or generic evaluation framework.
+
+The runner now has focused fake-backed checks for exact four-lead membership,
+all-four selection, matrix approval binding, option-order reversal, input
+redaction, and complete preflight. At the time of this review, the proposed
+matrix was not frozen and no runtime installation, model download, or inference
+had been authorized. Focused validation then passed with 7 runner tests, Ruff
+on the runner and tests, and `git diff --check`.
+
+## DMS-20 Execution — 2026-10-21
+
+The user requested execution for all four leads and selected the pinned Lev
+execution-base variant. That instruction was recorded as the one matrix-level
+approval in `evaluation/dms20-matrix-approval.json`. The frozen matrix hash is
+`78d925084d7e4328b5e403c41d62eb6f98162ef55354e8fb8b221d4fc87363d0`.
+
+The pinned `transfer-v4` manifest and development split were fetched from the
+exact upstream revision and matched their recorded SHA-256 digests. The
+existing normalizer emitted 684 inputs and a separate 684-label file with the
+expected frozen digests. It recorded the 80 `tweet_offensive` rows as excluded
+before normalization and verified the expected excluded-ID digest. These
+temporary corpus files remain under `/private/tmp/dms20-corpus`; no raw text is
+in the repository.
+
+Julia-1 completed in process on CPU using the pinned Python 3.14.6 runtime and
+model revision. It produced 1,368 predictions across canonical and reversed
+option order with zero failures, maximum normalized content length 348 tokens,
+peak RSS 1,747,681,280 bytes, and cold load time 18,652 ms. Redacted
+predictions and measurements are in
+`evaluation/dms20-run-2026-10-21/julia-1/`.
+
+The initial selective model stage exposed a cache-verification bug: the Hub
+client treated a deliberately filtered snapshot as incomplete. The runner now
+resolves the exact revision cache directory and verifies each pinned file
+digest and size directly. A fake-backed regression test covers this path;
+Ruff and all eight `tests/test_dms20_transfer_runner.py` tests pass.
+
+Kev-4B, Lev, and Strands were not staged or run. The latest live resource
+preflight recorded only 3,264,036,864 bytes free, below their frozen pre-stage
+floors (16,106,127,360 bytes for Kev and Lev; 10,737,418,240 bytes for Strands).
+The 2,147,483,648-byte post-stage reserve also cannot be maintained for the
+4B model files at current free space. No candidate model material for these
+three rows was downloaded. The preflight and partial matrix receipt are
+`evaluation/preflight-dms20-run-2026-10-21.json` and
+`evaluation/dms20-run-2026-10-21/matrix-receipt.json`. The task remains open
+until the remaining three candidates complete and the shared evaluator
+produces the comparative report.
+
+## DMS-20 Task Readiness Review — 2026-10-21
+
+Reviewed the DMS-20 proposal in `tasks.md` against `spec.md`, `plan.md`, and
+`model-evaluation.md`. Council's Aristotle/Ada/Feynman architecture triad
+completed independent first passes and a challenge round.
+
+- **Council:** Found an authority ambiguity between the DMS-01/DMS-12 merged
+  matrix and DMS-20's separate matrix; no explicit disposition for each of
+  the four leads; and insufficient runner, test, and receipt boundaries.
+  Confirmed that `tests/manual/run_dms14_transfer.py` is cohort-specific and
+  cannot be reused unchanged. The generic `scripts/evaluate_decision_transfer.py`
+  and its focused tests can be reused when the frozen protocol is compatible.
+- **Ponytail:** Keep one staged DMS-20 track. Reuse the existing evaluator and
+  its tests where compatible; require a DMS20-specific runner only because
+  the DMS14 runner binds its own matrix, corpus, harness digest, and loaders.
+  Do not add a second generic evaluation framework or expand the four-lead
+  scope.
+- **Repairs:** Scoped the merged matrix authority to the DMS-01/DMS-12 track;
+  required an evidence-backed selected/deferred/unsupported disposition for
+  each lead; specified the frozen DMS-20 matrix and approval bindings; named
+  the runner, focused fake test, and result directory; and made TDD ordering
+  explicit for code changes. Recorded that the DMS14 runner must not be reused
+  unchanged and the generic evaluator may be reused unchanged when compatible.
+- **Verification:** Reviewed the relevant runner and evaluator constants,
+  loader mapping, and existing focused test paths. `git diff --check` passed.
+  No tests, downloads, installations, or inference were run for this review.
+- **Disposition:** this plan is ready to execute under its stated gates for
+  lead disposition, matrix freeze, and fake-tested runner work. No installation,
+  candidate-material download, or inference is authorized by this review.
+  DMS-18/DMS-19's separately recorded repository full-suite closeout issue
+  remains open and is not represented as passing here.
+
 ## Canonical DMS-01/DMS-12 matrix and Clef preflight — 2026-10-07
 
 The merged matrix is now explicit at

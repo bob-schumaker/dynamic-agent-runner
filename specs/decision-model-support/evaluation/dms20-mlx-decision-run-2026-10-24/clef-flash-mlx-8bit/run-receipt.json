@@ -1,0 +1,36 @@
+{
+  "approval_path": "specs/decision-model-support/evaluation/dms20-mlx-decision-approval.json",
+  "approval_sha256": "e26e0372f454cd49ae8b5fe888b50a5e0dc25d86032e6ee5a00a6f2385315191",
+  "candidate_id": "clef-flash-mlx-8bit",
+  "completed_at": "2026-10-24T20:05:24+00:00",
+  "corpus_manifest_path": "specs/decision-model-support/evaluation/dms14-corpus-manifest.json",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "evaluation_path": "specs/decision-model-support/evaluation/dms20-mlx-decision-run-2026-10-24/clef-flash-mlx-8bit/evaluation.json",
+  "evaluation_sha256": "dfb90b6eaa78af6771954ffa2273e7d281ba7997b3f55911b00a81b6f8f86c11",
+  "item_count": 684,
+  "matrix_path": "specs/decision-model-support/evaluation/dms20-mlx-decision-matrix.json",
+  "matrix_sha256": "b238ba8b95937478d5ee19a1456a1924d486cc52f771bafca5f80b124b46396f",
+  "measurements_path": "specs/decision-model-support/evaluation/dms20-mlx-decision-run-2026-10-24/clef-flash-mlx-8bit/measurements.json",
+  "measurements_sha256": "af48cbe1e7d0b029f29f4a3e14c07a9e951a3fbfa70b02b5ab1708c553c72ae4",
+  "model": {
+    "id": "Cloudflare/clef-flash",
+    "revision": "f0b7d3cd65296abfe459e6c228b618f5d8b26d2f"
+  },
+  "prediction_count": 1368,
+  "predictions_sha256": "5e6da8ca9280cd10736163c4d6dfaea45d16f8d4717fa626672fe297c80d4e5e",
+  "runtime": {
+    "kind": "mlx-decision",
+    "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/mlx-decision.lock",
+    "lock_sha256": "d26d574c46bbdd5b7f75ff093e039e3f9132b9c5d4dca89633975287e8b08d0a",
+    "packages": {
+      "huggingface-hub": "2.3.0",
+      "mlx": "0.32.4",
+      "mlx-decision": "1.0.0",
+      "numpy": "2.5.4",
+      "pydantic": "2.14.1",
+      "tokenizers": "0.23.3"
+    },
+    "python_version": "3.13.15"
+  },
+  "status": "completed"
+}

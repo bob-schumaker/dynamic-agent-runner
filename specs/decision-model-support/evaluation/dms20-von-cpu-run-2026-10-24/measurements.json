@@ -1,0 +1,20 @@
+{
+  "candidate_id": "von-1.2.0-cpu",
+  "cold_load_ms": 6177.297084010206,
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "device": "cpu",
+  "failures": 0,
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "host_platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "latency_source": "DMS-14 Von CPU inference run on the same normalized inputs and labels; no new inference in this DMS-20 scoring step.",
+  "matrix_sha256": "ba6f8ea40b5e12996a408c31369e8e4e13e07c03f697db8031fc52435d6a6dff",
+  "maximum_normalized_content_tokens": 356,
+  "mean_per_decision_latency_ms": 117.43216329354286,
+  "median_per_decision_latency_ms": 109.98347902204841,
+  "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "peak_rss_bytes": 3591847936,
+  "precision": "fp32",
+  "prediction_count": 1368,
+  "source_run_measurements_sha256": "a09357fcd788d578ec38229ab87c7069fc8ae8a174b0cbc6f42a37ee2e07771b",
+  "token_limit": 3584
+}

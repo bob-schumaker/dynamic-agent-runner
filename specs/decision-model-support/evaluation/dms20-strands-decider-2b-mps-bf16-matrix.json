@@ -1,0 +1,154 @@
+{
+  "approval_scope": "One strands-decider-2b-mps-bf16 execution variant on PyTorch MPS BF16, pinned to its model, source, DMS-20 corpus, runtime, runner, and resource floors.",
+  "artifact_download_allow_patterns": [
+    "*.json",
+    "*.safetensors",
+    "*.py",
+    "*.jinja",
+    "*.model",
+    "*.txt"
+  ],
+  "artifact_download_ignore_patterns": [
+    "README.md",
+    "*.jsonl",
+    "*.png",
+    "*.svg"
+  ],
+  "corpus_manifest": "dms14-corpus-manifest.json",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "created_at": "2026-10-24T05:40:00Z",
+  "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+  "harness_files": [
+    {
+      "path": "tests/manual/run_dms20_mps_optimization.py",
+      "sha256": "d10fcf172157909775ab1525af1e1c74ed09f971f93cfea67a32a2c6dda8b604"
+    },
+    {
+      "path": "tests/manual/run_dms20_transfer.py",
+      "sha256": "118eec7bc5f50b86b75f5ee8023f9174302e0b8e9a84f018d6adf46edcabb195"
+    },
+    {
+      "path": "scripts/evaluate_decision_transfer.py",
+      "sha256": "c92540a599754aeffc0b761852c49f0d01daa0e4953e9f012973deb46b94e3cd"
+    }
+  ],
+  "input_files": {
+    "gold_labels": {
+      "path": "/private/tmp/dms20-corpus/gold-labels.jsonl",
+      "sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec"
+    },
+    "normalized_inputs": {
+      "path": "/private/tmp/dms20-corpus/normalized-inputs.jsonl",
+      "sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148"
+    }
+  },
+  "item_count": 684,
+  "matrix_id": "DMS-20 strands-decider-2b-mps-bf16 optimization",
+  "matrix_version": 1,
+  "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+  "original_matrix_path": "dms20-matrix.json",
+  "original_matrix_sha256": "4b2332d186b8879faaba7a05c41a11ffc560f8b1fffdef75a41f6e4cb97691bf",
+  "protocol": {
+    "normalized_content_token_limit": 3584,
+    "option_orders": [
+      "canonical",
+      "reversed"
+    ],
+    "quality_thresholds": {
+      "macro_accuracy_min": 0.75,
+      "per_category_accuracy_min": 0.4
+    },
+    "smoke_gate": "All 14 choices must match the pinned FP32 CPU baseline before full inference.",
+    "smoke_items_per_category": 1,
+    "smoke_prediction_count": 14
+  },
+  "result_policy": "Comparative local research only; preserve the original DMS-20 matrix and outputs.",
+  "rows": [
+    {
+      "artifact_files": [
+        {
+          "path": "lora/adapter_model.safetensors",
+          "repository": "StrandsAgents/strands-decider-2B-qwen3.5-v1-2610",
+          "revision": "216d1ccb46a9e9b036eb9187b248db98480f77d4",
+          "sha256": "ae1d0cd1ac3edec6df0a519a3ad18f1c382099032d493f8f98c96a80cfebb4c7",
+          "size_bytes": 201878888
+        },
+        {
+          "path": "head.safetensors",
+          "repository": "StrandsAgents/strands-decider-2B-qwen3.5-v1-2610",
+          "revision": "216d1ccb46a9e9b036eb9187b248db98480f77d4",
+          "sha256": "ace56742545b505e6fae34ada85c8edbeedb23ba8974d8680aebe0380d6083a1",
+          "size_bytes": 12605928
+        },
+        {
+          "path": "tokenizer.json",
+          "repository": "StrandsAgents/strands-decider-2B-qwen3.5-v1-2610",
+          "revision": "216d1ccb46a9e9b036eb9187b248db98480f77d4",
+          "sha256": "a2cdd2e108566b09079afa8d266e9e65e7c280f27b771218237a06de5ba9cd86",
+          "size_bytes": 19989592
+        },
+        {
+          "path": "model.safetensors-00001-of-00001.safetensors",
+          "repository": "Qwen/Qwen3.5-2B-Base",
+          "revision": "b1485b2fa6dfa1287294f269f5fb618e03d52d7c",
+          "sha256": "928acbf11878c32185bbd863514d191769285065ab9ea14fbfe431303f5fdf2d",
+          "size_bytes": 4548221488
+        }
+      ],
+      "attention": "sdpa",
+      "base_model": {
+        "id": "Qwen/Qwen3.5-2B-Base",
+        "revision": "b1485b2fa6dfa1287294f269f5fb618e03d52d7c"
+      },
+      "comparison_limit": "Publisher reports this model trained on diverse task data; no independent replication claim.",
+      "device": "mps",
+      "disposition": "selected",
+      "id": "strands-decider-2b",
+      "lead": "Strands Decider 2B",
+      "max_options": 24,
+      "max_state_tokens": 4096,
+      "model": {
+        "id": "StrandsAgents/strands-decider-2B-qwen3.5-v1-2610",
+        "revision": "216d1ccb46a9e9b036eb9187b248db98480f77d4"
+      },
+      "optimization_id": "strands-decider-2b-mps-bf16",
+      "precision": "bfloat16",
+      "resource_floor": {
+        "measured_peak_rss_required": true,
+        "minimum_free_disk_after_stage_bytes": 2147483648,
+        "minimum_free_disk_before_stage_bytes": 10737418240,
+        "minimum_free_memory_bytes": 12884901888
+      },
+      "runtime": {
+        "lock_path": "specs/decision-model-support/evaluation/dms20-runtimes/qwen-mps.lock",
+        "lock_sha256": "461f99b6fff9db15a73c73ec65ef32dc3b81018b616d2b05777ac5b2cfdc1cd0",
+        "packages": {
+          "accelerate": "1.15.0",
+          "huggingface-hub": "1.32.0",
+          "numpy": "2.5.3",
+          "peft": "0.21.0",
+          "safetensors": "0.8.0",
+          "torch": "2.8.0",
+          "transformers": "5.17.0"
+        },
+        "python_version": "3.13.15"
+      },
+      "source": {
+        "id": "strands-labs/strands-decider",
+        "repository": "https://github.com/strands-labs/strands-decider.git",
+        "revision": "d942e5515db750f80a51032629ec312455a87976"
+      },
+      "tokenizer": {
+        "id": "StrandsAgents/strands-decider-2B-qwen3.5-v1-2610",
+        "path": "tokenizer.json",
+        "revision": "216d1ccb46a9e9b036eb9187b248db98480f77d4",
+        "sha256": "a2cdd2e108566b09079afa8d266e9e65e7c280f27b771218237a06de5ba9cd86",
+        "size_bytes": 19989592
+      },
+      "training_provenance": "The shipped provenance records this base revision as inferred from Hub main at training time; execution uses this exact pinned revision, not a claim of reproducible training provenance."
+    }
+  ],
+  "runnable_cohort": [
+    "strands-decider-2b-mps-bf16"
+  ]
+}

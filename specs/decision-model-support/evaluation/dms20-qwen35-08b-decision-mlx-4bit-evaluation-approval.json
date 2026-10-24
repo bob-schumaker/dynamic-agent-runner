@@ -1,0 +1,11 @@
+{
+  "approval_scope": "One 4-bit MLX optimization row qwen35-08b-decision-mlx-4bit; generated artifact hashes are bound to this evaluation matrix and compared against the original DMS-20 8-bit candidate output.",
+  "approval_source": "User requested the remaining DMS-20 optimization variants and set the active goal to complete the DMS-20 evaluation.",
+  "approved": true,
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "matrix_sha256": "49a9d6c826b84e9630064bcd6dc68b4a0effdc46404cdf6fe3b67b245736fff9",
+  "runnable_cohort": [
+    "qwen35-08b-decision-mlx-4bit"
+  ],
+  "source_conversion_matrix_sha256": "d4917db32c95f557c352328a22d6662539b46b533ccb473cfcf6a9556f8debc9"
+}

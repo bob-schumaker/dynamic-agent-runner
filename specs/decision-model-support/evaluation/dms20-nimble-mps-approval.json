@@ -1,0 +1,20 @@
+{
+  "approval_scope": "One additional Nimble execution variant, bound to the exact existing Nimble adapter/base revisions, optimized-kernel Git commit and source hashes, runtime lock, runner/evaluator files, shared DMS-20 corpus, protocol, and resource floors. Preserve the approved Nimble baseline and all prior DMS-20 artifacts. Diagnostic smoke rerun with persisted logits diagnostics; prior full-run artifacts are preserved.",
+  "approval_source": "User instruction in this session: \u201cdo whatever is necessary to rerun the test\u201d; exact model, adapter, optimizer, corpus, protocol, and diagnostic harness are bound in the matrix.",
+  "approved": true,
+  "approved_at": "2026-10-24T17:29:46.411634+00:00",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "dispositions": {
+    "nimble-9b-mps-linear-attn": "selected"
+  },
+  "input_sha256": {
+    "gold_labels": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+    "normalized_inputs": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148"
+  },
+  "matrix_path": "specs/decision-model-support/evaluation/dms20-nimble-mps-matrix.json",
+  "matrix_sha256": "776a7c05364fe68227ca9831f18aeb779f3c399c76f99458be05c059009d29fa",
+  "optimizer_revision": "f0889940cf168dcc9e2541b061875835e63a095e",
+  "runnable_cohort": [
+    "nimble-9b-mps-linear-attn"
+  ]
+}

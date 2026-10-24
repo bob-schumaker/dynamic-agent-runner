@@ -1,0 +1,25 @@
+{
+  "candidate_id": "kev-4b-mps-bf16",
+  "matrix_sha256": "dcba78594687b9f469ff44627db71c0bc8b17822fd684ccc62887c29fbe3e9fb",
+  "repositories": [
+    [
+      "Qwen/Qwen3.5-4B-Base",
+      "1001bb4d826a52d1f399e183466143f4da7b741b"
+    ],
+    [
+      "jaredpalmer/kev-4b",
+      "139fdd94f1b6a6ad80cc15e08fcb99cac885a101"
+    ]
+  ],
+  "resource_preflight": {
+    "after_stage": {
+      "free_disk_bytes": 27407966208,
+      "free_memory_bytes_estimate": 30923764531
+    },
+    "before_stage": {
+      "free_disk_bytes": 27407966208,
+      "free_memory_bytes_estimate": 30923764531
+    }
+  },
+  "verified": true
+}

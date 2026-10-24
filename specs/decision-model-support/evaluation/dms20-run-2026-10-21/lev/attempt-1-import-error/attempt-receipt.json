@@ -1,0 +1,12 @@
+{
+  "attempt": 1,
+  "candidate_id": "lev",
+  "corpus_manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+  "diagnosis": "Runner imported nonexistent lev.api.Choice; pinned source publicly exports Choice from lev.types and lev.",
+  "failures": 1368,
+  "matrix_sha256": "4e4d0c4fe22d413c5337b8676790a587719aec18a33d1172efce465f1d3cfee1",
+  "measurements_sha256": "ecd14b02d44070a29aff94642f4394f354b0720924b7cd98d8fd97ec8196118b",
+  "prediction_count": 1368,
+  "predictions_sha256": "624ef75cd0b17d9dac9b8f624d334bf1225a1a9bcf51d9ec666003e95cb9d7f8",
+  "status": "failed_before_scoring"
+}

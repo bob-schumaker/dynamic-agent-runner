@@ -1,0 +1,130 @@
+{
+  "approval_sha256": "e15191c1814d62cbc8b1088b8433a2cf7289e4fdfc9ff512298556b43a6b8ad8",
+  "artifacts": {
+    "all_candidate_evaluation": {
+      "path": "specs/decision-model-support/evaluation/dms20-followup-evaluation-2026-10-24-with-kev-mps.json",
+      "sha256": "bcfeb8c2b663be850c7ff2412f66f5566098df2710f2a1d02451a9fc0c1ca0ed"
+    },
+    "approval": {
+      "path": "specs/decision-model-support/evaluation/dms20-kev-mps-pilot-approval.json",
+      "sha256": "e15191c1814d62cbc8b1088b8433a2cf7289e4fdfc9ff512298556b43a6b8ad8"
+    },
+    "baseline_measurements": {
+      "path": "specs/decision-model-support/evaluation/dms20-run-2026-10-22/kev-4b/measurements.json",
+      "sha256": "1be79814511c5223d61bb4edaf25080eaac9d3c421b6e943080c9362366f4370"
+    },
+    "baseline_predictions": {
+      "path": "specs/decision-model-support/evaluation/dms20-run-2026-10-22/kev-4b/predictions.jsonl",
+      "sha256": "d07dd9784ad398ca3429809cb52af80f82a4a63486dc636ec093fbe2bf161448"
+    },
+    "corpus_manifest": {
+      "path": "specs/decision-model-support/evaluation/dms14-corpus-manifest.json",
+      "sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e"
+    },
+    "matrix": {
+      "path": "specs/decision-model-support/evaluation/dms20-kev-mps-pilot-matrix.json",
+      "sha256": "dcba78594687b9f469ff44627db71c0bc8b17822fd684ccc62887c29fbe3e9fb"
+    },
+    "measurements": {
+      "path": "specs/decision-model-support/evaluation/dms20-kev-mps-pilot-run-2026-10-24/kev-4b-mps-bf16/measurements.json",
+      "sha256": "46e9b206385026d12a1643510fbe3f4ca084356facb8ee596af5cb8e40aeecec"
+    },
+    "paired_evaluation": {
+      "path": "specs/decision-model-support/evaluation/dms20-kev-mps-pilot-evaluation-2026-10-24.json",
+      "sha256": "aa14f20c06bacd9a3704f5d153e5fdd4313f4480db0611b9367962f88fb472fd"
+    },
+    "predictions": {
+      "path": "specs/decision-model-support/evaluation/dms20-kev-mps-pilot-run-2026-10-24/kev-4b-mps-bf16/predictions.jsonl",
+      "sha256": "79e0a800784912bcd8e5852a5a82bf5bbfd996d3e05bfcd094bf219740018daf"
+    },
+    "proposals": {
+      "path": "specs/decision-model-support/evaluation/dms20-optimization-proposals-2026-10-24.json",
+      "sha256": "c5f05cf7935656a082ee78f7f2a1a06615a1a84710c629c06673510394640c9b"
+    },
+    "runtime_lock": {
+      "path": "specs/decision-model-support/evaluation/dms20-runtimes/qwen-mps.lock",
+      "sha256": "461f99b6fff9db15a73c73ec65ef32dc3b81018b616d2b05777ac5b2cfdc1cd0"
+    },
+    "smoke_predictions": {
+      "path": "specs/decision-model-support/evaluation/dms20-kev-mps-pilot-run-2026-10-24/kev-4b-mps-bf16/smoke-predictions.jsonl",
+      "sha256": "aa7892d7d1447d282e5fd679c16433a6f06929c09964d45bbddd045a98e58939"
+    },
+    "stage_receipt": {
+      "path": "specs/decision-model-support/evaluation/dms20-kev-mps-pilot-run-2026-10-24/kev-4b-mps-bf16/stage-receipt.json",
+      "sha256": "2a48bd7a9a95fd465c1f73f4789389f6f8b2dda75a58b11e782914f0cc1a2486"
+    }
+  },
+  "authorization": "User explicitly requested adding optimization rows and starting with the Kev-4B MPS pilot.",
+  "candidate_id": "kev-4b-mps-bf16",
+  "comparison": {
+    "baseline_candidate": "kev-4b",
+    "baseline_macro_accuracy": 0.8003899835796388,
+    "baseline_peak_rss_bytes": 18296193024,
+    "canonical_macro_accuracy": 0.7973727422003284,
+    "latency_ms": {
+      "baseline_mean": 7867.529533074931,
+      "baseline_median": 7661.688666965347,
+      "baseline_p95": 9228.083075030007,
+      "mean": 685.509381860383,
+      "mean_speedup": 11.476910077763609,
+      "median": 572.0940835308284,
+      "p95": 1058.036514301784
+    },
+    "macro_accuracy_delta": -0.0030172413793103647,
+    "minimum_category_accuracy": 0.5517241379310345,
+    "mps_driver_allocated_bytes": 10263724032,
+    "paired_bootstrap_95": {
+      "lower": -0.007820197044335009,
+      "upper": 0.0
+    },
+    "peak_rss_bytes": 5514838016,
+    "quality_gates": {
+      "every_category_at_least_0_40": true,
+      "macro_at_least_0_75": true
+    }
+  },
+  "corpus": {
+    "gold_label_sha256": "cc303cd2249030cde24814cf8790bd16736e1cc6c2bf22f8add5ae027bfff9ec",
+    "items": 684,
+    "manifest_sha256": "de2a00505e956a053a7e893e473410b8686a5da0335fc11e980e862e63c6042e",
+    "normalized_input_sha256": "1db045914bcbc93bc4fe8bfca6e4e5e1eda505e5e258bb8ea923d99a19054148",
+    "prediction_count": 1368
+  },
+  "execution": {
+    "all_outputs_valid": true,
+    "attention": "sdpa",
+    "backend": "torch",
+    "baseline_choice_parity": {
+      "canonical": {
+        "choice_matches": 682,
+        "items": 684
+      },
+      "reversed": {
+        "choice_matches": 682,
+        "items": 684
+      }
+    },
+    "device": "mps",
+    "max_probability_delta_vs_baseline": 0.041283249855041504,
+    "mean_absolute_probability_delta_vs_baseline": 0.0014838917490519704,
+    "precision": "bfloat16",
+    "smoke_gate": {
+      "choice_matches": 14,
+      "choice_parity": true,
+      "item_count": 14,
+      "max_probability_delta": 0.004760265350341797
+    },
+    "status_counts": {
+      "ok": 1368
+    }
+  },
+  "limitations": [
+    "The MPS run uses pinned PyTorch 2.8.0 reference fallbacks for causal_conv1d and chunk_gated_delta_rule; it is stock MPS BF16, not a custom-kernel row.",
+    "The MPS BF16 predictions differ from the FP32 baseline on two choices in each option order; all outputs remain valid and quality gates pass.",
+    "Results are comparative local research only."
+  ],
+  "matrix_sha256": "dcba78594687b9f469ff44627db71c0bc8b17822fd684ccc62887c29fbe3e9fb",
+  "other_optimization_rows": "Seven additional variants are listed in the proposal file but remain unrun and require separate exact matrices/approvals.",
+  "receipt_id": "dms20-kev-mps-pilot-run-2026-10-24",
+  "status": "completed_quality_gates_passed"
+}

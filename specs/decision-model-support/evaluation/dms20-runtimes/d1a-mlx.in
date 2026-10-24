@@ -1,0 +1,3 @@
+d1a[mlx] @ git+https://github.com/jonpol01/d1a.git@95d251729bdf916ec768ea985c6f9a9fe7b3c641
+mlx==0.32.2
+mlx-lm==0.31.3

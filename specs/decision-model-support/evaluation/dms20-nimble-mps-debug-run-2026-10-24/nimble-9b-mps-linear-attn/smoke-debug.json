@@ -1,0 +1,56 @@
+{
+  "baseline_choice": "c",
+  "baseline_scores": {
+    "a": 0.01398521102964878,
+    "b": 0.001569097046740353,
+    "c": 0.9804389476776123,
+    "d": 0.004006830044090748
+  },
+  "choice_match": false,
+  "debug": {
+    "candidate_logits": [
+      "nan",
+      "nan",
+      "nan",
+      "nan"
+    ],
+    "candidate_logits_finite": false,
+    "candidate_probabilities": [
+      "nan",
+      "nan",
+      "nan",
+      "nan"
+    ],
+    "candidate_probabilities_finite": false,
+    "candidate_token_ids": [
+      32,
+      33,
+      34,
+      35
+    ],
+    "finite_logits_max": null,
+    "finite_logits_min": null,
+    "logits_device": "mps:0",
+    "logits_dtype": "torch.bfloat16",
+    "logits_finite_count": 0,
+    "logits_non_finite_count": 248320,
+    "logits_shape": [
+      248320
+    ],
+    "logits_total_count": 248320
+  },
+  "item_id": "mmlu/test/13292",
+  "kernel_calls": {
+    "causal_conv1d": 24,
+    "delta_rule_fused": 24
+  },
+  "max_probability_delta": "nan",
+  "max_probability_delta_finite": false,
+  "optimized_choice": "a",
+  "optimized_scores": {
+    "a": "nan",
+    "b": "nan",
+    "c": "nan",
+    "d": "nan"
+  }
+}

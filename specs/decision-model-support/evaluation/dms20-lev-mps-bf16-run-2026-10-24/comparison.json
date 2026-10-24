@@ -1,0 +1,21 @@
+{
+  "baseline_id": "lev",
+  "baseline_mean_per_decision_latency_ms": 9329.999585886917,
+  "baseline_median_per_decision_latency_ms": 8882.832228962798,
+  "baseline_predictions_sha256": "1a023222aa99eb68dcd341ce25c63da3e6cdb0e397803444ccc8ca02c159bc80",
+  "full_choice_flips": 4,
+  "full_choice_matches": 1364,
+  "maximum_absolute_probability_delta": 0.03483440162608553,
+  "mean_latency_speedup": 5.4189698120449625,
+  "mean_per_decision_latency_ms": 1721.7293894401757,
+  "median_per_decision_latency_ms": 1526.8336875597015,
+  "prediction_count": 1368,
+  "quality_disposition": "See evaluation.json; optimization does not replace baseline eligibility.",
+  "quality_thresholds": {
+    "macro_accuracy_min": 0.75,
+    "per_category_accuracy_min": 0.4
+  },
+  "smoke_choice_parity_passed": true,
+  "variant_id": "lev-mps-bf16",
+  "variant_predictions_sha256": "38fc7c354fc505c0ca88b8fccf23a1a13c6b4792dec35b0a38e0d607ce277b57"
+}
